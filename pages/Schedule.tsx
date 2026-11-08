@@ -2734,134 +2734,78 @@ Podemos confirmar? 😄`;
 
   return (
     <div className="min-h-[calc(100vh-8rem)] pb-24 animate-fade-in relative">
-      <header className="flex flex-col w-full rounded-2xl bg-zinc-950 border border-zinc-800/60 overflow-hidden shadow-2xl shadow-black/50 mb-6 transition-all duration-300">
-        {/* LINHA 1: Contexto Global */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 items-center px-4 sm:px-6 py-4 gap-4 border-b border-zinc-800/50 bg-zinc-950/80">
-          {/* Esquerda: Título */}
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-stone-100 tracking-widest uppercase">
-              Agendamentos
-            </h1>
-            <span className="text-[11px] font-bold text-[#B88A44] bg-[#B88A44]/15 px-2 py-0.5 rounded border border-[#B88A44]/30">
-              {isEsteticaApp ? 'Estética' : 'Sanchez Barber'}
-            </span>
-          </div>
-
-          {/* Centro: Controle de Data */}
-          <div className="flex justify-center items-center gap-2 sm:gap-3 text-sm text-stone-400">
-            <button
-              type="button"
-              onClick={() => {
-                const newDate = new Date(selectedDate);
-                newDate.setDate(selectedDate.getDate() - 1);
-                setSelectedDate(newDate);
-              }}
-              className="hover:text-[#B88A44] transition-colors p-1.5 rounded hover:bg-zinc-900 cursor-pointer"
-              title="Dia anterior"
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <span className="font-semibold tracking-wide uppercase text-xs sm:text-[13px] text-stone-200 text-center">
-              {selectedDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                const newDate = new Date(selectedDate);
-                newDate.setDate(selectedDate.getDate() + 1);
-                setSelectedDate(newDate);
-              }}
-              className="hover:text-[#B88A44] transition-colors p-1.5 rounded hover:bg-zinc-900 cursor-pointer"
-              title="Próximo dia"
-            >
-              <ChevronRight size={18} />
-            </button>
-
-            {/* DatePicker Integrado */}
-            <div className="relative">
-              <DatePickerInput
-                value={getDateInputValue(selectedDate)}
-                onChange={(e) => {
-                  const newDate = parseDateInputValue(e.target.value);
-                  if (newDate) setSelectedDate(newDate);
-                }}
-                className="sr-only"
-                containerClassName="relative"
-                buttonClassName="hover:text-[#B88A44] transition-colors p-1.5 rounded hover:bg-zinc-900 flex items-center cursor-pointer text-stone-400"
-                icon={<CalendarDays size={18} />}
-              />
-            </div>
-          </div>
-
-          {/* Direita: Filtros Globais e Modo Foco */}
-          <div className="flex justify-start lg:justify-end items-center gap-2 sm:gap-3 flex-wrap">
-            {/* Filtro de Profissional */}
-            <div className="relative">
-              <select
-                value={listFilters.professional}
-                onChange={(e) => setListFilters((prev) => ({ ...prev, professional: e.target.value }))}
-                className="appearance-none flex items-center gap-2 pl-8 pr-7 py-2 text-xs font-medium bg-zinc-900 border border-zinc-800 text-stone-300 rounded-lg hover:border-[#B88A44]/50 transition-colors cursor-pointer outline-none"
-              >
-                <option value="all">Todos os Profissionais</option>
-                {staffList.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-              <User size={14} className="text-[#B88A44] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <ChevronDown size={14} className="text-stone-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+      <header className="flex flex-col w-full rounded-2xl bg-zinc-950 dark:bg-zinc-950 border border-zinc-800/80 overflow-hidden shadow-xl mb-4 transition-all duration-200">
+        {/* LINHA 1: Barra de Controle Compacta (Altura ~52px) */}
+        <div className="flex flex-wrap items-center justify-between px-4 sm:px-6 py-2.5 gap-3 border-b border-zinc-800/60 bg-zinc-950/90">
+          {/* Esquerda: Identidade & Data */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <h1 className="text-base sm:text-lg font-black text-stone-100 tracking-wider uppercase font-sans">
+                Agenda
+              </h1>
+              <span className="text-[10px] font-black text-[#B88A44] bg-[#B88A44]/15 px-2 py-0.5 rounded border border-[#B88A44]/30 hidden sm:inline-block">
+                {isEsteticaApp ? 'Estética' : 'Sanchez'}
+              </span>
             </div>
 
-            {/* Ações da Agenda */}
-            <div className="flex items-center gap-1.5">
+            {/* Navegador de Data Compacto */}
+            <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg px-1.5 py-1 text-xs">
               <button
                 type="button"
-                onClick={exportToCSV}
-                className="p-2 text-stone-400 bg-zinc-900 border border-zinc-800 rounded-lg hover:text-stone-200 hover:border-zinc-700 transition-colors"
-                title="Exportar agenda em CSV"
+                onClick={() => {
+                  const newDate = new Date(selectedDate);
+                  newDate.setDate(selectedDate.getDate() - 1);
+                  setSelectedDate(newDate);
+                }}
+                className="text-stone-400 hover:text-[#B88A44] p-1 rounded hover:bg-zinc-800 cursor-pointer"
+                title="Dia anterior"
               >
-                <Download size={16} />
+                <ChevronLeft size={16} />
               </button>
 
-              {displayMode === 'calendar' && (
-                <button
-                  type="button"
-                  onClick={handleOpenCreateBlockModal}
-                  className="px-2.5 py-1.5 text-xs font-medium bg-red-950/30 border border-red-800/40 text-red-300 rounded-lg hover:bg-red-900/30 transition-colors"
-                  title="Bloquear horário / fechar agenda"
-                >
-                  Bloqueio
-                </button>
-              )}
+              <span className="font-bold uppercase tracking-wide text-[11px] sm:text-xs text-stone-200 px-1.5 whitespace-nowrap">
+                {selectedDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
+              </span>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const newDate = new Date(selectedDate);
+                  newDate.setDate(selectedDate.getDate() + 1);
+                  setSelectedDate(newDate);
+                }}
+                className="text-stone-400 hover:text-[#B88A44] p-1 rounded hover:bg-zinc-800 cursor-pointer"
+                title="Próximo dia"
+              >
+                <ChevronRight size={16} />
+              </button>
+
+              <div className="relative ml-0.5">
+                <DatePickerInput
+                  value={getDateInputValue(selectedDate)}
+                  onChange={(e) => {
+                    const newDate = parseDateInputValue(e.target.value);
+                    if (newDate) setSelectedDate(newDate);
+                  }}
+                  className="sr-only"
+                  containerClassName="relative"
+                  buttonClassName="text-stone-400 hover:text-[#B88A44] p-1 rounded hover:bg-zinc-800 flex items-center cursor-pointer"
+                  icon={<CalendarDays size={14} />}
+                />
+              </div>
             </div>
-
-            {/* Divisor */}
-            <div className="w-px h-6 bg-zinc-800 mx-1 hidden sm:block" />
-
-            {/* Botão Modo Foco (Ocultar/Mostrar Painel) */}
-            <button
-              type="button"
-              onClick={() => setIsHeaderExpanded(!isHeaderExpanded)}
-              className="p-2 text-stone-400 bg-zinc-900 border border-zinc-800 rounded-lg hover:text-[#B88A44] hover:border-[#B88A44]/50 transition-all duration-200 flex items-center justify-center shadow-sm cursor-pointer"
-              title={isHeaderExpanded ? 'Ocultar controles (Modo Foco na Grade)' : 'Mostrar controles da Agenda'}
-            >
-              {isHeaderExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-            </button>
           </div>
-        </div>
 
-        {/* LINHA 2: Controles de Visualização (Modo Foco) */}
-        {isHeaderExpanded && (
-          <div className="flex flex-wrap items-center px-4 sm:px-6 py-3 gap-3 md:gap-4 border-b border-zinc-800/40 bg-zinc-950/40 animate-in fade-in duration-200">
-            {/* Aba de Tempo */}
-            <div className="flex bg-zinc-900 rounded-lg p-1 border border-zinc-800/80">
+          {/* Centro: Alternadores Combinados (Dia/Semana • Cadeiras/Grade/Lista) */}
+          <div className="flex items-center gap-2">
+            {/* View Mode: Dia / Semana */}
+            <div className="flex bg-zinc-900 rounded-lg p-0.5 border border-zinc-800 text-xs font-semibold">
               <button
                 type="button"
                 onClick={() => setViewMode('day')}
-                className={`px-4 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 cursor-pointer ${
+                className={`px-3 py-1 rounded-md transition-all cursor-pointer ${
                   viewMode === 'day'
-                    ? 'bg-zinc-800 text-[#B88A44] shadow-sm font-bold'
+                    ? 'bg-zinc-800 text-[#B88A44] font-bold shadow-xs'
                     : 'text-stone-400 hover:text-stone-200'
                 }`}
               >
@@ -2870,9 +2814,9 @@ Podemos confirmar? 😄`;
               <button
                 type="button"
                 onClick={() => setViewMode('week')}
-                className={`px-4 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 cursor-pointer ${
+                className={`px-3 py-1 rounded-md transition-all cursor-pointer ${
                   viewMode === 'week'
-                    ? 'bg-zinc-800 text-[#B88A44] shadow-sm font-bold'
+                    ? 'bg-zinc-800 text-[#B88A44] font-bold shadow-xs'
                     : 'text-stone-400 hover:text-stone-200'
                 }`}
               >
@@ -2880,20 +2824,20 @@ Podemos confirmar? 😄`;
               </button>
             </div>
 
-            {/* Aba de Layout */}
-            <div className="flex bg-zinc-900 rounded-lg p-1 border border-zinc-800/80">
+            {/* Display Mode: Cadeiras / Grade / Lista */}
+            <div className="hidden md:flex bg-zinc-900 rounded-lg p-0.5 border border-zinc-800 text-xs font-semibold">
               {[
-                { key: 'chair', label: 'Fila de Cadeiras' },
-                { key: 'calendar', label: 'Grade Geral' },
+                { key: 'chair', label: 'Cadeiras' },
+                { key: 'calendar', label: 'Grade' },
                 { key: 'list', label: 'Lista' },
               ].map((tab) => (
                 <button
                   key={tab.key}
                   type="button"
                   onClick={() => setDisplayMode(tab.key as DisplayMode)}
-                  className={`px-4 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
                     displayMode === tab.key
-                      ? 'bg-zinc-800 text-[#B88A44] shadow-sm font-bold'
+                      ? 'bg-zinc-800 text-[#B88A44] font-bold shadow-xs'
                       : 'text-stone-400 hover:text-stone-200'
                   }`}
                 >
@@ -2901,69 +2845,54 @@ Podemos confirmar? 😄`;
                 </button>
               ))}
             </div>
-
-            {/* Operações rápidas */}
-            <button
-              type="button"
-              onClick={() => navigate('/operations')}
-              className="text-xs text-stone-400 hover:text-stone-200 px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 ml-auto hidden sm:flex items-center gap-1.5"
-            >
-              <Settings size={14} />
-              <span>Painel de Operações</span>
-            </button>
-          </div>
-        )}
-
-        {/* LINHA 3: Navegação Diária e Ações de Agendamento */}
-        <div className={`flex flex-col xl:flex-row xl:items-center justify-between px-4 sm:px-6 pb-4 bg-zinc-900/20 ${isHeaderExpanded ? 'pt-4' : 'pt-4'} gap-4`}>
-          {/* Régua de Dias da Semana */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 xl:pb-0 scrollbar-hide">
-            {weekDays.map((day) => {
-              const dayKey = toDateKey(day);
-              const isActive = dayKey === selectedDateKey;
-              const rawWeekday = day.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').trim();
-              const weekdayLabel = rawWeekday.charAt(0).toUpperCase() + rawWeekday.slice(1, 3);
-              const dayNum = String(day.getDate()).padStart(2, '0');
-
-              return (
-                <button
-                  key={dayKey}
-                  type="button"
-                  onClick={() => setSelectedDate(day)}
-                  className={`flex flex-col items-center justify-center min-w-[3.2rem] h-14 rounded-xl border transition-all duration-200 cursor-pointer ${
-                    isActive
-                      ? 'bg-[#B88A44] border-[#B88A44] text-zinc-950 shadow-[0_0_15px_rgba(184,138,68,0.25)] scale-105 font-bold'
-                      : 'bg-zinc-900 border-zinc-800 text-stone-400 hover:border-[#B88A44]/40 hover:bg-zinc-800'
-                  }`}
-                >
-                  <span className={`text-xs ${isActive ? 'font-bold' : 'font-medium'}`}>{weekdayLabel}</span>
-                  <span className={`text-base ${isActive ? 'font-black' : 'font-semibold'}`}>{dayNum}</span>
-                </button>
-              );
-            })}
           </div>
 
-          {/* Botões de Ação */}
-          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 xl:justify-end">
+          {/* Direita: Filtro de Profissional, Ações Rápidas & Toggle de Modo Foco */}
+          <div className="flex items-center gap-2">
+            {/* Select de Profissional */}
+            <div className="relative hidden xl:block">
+              <select
+                value={listFilters.professional}
+                onChange={(e) => setListFilters((prev) => ({ ...prev, professional: e.target.value }))}
+                className="appearance-none pl-7 pr-6 py-1.5 text-xs font-medium bg-zinc-900 border border-zinc-800 text-stone-300 rounded-lg hover:border-[#B88A44]/50 cursor-pointer outline-none"
+              >
+                <option value="all">Todos os Barbeiros</option>
+                {staffList.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <User size={13} className="text-[#B88A44] absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <ChevronDown size={12} className="text-stone-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+
+            {/* Ação: Encaixe */}
             <button
               type="button"
               onClick={() => setShowQuickWalkInModal(true)}
-              className="px-4 py-2 text-xs sm:text-sm font-medium bg-zinc-900/50 border border-zinc-700 text-stone-300 rounded-lg hover:border-[#B88A44] hover:text-[#B88A44] transition-all duration-200 cursor-pointer"
+              className="px-2.5 py-1.5 text-xs font-semibold bg-zinc-900 border border-zinc-800 text-stone-300 rounded-lg hover:border-[#B88A44] hover:text-[#B88A44] transition-all cursor-pointer hidden sm:inline-flex items-center gap-1"
+              title="Encaixe rápido na cadeira"
             >
               Encaixe
             </button>
+
+            {/* Ação: Fila de Espera */}
             <button
               type="button"
               onClick={() => setIsWaitlistModalOpen(true)}
-              className="px-4 py-2 text-xs sm:text-sm font-medium bg-transparent border border-[#B88A44]/50 text-[#B88A44] rounded-lg hover:bg-[#B88A44]/10 hover:border-[#B88A44] transition-all duration-200 flex items-center gap-1.5 cursor-pointer"
+              className="px-2.5 py-1.5 text-xs font-semibold bg-zinc-900 border border-[#B88A44]/40 text-[#B88A44] rounded-lg hover:bg-[#B88A44]/10 transition-all cursor-pointer flex items-center gap-1.5"
+              title="Fila de Espera"
             >
-              <span>Fila de Espera</span>
+              <span>Fila</span>
               {waitlistWaitingCount > 0 && (
-                <span className="rounded-full bg-amber-400 px-1.5 py-0.2 text-[10px] font-black text-slate-950">
+                <span className="rounded-full bg-amber-400 px-1.5 py-0.2 text-[9px] font-black text-slate-950">
                   {waitlistWaitingCount}
                 </span>
               )}
             </button>
+
+            {/* Botão Principal: Novo Agendamento */}
             <button
               type="button"
               onClick={() => {
@@ -2973,109 +2902,91 @@ Podemos confirmar? 😄`;
                 setChefClubInfo(null);
                 setIsModalOpen(true);
               }}
-              className="px-5 py-2 text-xs sm:text-sm font-bold bg-[#B88A44] text-zinc-950 rounded-lg hover:bg-[#c99a53] shadow-[0_0_15px_rgba(184,138,68,0.2)] transition-all duration-200 flex items-center gap-2 cursor-pointer"
+              className="px-3.5 py-1.5 text-xs font-bold bg-[#B88A44] text-zinc-950 rounded-lg hover:bg-[#c99a53] shadow-md shadow-[#B88A44]/20 transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              <Plus size={18} strokeWidth={2.5} />
-              <span>Novo Agendamento</span>
+              <Plus size={15} strokeWidth={3} />
+              <span>Novo</span>
+            </button>
+
+            {/* Toggle de Modo Foco */}
+            <button
+              type="button"
+              onClick={() => setIsHeaderExpanded(!isHeaderExpanded)}
+              className="p-1.5 text-stone-400 bg-zinc-900 border border-zinc-800 rounded-lg hover:text-[#B88A44] transition-colors cursor-pointer"
+              title={isHeaderExpanded ? 'Ocultar detalhes (Modo Foco Máximo)' : 'Exibir dias e métricas'}
+            >
+              {isHeaderExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             </button>
           </div>
         </div>
 
-        {/* Rodapé de Informações (Ocultável pelo Modo Foco) */}
+        {/* LINHA 2: Régua Slim dos Dias da Semana & Métricas em Linha Única */}
         {isHeaderExpanded && (
-          <div className="animate-in fade-in duration-300">
-            {/* Status Bar Fina de Indicadores */}
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 sm:px-6 py-3 border-t border-zinc-800/60 text-xs sm:text-[13px] font-medium text-stone-400">
-              <div className="flex items-center gap-2">
-                <Briefcase size={14} className="text-stone-500" />
-                <span>
-                  <strong className="text-stone-200 font-semibold">{loading ? '...' : String(visibleAppointments.length).padStart(2, '0')}</strong> Atendimentos
-                </span>
-              </div>
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between px-4 sm:px-6 py-2 gap-2.5 bg-zinc-950/60 animate-in fade-in duration-150">
+            {/* Dias da Semana (Chips Compactos) */}
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5">
+              {weekDays.map((day) => {
+                const dayKey = toDateKey(day);
+                const isActive = dayKey === selectedDateKey;
+                const rawWeekday = day.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').trim();
+                const weekdayLabel = rawWeekday.charAt(0).toUpperCase() + rawWeekday.slice(1, 3);
+                const dayNum = String(day.getDate()).padStart(2, '0');
 
-              <span className="hidden md:block w-px h-3 bg-zinc-700" />
-
-              <div className="flex items-center gap-2">
-                <Clock size={14} className="text-stone-500" />
-                <span>
-                  <strong className="text-stone-200 font-semibold">{loading ? '...' : String(visiblePendingCount).padStart(2, '0')}</strong> Pendentes
-                </span>
-              </div>
-
-              <span className="hidden md:block w-px h-3 bg-zinc-700" />
-
-              <div className="flex items-center gap-2">
-                <Receipt size={14} className="text-stone-500" />
-                <span>
-                  <strong className="text-stone-200 font-semibold">{loading ? '...' : String(visibleOpenComandasCount).padStart(2, '0')}</strong> {orderPluralLabel}
-                </span>
-              </div>
-
-              <span className="hidden md:block w-px h-3 bg-zinc-700" />
-
-              <div className="flex items-center gap-2">
-                <Ban size={14} className="text-red-500/80" />
-                <span>
-                  <strong className="text-stone-200 font-semibold">{loading ? '...' : String(visibleCancelledCount).padStart(2, '0')}</strong> Cancelados
-                </span>
-              </div>
-
-              <span className="hidden md:block w-px h-3 bg-zinc-700" />
-
-              <div className="flex items-center gap-2 text-[#B88A44]">
-                <CircleDollarSign size={14} className="text-[#B88A44]/80" />
-                <span>
-                  <strong className="text-stone-100 font-semibold">{loading ? '...' : formatScheduleCurrency(visibleExpectedRevenue)}</strong> Previsto
-                </span>
-              </div>
+                return (
+                  <button
+                    key={dayKey}
+                    type="button"
+                    onClick={() => setSelectedDate(day)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs transition-all cursor-pointer whitespace-nowrap ${
+                      isActive
+                        ? 'bg-[#B88A44] border-[#B88A44] text-zinc-950 font-black shadow-sm scale-102'
+                        : 'bg-zinc-900 border-zinc-800 text-stone-400 hover:text-stone-200 hover:border-zinc-700'
+                    }`}
+                  >
+                    <span className="text-[10px] font-semibold uppercase">{weekdayLabel}</span>
+                    <span className="font-extrabold">{dayNum}</span>
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Ocupação das Cadeiras em Tempo Real */}
-            {barberOccupancies.length > 0 && (
-              <div className="flex items-center gap-3 px-4 sm:px-6 pt-3 pb-4 border-t border-zinc-800/40 overflow-x-auto scrollbar-hide">
-                <span className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider mr-1">Ocupação:</span>
+            {/* Indicadores Minimalistas em Linha & Mini Ocupação */}
+            <div className="flex items-center gap-3 sm:gap-4 text-xs text-stone-400 overflow-x-auto scrollbar-hide py-0.5 justify-between lg:justify-end">
+              <span className="whitespace-nowrap">
+                <strong className="text-stone-200 font-bold">{loading ? '...' : String(visibleAppointments.length).padStart(2, '0')}</strong> atendi.
+              </span>
+              <span className="text-zinc-700">•</span>
+              <span className="whitespace-nowrap">
+                <strong className="text-stone-200 font-bold">{loading ? '...' : String(visiblePendingCount).padStart(2, '0')}</strong> pend.
+              </span>
+              <span className="text-zinc-700">•</span>
+              <span className="whitespace-nowrap">
+                <strong className="text-stone-200 font-bold">{loading ? '...' : String(visibleOpenComandasCount).padStart(2, '0')}</strong> {orderPluralLabel}
+              </span>
+              <span className="text-zinc-700">•</span>
+              <span className="whitespace-nowrap text-[#B88A44]">
+                <strong className="text-stone-100 font-extrabold">{loading ? '...' : formatScheduleCurrency(visibleExpectedRevenue)}</strong>
+              </span>
 
-                {barberOccupancies.map((barber) => (
-                  <div
-                    key={barber.id}
-                    className="flex items-center gap-2.5 bg-zinc-900/60 border border-zinc-800/80 rounded-lg p-2 min-w-[150px] hover:border-[#B88A44]/30 transition-colors cursor-pointer"
-                    title={`${barber.fullName}: ${barber.count} atendimento(s) agendado(s)`}
-                  >
-                    {/* Avatar Inicial */}
-                    <div className="w-7 h-7 rounded-full bg-zinc-950 flex items-center justify-center text-[10px] text-[#B88A44] font-bold border border-[#B88A44]/40 shadow-inner">
-                      {barber.initials}
-                    </div>
-
-                    {/* Info e Progresso */}
-                    <div className="flex flex-col w-full gap-1.5">
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="text-stone-300 font-medium truncate max-w-[75px]">{barber.name}</span>
-                        <span
-                          className={`font-bold text-[11px] ${
-                            barber.occupancy >= 90
-                              ? 'text-emerald-400'
-                              : barber.occupancy < 40
-                                ? 'text-stone-400'
-                                : 'text-[#B88A44]'
-                          }`}
-                        >
-                          {barber.occupancy}%
-                        </span>
-                      </div>
-                      {/* Barra de Progresso */}
-                      <div className="w-full bg-zinc-950 rounded-full h-1 overflow-hidden shadow-inner">
-                        <div
-                          className={`h-full rounded-full transition-all duration-500 ${
-                            barber.occupancy >= 90 ? 'bg-emerald-500' : 'bg-[#B88A44]'
-                          }`}
-                          style={{ width: `${barber.occupancy}%` }}
-                        />
-                      </div>
-                    </div>
+              {/* Mini Badges de Ocupação dos Barbeiros */}
+              {barberOccupancies.length > 0 && (
+                <>
+                  <span className="text-zinc-700 hidden sm:inline">•</span>
+                  <div className="hidden sm:flex items-center gap-1.5">
+                    {barberOccupancies.map((b) => (
+                      <span
+                        key={b.id}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-[10px] text-stone-300 font-mono"
+                        title={`${b.fullName}: ${b.count} agendamento(s)`}
+                      >
+                        <span className="font-bold text-[#B88A44]">{b.initials}:</span>
+                        <span>{b.occupancy}%</span>
+                      </span>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
+                </>
+              )}
+            </div>
           </div>
         )}
       </header>
@@ -3840,7 +3751,63 @@ Podemos confirmar? 😄`;
           setError(null);
         }}
         title={editingAppointmentId ? (isEsteticaApp ? 'Editar atendimento' : 'Editar Agendamento') : (isEsteticaApp ? 'Novo atendimento' : 'Novo Agendamento')}
-        maxWidth="md"
+        maxWidth="4xl"
+        footer={
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 w-full">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-zinc-300">
+              <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg bg-[#B88A44]/15 text-[#B88A44] font-black text-xs border border-[#B88A44]/30">
+                R$ {selectedServicesTotal.toFixed(2)}
+              </span>
+              <span>•</span>
+              <span>{selectedServices.length} {selectedServices.length === 1 ? 'serviço' : 'serviços'}</span>
+              <span>•</span>
+              <span className="flex items-center gap-1">
+                <Clock size={13} className="text-[#B88A44]" />
+                {Math.round(formData.duration * 60)} min
+              </span>
+              {forceOverbook && (
+                <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-500 text-[10px] font-black uppercase">
+                  Encaixe
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setIsNewClientMode(false);
+                  setEditingAppointmentId(null);
+                  setEditingComandaStatus(null);
+                  setChefClubInfo(null);
+                  setServiceSearchTerm('');
+                  setForceOverbook(false);
+                  setError(null);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isSavingAppointment}
+                onClick={() => handleSave()}
+                className="px-5 py-2 rounded-xl text-xs font-black bg-[#B88A44] text-zinc-950 hover:bg-[#c99a53] shadow-md shadow-[#B88A44]/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer"
+              >
+                {isSavingAppointment ? (
+                  <>
+                    <span className="inline-block w-3 h-3 border-2 border-zinc-950/20 border-t-zinc-950 rounded-full animate-spin"></span>
+                    Salvando...
+                  </>
+                ) : editingAppointmentId ? (
+                  'Salvar Alterações'
+                ) : (
+                  'Confirmar Agendamento'
+                )}
+              </button>
+            </div>
+          </div>
+        }
       >
         <div className="space-y-4">
           {error && (
@@ -3864,383 +3831,267 @@ Podemos confirmar? 😄`;
             </div>
           )}
 
-          <div className="relative" ref={searchWrapperRef}>
-            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Cliente</label>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Buscar ou cadastrar cliente..."
-                value={formData.client}
-                onChange={(e) => handleInputChange('client', e.target.value)}
-                onFocus={() => setShowClientSuggestions(true)}
-                className={`w-full bg-slate-50 dark:bg-background-dark border ${isNewClientMode ? 'border-primary' : 'border-slate-200 dark:border-border-dark'} rounded-lg p-2.5 pl-9 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none`}
-              />
-              <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">search</span>
-            </div>
-
-            {isNewClientMode && (
-              <div className="mt-2 animate-fade-in bg-primary/5 p-3 rounded-lg border border-primary/20">
-                <label className="block text-xs font-bold uppercase text-primary mb-1.5 flex items-center gap-1">
-                  <span className="material-symbols-outlined text-sm">person_add</span>
-                  Novo Cadastro
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+            {/* Coluna Esquerda: Quem & Quando (5 colunas) */}
+            <div className="lg:col-span-5 space-y-4">
+              {/* Cliente */}
+              <div className="relative" ref={searchWrapperRef}>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400 mb-1">
+                  Cliente
                 </label>
-                <input
-                  type="tel"
-                  placeholder="Telefone (Obrigatório)"
-                  value={formData.clientPhone}
-                  onChange={(e) => handleInputChange('clientPhone', e.target.value)}
-                  className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-                />
-              </div>
-            )}
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Buscar ou cadastrar cliente..."
+                    value={formData.client}
+                    onChange={(e) => handleInputChange('client', e.target.value)}
+                    onFocus={() => setShowClientSuggestions(true)}
+                    className={`w-full bg-slate-50 dark:bg-[#121214] border ${isNewClientMode ? 'border-[#B88A44]' : 'border-slate-200 dark:border-white/10'} rounded-lg p-2.5 pl-9 text-xs font-semibold text-slate-900 dark:text-zinc-100 focus:ring-1 focus:ring-[#B88A44] outline-none`}
+                  />
+                  <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
+                </div>
 
-            {showClientSuggestions && (
-              <div className="absolute z-50 left-0 right-0 mt-1 bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-lg shadow-xl max-h-48 overflow-y-auto custom-scrollbar">
-                {filteredClients.length > 0 ? (
-                  filteredClients.map(c => (
-                    <button
-                      key={c.id}
-                      onClick={() => selectClient(c.name)}
-                      className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-white/5 flex flex-col border-b border-slate-50 dark:border-border-dark last:border-0"
-                    >
-                      <span className="text-sm font-bold text-slate-900 dark:text-white">{c.name}</span>
-                      <span className="text-xs text-slate-500">{c.phone}</span>
-                    </button>
-                  ))
-                ) : (
-                  <div className="px-4 py-3 text-center">
-                    <p className="text-xs text-slate-500 mb-2">Cliente não encontrado.</p>
-                    <button
-                      onClick={enableNewClientMode}
-                      className="w-full py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded text-xs font-bold uppercase transition-colors"
-                    >
-                      Cadastrar "{formData.client}"
-                    </button>
+                {isNewClientMode && (
+                  <div className="mt-2 animate-fade-in bg-[#B88A44]/10 p-2.5 rounded-lg border border-[#B88A44]/30">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-[#B88A44] mb-1 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-xs">person_add</span>
+                      Novo Cadastro
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="Telefone (Obrigatório)"
+                      value={formData.clientPhone}
+                      onChange={(e) => handleInputChange('clientPhone', e.target.value)}
+                      className="w-full bg-white dark:bg-[#1A1A1E] border border-slate-200 dark:border-white/10 rounded-lg p-2 text-xs text-slate-900 dark:text-zinc-100 focus:ring-1 focus:ring-[#B88A44] outline-none"
+                    />
+                  </div>
+                )}
+
+                {showClientSuggestions && (
+                  <div className="absolute z-50 left-0 right-0 mt-1 bg-white dark:bg-[#18181B] border border-slate-200 dark:border-white/10 rounded-lg shadow-xl max-h-48 overflow-y-auto custom-scrollbar">
+                    {filteredClients.length > 0 ? (
+                      filteredClients.map(c => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => selectClient(c.name)}
+                          className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-white/5 flex flex-col border-b border-slate-100 dark:border-white/5 last:border-0"
+                        >
+                          <span className="text-xs font-bold text-slate-900 dark:text-zinc-100">{c.name}</span>
+                          <span className="text-[10px] text-slate-500 dark:text-zinc-400">{c.phone}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-2.5 text-center">
+                        <p className="text-xs text-slate-500 mb-2">Cliente não encontrado.</p>
+                        <button
+                          type="button"
+                          onClick={enableNewClientMode}
+                          className="w-full py-1.5 bg-[#B88A44]/15 text-[#B88A44] hover:bg-[#B88A44]/25 rounded text-[11px] font-bold uppercase tracking-wider transition-colors"
+                        >
+                          Cadastrar "{formData.client}"
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!isEsteticaApp && chefClubInfo && (
+                  <div className="mt-2 bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20 flex items-center justify-between">
+                    <div>
+                      <label className="block text-[10px] font-black uppercase text-amber-600 mb-0.5 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-sm">workspace_premium</span>
+                        Membro Club dos Chefes
+                      </label>
+                      <p className="text-xs font-bold text-slate-700 dark:text-amber-200">Plano {chefClubInfo.planName}</p>
+                      <p className="text-[10px] font-black text-emerald-600 uppercase tracking-wider">
+                        {chefClubInfo.status === 'active' ? 'Membro ativo' : 'Assinatura pendente'}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-black text-amber-600 uppercase">Créditos</p>
+                      <p className="text-base font-black text-amber-600">{chefClubInfo.credits}</p>
+                    </div>
                   </div>
                 )}
               </div>
-            )}
-            {!isEsteticaApp && chefClubInfo && (
-              <div className="mt-2 animate-bounce-in bg-amber-500/10 p-3 rounded-lg border border-amber-500/20 flex items-center justify-between">
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-amber-600 mb-0.5 flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">workspace_premium</span>
-                    Membro Club dos Chefes
-                  </label>
-                  <p className="text-xs font-bold text-slate-700 dark:text-amber-200">Plano {chefClubInfo.planName}</p>
-                  <p className="text-[10px] font-black text-emerald-600 uppercase tracking-wider">
-                    {chefClubInfo.status === 'active' ? 'Membro ativo' : 'Assinatura pendente'}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] font-black text-amber-600 uppercase">Créditos</p>
-                  <p className="text-lg font-black text-amber-600">{chefClubInfo.credits}</p>
-                </div>
-              </div>
-            )}
-          </div>
 
-          <div>
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <label className="block text-xs font-bold uppercase text-slate-500">{servicePluralLabel}</label>
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-black uppercase text-primary">
-                {selectedServices.length} selecionado(s)
-              </span>
-            </div>
-            <div className="mb-2 grid grid-cols-3 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 text-center dark:border-white/10 dark:bg-white/5">
+              {/* Profissional (Cards Compactos em Grid 2xN) */}
               <div>
-                <p className="text-[9px] font-black uppercase text-slate-400">Qtd.</p>
-                <p className="text-xs font-black text-slate-900 dark:text-white">{selectedServices.length}</p>
-              </div>
-              <div>
-                <p className="text-[9px] font-black uppercase text-slate-400">Total</p>
-                <p className="text-xs font-black text-emerald-600">R$ {selectedServicesTotal.toFixed(2)}</p>
-              </div>
-              <div>
-                <p className="text-[9px] font-black uppercase text-slate-400">Duração</p>
-                <p className="text-xs font-black text-slate-900 dark:text-white">{formData.duration}h</p>
-              </div>
-            </div>
-            <div className="relative mb-2">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
-              <input
-                type="text"
-                value={serviceSearchTerm}
-                onChange={(e) => setServiceSearchTerm(e.target.value)}
-                placeholder={`Buscar ${serviceLabelLower}...`}
-                disabled={isComandaLocked}
-                className={`w-full rounded-lg border py-2.5 pl-9 pr-3 text-sm outline-none ${
-                  isComandaLocked
-                    ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed dark:border-white/5 dark:bg-white/5 dark:text-slate-500'
-                    : 'border-slate-200 bg-slate-50 text-slate-900 focus:ring-1 focus:ring-primary dark:border-white/10 dark:bg-[#1A1A1A] dark:text-white'
-                }`}
-              />
-            </div>
-            <div className="grid max-h-48 grid-cols-1 gap-2 overflow-y-auto pr-1 min-[420px]:grid-cols-2">
-              {servicesList.length === 0 ? (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-[#1A1A1A]">
-                  {isEsteticaApp ? 'Ainda não há procedimentos ativos para agendamento.' : 'Nenhum serviço disponível'}
-                </div>
-              ) : filteredServicesForModal.length > 0 ? (
-                filteredServicesForModal.map((service) => {
-                  const isSelected = formData.serviceIds.includes(service.id);
-                  return (
-                    <button
-                      key={service.id}
-                      type="button"
-                      disabled={isComandaLocked}
-                      onClick={() => !isComandaLocked && toggleServiceSelection(service)}
-                      className={`flex min-h-[58px] items-center gap-2 rounded-lg border p-2.5 text-left text-sm transition ${
-                        isComandaLocked ? 'cursor-not-allowed opacity-60 ' : ''
-                      }${
-                        isSelected
-                          ? 'border-primary bg-primary/10 text-primary dark:text-primary-light'
-                          : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-primary/40 dark:border-white/10 dark:bg-[#1A1A1A] dark:text-white'
-                      }`}
-                    >
-                      <span className={`flex size-5 shrink-0 items-center justify-center rounded border ${
-                        isSelected
-                          ? 'border-primary bg-primary text-night'
-                          : 'border-slate-300 bg-white dark:border-white/20 dark:bg-transparent'
-                      }`}>
-                        {isSelected && <span className="material-symbols-outlined text-[14px]">check</span>}
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block truncate font-bold">{getCatalogDisplayName(service, appSlug)}</span>
-                        <span className="block text-[10px] text-slate-500">
-                          {service.duration} min • R$ {Number(service.price || 0).toFixed(2)}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })
-              ) : (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-[#1A1A1A]">
-                  {isEsteticaApp ? 'Nenhum procedimento encontrado' : 'Nenhum serviço encontrado'}
-                </div>
-              )}
-            </div>
-          </div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400 mb-1.5">
+                  Profissional
+                </label>
+                <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto custom-scrollbar pr-1">
+                  {staffList.map((r) => {
+                    const isSelected = formData.staffId === r.id;
+                    const roleLabel = getVisibleRoleLabel(r.role);
 
-          {/* Profissionais em Cards */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-bold uppercase text-slate-500">Profissional</label>
-              {staffList.length > 2 && (
-                <span className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[13px]">swipe</span>
-                  Arraste para o lado
-                </span>
-              )}
-            </div>
-
-            <div className="flex gap-2.5 overflow-x-auto pb-2 pt-0.5 custom-scrollbar touch-pan-x">
-              {staffList.map((r) => {
-                const isSelected = formData.staffId === r.id;
-                const roleLabel = getVisibleRoleLabel(r.role);
-
-                return (
-                  <button
-                    key={r.id}
-                    type="button"
-                    disabled={isComandaLocked}
-                    onClick={() => handleInputChange('staffId', r.id)}
-                    className={`group relative flex items-center gap-3 p-2.5 sm:p-3 rounded-xl border text-left transition-all shrink-0 min-w-[180px] sm:min-w-[210px] ${
-                      isSelected
-                        ? 'border-primary bg-primary/10 shadow-xs ring-1 ring-primary/40 dark:bg-primary/15'
-                        : 'border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-[#1A1A1A] hover:border-slate-300 dark:hover:border-white/20'
-                    } ${isComandaLocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer active:scale-[0.98]'}`}
-                  >
-                    {/* Avatar ou Iniciais */}
-                    <div className="relative shrink-0">
-                      {r.avatar ? (
-                        <img
-                          src={r.avatar}
-                          alt={r.name}
-                          className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-white/10"
-                        />
-                      ) : (
-                        <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs ${
-                            isSelected
-                              ? 'bg-primary text-night'
-                              : 'bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-slate-200'
-                          }`}
-                        >
-                          {r.name.slice(0, 2).toUpperCase()}
-                        </div>
-                      )}
-
-                      {/* Check badge quando selecionado */}
-                      {isSelected && (
-                        <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-night text-[10px] font-black shadow-xs">
-                          <span className="material-symbols-outlined text-[11px] leading-none">check</span>
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className={`text-xs sm:text-sm font-bold truncate leading-tight ${
-                          isSelected ? 'text-slate-900 dark:text-white' : 'text-slate-800 dark:text-slate-200'
-                        }`}
-                        title={r.name}
+                    return (
+                      <button
+                        key={r.id}
+                        type="button"
+                        disabled={isComandaLocked}
+                        onClick={() => handleInputChange('staffId', r.id)}
+                        className={`group relative flex items-center gap-2 p-2 rounded-xl border text-left transition-all ${
+                          isSelected
+                            ? 'border-[#B88A44] bg-[#B88A44]/15 shadow-xs ring-1 ring-[#B88A44]/50'
+                            : 'border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/[0.03] hover:border-slate-300 dark:hover:border-white/20'
+                        } ${isComandaLocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer active:scale-[0.98]'}`}
                       >
-                        {r.name}
-                      </p>
-                      <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 capitalize truncate mt-0.5">
-                        {roleLabel}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+                        <div className="relative shrink-0">
+                          {r.avatar ? (
+                            <img
+                              src={r.avatar}
+                              alt={r.name}
+                              className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-white/10"
+                            />
+                          ) : (
+                            <div
+                              className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-[11px] ${
+                                isSelected
+                                  ? 'bg-[#B88A44] text-zinc-950'
+                                  : 'bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-zinc-300'
+                              }`}
+                            >
+                              {r.name.slice(0, 2).toUpperCase()}
+                            </div>
+                          )}
+                          {isSelected && (
+                            <span className="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#B88A44] text-zinc-950 text-[9px] font-black">
+                              ✓
+                            </span>
+                          )}
+                        </div>
 
-          {/* Bloco Data e Horário de Início lado a lado */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data</label>
-              <DatePickerInput
-                value={formData.date}
-                onChange={(e) => handleInputChange('date', e.target.value)}
-                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Horário de Início</label>
-              <div className="relative">
-                <select
-                  value={formData.start}
-                  onChange={(e) => handleInputChange('start', Number(e.target.value))}
-                  className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none appearance-none"
-                >
-                  {(() => {
-                    const allSlots = dynamicTimeSlots;
-                    const aptsOnDay = appointments.filter(a => {
-                      const aptDate = new Date(a.date);
-                      const fDate = new Date(formData.date + 'T12:00:00'); // Midday to safely compare day/month/year
-                      return aptDate.getFullYear() === fDate.getFullYear() &&
-                        aptDate.getMonth() === fDate.getMonth() &&
-                        aptDate.getDate() === fDate.getDate() &&
-                        a.staffId === formData.staffId &&
-                        a.id !== editingAppointmentId;
-                    });
-                    const activeBlocks = scheduleBlockHistory.filter((block) => block.status === 'active');
-                    const blocksOnDay = getBlocksForDate(activeBlocks, formData.date, formData.staffId);
-
-                    return allSlots.map(slot => {
-                      const slotEnd = slot + formData.duration;
-                      const hasConflict = aptsOnDay.some(apt =>
-                        slot < (apt.start + apt.duration) && slotEnd > apt.start
-                      );
-                      const hasBlock = blocksOnDay.some((block) => blockOverlapsTimeRange(block, slot, slotEnd));
-                      const isDisabled = hasBlock || (hasConflict && !forceOverbook);
-
-                      return (
-                        <option key={slot} value={slot} disabled={isDisabled} className={hasConflict || hasBlock ? 'text-red-400 bg-red-50 dark:bg-red-900/10' : ''}>
-                          {getDecimalTimeLabel(slot)} {hasConflict ? '(Ocupado)' : hasBlock ? '(Bloqueado)' : ''}
-                        </option>
-                      );
-                    });
-                  })()}
-                </select>
-                <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">schedule</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Encaixe: abaixo dos dois horizontalmente */}
-          {!editingAppointmentId && (
-            <button
-              type="button"
-              onClick={() => setForceOverbook((current) => !current)}
-              className={`w-full rounded-lg border px-3 py-2.5 text-left transition-all ${
-                forceOverbook
-                  ? 'border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
-                  : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-amber-300 hover:bg-amber-50/60 dark:border-white/10 dark:bg-white/5 dark:text-slate-300'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-2 text-sm font-black">
-                  <span className="material-symbols-outlined text-base">event_repeat</span>
-                  Encaixe
-                </span>
-                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${
-                  forceOverbook
-                    ? 'border-amber-400 bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-200'
-                    : 'border-slate-200 dark:border-white/10 text-slate-500'
-                }`}>
-                  {forceOverbook ? 'Ativo' : 'Opcional'}
-                </span>
-              </div>
-              <span className="mt-1 block text-xs font-semibold opacity-80">
-                {forceOverbook
-                  ? 'Ativo: permite criar em horário ocupado e marca o agendamento como encaixe.'
-                  : 'Use para atender em um horário já ocupado.'}
-              </span>
-            </button>
-          )}
-
-          <div className="space-y-4">
-
-            {/* Frente 1.I: Duração Dinâmica, Chips Rápidos e Ajuste Fino */}
-            <div className="rounded-xl border border-slate-200/80 dark:border-white/10 bg-slate-50/60 dark:bg-white/[0.02] p-3.5 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-sm text-amber-500">timer</span>
-                  <label className="block text-xs font-black uppercase text-slate-700 dark:text-slate-300">
-                    Duração do Atendimento
-                  </label>
+                        <div className="min-w-0 flex-1">
+                          <p
+                            className={`text-xs font-bold truncate leading-tight ${
+                              isSelected ? 'text-slate-900 dark:text-amber-100 font-extrabold' : 'text-slate-800 dark:text-zinc-200'
+                            }`}
+                            title={r.name}
+                          >
+                            {r.name}
+                          </p>
+                          <p className="text-[10px] text-slate-500 dark:text-zinc-400 capitalize truncate mt-0.5">
+                            {roleLabel}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
-                {nominalServicesDurationMinutes > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const decimal = Math.round((nominalServicesDurationMinutes / 60) * 100) / 100;
-                      handleInputChange('duration', decimal);
-                    }}
-                    className={`text-[11px] font-bold transition flex items-center gap-1 ${
-                      Math.round(formData.duration * 60) === nominalServicesDurationMinutes
-                        ? 'text-slate-400 dark:text-slate-500 cursor-default'
-                        : 'text-amber-500 hover:text-amber-600 hover:underline cursor-pointer'
-                    }`}
-                    title="Restaurar a duração nominal do catálogo"
-                  >
-                    <span className="material-symbols-outlined text-[13px]">restart_alt</span>
-                    Restaurar Padrão: {nominalServicesDurationMinutes} min
-                  </button>
-                )}
               </div>
 
-              {/* Chips Rápidos de Duração (15m a 3h) */}
-              <div className="flex flex-wrap gap-1.5">
-                {DURATION_PRESETS.map((preset) => {
-                  const currentMinutes = Math.round(Number(formData.duration) * 60);
-                  const isSelected = currentMinutes === preset.minutes;
-                  return (
-                    <button
-                      key={preset.label}
-                      type="button"
-                      onClick={() => handleInputChange('duration', preset.decimalHours)}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-black transition-all ${
-                        isSelected
-                          ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-950/20 scale-[1.02]'
-                          : 'bg-white dark:bg-white/5 border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10'
-                      }`}
-                    >
-                      {preset.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Ajuste Fino / Minutos Livres e Término Previsto */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              {/* Data e Horário de Início */}
+              <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Minutos Customizados</label>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400 mb-1">
+                    Data
+                  </label>
+                  <DatePickerInput
+                    value={formData.date}
+                    onChange={(e) => handleInputChange('date', e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-[#121214] border border-slate-200 dark:border-white/10 rounded-lg p-2 text-xs font-semibold text-slate-900 dark:text-zinc-100 focus:ring-1 focus:ring-[#B88A44] outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400 mb-1">
+                    Horário
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={formData.start}
+                      onChange={(e) => handleInputChange('start', Number(e.target.value))}
+                      className="w-full bg-slate-50 dark:bg-[#121214] border border-slate-200 dark:border-white/10 rounded-lg p-2 text-xs font-semibold text-slate-900 dark:text-zinc-100 focus:ring-1 focus:ring-[#B88A44] outline-none appearance-none"
+                    >
+                      {(() => {
+                        const allSlots = dynamicTimeSlots;
+                        const aptsOnDay = appointments.filter(a => {
+                          const aptDate = new Date(a.date);
+                          const fDate = new Date(formData.date + 'T12:00:00');
+                          return aptDate.getFullYear() === fDate.getFullYear() &&
+                            aptDate.getMonth() === fDate.getMonth() &&
+                            aptDate.getDate() === fDate.getDate() &&
+                            a.staffId === formData.staffId &&
+                            a.id !== editingAppointmentId;
+                        });
+                        const activeBlocks = scheduleBlockHistory.filter((block) => block.status === 'active');
+                        const blocksOnDay = getBlocksForDate(activeBlocks, formData.date, formData.staffId);
+
+                        return allSlots.map(slot => {
+                          const slotEnd = slot + formData.duration;
+                          const hasConflict = aptsOnDay.some(apt =>
+                            slot < (apt.start + apt.duration) && slotEnd > apt.start
+                          );
+                          const hasBlock = blocksOnDay.some((block) => blockOverlapsTimeRange(block, slot, slotEnd));
+                          const isDisabled = hasBlock || (hasConflict && !forceOverbook);
+
+                          return (
+                            <option key={slot} value={slot} disabled={isDisabled} className={hasConflict || hasBlock ? 'text-red-400 bg-red-50 dark:bg-red-900/10' : ''}>
+                              {getDecimalTimeLabel(slot)} {hasConflict ? '(Ocupado)' : hasBlock ? '(Bloqueado)' : ''}
+                            </option>
+                          );
+                        });
+                      })()}
+                    </select>
+                    <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">schedule</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Duração & Término */}
+              <div className="rounded-xl border border-slate-200/80 dark:border-white/10 bg-slate-50/60 dark:bg-white/[0.02] p-3 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Clock size={13} className="text-[#B88A44]" />
+                    <label className="block text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-zinc-300">
+                      Duração
+                    </label>
+                  </div>
+                  {nominalServicesDurationMinutes > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const decimal = Math.round((nominalServicesDurationMinutes / 60) * 100) / 100;
+                        handleInputChange('duration', decimal);
+                      }}
+                      className={`text-[10px] font-bold transition flex items-center gap-1 ${
+                        Math.round(formData.duration * 60) === nominalServicesDurationMinutes
+                          ? 'text-slate-400 dark:text-zinc-500 cursor-default'
+                          : 'text-[#B88A44] hover:underline cursor-pointer'
+                      }`}
+                      title="Restaurar a duração nominal do catálogo"
+                    >
+                      Restaurar ({nominalServicesDurationMinutes}m)
+                    </button>
+                  )}
+                </div>
+
+                {/* Chips de Duração */}
+                <div className="flex flex-wrap gap-1">
+                  {DURATION_PRESETS.map((preset) => {
+                    const currentMinutes = Math.round(Number(formData.duration) * 60);
+                    const isSelected = currentMinutes === preset.minutes;
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => handleInputChange('duration', preset.decimalHours)}
+                        className={`px-2 py-1 rounded-md text-[11px] font-bold transition-all ${
+                          isSelected
+                            ? 'bg-[#B88A44] text-zinc-950 font-black shadow-xs'
+                            : 'bg-white dark:bg-white/5 border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-white/10'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Minutos Customizados & Término Previsto */}
+                <div className="grid grid-cols-2 gap-2 pt-1 items-center">
                   <div className="relative">
                     <input
                       type="number"
@@ -4252,206 +4103,314 @@ Podemos confirmar? 😄`;
                         const val = Math.max(5, Number(e.target.value) || 5);
                         handleInputChange('duration', Math.round((val / 60) * 100) / 100);
                       }}
-                      className="w-full bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg py-2 pl-3 pr-10 text-sm font-bold text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-                      placeholder="Minutos"
+                      className="w-full bg-white dark:bg-[#121214] border border-slate-200 dark:border-white/10 rounded-lg py-1.5 pl-2.5 pr-8 text-xs font-bold text-slate-900 dark:text-zinc-100 focus:ring-1 focus:ring-[#B88A44] outline-none"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none">
                       min
                     </span>
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Término Previsto</label>
-                  <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg text-sm font-black text-slate-900 dark:text-white">
-                    <span className="material-symbols-outlined text-base text-amber-500">schedule</span>
-                    <span>{getDecimalTimeLabel(formData.start + formData.duration)}</span>
-                    {Math.round(formData.duration * 60) !== nominalServicesDurationMinutes && nominalServicesDurationMinutes > 0 && (
-                      <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400">
-                        Ajustado
-                      </span>
-                    )}
+                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg text-xs font-bold text-slate-900 dark:text-zinc-100">
+                    <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Término:</span>
+                    <span className="font-black text-[#B88A44]">{getDecimalTimeLabel(formData.start + formData.duration)}</span>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Cadeira Cativa (Horário Fixo Recorrente) */}
-          {!editingAppointmentId && (
-            <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/60 dark:bg-white/[0.02] p-4 space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-500 flex items-center justify-center shrink-0">
-                    <span className="material-symbols-outlined text-lg">event_repeat</span>
+              {/* Encaixe Toggle */}
+              {!editingAppointmentId && (
+                <button
+                  type="button"
+                  onClick={() => setForceOverbook((current) => !current)}
+                  className={`w-full rounded-xl border p-2.5 text-left transition-all ${
+                    forceOverbook
+                      ? 'border-[#B88A44] bg-[#B88A44]/15 text-[#B88A44]'
+                      : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 dark:border-white/10 dark:bg-white/[0.02] dark:text-zinc-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-xs font-bold">
+                      <span className="material-symbols-outlined text-sm">event_repeat</span>
+                      Encaixe de Horário
+                    </span>
+                    <span className={`text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+                      forceOverbook
+                        ? 'border-[#B88A44] bg-[#B88A44] text-zinc-950'
+                        : 'border-slate-200 dark:border-white/10 text-slate-400'
+                    }`}>
+                      {forceOverbook ? 'Ativo' : 'Opcional'}
+                    </span>
                   </div>
-                  <div>
-                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                      Cadeira Cativa (Horário Recorrente)
-                    </h4>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Garante a vaga do cliente com confirmação semanal obrigatória da recepção.
-                    </p>
-                  </div>
-                </div>
+                </button>
+              )}
 
-                <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={!!formData.isRecurring}
-                    onChange={(e) => handleInputChange('isRecurring', e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-white/10 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
-                </label>
-              </div>
-
-              {formData.isRecurring && (
-                <div className="pt-2 border-t border-slate-200 dark:border-white/10 space-y-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-500 mb-1.5">Frequência</label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {[
-                        { id: 'weekly' as RecurrenceFrequency, label: 'Semanal (7d)' },
-                        { id: 'biweekly' as RecurrenceFrequency, label: 'Quinzenal (14d)' },
-                        { id: 'monthly' as RecurrenceFrequency, label: 'Mensal (28d)' },
-                        { id: 'custom' as RecurrenceFrequency, label: 'Personalizado' },
-                      ].map((freq) => (
-                        <button
-                          key={freq.id}
-                          type="button"
-                          onClick={() => handleInputChange('recurrenceFrequency', freq.id)}
-                          className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all ${
-                            (formData.recurrenceFrequency || 'weekly') === freq.id
-                              ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
-                              : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-white/20'
-                          }`}
-                        >
-                          {freq.label}
-                        </button>
-                      ))}
+              {/* Cadeira Cativa (Recorrência) */}
+              {!editingAppointmentId && (
+                <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/60 dark:bg-white/[0.02] p-3 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-md bg-[#B88A44]/15 text-[#B88A44] flex items-center justify-center shrink-0">
+                        <span className="material-symbols-outlined text-sm">event_repeat</span>
+                      </div>
+                      <div>
+                        <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-900 dark:text-zinc-100">
+                          Cadeira Cativa
+                        </h4>
+                        <p className="text-[10px] text-slate-500 dark:text-zinc-400">
+                          Horário fixo recorrente
+                        </p>
+                      </div>
                     </div>
-                  </div>
 
-                  {formData.recurrenceFrequency === 'custom' && (
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-500 mb-1">Repetir a cada (dias)</label>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
                       <input
-                        type="number"
-                        min="1"
-                        max="90"
-                        value={formData.recurrenceCustomDays || 7}
-                        onChange={(e) => handleInputChange('recurrenceCustomDays', Math.max(1, Number(e.target.value) || 1))}
-                        className="w-full sm:w-48 bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg py-2 px-3 text-sm font-bold text-slate-900 dark:text-white focus:ring-1 focus:ring-amber-500 outline-none"
+                        type="checkbox"
+                        checked={!!formData.isRecurring}
+                        onChange={(e) => handleInputChange('isRecurring', e.target.checked)}
+                        className="sr-only peer"
                       />
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-500 mb-1.5">Horizonte de Sessões</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        { count: 4, label: '4 sessões (~1 mês)' },
-                        { count: 8, label: '8 sessões (~2 meses)' },
-                        { count: 12, label: '12 sessões (~3 meses)' },
-                      ].map((item) => (
-                        <button
-                          key={item.count}
-                          type="button"
-                          onClick={() => handleInputChange('recurrenceOccurrences', item.count)}
-                          className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all ${
-                            (formData.recurrenceOccurrences || 4) === item.count
-                              ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
-                              : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-white/20'
-                          }`}
-                        >
-                          {item.label}
-                        </button>
-                      ))}
-                    </div>
+                      <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-white/10 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#B88A44]"></div>
+                    </label>
                   </div>
 
-                  {/* Prévia das datas projetadas */}
-                  {(() => {
-                    const parsedStart = parseLocalDate(formData.date);
-                    const projections = calculateProjectedDates({
-                      startDate: parsedStart,
-                      frequency: formData.recurrenceFrequency || 'weekly',
-                      occurrences: formData.recurrenceOccurrences || 4,
-                      customIntervalDays: formData.recurrenceCustomDays || 7,
-                      endDate: formData.recurrenceEndDate ? parseLocalDate(formData.recurrenceEndDate) : undefined,
-                    });
-
-                    return (
-                      <div className="p-3 bg-white dark:bg-black/20 rounded-lg border border-slate-200 dark:border-white/10 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-black uppercase text-slate-500 dark:text-slate-400">
-                            Datas Projetadas ({projections.length})
-                          </span>
-                          <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">
-                            Semana a semana com WhatsApp
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                          {projections.map((p, idx) => {
-                            const [year, month, day] = p.date.split('-');
-                            const formatted = `${day}/${month}`;
-                            return (
-                              <span
-                                key={p.date}
-                                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-bold ${
-                                  idx === 0
-                                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                                    : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
-                                }`}
-                              >
-                                {idx === 0 ? '🟢' : '⏳'} {formatted}
-                              </span>
-                            );
-                          })}
+                  {formData.isRecurring && (
+                    <div className="pt-2 border-t border-slate-200 dark:border-white/10 space-y-2.5">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Frequência</label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {[
+                            { id: 'weekly' as RecurrenceFrequency, label: 'Semanal (7d)' },
+                            { id: 'biweekly' as RecurrenceFrequency, label: 'Quinzenal (14d)' },
+                            { id: 'monthly' as RecurrenceFrequency, label: 'Mensal (28d)' },
+                            { id: 'custom' as RecurrenceFrequency, label: 'Personalizado' },
+                          ].map((freq) => (
+                            <button
+                              key={freq.id}
+                              type="button"
+                              onClick={() => handleInputChange('recurrenceFrequency', freq.id)}
+                              className={`px-2 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
+                                (formData.recurrenceFrequency || 'weekly') === freq.id
+                                  ? 'bg-[#B88A44] text-zinc-950 border-[#B88A44] font-black shadow-xs'
+                                  : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-700 dark:text-zinc-300 hover:border-slate-300 dark:hover:border-white/20'
+                              }`}
+                            >
+                              {freq.label}
+                            </button>
+                          ))}
                         </div>
                       </div>
-                    );
-                  })()}
+
+                      {formData.recurrenceFrequency === 'custom' && (
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 mb-1">Repetir a cada (dias)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="90"
+                            value={formData.recurrenceCustomDays || 7}
+                            onChange={(e) => handleInputChange('recurrenceCustomDays', Math.max(1, Number(e.target.value) || 1))}
+                            className="w-full bg-white dark:bg-[#121214] border border-slate-200 dark:border-white/10 rounded-lg py-1.5 px-2.5 text-xs font-bold text-slate-900 dark:text-zinc-100 focus:ring-1 focus:ring-[#B88A44] outline-none"
+                          />
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Sessões</label>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {[
+                            { count: 4, label: '4 sessões' },
+                            { count: 8, label: '8 sessões' },
+                            { count: 12, label: '12 sessões' },
+                          ].map((item) => (
+                            <button
+                              key={item.count}
+                              type="button"
+                              onClick={() => handleInputChange('recurrenceOccurrences', item.count)}
+                              className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                                (formData.recurrenceOccurrences || 4) === item.count
+                                  ? 'bg-[#B88A44] text-zinc-950 border-[#B88A44] font-black shadow-xs'
+                                  : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-700 dark:text-zinc-300'
+                              }`}
+                            >
+                              {item.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Prévia das datas projetadas */}
+                      {(() => {
+                        const parsedStart = parseLocalDate(formData.date);
+                        const projections = calculateProjectedDates({
+                          startDate: parsedStart,
+                          frequency: formData.recurrenceFrequency || 'weekly',
+                          occurrences: formData.recurrenceOccurrences || 4,
+                          customIntervalDays: formData.recurrenceCustomDays || 7,
+                          endDate: formData.recurrenceEndDate ? parseLocalDate(formData.recurrenceEndDate) : undefined,
+                        });
+
+                        return (
+                          <div className="p-2 bg-white dark:bg-black/20 rounded-lg border border-slate-200 dark:border-white/10 space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-zinc-400">
+                                Datas Projetadas ({projections.length})
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto custom-scrollbar">
+                              {projections.map((p, idx) => {
+                                const [year, month, day] = p.date.split('-');
+                                const formatted = `${day}/${month}`;
+                                return (
+                                  <span
+                                    key={p.date}
+                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                      idx === 0
+                                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                                        : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                                    }`}
+                                  >
+                                    {idx === 0 ? '🟢' : '⏳'} {formatted}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          )}
 
-          <div>
-            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Observações</label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => handleInputChange('notes', e.target.value)}
-              rows={4}
-              placeholder="Adicione detalhes importantes do atendimento..."
-              className="w-full resize-none bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-primary outline-none"
-            />
-          </div>
+            {/* Coluna Direita: O Quê & Resumo (7 colunas) */}
+            <div className="lg:col-span-7 space-y-4">
+              {/* Seleção de Procedimentos / Serviços */}
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                      {servicePluralLabel}
+                    </label>
+                    <span className="rounded-full bg-[#B88A44]/15 px-2 py-0.5 text-[10px] font-black uppercase text-[#B88A44] border border-[#B88A44]/30">
+                      {selectedServices.length} selecionado(s)
+                    </span>
+                  </div>
+                  {selectedServices.length > 0 && (
+                    <span className="text-xs font-black text-[#B88A44]">
+                      R$ {selectedServicesTotal.toFixed(2)}
+                    </span>
+                  )}
+                </div>
 
-          <div className="pt-4 flex justify-end gap-3">
-            <button
-              onClick={() => {
-                setIsModalOpen(false);
-                setIsNewClientMode(false);
-                setEditingAppointmentId(null);
-                setEditingComandaStatus(null);
-                setChefClubInfo(null);
-                setServiceSearchTerm('');
-                setForceOverbook(false);
-                setError(null);
-              }}
-              className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              disabled={isSavingAppointment}
-              onClick={() => handleSave()}
-              className="px-6 py-2 rounded-lg text-sm font-bold bg-primary text-night hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSavingAppointment ? 'Salvando...' : (editingAppointmentId ? "Salvar Alterações" : "Confirmar")}
-            </button>
+                {/* Campo de Busca de Serviços */}
+                <div className="relative mb-2.5">
+                  <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
+                  <input
+                    type="text"
+                    value={serviceSearchTerm}
+                    onChange={(e) => setServiceSearchTerm(e.target.value)}
+                    placeholder={`Buscar ${serviceLabelLower}...`}
+                    disabled={isComandaLocked}
+                    className={`w-full rounded-lg border py-2 pl-8 pr-3 text-xs outline-none ${
+                      isComandaLocked
+                        ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed dark:border-white/5 dark:bg-white/5 dark:text-slate-500'
+                        : 'border-slate-200 bg-slate-50 text-slate-900 focus:ring-1 focus:ring-[#B88A44] dark:border-white/10 dark:bg-[#121214] dark:text-zinc-100'
+                    }`}
+                  />
+                </div>
+
+                {/* Grid de Serviços Selecionáveis */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[280px] overflow-y-auto custom-scrollbar pr-1">
+                  {servicesList.length === 0 ? (
+                    <div className="col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-white/[0.02]">
+                      {isEsteticaApp ? 'Ainda não há procedimentos ativos para agendamento.' : 'Nenhum serviço disponível'}
+                    </div>
+                  ) : filteredServicesForModal.length > 0 ? (
+                    filteredServicesForModal.map((service) => {
+                      const isSelected = formData.serviceIds.includes(service.id);
+                      return (
+                        <button
+                          key={service.id}
+                          type="button"
+                          disabled={isComandaLocked}
+                          onClick={() => !isComandaLocked && toggleServiceSelection(service)}
+                          className={`flex items-center gap-2.5 rounded-xl border p-2.5 text-left transition-all ${
+                            isComandaLocked ? 'cursor-not-allowed opacity-60 ' : 'cursor-pointer hover:border-[#B88A44]/50'
+                          } ${
+                            isSelected
+                              ? 'border-[#B88A44] bg-[#B88A44]/15 text-slate-900 dark:text-zinc-100 shadow-xs ring-1 ring-[#B88A44]/40'
+                              : 'border-slate-200 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-white/[0.02] dark:text-zinc-200'
+                          }`}
+                        >
+                          <span className={`flex size-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                            isSelected
+                              ? 'border-[#B88A44] bg-[#B88A44] text-zinc-950 font-black'
+                              : 'border-slate-300 bg-white dark:border-white/20 dark:bg-transparent'
+                          }`}>
+                            {isSelected && <span className="material-symbols-outlined text-[12px] font-black">check</span>}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <span className="block truncate text-xs font-bold leading-tight" title={getCatalogDisplayName(service, appSlug)}>
+                              {getCatalogDisplayName(service, appSlug)}
+                            </span>
+                            <span className="block text-[10px] text-slate-500 dark:text-zinc-400 mt-0.5">
+                              {service.duration} min • <span className="font-bold text-[#B88A44]">R$ {Number(service.price || 0).toFixed(2)}</span>
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className="col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-white/[0.02]">
+                      {isEsteticaApp ? 'Nenhum procedimento encontrado' : 'Nenhum serviço encontrado'}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Observações */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400 mb-1">
+                  Observações do Atendimento
+                </label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) => handleInputChange('notes', e.target.value)}
+                  rows={2}
+                  placeholder="Instruções especiais ou preferências do cliente..."
+                  className="w-full resize-none bg-slate-50 dark:bg-[#121214] border border-slate-200 dark:border-white/10 rounded-lg p-2 text-xs text-slate-900 dark:text-zinc-100 focus:ring-1 focus:ring-[#B88A44] outline-none"
+                />
+              </div>
+
+              {/* Card Resumo do Agendamento */}
+              <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-white/[0.02] p-3 text-xs space-y-1.5">
+                <div className="flex items-center justify-between text-slate-600 dark:text-zinc-400 text-[11px]">
+                  <span>Cliente:</span>
+                  <span className="font-bold text-slate-900 dark:text-zinc-200 truncate max-w-[200px]">
+                    {formData.client || 'A definir'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-slate-600 dark:text-zinc-400 text-[11px]">
+                  <span>Profissional:</span>
+                  <span className="font-bold text-slate-900 dark:text-zinc-200">
+                    {staffList.find(s => s.id === formData.staffId)?.name || 'Não selecionado'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-slate-600 dark:text-zinc-400 text-[11px]">
+                  <span>Horário:</span>
+                  <span className="font-bold text-slate-900 dark:text-zinc-200">
+                    {formData.date} das {getDecimalTimeLabel(formData.start)} às {getDecimalTimeLabel(formData.start + formData.duration)}
+                  </span>
+                </div>
+                <div className="pt-1.5 border-t border-slate-200 dark:border-white/10 flex items-center justify-between font-bold">
+                  <span className="text-slate-700 dark:text-zinc-300">Total Previsto:</span>
+                  <span className="text-sm font-black text-[#B88A44]">
+                    R$ {selectedServicesTotal.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </Modal>
