@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
 import { supabase } from '../../services/supabaseClient';
@@ -9,6 +9,11 @@ import {
   triggerHapticFeedback,
 } from '../../src/utils/feedbackSensory';
 import { triggerAsyncFiscalEmission } from '../../domain/fiscal/fiscalTrigger';
+import {
+  checkClientCreditEligibility,
+  settleComandaWithClubCredits,
+  type ClientCreditEligibility,
+} from '../../domain/chefClub/clientCreditCheck';
 
 export interface QuickCheckoutModalProps {
   isOpen: boolean;
@@ -16,12 +21,14 @@ export interface QuickCheckoutModalProps {
   comanda: {
     id: string;
     total: number;
+    client_id?: string | null;
     client_name?: string | null;
-    items?: Array<{ id: string; name?: string; service_name?: string; product_name?: string; quantity: number }>;
+    items?: Array<{ id: string; name?: string; service_name?: string; product_name?: string; service_id?: string; product_id?: string; quantity: number }>;
   } | null;
   tenantId: string;
   onSuccess: (comandaId: string, paymentMethod: string) => void;
   onOpenChairQrCode?: () => void;
+  initialCreditEligibility?: ClientCreditEligibility | null;
 }
 
 export const QuickCheckoutModal: React.FC<QuickCheckoutModalProps> = ({
@@ -31,9 +38,50 @@ export const QuickCheckoutModal: React.FC<QuickCheckoutModalProps> = ({
   tenantId,
   onSuccess,
   onOpenChairQrCode,
+  initialCreditEligibility,
 }) => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [creditEligibility, setCreditEligibility] = useState<ClientCreditEligibility | null>(
+    initialCreditEligibility ?? null
+  );
+  const [checkingCredits, setCheckingCredits] = useState(false);
+
+  useEffect(() => {
+    if (initialCreditEligibility !== undefined) {
+      setCreditEligibility(initialCreditEligibility);
+      return;
+    }
+
+    if (!isOpen || !comanda?.client_id || !tenantId) {
+      setCreditEligibility(null);
+      return;
+    }
+
+    let isMounted = true;
+    setCheckingCredits(true);
+
+    checkClientCreditEligibility(tenantId, comanda.client_id, (comanda.items || []).map((it) => ({
+      id: it.id,
+      service_id: it.service_id,
+      product_id: it.product_id,
+      name: it.service_name || it.product_name || it.name,
+      quantity: it.quantity,
+    })))
+      .then((res) => {
+        if (isMounted) setCreditEligibility(res);
+      })
+      .catch((err) => {
+        console.warn('[QuickCheckout] Falha ao verificar créditos:', err);
+      })
+      .finally(() => {
+        if (isMounted) setCheckingCredits(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, comanda?.client_id, comanda?.items, tenantId, initialCreditEligibility]);
 
   if (!comanda) return null;
 
@@ -73,6 +121,34 @@ export const QuickCheckoutModal: React.FC<QuickCheckoutModalProps> = ({
     }
   };
 
+  const handleClubCreditPay = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      await settleComandaWithClubCredits(supabase, tenantId, comanda.id);
+
+      // Emissão fiscal com valor zero se habilitada
+      triggerAsyncFiscalEmission({
+        tenantId,
+        comandaId: comanda.id,
+        valorTotal: comanda.total,
+        clientName: comanda.client_name || undefined,
+      });
+
+      playCheckoutSuccessChime();
+      triggerHapticFeedback([60, 100, 60]);
+      onSuccess(comanda.id, 'Club dos Chefes');
+      onClose();
+    } catch (err: any) {
+      console.error('[QuickCheckoutModal] Erro ao baixar com créditos do Clube:', err);
+      setError(err?.message || 'Falha ao processar consumo de créditos do Clube dos Chefes.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const clientName = comanda.client_name || 'Cliente Avulso';
   const shortId = comanda.id.slice(0, 8);
 
@@ -101,6 +177,60 @@ export const QuickCheckoutModal: React.FC<QuickCheckoutModalProps> = ({
           <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs font-semibold flex items-center gap-2">
             <span className="material-symbols-outlined text-sm shrink-0">error</span>
             <span>{error}</span>
+          </div>
+        )}
+
+        {/* Eixo C: Validação e Baixa Automática de Créditos do Club dos Chefes */}
+        {checkingCredits && (
+          <div className="p-3 rounded-2xl bg-amber-500/5 border border-amber-500/20 flex items-center gap-2.5 text-xs text-amber-700 dark:text-amber-300 animate-pulse">
+            <span className="material-symbols-outlined text-base animate-spin">sync</span>
+            <span className="font-medium">Consultando assinatura e créditos do Club dos Chefes...</span>
+          </div>
+        )}
+
+        {creditEligibility?.isClubMember && (
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-[#D99A2B]/10 to-amber-600/15 border border-[#D99A2B]/40 text-slate-900 dark:text-slate-100 space-y-3 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-amber-600 dark:text-amber-400 text-xl">
+                  workspace_premium
+                </span>
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 block">
+                    Membro VIP • Club dos Chefes
+                  </span>
+                  <span className="text-sm font-bold text-slate-900 dark:text-white">
+                    {creditEligibility.planName || 'Assinatura Ativa'}
+                  </span>
+                </div>
+              </div>
+              <span className="text-xs font-black px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                {creditEligibility.totalAvailableCredits}{' '}
+                {creditEligibility.totalAvailableCredits === 1 ? 'crédito' : 'créditos'}
+              </span>
+            </div>
+
+            {creditEligibility.isFullyCoveredByCredits ? (
+              <div className="pt-1">
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={handleClubCreditPay}
+                  className="w-full p-3.5 rounded-xl bg-gradient-to-r from-[#D99A2B] to-amber-600 hover:from-[#c28723] hover:to-amber-700 text-slate-950 font-black text-sm uppercase tracking-wide flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-xl">loyalty</span>
+                  <span>Baixar com Crédito do Clube (R$ 0,00)</span>
+                </button>
+                <p className="text-[10px] text-center text-slate-500 dark:text-slate-400 mt-2 font-medium">
+                  Baixa imediata em 1 toque sem cobrança financeira • Abate automático no saldo do plano
+                </p>
+              </div>
+            ) : (
+              <div className="text-[11px] p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 flex items-center gap-2 font-medium">
+                <span className="material-symbols-outlined text-sm shrink-0">info</span>
+                <span>{creditEligibility.reason || 'Créditos insuficientes ou itens não cobertos pelo plano.'}</span>
+              </div>
+            )}
           </div>
         )}
 

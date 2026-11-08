@@ -2475,6 +2475,7 @@ const Comandas: React.FC = () => {
                 comanda={selectedComanda ? {
                     id: selectedComanda.id,
                     total: selectedComanda.total,
+                    client_id: selectedComanda.client_id || (selectedComanda.clients as any)?.id || null,
                     client_name: selectedComanda.clients?.name || null,
                     items: selectedComanda.comanda_items,
                 } : null}
