@@ -163,6 +163,80 @@ export const PaymentTerminalsSection: React.FC = () => {
         </div>
       )}
 
+      {/* Política Padrão de Rateio de Taxas da Barbearia (Frente B) */}
+      <div className="mb-6 p-5 rounded-2xl bg-amber-500/5 border border-amber-500/20 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span className="material-symbols-outlined text-amber-500 text-lg">percent</span>
+              Política Padrão de Rateio de Taxas nas Comissões
+            </h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Define como as taxas de maquininha são absorvidas ou rateadas na comissão dos barbeiros. Exceções individuais podem ser definidas no cadastro de cada colaborador na aba Equipe.
+            </p>
+          </div>
+          {policySaving && (
+            <span className="text-[10px] text-amber-500 font-bold animate-pulse">Salvando...</span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+          <button
+            type="button"
+            onClick={() => handleUpdateGlobalPolicy('gross')}
+            className={`p-3.5 rounded-xl border text-left transition-all ${
+              globalPolicy === 'gross'
+                ? 'border-amber-500 bg-amber-500/10 text-amber-400 shadow-sm'
+                : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.02] text-slate-400 hover:border-slate-300'
+            }`}
+          >
+            <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center justify-between">
+              <span>Bruto (100% Casa)</span>
+              {globalPolicy === 'gross' && <span className="size-2 rounded-full bg-amber-500" />}
+            </div>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+              Barbearia absorve as taxas. Barbeiro recebe comissão integral e é sinalizado como <strong>isento</strong> no extrato.
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleUpdateGlobalPolicy('split')}
+            className={`p-3.5 rounded-xl border text-left transition-all ${
+              globalPolicy === 'split'
+                ? 'border-amber-500 bg-amber-500/10 text-amber-400 shadow-sm'
+                : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.02] text-slate-400 hover:border-slate-300'
+            }`}
+          >
+            <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center justify-between">
+              <span>Dividido (Rateio Proporcional)</span>
+              {globalPolicy === 'split' && <span className="size-2 rounded-full bg-amber-500" />}
+            </div>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+              A taxa da maquininha é dividida na proporção exata da comissão entre a casa e o profissional.
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleUpdateGlobalPolicy('deducted')}
+            className={`p-3.5 rounded-xl border text-left transition-all ${
+              globalPolicy === 'deducted'
+                ? 'border-amber-500 bg-amber-500/10 text-amber-400 shadow-sm'
+                : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.02] text-slate-400 hover:border-slate-300'
+            }`}
+          >
+            <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center justify-between">
+              <span>Descontado (Profissional)</span>
+              {globalPolicy === 'deducted' && <span className="size-2 rounded-full bg-amber-500" />}
+            </div>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+              A taxa total da operadora é descontada da parcela do profissional no momento do fechamento.
+            </p>
+          </button>
+        </div>
+      </div>
+
       {loading ? (
         <div className="py-12 flex justify-center items-center">
           <div className="animate-spin size-6 border-2 border-primary border-t-transparent rounded-full"></div>
