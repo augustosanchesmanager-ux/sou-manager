@@ -261,6 +261,7 @@ class TenantSettingsRepositoryImpl extends SupabaseRepository {
       whatsapp_number?: string | null;
       maps_url?: string | null;
       business_hours?: TenantSettings['business_hours'] | Record<string, unknown>;
+      appointment_interval_minutes?: number | null;
     }
   ): Promise<TenantSettings> {
     if (!tenantId || !tenantId.trim()) {
@@ -287,6 +288,9 @@ class TenantSettingsRepositoryImpl extends SupabaseRepository {
       }
       if (hours.business_hours !== undefined) {
         payload.business_hours = hours.business_hours;
+      }
+      if (hours.appointment_interval_minutes !== undefined && hours.appointment_interval_minutes !== null) {
+        payload.appointment_interval_minutes = hours.appointment_interval_minutes;
       }
 
       const result = await this.from()
@@ -401,6 +405,7 @@ class TenantSettingsRepositoryImpl extends SupabaseRepository {
       whatsapp_number: input.phone_whatsapp ?? null,
       maps_url: input.google_maps_url ?? null,
       business_hours: businessHoursPayload,
+      appointment_interval_minutes: input.appointment_interval_minutes,
     });
 
     // 2. Upsert into online_booking_settings

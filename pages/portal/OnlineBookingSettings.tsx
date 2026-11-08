@@ -138,6 +138,7 @@ const OnlineBookingSettings: React.FC = () => {
   // 4. Canais & Horários
   const [startHour, setStartHour] = useState<number>(7);
   const [endHour, setEndHour] = useState<number>(20);
+  const [appointmentIntervalMinutes, setAppointmentIntervalMinutes] = useState<number>(30);
   const [instagramInput, setInstagramInput] = useState<string>('');
   const [whatsappInput, setWhatsappInput] = useState<string>('');
   const [mapsInput, setMapsInput] = useState<string>('');
@@ -199,6 +200,12 @@ const OnlineBookingSettings: React.FC = () => {
         if (legacyData.work_end_time) {
           const endParsed = parseInt(legacyData.work_end_time.split(':')[0], 10);
           if (!Number.isNaN(endParsed)) setEndHour(endParsed);
+        }
+        if (
+          typeof legacyData.appointment_interval_minutes === 'number' &&
+          legacyData.appointment_interval_minutes > 0
+        ) {
+          setAppointmentIntervalMinutes(legacyData.appointment_interval_minutes);
         }
       }
 
@@ -396,6 +403,7 @@ const OnlineBookingSettings: React.FC = () => {
         weekly_schedule: schedulePayload,
         work_start_time: workStartTime,
         work_end_time: workEndTime,
+        appointment_interval_minutes: appointmentIntervalMinutes,
       });
 
       setCustomSlug(saved.slug || sanitizedSlug);
@@ -1024,6 +1032,68 @@ const OnlineBookingSettings: React.FC = () => {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Intervalo dos Slots na Grade */}
+            <div className="pt-5 border-t border-slate-100 dark:border-white/5 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <label className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary text-lg">timelapse</span>
+                    Intervalo dos Horários na Grade Pública
+                  </label>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Define o espaçamento padrão entre os horários vagos exibidos para o cliente no agendamento online.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 dark:bg-surface-dark border border-slate-200 dark:border-border-dark rounded-xl">
+                  {[
+                    { value: 15, label: '15 min' },
+                    { value: 30, label: '30 min (Padrão)' },
+                    { value: 40, label: '40 min' },
+                    { value: 45, label: '45 min (Sr. Avante)' },
+                    { value: 60, label: '60 min (1h)' },
+                  ].map((option) => {
+                    const isSelected = appointmentIntervalMinutes === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setAppointmentIntervalMinutes(option.value)}
+                        disabled={saving}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-primary text-white shadow-sm'
+                            : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-white/5'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-white/[0.02] p-3 rounded-xl border border-slate-200/60 dark:border-white/5 flex items-start gap-2">
+                <span className="material-symbols-outlined text-amber-500 text-sm mt-0.5 shrink-0">info</span>
+                <span>
+                  Com <strong className="text-slate-800 dark:text-slate-200">{appointmentIntervalMinutes} minutos</strong>, a grade pública distribuirá os slots com esse espaçamento regular (ex: 08:00, {
+                    (() => {
+                      const baseM = 8 * 60 + appointmentIntervalMinutes;
+                      const h = Math.floor(baseM / 60);
+                      const m = baseM % 60;
+                      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                    })()
+                  }, {
+                    (() => {
+                      const baseM = 8 * 60 + appointmentIntervalMinutes * 2;
+                      const h = Math.floor(baseM / 60);
+                      const m = baseM % 60;
+                      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                    })()
+                  }...). Serviços mais longos (como barba ou combos) são alocados de forma contígua sem colidir com outros agendamentos.
+                </span>
               </div>
             </div>
           </section>

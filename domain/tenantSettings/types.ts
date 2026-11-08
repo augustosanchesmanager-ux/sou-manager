@@ -99,6 +99,7 @@ export interface UpsertOnlineBookingSettingsInput {
   automations_config?: OnlineBookingAutomationsConfig | null;
   work_start_time?: string;
   work_end_time?: string;
+  appointment_interval_minutes?: number | null;
 }
 
 export interface ShowcaseProductItem {
