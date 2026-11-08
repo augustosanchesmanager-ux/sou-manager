@@ -7,6 +7,7 @@ export interface StatementStaffMember {
   role: string;
   avatar?: string | null;
   commission_rate?: number | string | null;
+  product_commission_rate?: number | string | null;
 }
 
 interface RawComandaRow {
@@ -51,7 +52,7 @@ interface RawComandaItemRow {
 export async function fetchStatementStaff(tenantId: string): Promise<StatementStaffMember[]> {
   const { data, error } = await supabase
     .from('staff')
-    .select('id, name, avatar, role, commission_rate')
+    .select('id, name, avatar, role, commission_rate, product_commission_rate')
     .eq('tenant_id', tenantId)
     .eq('status', 'active')
     .order('name');
@@ -69,8 +70,9 @@ export async function fetchBarberStatementData(params: {
   startDate: string;
   endDate: string;
   commissionPercentage: number;
+  productCommissionPercentage?: number;
 }): Promise<BarberStatementItem[]> {
-  const { tenantId, staffId, startDate, endDate, commissionPercentage } = params;
+  const { tenantId, staffId, startDate, endDate, commissionPercentage, productCommissionPercentage = 0 } = params;
 
   // Ajusta limites para ISO completo considerando início e fim do dia em fuso brasileiro (-03:00)
   const startIso = `${startDate}T00:00:00.000-03:00`;
@@ -275,8 +277,8 @@ export async function fetchBarberStatementData(params: {
     );
 
     if (relevantItems.length === 0) {
-      // Se não há itens discriminados mas a comanda/agendamento foi aberto para o profissional
-      if (comanda.staff_id === staffId || (linkedAppt && linkedAppt.staff_id === staffId)) {
+      // Se a comanda não possui itens discriminados, mas foi aberta exclusivamente para este profissional
+      if (comandaItems.length === 0 && (comanda.staff_id === staffId || (linkedAppt && linkedAppt.staff_id === staffId))) {
         const commRec = recordsByComandaId.get(comanda.id);
         const gross = commRec
           ? Number(commRec.net_value ?? commRec.gross_value ?? comanda.total ?? linkedAppt?.price ?? 0)
@@ -307,17 +309,27 @@ export async function fetchBarberStatementData(params: {
 
         const commRec = recordsByItemId.get(it.id) || recordsByComandaId.get(comanda.id);
         const itemName = it.services?.name || it.product_name || linkedAppt?.service_name || 'Serviço';
-        const itemType = it.service_id ? 'service' : 'product';
+        const isProduct = !it.service_id;
+        const itemType = isProduct ? 'product' : 'service';
+        const applicableRate = isProduct ? productCommissionPercentage : commissionPercentage;
 
         const gross = commRec
           ? Number(commRec.net_value ?? commRec.gross_value ?? (Number(it.unit_price) || 0) * (Number(it.quantity) || 1))
           : (Number(it.unit_price) || 0) * (Number(it.quantity) || 1);
 
-        const commValue = commRec
-          ? Number(commRec.commission_value)
-          : (gross * commissionPercentage) / 100;
+        let commValue = 0;
+        if (commRec && commRec.status === 'active') {
+          // Se for produto e o colaborador tem 0% de comissão de produto, comissão = 0
+          if (isProduct && productCommissionPercentage === 0) {
+            commValue = 0;
+          } else {
+            commValue = Number(commRec.commission_value);
+          }
+        } else {
+          commValue = (gross * applicableRate) / 100;
+        }
 
-        const effectiveRate = gross > 0 ? Math.round((commValue / gross) * 100) : commissionPercentage;
+        const effectiveRate = gross > 0 ? Math.round((commValue / gross) * 100) : applicableRate;
 
         statementItems.push({
           id: it.id,

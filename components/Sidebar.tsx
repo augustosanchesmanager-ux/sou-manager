@@ -32,6 +32,7 @@ import {
   Truck,
   ShoppingCart,
   Wallet,
+  ArrowDownUp,
   ArrowRightLeft,
   Lock,
   FileSpreadsheet,
@@ -215,6 +216,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       type: 'group',
       items: [
         { name: 'Visão Geral', icon: Wallet, path: '/financial-overview', module: 'financial' },
+        { name: 'Entrada / Saída', icon: ArrowDownUp, path: '/entrada-saida', module: 'financial', hideFromEsteticaMenu: true },
         { name: 'Fluxo de Caixa', icon: ArrowRightLeft, path: '/cashflow', module: 'cashflow', hideFromEsteticaMenu: true },
         { name: 'Conciliação Bancária', icon: Building2, path: '/bank-reconciliation', module: 'financial', hideFromEsteticaMenu: true },
         { name: 'Fechamento de Caixa', icon: Lock, path: '/cash-closing', module: 'financial', hideFromEsteticaMenu: true },

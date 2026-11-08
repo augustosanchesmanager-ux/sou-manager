@@ -10,12 +10,14 @@ import { useAuth } from '../context/AuthContext';
 import { RevenueAreaChart, ExpenseChart, StaffPerformanceCard, ProductSalesChart, AppointmentTimeline } from '../components/charts';
 import MetricCard from '../components/ui/MetricCard';
 import { getClientForTable, getScopedClient, supabase } from '../services/supabaseClient';
+import { staffRepository } from '../domain/staff/repository';
 import { formatCurrency } from '../shared/format/currency';
 
 // Novos componentes dedicados de BI Avançado
 import { ScheduleHeatmap } from '../components/bi/ScheduleHeatmap';
 import { StaffProfitabilityTable } from '../components/bi/StaffProfitabilityTable';
 import { LiquidityWaterfallCard } from '../components/bi/LiquidityWaterfallCard';
+import { StrategicForecastCard } from '../components/bi/StrategicForecastCard';
 import {
     ScheduleHeatmapCell,
     StaffProductivityDetail,
@@ -31,7 +33,7 @@ const periodLabels: Record<string, string> = {
     '90d': '90 Dias',
 };
 
-type ActiveBiTab = 'executive' | 'staff' | 'heatmap' | 'legacy_charts';
+type ActiveBiTab = 'forecast' | 'executive' | 'staff' | 'heatmap' | 'legacy_charts';
 
 const BusinessIntelligence: React.FC = () => {
     const { theme } = useTheme();
@@ -41,11 +43,15 @@ const BusinessIntelligence: React.FC = () => {
 
     const initialPeriod = (searchParams.get('period') as any) || '30d';
     const [period, setPeriod] = useState<string>(initialPeriod);
-    const [activeTab, setActiveTab] = useState<ActiveBiTab>('executive');
+    const [activeTab, setActiveTab] = useState<ActiveBiTab>('forecast');
+    const [referenceDate, setReferenceDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
     // Estados dos novos dados de inteligência
     const [heatmapCells, setHeatmapCells] = useState<ScheduleHeatmapCell[]>([]);
     const [staffDetails, setStaffDetails] = useState<StaffProductivityDetail[]>([]);
+    const [forecastAppointments, setForecastAppointments] = useState<any[]>([]);
+    const [staffList, setStaffList] = useState<{ id: string; name: string }[]>([]);
+    const [recentDailyAverage, setRecentDailyAverage] = useState<number>(450);
     const [liquidity, setLiquidity] = useState<LiquidityOverview>({
         grossRevenue: 0,
         bankingFees: 0,
@@ -100,13 +106,33 @@ const BusinessIntelligence: React.FC = () => {
 
                 // 1. Heatmap e Produtividade via Appointments
                 const appointmentsClient = getClientForTable('appointments', 'barber');
+                const futureHorizonIso = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000).toISOString();
                 const { data: appts } = await appointmentsClient
                     .from('appointments')
                     .select('id, start_time, staff_id, staff_name, price, status, service_name')
                     .eq('tenant_id', tenantId)
-                    .gte('start_time', fromIso);
+                    .gte('start_time', fromIso)
+                    .lte('start_time', futureHorizonIso);
 
                 const appointments = appts || [];
+
+                // Lista de profissionais para projeção via Repository
+                const staffMembers = await staffRepository.list(tenantId);
+                if (staffMembers && staffMembers.length > 0) {
+                    setStaffList(staffMembers.map((s) => ({ id: s.id, name: s.name })));
+                }
+
+                // Calcular média diária histórica real recente para o modelo de previsão
+                const pastAppts = appointments.filter((a: any) => {
+                    if (!a.start_time) return false;
+                    const t = new Date(a.start_time).getTime();
+                    return t <= now.getTime() && (a.status === 'completed' || a.status === 'confirmed');
+                });
+                const daysCount = Math.max(1, Math.round((now.getTime() - fromDate.getTime()) / (24 * 60 * 60 * 1000)));
+                const totalPastRevenue = pastAppts.reduce((sum: number, a: any) => sum + (Number(a.price) || 0), 0);
+                const dailyAvg = Math.round(totalPastRevenue / daysCount);
+                setRecentDailyAverage(dailyAvg > 0 ? dailyAvg : 450);
+                setForecastAppointments(appointments);
 
                 // Agregar Heatmap (Dia x Hora)
                 const matrixCount: Record<string, { count: number; revenue: number }> = {};
@@ -352,10 +378,11 @@ const BusinessIntelligence: React.FC = () => {
                 {/* Abas de Navegação Analítica */}
                 <div className="flex items-center gap-2 mt-6 pt-4 border-t border-line overflow-x-auto">
                     {[
-                        { key: 'executive', label: '1. Liquidez Real & DRE Cascata', icon: 'payments' },
-                        { key: 'staff', label: '2. Produtividade & Lucro da Equipe', icon: 'badge' },
-                        { key: 'heatmap', label: '3. Mapa de Ocupação da Grade (Heatmap)', icon: 'calendar_month' },
-                        { key: 'legacy_charts', label: '4. Visão Operacional & Clientes', icon: 'insights' },
+                        { key: 'forecast', label: '1. Previsão Estratégica (Semanal / Quinzenal / Mensal)', icon: 'trending_up' },
+                        { key: 'executive', label: '2. Liquidez Real & DRE Cascata', icon: 'payments' },
+                        { key: 'staff', label: '3. Produtividade & Lucro da Equipe', icon: 'badge' },
+                        { key: 'heatmap', label: '4. Mapa de Ocupação da Grade (Heatmap)', icon: 'calendar_month' },
+                        { key: 'legacy_charts', label: '5. Visão Operacional & Clientes', icon: 'insights' },
                     ].map((tab) => (
                         <button
                             key={tab.key}
@@ -373,7 +400,20 @@ const BusinessIntelligence: React.FC = () => {
                 </div>
             </div>
 
-            {/* ABA 1: DRE Gerencial de Liquidez e Indicadores Financeiros */}
+            {/* ABA 1: Previsão Estratégica Atelier Tech (Semanal, Quinzenal, Mensal) */}
+            {activeTab === 'forecast' && (
+                <div className="space-y-6">
+                    <StrategicForecastCard
+                        referenceDate={referenceDate}
+                        onReferenceDateChange={setReferenceDate}
+                        appointments={forecastAppointments}
+                        recentDailyAverage={recentDailyAverage}
+                        staffList={staffList}
+                    />
+                </div>
+            )}
+
+            {/* ABA 2: DRE Gerencial de Liquidez e Indicadores Financeiros */}
             {activeTab === 'executive' && (
                 <div className="space-y-6">
                     <LiquidityWaterfallCard liquidity={liquidity} />

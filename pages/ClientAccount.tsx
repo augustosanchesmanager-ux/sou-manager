@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTenantOptional } from '../src/context/TenantContext';
 import { clientWalletRepository } from '../domain/clientWallet/walletRepository';
+import { comandaRepository } from '../domain/comanda/repository';
+import { supabase } from '../services/supabaseClient';
 import {
   calculateWalletSummary,
   generateWhatsAppDebtMessage,
@@ -13,13 +16,31 @@ import type {
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 
+export interface OpenComandaItem {
+  id: string;
+  client_id?: string | null;
+  client_name: string;
+  client_phone?: string | null;
+  total: number;
+  created_at: string;
+  is_unidentified: boolean;
+}
+
 export const ClientAccount: React.FC = () => {
+  let navigate: (path: string) => void = (_path: string) => {};
+  try {
+    navigate = useNavigate();
+  } catch {
+    // Fallback gracioso para ambiente de teste sem Router context
+  }
   const { tenantId: authTenantId, user } = useAuth();
   const tenantContext = useTenantOptional();
   const tenantId = authTenantId || tenantContext?.tenant?.id || '';
   const tenantName = tenantContext?.tenant?.name || 'SMG Barber';
 
   const [wallets, setWallets] = useState<ClientWallet[]>([]);
+  const [openComandas, setOpenComandas] = useState<OpenComandaItem[]>([]);
+  const [activeTab, setActiveTab] = useState<'wallets' | 'open_comandas'>('wallets');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'debt' | 'credit' | 'limit'>('all');
@@ -47,27 +68,52 @@ export const ClientAccount: React.FC = () => {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const loadWallets = async () => {
+  const loadAllData = async () => {
     if (!tenantId) return;
     setLoading(true);
     try {
-      const data = await clientWalletRepository.listWallets(tenantId);
-      setWallets(data);
+      const [walletData, cmdRows] = await Promise.all([
+        clientWalletRepository.listWallets(tenantId),
+        comandaRepository.listOpenWithClients(tenantId),
+      ]);
+
+      setWallets(walletData);
+
+      const openList: OpenComandaItem[] = (cmdRows || []).map((c) => ({
+        id: c.id,
+        client_id: c.client_id,
+        client_name: c.clients?.name || 'Cliente não identificado',
+        client_phone: c.clients?.phone || null,
+        total: Number(c.total) || 0,
+        created_at: c.created_at,
+        is_unidentified: !c.client_id || !c.clients?.name,
+      }));
+      setOpenComandas(openList);
     } catch (err) {
-      console.error('[ClientAccount] Erro ao carregar carteiras:', err);
+      console.error('[ClientAccount] Erro ao carregar carteiras e comandas abertas:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    void loadWallets();
+    void loadAllData();
   }, [tenantId]);
 
-  // Resumo
+  // Resumo de carteiras
   const summary = useMemo(() => calculateWalletSummary(wallets), [wallets]);
 
-  // Filtragem
+  // Total de comandas em aberto
+  const openComandasTotal = useMemo(() => {
+    return openComandas.reduce((sum, c) => sum + c.total, 0);
+  }, [openComandas]);
+
+  // Débito consolidado total (Fiado formal + Comandas em aberto)
+  const totalConsolidatedDebt = useMemo(() => {
+    return summary.totalDebt + openComandasTotal;
+  }, [summary.totalDebt, openComandasTotal]);
+
+  // Filtragem de carteiras
   const filteredWallets = useMemo(() => {
     return wallets.filter((w) => {
       const nameMatch = (w.client_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -80,6 +126,18 @@ export const ClientAccount: React.FC = () => {
       return true;
     });
   }, [wallets, searchTerm, statusFilter]);
+
+  // Filtragem de comandas em aberto
+  const filteredOpenComandas = useMemo(() => {
+    return openComandas.filter((c) => {
+      const term = searchTerm.toLowerCase();
+      const match =
+        c.client_name.toLowerCase().includes(term) ||
+        (c.client_phone || '').includes(term) ||
+        c.id.toLowerCase().includes(term);
+      return match;
+    });
+  }, [openComandas, searchTerm]);
 
   // Salvar Limite Manual
   const handleSaveLimit = async () => {
@@ -112,7 +170,7 @@ export const ClientAccount: React.FC = () => {
         createdBy: user?.id,
       });
 
-      await loadWallets();
+      await loadAllData();
       showToast(`Pagamento de R$ ${amount.toFixed(2)} registrado com sucesso!`);
       setIsSettleModalOpen(false);
     } catch {
@@ -137,7 +195,7 @@ export const ClientAccount: React.FC = () => {
         createdBy: user?.id,
       });
 
-      await loadWallets();
+      await loadAllData();
       showToast(`Crédito de R$ ${amount.toFixed(2)} creditado para ${selectedWallet.client_name}!`);
       setIsDepositModalOpen(false);
     } catch {
@@ -202,33 +260,78 @@ export const ClientAccount: React.FC = () => {
             variant="secondary"
             size="sm"
             leftIcon="refresh"
-            onClick={() => void loadWallets()}
+            onClick={() => void loadAllData()}
           >
             Atualizar
           </Button>
         </div>
       </div>
 
-      {/* 3 KPIs Executivos */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* 4 KPIs Executivos */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total em Débito Consolidado */}
         <div className="p-4 rounded-2xl bg-white dark:bg-card-dark border border-slate-200/80 dark:border-border-dark shadow-sm">
-          <span className="text-[10px] font-black uppercase tracking-wider text-rose-500 block">
-            Total em Débito (Fiado a Receber)
-          </span>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] font-black uppercase tracking-wider text-rose-500">
+              Total em Débito (Fiado a Receber)
+            </span>
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400">
+              Fiado + Balcão
+            </span>
+          </div>
           <div className="flex items-baseline justify-between mt-2">
             <span className="text-2xl font-black text-rose-600 dark:text-rose-400 tabular-nums">
-              R$ {summary.totalDebt.toFixed(2)}
+              R$ {totalConsolidatedDebt.toFixed(2)}
             </span>
             <span className="text-xs font-bold text-slate-400">
-              {summary.debtorsCount} {summary.debtorsCount === 1 ? 'cliente' : 'clientes'}
+              {summary.debtorsCount + openComandas.length} pendências
             </span>
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white dark:bg-card-dark border border-slate-200/80 dark:border-border-dark shadow-sm">
-          <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 block">
-            Total com Crédito (Pré-Pago)
-          </span>
+        {/* Comandas em Aberto no Balcão */}
+        <div
+          onClick={() => setActiveTab('open_comandas')}
+          className={`p-4 rounded-2xl border transition-all cursor-pointer shadow-sm ${
+            activeTab === 'open_comandas'
+              ? 'bg-amber-500/10 border-amber-500/50 ring-1 ring-amber-500/30'
+              : 'bg-white dark:bg-card-dark border-slate-200/80 dark:border-border-dark hover:border-amber-500/30'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
+              Comandas em Aberto (Balcão)
+            </span>
+            <span className="material-symbols-outlined text-base text-amber-500">receipt_long</span>
+          </div>
+          <div className="flex items-baseline justify-between mt-2">
+            <span className="text-2xl font-black text-amber-600 dark:text-amber-400 tabular-nums">
+              R$ {openComandasTotal.toFixed(2)}
+            </span>
+            <span className="text-xs font-bold text-slate-400">
+              {openComandas.length} {openComandas.length === 1 ? 'comanda' : 'comandas'}
+            </span>
+          </div>
+        </div>
+
+        {/* Total com Crédito (Pré-Pago) */}
+        <div
+          onClick={() => {
+            setActiveTab('wallets');
+            setStatusFilter('credit');
+          }}
+          className={`p-4 rounded-2xl border transition-all cursor-pointer shadow-sm ${
+            activeTab === 'wallets' && statusFilter === 'credit'
+              ? 'bg-emerald-500/10 border-emerald-500/50 ring-1 ring-emerald-500/30'
+              : 'bg-white dark:bg-card-dark border-slate-200/80 dark:border-border-dark hover:border-emerald-500/30'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+              Total com Crédito (Pré-Pago)
+            </span>
+            <span className="material-symbols-outlined text-base text-emerald-500">payments</span>
+          </div>
           <div className="flex items-baseline justify-between mt-2">
             <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
               R$ {summary.totalCredit.toFixed(2)}
@@ -239,10 +342,20 @@ export const ClientAccount: React.FC = () => {
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white dark:bg-card-dark border border-slate-200/80 dark:border-border-dark shadow-sm">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
-            Saldo Líquido da Barbearia
-          </span>
+        {/* Saldo Líquido da Barbearia */}
+        <div
+          onClick={() => {
+            setActiveTab('wallets');
+            setStatusFilter('all');
+          }}
+          className="p-4 rounded-2xl bg-white dark:bg-card-dark border border-slate-200/80 dark:border-border-dark shadow-sm transition-all cursor-pointer hover:border-amber-500/30"
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              Saldo Líquido da Barbearia
+            </span>
+            <span className="material-symbols-outlined text-base text-slate-400">account_balance</span>
+          </div>
           <div className="flex items-baseline justify-between mt-2">
             <span className={`text-2xl font-black tabular-nums ${summary.netBalance < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
               R$ {summary.netBalance.toFixed(2)}
@@ -254,182 +367,319 @@ export const ClientAccount: React.FC = () => {
         </div>
       </div>
 
-      {/* Barra de Filtros */}
-      <div className="p-4 rounded-2xl bg-white dark:bg-card-dark border border-slate-200/80 dark:border-border-dark flex flex-col md:flex-row gap-4 items-center justify-between">
-        <div className="relative w-full md:w-80">
-          <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-lg">search</span>
-          <input
-            type="text"
-            placeholder="Buscar por nome ou telefone..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 rounded-xl text-xs bg-slate-50 dark:bg-surface-dark border border-slate-200 dark:border-border-dark focus:outline-none focus:ring-1 focus:ring-amber-500"
-          />
-        </div>
+      {/* Seletor de Modo: Carteira de Clientes vs Comandas em Aberto */}
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-border-dark pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab('wallets')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            activeTab === 'wallets'
+              ? 'bg-slate-900 text-white dark:bg-amber-500 dark:text-slate-950 shadow-sm'
+              : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <span className="material-symbols-outlined text-base">wallet</span>
+          <span>Carteira & Fiados ({wallets.length})</span>
+        </button>
 
-        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-          <button
-            type="button"
-            onClick={() => setStatusFilter('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${statusFilter === 'all' ? 'bg-amber-500 text-white shadow-sm' : 'bg-slate-100 dark:bg-surface-dark text-slate-600 dark:text-slate-300'}`}
-          >
-            Todos ({wallets.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('debt')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${statusFilter === 'debt' ? 'bg-rose-500 text-white shadow-sm' : 'bg-slate-100 dark:bg-surface-dark text-rose-600 dark:text-rose-400'}`}
-          >
-            Com Débito ({summary.debtorsCount})
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('credit')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${statusFilter === 'credit' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-surface-dark text-emerald-600 dark:text-emerald-400'}`}
-          >
-            Com Crédito ({summary.creditorsCount})
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('limit')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${statusFilter === 'limit' ? 'bg-[#D99A2B] text-slate-950 shadow-sm' : 'bg-slate-100 dark:bg-surface-dark text-slate-600 dark:text-slate-300'}`}
-          >
-            Com Limite Aprovado
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setActiveTab('open_comandas')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            activeTab === 'open_comandas'
+              ? 'bg-slate-900 text-white dark:bg-amber-500 dark:text-slate-950 shadow-sm'
+              : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <span className="material-symbols-outlined text-base">receipt_long</span>
+          <span>Comandas em Aberto ({openComandas.length})</span>
+          {openComandasTotal > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-rose-500 text-white font-mono">
+              R$ {openComandasTotal.toFixed(2)}
+            </span>
+          )}
+        </button>
       </div>
 
-      {/* Tabela de Clientes */}
-      <div className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200/80 dark:border-border-dark overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-50 dark:bg-surface-dark border-b border-slate-200 dark:border-border-dark text-[10px] font-black uppercase tracking-wider text-slate-400">
-                <th className="py-3 px-4">Cliente</th>
-                <th className="py-3 px-4">Telefone</th>
-                <th className="py-3 px-4 text-right">Limite Liberado</th>
-                <th className="py-3 px-4 text-right">Saldo da Conta</th>
-                <th className="py-3 px-4 text-center">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-              {loading ? (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-slate-400">
-                    <span className="material-symbols-outlined text-2xl animate-spin block mb-1">sync</span>
-                    Carregando contas dos clientes...
-                  </td>
-                </tr>
-              ) : filteredWallets.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-slate-400">
-                    Nenhum cliente encontrado para este filtro.
-                  </td>
-                </tr>
-              ) : (
-                filteredWallets.map((w) => {
-                  const isDebt = w.balance < 0;
-                  const isCredit = w.balance > 0;
+      {activeTab === 'wallets' ? (
+        <>
+          {/* Barra de Filtros */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-card-dark border border-slate-200/80 dark:border-border-dark flex flex-col md:flex-row gap-4 items-center justify-between">
+            <div className="relative w-full md:w-80">
+              <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-lg">search</span>
+              <input
+                type="text"
+                placeholder="Buscar por nome ou telefone..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 rounded-xl text-xs bg-slate-50 dark:bg-surface-dark border border-slate-200 dark:border-border-dark focus:outline-none focus:ring-1 focus:ring-amber-500"
+              />
+            </div>
 
-                  return (
-                    <tr key={w.client_id} className="hover:bg-slate-50/60 dark:hover:bg-white/[0.02] transition-colors">
-                      <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">
-                        <div className="flex items-center gap-2">
-                          <span className="material-symbols-outlined text-slate-400 text-base">person</span>
-                          <span>{w.client_name || 'Cliente'}</span>
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400 font-mono">
-                        {w.client_phone || '—'}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-bold text-slate-700 dark:text-slate-300">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedWallet(w);
-                            setLimitInput(w.credit_limit.toString());
-                            setIsLimitModalOpen(true);
-                          }}
-                          className="hover:underline text-amber-600 dark:text-amber-400 inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          <span>R$ {w.credit_limit.toFixed(2)}</span>
-                          <span className="material-symbols-outlined text-[13px]">edit</span>
-                        </button>
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-black tabular-nums">
-                        {isDebt && (
-                          <span className="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
-                            - R$ {Math.abs(w.balance).toFixed(2)}
-                          </span>
-                        )}
-                        {isCredit && (
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                            + R$ {w.balance.toFixed(2)}
-                          </span>
-                        )}
-                        {!isDebt && !isCredit && (
-                          <span className="text-slate-400">R$ 0,00</span>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center justify-center gap-1.5">
-                          {isDebt && (
-                            <>
-                              <button
-                                type="button"
-                                title="Cobrar via WhatsApp"
-                                onClick={() => handleSendWhatsAppCobrance(w)}
-                                className="p-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 transition-colors cursor-pointer"
-                              >
-                                <span className="material-symbols-outlined text-sm">chat</span>
-                              </button>
-                              <button
-                                type="button"
-                                title="Liquidar / Receber Débito"
-                                onClick={() => {
-                                  setSelectedWallet(w);
-                                  setSettleAmount(Math.abs(w.balance).toString());
-                                  setIsSettleModalOpen(true);
-                                }}
-                                className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] flex items-center gap-1 transition-colors cursor-pointer"
-                              >
-                                <span className="material-symbols-outlined text-xs">payments</span>
-                                <span>Receber</span>
-                              </button>
-                            </>
-                          )}
+            <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+              <button
+                type="button"
+                onClick={() => setStatusFilter('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${statusFilter === 'all' ? 'bg-amber-500 text-white shadow-sm' : 'bg-slate-100 dark:bg-surface-dark text-slate-600 dark:text-slate-300'}`}
+              >
+                Todos ({wallets.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('debt')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${statusFilter === 'debt' ? 'bg-rose-500 text-white shadow-sm' : 'bg-slate-100 dark:bg-surface-dark text-rose-600 dark:text-rose-400'}`}
+              >
+                Com Débito ({summary.debtorsCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('credit')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${statusFilter === 'credit' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-surface-dark text-emerald-600 dark:text-emerald-400'}`}
+              >
+                Com Crédito ({summary.creditorsCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('limit')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${statusFilter === 'limit' ? 'bg-[#D99A2B] text-slate-950 shadow-sm' : 'bg-slate-100 dark:bg-surface-dark text-slate-600 dark:text-slate-300'}`}
+              >
+                Com Limite Aprovado
+              </button>
+            </div>
+          </div>
 
-                          <button
-                            type="button"
-                            title="Adicionar Crédito Pré-Pago"
-                            onClick={() => {
-                              setSelectedWallet(w);
-                              setDepositAmount('50.00');
-                              setIsDepositModalOpen(true);
-                            }}
-                            className="p-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 transition-colors cursor-pointer"
-                          >
-                            <span className="material-symbols-outlined text-sm">add_card</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            title="Histórico / Extrato"
-                            onClick={() => void handleOpenHistory(w)}
-                            className="p-1.5 rounded-lg bg-slate-100 dark:bg-surface-dark hover:bg-slate-200 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
-                          >
-                            <span className="material-symbols-outlined text-sm">receipt_long</span>
-                          </button>
-                        </div>
+          {/* Tabela de Clientes */}
+          <div className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200/80 dark:border-border-dark overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-surface-dark border-b border-slate-200 dark:border-border-dark text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    <th className="py-3 px-4">Cliente</th>
+                    <th className="py-3 px-4">Telefone</th>
+                    <th className="py-3 px-4 text-right">Limite Liberado</th>
+                    <th className="py-3 px-4 text-right">Saldo da Conta</th>
+                    <th className="py-3 px-4 text-center">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-400">
+                        <span className="material-symbols-outlined text-2xl animate-spin block mb-1">sync</span>
+                        Carregando contas dos clientes...
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                  ) : filteredWallets.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-400">
+                        Nenhum cliente encontrado para este filtro.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredWallets.map((w) => {
+                      const isDebt = w.balance < 0;
+                      const isCredit = w.balance > 0;
+
+                      return (
+                        <tr key={w.client_id} className="hover:bg-slate-50/60 dark:hover:bg-white/[0.02] transition-colors">
+                          <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">
+                            <div className="flex items-center gap-2">
+                              <span className="material-symbols-outlined text-slate-400 text-base">person</span>
+                              <span>{w.client_name || 'Cliente'}</span>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400 font-mono">
+                            {w.client_phone || '—'}
+                          </td>
+                          <td className="py-3.5 px-4 text-right font-bold text-slate-700 dark:text-slate-300">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedWallet(w);
+                                setLimitInput(w.credit_limit.toString());
+                                setIsLimitModalOpen(true);
+                              }}
+                              className="hover:underline text-amber-600 dark:text-amber-400 inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              <span>R$ {w.credit_limit.toFixed(2)}</span>
+                              <span className="material-symbols-outlined text-[13px]">edit</span>
+                            </button>
+                          </td>
+                          <td className="py-3.5 px-4 text-right font-black tabular-nums">
+                            {isDebt && (
+                              <span className="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                                - R$ {Math.abs(w.balance).toFixed(2)}
+                              </span>
+                            )}
+                            {isCredit && (
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                + R$ {w.balance.toFixed(2)}
+                              </span>
+                            )}
+                            {!isDebt && !isCredit && (
+                              <span className="text-slate-400">R$ 0,00</span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center justify-center gap-1.5">
+                              {isDebt && (
+                                <>
+                                  <button
+                                    type="button"
+                                    title="Cobrar via WhatsApp"
+                                    onClick={() => handleSendWhatsAppCobrance(w)}
+                                    className="p-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 transition-colors cursor-pointer"
+                                  >
+                                    <span className="material-symbols-outlined text-sm">chat</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    title="Liquidar / Receber Débito"
+                                    onClick={() => {
+                                      setSelectedWallet(w);
+                                      setSettleAmount(Math.abs(w.balance).toString());
+                                      setIsSettleModalOpen(true);
+                                    }}
+                                    className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] flex items-center gap-1 transition-colors cursor-pointer"
+                                  >
+                                    <span className="material-symbols-outlined text-xs">payments</span>
+                                    <span>Receber</span>
+                                  </button>
+                                </>
+                              )}
+
+                              <button
+                                type="button"
+                                title="Adicionar Crédito Pré-Pago"
+                                onClick={() => {
+                                  setSelectedWallet(w);
+                                  setDepositAmount('50.00');
+                                  setIsDepositModalOpen(true);
+                                }}
+                                className="p-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 transition-colors cursor-pointer"
+                              >
+                                <span className="material-symbols-outlined text-sm">add_card</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                title="Histórico / Extrato"
+                                onClick={() => void handleOpenHistory(w)}
+                                className="p-1.5 rounded-lg bg-slate-100 dark:bg-surface-dark hover:bg-slate-200 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+                              >
+                                <span className="material-symbols-outlined text-sm">receipt_long</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Barra de Busca - Comandas em Aberto */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-card-dark border border-slate-200/80 dark:border-border-dark flex flex-col md:flex-row gap-4 items-center justify-between">
+            <div className="relative w-full md:w-96">
+              <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-lg">search</span>
+              <input
+                type="text"
+                placeholder="Buscar comanda por cliente ou código..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 rounded-xl text-xs bg-slate-50 dark:bg-surface-dark border border-slate-200 dark:border-border-dark focus:outline-none focus:ring-1 focus:ring-amber-500"
+              />
+            </div>
+
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              Totalizando <strong className="text-rose-500">R$ {openComandasTotal.toFixed(2)}</strong> em <strong className="text-slate-900 dark:text-white">{openComandas.length}</strong> comandas abertas
+            </div>
+          </div>
+
+          {/* Tabela de Comandas em Aberto */}
+          <div className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200/80 dark:border-border-dark overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-surface-dark border-b border-slate-200 dark:border-border-dark text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    <th className="py-3 px-4">Cliente</th>
+                    <th className="py-3 px-4">Telefone</th>
+                    <th className="py-3 px-4">Comanda</th>
+                    <th className="py-3 px-4">Aberta em</th>
+                    <th className="py-3 px-4 text-right">Valor em Aberto</th>
+                    <th className="py-3 px-4 text-center">Ação</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-400">
+                        <span className="material-symbols-outlined text-2xl animate-spin block mb-1">sync</span>
+                        Carregando comandas em aberto...
+                      </td>
+                    </tr>
+                  ) : filteredOpenComandas.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-400">
+                        Nenhuma comanda em aberto no balcão no momento.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredOpenComandas.map((cmd) => (
+                      <tr key={cmd.id} className="hover:bg-slate-50/60 dark:hover:bg-white/[0.02] transition-colors">
+                        <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">
+                          <div className="flex items-center gap-2">
+                            <span className={`material-symbols-outlined text-base ${cmd.is_unidentified ? 'text-amber-500' : 'text-slate-400'}`}>
+                              {cmd.is_unidentified ? 'person_outline' : 'person'}
+                            </span>
+                            <span>{cmd.client_name}</span>
+                            {cmd.is_unidentified && (
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                Não identificado
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400 font-mono">
+                          {cmd.client_phone || '—'}
+                        </td>
+                        <td className="py-3.5 px-4 font-mono font-bold text-slate-700 dark:text-slate-300">
+                          #{cmd.id.slice(0, 8).toUpperCase()}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400">
+                          {new Date(cmd.created_at).toLocaleString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-black text-rose-600 dark:text-rose-400 tabular-nums">
+                          R$ {cmd.total.toFixed(2)}
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/checkout/${cmd.id}`)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs transition-colors cursor-pointer shadow-xs"
+                          >
+                            <span className="material-symbols-outlined text-sm">point_of_sale</span>
+                            <span>Receber no Caixa</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Modal 1: Ajustar Limite Manual */}
       <Modal

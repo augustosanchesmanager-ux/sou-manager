@@ -40,6 +40,7 @@ const FinancialOverview = lazy(() => import('./pages/FinancialOverview'));
 const FiscalPage = lazy(() => import('./pages/Fiscal'));
 const AccountsReceivable = lazy(() => import('./pages/AccountsReceivable'));
 const ClientAccount = lazy(() => import('./pages/ClientAccount'));
+const CashLedger = lazy(() => import('./pages/CashLedger'));
 const BankReconciliation = lazy(() => import('./pages/BankReconciliation'));
 const CashClosingPage = lazy(() => import('./pages/CashClosingPage'));
 const KioskAdmin = lazy(() => import('./pages/KioskAdmin'));
@@ -316,6 +317,8 @@ const AppRoutes: React.FC = () => {
             <Route path="/expenses" element={<ManagerRoute><FeatureRoute feature="expenses"><Expenses /></FeatureRoute></ManagerRoute>} />
             <Route path="/receipts" element={<EsteticaBlockedRoute><ManagerRoute><FeatureRoute feature="finance"><Receipts /></FeatureRoute></ManagerRoute></EsteticaBlockedRoute>} />
             <Route path="/accounts-receivable" element={<ManagerRoute><FeatureRoute feature="receivables"><AccountsReceivable /></FeatureRoute></ManagerRoute>} />
+            <Route path="/entrada-saida" element={<ManagerRoute><CashLedger /></ManagerRoute>} />
+            <Route path="/cash-ledger" element={<Navigate to="/entrada-saida" replace />} />
             <Route path="/client-accounts" element={<ManagerRoute><ClientAccount /></ManagerRoute>} />
             <Route path="/conta-cliente" element={<Navigate to="/client-accounts" replace />} />
             <Route path="/payroll" element={<ManagerRoute><Payroll /></ManagerRoute>} />

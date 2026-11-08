@@ -49,6 +49,9 @@ export const BarberCommissionStatementModal: React.FC<BarberCommissionStatementM
 
   // Period state
   const [period, setPeriod] = useState<StatementPeriod>('today');
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const [customStartDate, setCustomStartDate] = useState<string>(todayStr);
+  const [customEndDate, setCustomEndDate] = useState<string>(todayStr);
 
   // Statement data state
   const [items, setItems] = useState<BarberStatementItem[]>([]);
@@ -119,13 +122,15 @@ export const BarberCommissionStatementModal: React.FC<BarberCommissionStatementM
 
     setDataLoading(true);
     try {
-      const { startDate, endDate } = getDateRangeForStatementPeriod(period);
+      const customRange = period === 'custom' ? { startDate: customStartDate, endDate: customEndDate } : undefined;
+      const { startDate, endDate } = getDateRangeForStatementPeriod(period, new Date(), customRange);
       const statementItems = await fetchBarberStatementData({
         tenantId,
         staffId: selectedStaffId,
         startDate,
         endDate,
         commissionPercentage: staffCommissionPercentage,
+        productCommissionPercentage: Number(currentStaff?.product_commission_rate || 0),
       });
       setItems(statementItems);
     } catch (err) {
@@ -134,13 +139,13 @@ export const BarberCommissionStatementModal: React.FC<BarberCommissionStatementM
     } finally {
       setDataLoading(false);
     }
-  }, [tenantId, selectedStaffId, period, staffCommissionPercentage]);
+  }, [tenantId, selectedStaffId, period, customStartDate, customEndDate, staffCommissionPercentage, currentStaff]);
 
   useEffect(() => {
     if (isOpen && selectedStaffId) {
       void loadStatementData();
     }
-  }, [isOpen, selectedStaffId, period, loadStatementData]);
+  }, [isOpen, selectedStaffId, period, customStartDate, customEndDate, loadStatementData]);
 
   // Compute 360 statement summary
   const summary = useMemo(() => {
@@ -204,21 +209,46 @@ export const BarberCommissionStatementModal: React.FC<BarberCommissionStatementM
           </div>
 
           {/* Period selector tabs */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/5">
-            {(['today', 'yesterday', 'week', 'month'] as StatementPeriod[]).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPeriod(p)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  period === p
-                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                }`}
-              >
-                {STATEMENT_PERIOD_LABELS[p]}
-              </button>
-            ))}
+          <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
+            <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/5">
+              {(['today', 'yesterday', 'week', 'month', 'custom'] as StatementPeriod[]).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPeriod(p)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    period === p
+                      ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  }`}
+                >
+                  {STATEMENT_PERIOD_LABELS[p]}
+                </button>
+              ))}
+            </div>
+
+            {period === 'custom' && (
+              <div className="flex items-center gap-1.5 p-1 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-xs">
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 pl-1.5">De</span>
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-lg px-2 py-1 text-xs text-slate-800 dark:text-slate-200 outline-none"
+                  />
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Até</span>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-lg px-2 py-1 text-xs text-slate-800 dark:text-slate-200 outline-none"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
