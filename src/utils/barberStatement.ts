@@ -30,13 +30,14 @@ export interface BarberStatementSummary {
   averageTicket: number; // Produção bruta / total de comandas
 }
 
-export type StatementPeriod = 'today' | 'yesterday' | 'week' | 'month';
+export type StatementPeriod = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
 
 export const STATEMENT_PERIOD_LABELS: Record<StatementPeriod, string> = {
   today: 'Hoje',
   yesterday: 'Ontem',
   week: 'Esta Semana',
   month: 'Este Mês',
+  custom: 'Personalizado',
 };
 
 /**
@@ -112,8 +113,15 @@ export function calculateBarberStatementSummary(
  */
 export function getDateRangeForStatementPeriod(
   period: StatementPeriod,
-  referenceDate: Date = new Date()
+  referenceDate: Date = new Date(),
+  customRange?: { startDate: string; endDate: string }
 ): { startDate: string; endDate: string } {
+  if (period === 'custom' && customRange?.startDate && customRange?.endDate) {
+    return {
+      startDate: customRange.startDate,
+      endDate: customRange.endDate,
+    };
+  }
   const pad = (n: number) => String(n).padStart(2, '0');
   const formatYMD = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 

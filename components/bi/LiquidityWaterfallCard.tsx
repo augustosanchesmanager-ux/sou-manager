@@ -16,8 +16,8 @@ export const LiquidityWaterfallCard: React.FC<LiquidityWaterfallCardProps> = ({ 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <DollarSign className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-            DRE Gerencial de Liquidez (Faturamento Bruto $\rightarrow$ Caixa Real)
+            <DollarSign className="w-5 h-5 text-amber-500" />
+            DRE Gerencial de Liquidez (Faturamento Bruto → Caixa Real)
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             Visão contábil e de fluxo real, cruzando faturamento bruto de comandas com custos de repasse e tarifas apuradas na conciliação bancária.

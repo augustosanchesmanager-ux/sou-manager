@@ -30,6 +30,7 @@ export interface StaffMember {
   role: string;
   avatar: string;
   commission_rate: number;
+  product_commission_rate?: number;
   status: string;
   working_hours?: StaffWorkingHours;
 }
@@ -40,6 +41,7 @@ export interface UpdateStaffInput {
   phone?: string;
   role?: string;
   commission_rate?: number;
+  product_commission_rate?: number;
   status?: string;
   avatar?: string;
   working_hours?: StaffWorkingHours;

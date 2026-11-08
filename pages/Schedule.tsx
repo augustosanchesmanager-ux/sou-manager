@@ -196,6 +196,40 @@ const roleLabels: Record<string, string> = { Manager: 'Gerente', Barber: 'Barbei
 
 const statusColors: Record<string, string> = appointmentDotColors;
 
+const getAtelierAppointmentStyle = (status: string) => {
+  switch (status) {
+    case 'in_progress':
+      return {
+        card: 'bg-[#B88A44]/15 border-l-4 border-l-[#B88A44] border-t border-r border-b border-[#B88A44]/30',
+        clientText: 'text-stone-50 font-black',
+        serviceText: 'text-[#F3D9A4] font-medium',
+        timeBadge: 'bg-[#B88A44] text-stone-950 font-bold',
+      };
+    case 'pending':
+      return {
+        card: 'bg-zinc-900 border-l-4 border-l-red-800 border-t border-r border-b border-zinc-800',
+        clientText: 'text-stone-200 font-bold',
+        serviceText: 'text-stone-400',
+        timeBadge: 'bg-red-950/80 text-red-300 border border-red-800/40',
+      };
+    case 'completed':
+      return {
+        card: 'bg-zinc-950/90 border-l-2 border-l-stone-700 border-t border-r border-b border-zinc-900 opacity-50',
+        clientText: 'text-stone-400 font-medium',
+        serviceText: 'text-stone-500',
+        timeBadge: 'bg-zinc-900 text-stone-500',
+      };
+    case 'confirmed':
+    default:
+      return {
+        card: 'bg-zinc-900 border-l-4 border-l-[#B88A44] border-t border-r border-b border-zinc-800 hover:border-l-[#D99A2B]',
+        clientText: 'text-stone-300 font-bold',
+        serviceText: 'text-stone-400',
+        timeBadge: 'bg-zinc-950 text-stone-300 border border-[#B88A44]/30',
+      };
+  }
+};
+
 const getOriginLabel = (source?: string | null, channel?: string | null, isEsteticaApp = false) => {
   const normalizedSource = `${source || ''}`.toLowerCase();
   const normalizedChannel = `${channel || ''}`.toLowerCase();
@@ -2809,51 +2843,54 @@ Podemos confirmar? 😄`;
             </div>
           </div>
 
-          {/* Bottom Strip: 4 KPIs Alinhados com Linear/Stripe */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark divide-x divide-y sm:divide-y-0 divide-line dark:divide-border-dark overflow-hidden order-4 lg:order-3">
-            <div className="p-3.5 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-soft">Atendimentos</span>
-                <span className="material-symbols-outlined text-base text-ink-soft">calendar_today</span>
+          {/* Topo Atelier Tech: Condensação dos Indicadores (Status Bar Horizontal) */}
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl border border-line dark:border-[#2B2823] bg-card dark:bg-[#12110F] text-xs shadow-sm order-4 lg:order-3">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-6 divide-x divide-line dark:divide-[#2B2823]">
+              {/* 1. Atendimentos */}
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-base text-[#B88A44]">calendar_today</span>
+                <span className="font-bold text-ink dark:text-stone-100 tabular-nums">
+                  {loading ? '...' : String(visibleAppointments.length).padStart(2, '0')}
+                </span>
+                <span className="text-ink-soft dark:text-stone-400 font-medium">Atendimentos</span>
+                {visibleConfirmedCount > 0 && (
+                  <span className="hidden sm:inline text-[10px] text-stone-500 font-normal">({visibleConfirmedCount} conf.)</span>
+                )}
               </div>
-              <p className="font-sans text-2xl font-normal tabular-nums tracking-tight text-ink dark:text-white">
-                {loading ? '...' : String(visibleAppointments.length).padStart(2, '0')}
-              </p>
-              <p className="text-[11px] text-ink-soft">{visibleConfirmedCount} confirmados</p>
-            </div>
 
-            <div className="p-3.5 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-500">Pendentes</span>
+              {/* 2. Pendentes */}
+              <div className="flex items-center gap-2 pl-3 sm:pl-6">
                 <span className="material-symbols-outlined text-base text-amber-500">schedule</span>
+                <span className="font-bold text-amber-500 tabular-nums">
+                  {loading ? '...' : String(visiblePendingCount).padStart(2, '0')}
+                </span>
+                <span className="text-ink-soft dark:text-stone-400 font-medium">Pendentes</span>
               </div>
-              <p className="font-sans text-2xl font-normal tabular-nums tracking-tight text-amber-500">
-                {loading ? '...' : String(visiblePendingCount).padStart(2, '0')}
-              </p>
-              <p className="text-[11px] text-ink-soft">Aguardam confirmação</p>
+
+              {/* 3. Comandas */}
+              <div className="flex items-center gap-2 pl-3 sm:pl-6">
+                <span className="material-symbols-outlined text-base text-[#B88A44]">receipt_long</span>
+                <span className="font-bold text-ink dark:text-stone-100 tabular-nums">
+                  {loading ? '...' : String(visibleOpenComandasCount).padStart(2, '0')}
+                </span>
+                <span className="text-ink-soft dark:text-stone-400 font-medium">{orderPluralLabel}</span>
+              </div>
+
+              {/* 4. Previsto */}
+              <div className="flex items-center gap-2 pl-3 sm:pl-6">
+                <span className="material-symbols-outlined text-base text-emerald-500">payments</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                  {loading ? '...' : formatScheduleCurrency(visibleExpectedRevenue)}
+                </span>
+                <span className="text-ink-soft dark:text-stone-400 font-medium">Previsto</span>
+              </div>
             </div>
 
-            <div className="p-3.5 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-soft">{orderPluralLabel}</span>
-                <span className="material-symbols-outlined text-base text-primary">receipt_long</span>
+            {visibleBlockCount > 0 && (
+              <div className="text-[11px] text-stone-500 dark:text-stone-400 hidden md:block">
+                <span>{visibleBlockCount} bloqueio(s) na grade</span>
               </div>
-              <p className="font-sans text-2xl font-normal tabular-nums tracking-tight text-ink dark:text-white">
-                {loading ? '...' : String(visibleOpenComandasCount).padStart(2, '0')}
-              </p>
-              <p className="text-[11px] text-ink-soft">{isEsteticaApp ? 'Abertos na agenda' : 'Abertas na agenda'}</p>
-            </div>
-
-            <div className="p-3.5 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-primary">Previsto</span>
-                <span className="material-symbols-outlined text-base text-primary">payments</span>
-              </div>
-              <p className="font-sans text-2xl font-normal tabular-nums tracking-tight text-primary-dark dark:text-primary-light whitespace-nowrap">
-                {loading ? '...' : formatScheduleCurrency(visibleExpectedRevenue)}
-              </p>
-              <p className="text-[11px] text-ink-soft">{visibleBlockCount} bloqueio(s)</p>
-            </div>
+            )}
           </div>
 
           {/* Week Day Pills Strip — Semana de Referência */}
@@ -3125,11 +3162,7 @@ Podemos confirmar? 😄`;
                               const startOffset = getTimelinePercent(apt.start);
                               const rawHeight = getTimelinePercent(apt.start + apt.duration) - getTimelinePercent(apt.start);
                               const height = Math.max(rawHeight, 4);
-                              const barberColors = ['bg-barber-1', 'bg-barber-2', 'bg-barber-3', 'bg-barber-4', 'bg-barber-5', 'bg-barber-6'];
-                              const borderColors = ['border-barber-1', 'border-barber-2', 'border-barber-3', 'border-barber-4', 'border-barber-5', 'border-barber-6'];
-                              const staffIdx = staffList.findIndex(s => s.id === apt.staffId);
-                              const barberColor = barberColors[Math.max(0, staffIdx) % barberColors.length];
-                              const borderColor = borderColors[Math.max(0, staffIdx) % borderColors.length];
+                              const atelier = getAtelierAppointmentStyle(apt.status);
                               const resolvedInterval = getResolvedAppointmentInterval(
                                 {
                                   serviceId: apt.serviceId,
@@ -3144,58 +3177,38 @@ Podemos confirmar? 😄`;
                                   draggable
                                   onDragStart={(e) => { e.dataTransfer.setData('aptId', apt.id); }}
                                   onClick={() => handleOpenAppointmentDetails(apt)}
-                                  className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-1 border ${borderColor} ${barberColor} z-10 overflow-hidden shadow-xs hover:brightness-105 cursor-pointer transition-all hover:shadow-md active:scale-95 active:opacity-80 ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
+                                  className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-1 ${atelier.card} z-10 overflow-hidden shadow-xs hover:brightness-110 cursor-pointer transition-all hover:shadow-md active:scale-95 active:opacity-80 ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
                                   style={{ top: `${startOffset}%`, height: `${Math.max(height, 4)}%` }}
                                   title={`${getDecimalTimeLabel(apt.start)} - ${getDecimalTimeLabel(apt.start + apt.duration)} | ${apt.client} — ${apt.service} | ${apt.staffName}${apt.isOverbooked ? ' (ENCAIXE)' : ''}`}
                                 >
-                                  <div className="flex min-w-0 items-center gap-1">
-                                    <span className="shrink-0 rounded bg-black/40 px-1 py-0.5 text-[8px] font-black font-mono leading-none text-white tabular-nums tracking-[-0.02em]">
-                                      {getDecimalTimeLabel(apt.start)}
-                                    </span>
-                                    {resolvedInterval.isCustom && (
-                                      <span
-                                        className="shrink-0 rounded bg-amber-400 text-slate-950 px-1 py-0.5 text-[8px] font-black leading-none tabular-nums whitespace-nowrap"
-                                        title={`Duração ajustada: ${resolvedInterval.durationMinutes}m (Padrão: ${resolvedInterval.nominalMinutes}m)`}
-                                      >
-                                        ⏱️ {resolvedInterval.durationMinutes}m
+                                  <div className="flex min-w-0 items-center justify-between gap-1">
+                                    <div className="flex items-center gap-1 min-w-0">
+                                      <span className={`shrink-0 rounded px-1 py-0.5 text-[8px] font-black font-mono leading-none ${atelier.timeBadge} tabular-nums tracking-[-0.02em]`}>
+                                        {getDecimalTimeLabel(apt.start)}
                                       </span>
-                                    )}
-                                    {apt.isOverbooked && (
-                                      <span className="shrink-0 rounded bg-amber-400 text-slate-950 px-1 py-0.5 text-[8px] font-black uppercase leading-none">ENCAIXE</span>
-                                    )}
-                                    {apt.isRecurring && (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setCativaConfirmAppointment({
-                                            id: apt.id,
-                                            client: apt.client,
-                                            clientPhone: apt.clientPhone,
-                                            service: apt.service,
-                                            staffName: apt.staffName,
-                                            date: apt.date || apt.startTime,
-                                            time: getDecimalTimeLabel(apt.start),
-                                            status: apt.status,
-                                          });
-                                          setIsCativaConfirmModalOpen(true);
-                                        }}
-                                        className={`shrink-0 rounded px-1 py-0.5 text-[8px] font-black uppercase leading-none flex items-center gap-0.5 transition-transform hover:scale-105 active:scale-95 ${
-                                          apt.status === 'confirmed'
-                                            ? 'bg-emerald-600 text-white'
-                                            : 'bg-amber-500 text-slate-950 font-black'
-                                        }`}
-                                        title="Cadeira Cativa — Clique para gerenciar confirmação semanal"
-                                      >
-                                        <span className="material-symbols-outlined text-[10px]">event_repeat</span>
-                                        {apt.status === 'confirmed' ? 'CATIVA ✅' : 'CATIVA ⏳'}
-                                      </button>
-                                    )}
+                                      {resolvedInterval.isCustom && (
+                                        <span
+                                          className="shrink-0 rounded bg-amber-400 text-slate-950 px-1 py-0.5 text-[8px] font-black leading-none tabular-nums whitespace-nowrap"
+                                          title={`Duração ajustada: ${resolvedInterval.durationMinutes}m (Padrão: ${resolvedInterval.nominalMinutes}m)`}
+                                        >
+                                          ⏱️ {resolvedInterval.durationMinutes}m
+                                        </span>
+                                      )}
+                                      {apt.isOverbooked && (
+                                        <span className="shrink-0 rounded bg-amber-400 text-slate-950 px-1 py-0.5 text-[8px] font-black uppercase leading-none">ENCAIXE</span>
+                                      )}
+                                    </div>
+                                    <div className="flex shrink-0 items-center gap-0.5">
+                                      {apt.status === 'confirmed' && <span className="material-symbols-outlined text-[10px] text-[#B88A44]">check_circle</span>}
+                                      {apt.status === 'in_progress' && <span className="w-1.5 h-1.5 rounded-full bg-[#B88A44] animate-pulse"></span>}
+                                      {apt.status === 'pending' && <span className="text-[9px] font-black text-red-400">✕</span>}
+                                      {apt.status === 'completed' && <span className="material-symbols-outlined text-[10px] text-stone-500">task_alt</span>}
+                                    </div>
                                   </div>
-                                  <p className="mt-0.5 truncate text-[10px] font-black leading-tight text-white drop-shadow-xs">
+                                  <p className={`mt-0.5 truncate text-[10px] leading-tight ${atelier.clientText}`}>
                                     {apt.client}
                                   </p>
-                                  <p className="truncate text-[9px] font-bold leading-tight text-white/90 drop-shadow-xs">
+                                  <p className={`truncate text-[9px] leading-tight ${atelier.serviceText}`}>
                                     {apt.service}
                                   </p>
                                 </div>
@@ -3219,9 +3232,24 @@ Podemos confirmar? 😄`;
                   ) : (
                     staffList.map(resource => (
                       <div key={resource.id} className="flex-1 py-3 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-1.5 relative">
-                        <div className="size-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border-2 border-slate-100 dark:border-slate-600 bg-cover bg-center"
-                          style={{ backgroundImage: `url(${resource.avatar || ''})` }}>
-                        </div>
+                        {resource.avatar && !resource.avatar.includes('ui-avatars.com') ? (
+                          <div
+                            className="size-10 rounded-full bg-slate-200 dark:bg-[#12110F] overflow-hidden border border-[#B88A44]/60 bg-cover bg-center shadow-xs"
+                            style={{ backgroundImage: `url(${resource.avatar})` }}
+                          />
+                        ) : (
+                          <div
+                            className="size-10 rounded-full bg-[#12110F] text-[#E8DFC9] border border-[#B88A44] flex items-center justify-center font-black text-xs tracking-wider shadow-xs"
+                            title={resource.name}
+                          >
+                            {resource.name
+                              .split(' ')
+                              .map((n: string) => n[0])
+                              .slice(0, 2)
+                              .join('')
+                              .toUpperCase()}
+                          </div>
+                        )}
                         <div className="text-center">
                           <p className="text-sm font-bold text-slate-900 dark:text-white leading-none">{resource.name}</p>
                           <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wide">{getVisibleRoleLabel(resource.role)}</p>
@@ -3316,11 +3344,7 @@ Podemos confirmar? 😄`;
                               const startOffset = getTimelinePercent(apt.start);
                               const rawHeight = getTimelinePercent(apt.start + apt.duration) - getTimelinePercent(apt.start);
                               const height = Math.max(rawHeight, 4);
-                              const staffIndex = staffList.findIndex(s => s.id === resource.id);
-                              const barberColors = ['bg-barber-1', 'bg-barber-2', 'bg-barber-3', 'bg-barber-4', 'bg-barber-5', 'bg-barber-6'];
-                              const borderColors = ['border-barber-1', 'border-barber-2', 'border-barber-3', 'border-barber-4', 'border-barber-5', 'border-barber-6'];
-                              const barberColor = barberColors[staffIndex % barberColors.length];
-                              const borderColor = borderColors[staffIndex % borderColors.length];
+                              const atelier = getAtelierAppointmentStyle(apt.status);
                               const resolvedInterval = getResolvedAppointmentInterval(
                                 {
                                   serviceId: apt.serviceId,
@@ -3336,12 +3360,12 @@ Podemos confirmar? 😄`;
                                   draggable
                                   onDragStart={(e) => { e.dataTransfer.setData('aptId', apt.id); }}
                                   onClick={() => handleOpenAppointmentDetails(apt)}
-                                  className={`absolute left-1 right-1 rounded-xl px-2.5 py-1.5 border ${borderColor} ${barberColor} hover:brightness-105 cursor-pointer transition-all shadow-md hover:shadow-lg flex flex-col justify-start z-20 overflow-hidden active:scale-[0.98] active:opacity-80 ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
+                                  className={`absolute left-1 right-1 rounded-xl px-2.5 py-1.5 ${atelier.card} hover:brightness-110 cursor-pointer transition-all shadow-md hover:shadow-lg flex flex-col justify-start z-20 overflow-hidden active:scale-[0.98] ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
                                   style={{ top: `${startOffset}%`, height: `${height}%` }}
                                   title={`${getDecimalTimeLabel(apt.start)} - ${getDecimalTimeLabel(apt.start + apt.duration)} | ${apt.client} — ${apt.service} | ${apt.staffName}${apt.isOverbooked ? ' (ENCAIXE)' : ''}`}
                                 >
                                   <div className="mb-0.5 flex min-w-0 items-center justify-between gap-1 shrink-0">
-                                    <span className="text-[9px] font-black font-mono px-1 py-0.5 rounded bg-black/40 text-white uppercase leading-none tabular-nums tracking-[-0.02em]">
+                                    <span className={`text-[9px] font-black font-mono px-1.5 py-0.5 rounded ${atelier.timeBadge} uppercase leading-none tabular-nums tracking-[-0.02em]`}>
                                       {getDecimalTimeLabel(apt.start)}
                                     </span>
                                     {resolvedInterval.isCustom && (
@@ -3385,16 +3409,30 @@ Podemos confirmar? 😄`;
                                         {apt.status === 'confirmed' ? 'CATIVA ✅' : 'CATIVA ⏳'}
                                       </button>
                                     )}
-                                    <div className="flex shrink-0 bg-black/20 rounded px-1 py-0.5">
-                                      {apt.status === 'confirmed' && <span className="material-symbols-outlined text-[12px] text-white">check_circle</span>}
-                                      {apt.status === 'completed' && <span className="material-symbols-outlined text-[12px] text-emerald-300">task_alt</span>}
-                                      {apt.status === 'pending' && <span className="material-symbols-outlined text-[12px] text-amber-300">schedule</span>}
+                                    <div className="flex shrink-0 items-center gap-1">
+                                      {apt.status === 'confirmed' && (
+                                        <span className="material-symbols-outlined text-[12px] text-[#B88A44]" title="Confirmado">check_circle</span>
+                                      )}
+                                      {apt.status === 'in_progress' && (
+                                        <span className="text-[9px] font-bold text-[#F3D9A4] flex items-center gap-1 bg-[#B88A44]/20 px-1 py-0.5 rounded border border-[#B88A44]/40">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-[#B88A44] animate-pulse"></span>
+                                          AO VIVO
+                                        </span>
+                                      )}
+                                      {apt.status === 'pending' && (
+                                        <span className="text-[10px] font-black text-red-400 bg-red-950/60 px-1 py-0.5 rounded border border-red-800/40" title="Pagamento / Confirmação Pendente">
+                                          ✕
+                                        </span>
+                                      )}
+                                      {apt.status === 'completed' && (
+                                        <span className="material-symbols-outlined text-[12px] text-stone-500" title="Concluído / Pago">task_alt</span>
+                                      )}
                                     </div>
                                   </div>
-                                  <p className="min-w-0 truncate text-xs font-black leading-tight text-white drop-shadow-xs">
+                                  <p className={`min-w-0 truncate text-xs leading-tight ${atelier.clientText}`}>
                                     {apt.client}
                                   </p>
-                                  <p className="min-w-0 truncate text-[10px] font-bold leading-tight text-white/90 drop-shadow-xs">
+                                  <p className={`min-w-0 truncate text-[10px] leading-tight ${atelier.serviceText}`}>
                                     {apt.service}
                                   </p>
                                 </div>

@@ -35,6 +35,7 @@ const toStaffMember = (row: Record<string, unknown>): StaffMember => ({
   role: (row.role as string) || 'barber',
   avatar: (row.avatar as string) || '',
   commission_rate: (row.commission_rate as number) || 0,
+  product_commission_rate: (row.product_commission_rate as number) || 0,
   status: (row.status as string) || 'active',
   working_hours: (row.working_hours as StaffMember['working_hours']) || null,
 });
@@ -109,10 +110,10 @@ class StaffRepositoryImpl extends SupabaseRepository {
     }
   }
 
-  async listForCommission(tenantId: string): Promise<Array<{ id: string; name: string; role?: string; avatar?: string; commission_rate?: number | null }>> {
+  async listForCommission(tenantId: string): Promise<Array<{ id: string; name: string; role?: string; avatar?: string; commission_rate?: number | null; product_commission_rate?: number | null }>> {
     try {
       const result = await this.from()
-        .select('id, name, role, avatar, commission_rate')
+        .select('id, name, role, avatar, commission_rate, product_commission_rate')
         .eq('tenant_id', tenantId);
       return this.extractData(result, 'list staff for commission');
     } catch (err) {
@@ -131,6 +132,7 @@ class StaffRepositoryImpl extends SupabaseRepository {
           role: input.role || 'barber',
           avatar: input.avatar || '',
           commission_rate: input.commission_rate ?? (input.role === 'barber' ? 50 : 0),
+          product_commission_rate: input.product_commission_rate ?? 0,
           status: input.status || 'active',
           tenant_id: tenantId,
         })
@@ -152,6 +154,7 @@ export interface CreateStaffInput {
   role?: string;
   avatar?: string;
   commission_rate?: number;
+  product_commission_rate?: number;
   status?: string;
 }
 
@@ -161,7 +164,7 @@ export interface StaffRepository extends IRepository<StaffMember> {
   exists(id: string, tenantId: string): Promise<boolean>;
   update(id: string, input: UpdateStaffInput, tenantId: string): Promise<void>;
   delete(id: string, tenantId: string): Promise<void>;
-  listForCommission(tenantId: string): Promise<Array<{ id: string; name: string; role?: string; avatar?: string; commission_rate?: number | null }>>;
+  listForCommission(tenantId: string): Promise<Array<{ id: string; name: string; role?: string; avatar?: string; commission_rate?: number | null; product_commission_rate?: number | null }>>;
   create(input: CreateStaffInput, tenantId: string): Promise<StaffMember>;
 }
 

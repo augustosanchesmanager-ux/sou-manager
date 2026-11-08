@@ -266,6 +266,26 @@ class ComandaRepositoryImpl extends SupabaseRepository {
     }
   }
 
+  async listOpenWithClients(tenantId: string, appSlug?: AppSlug): Promise<Array<{
+    id: string;
+    client_id: string | null;
+    total: number;
+    status: string;
+    created_at: string;
+    clients?: { id: string; name: string; phone?: string | null } | null;
+  }>> {
+    try {
+      const result = await this.scopeClient(appSlug).from(this.tableName)
+        .select('id, client_id, total, status, created_at, clients(id, name, phone)')
+        .eq('tenant_id', tenantId)
+        .eq('status', 'open')
+        .order('created_at', { ascending: false });
+      return this.extractData(result, 'list open comandas with clients') || [];
+    } catch (err) {
+      this.throwOnError(err, 'list open comandas with clients');
+    }
+  }
+
   async insertWithIdempotency(data: Record<string, unknown>, idempotencyKey: string, tenantId: string): Promise<string> {
     try {
       const { data: newC, error: insertError } = await this.scopeClient().from(this.tableName)
@@ -307,6 +327,14 @@ export interface ComandaRepository extends IRepository<Comanda> {
   delete(id: string, tenantId: string, appSlug?: AppSlug): Promise<void>;
   getStatus(id: string, tenantId: string, appSlug?: AppSlug): Promise<string | null>;
   listForCommission(tenantId: string, options?: { statuses?: string[]; excludeHidden?: boolean }): Promise<Array<Record<string, unknown>>>;
+  listOpenWithClients(tenantId: string, appSlug?: AppSlug): Promise<Array<{
+    id: string;
+    client_id: string | null;
+    total: number;
+    status: string;
+    created_at: string;
+    clients?: { id: string; name: string; phone?: string | null } | null;
+  }>>;
   insertWithIdempotency(data: Record<string, unknown>, idempotencyKey: string, tenantId: string): Promise<string>;
 }
 

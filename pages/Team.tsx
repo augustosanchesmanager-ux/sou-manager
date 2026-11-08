@@ -23,6 +23,7 @@ interface TeamMember {
     role: string;
     avatar: string;
     commission_rate: number;
+    product_commission_rate?: number;
     status: string;
     working_hours?: StaffWorkingHours;
 }
@@ -76,7 +77,17 @@ const Team: React.FC = () => {
     // Modal
     const [showModal, setShowModal] = useState(false);
     const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
-    const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'manager', commission_rate: String(getDefaultCommissionRateForRole('manager')), status: 'active', password: '' });
+    const [form, setForm] = useState({
+        name: '',
+        email: '',
+        phone: '',
+        role: 'manager',
+        commission_rate: String(getDefaultCommissionRateForRole('manager')),
+        product_commission_rate: '0',
+        comissiona_produtos: false,
+        status: 'active',
+        password: '',
+    });
     const [commissionEditedManually, setCommissionEditedManually] = useState(false);
 
     // Política de Repasse & Vales (G2 — ADR-030)
@@ -170,19 +181,32 @@ const Team: React.FC = () => {
     const openNewModal = () => {
         setEditingMember(null);
         setCommissionEditedManually(false);
-        setForm({ name: '', email: '', phone: '', role: 'manager', commission_rate: String(getDefaultCommissionRateForRole('manager')), status: 'active', password: '' });
+        setForm({
+            name: '',
+            email: '',
+            phone: '',
+            role: 'manager',
+            commission_rate: String(getDefaultCommissionRateForRole('manager')),
+            product_commission_rate: '0',
+            comissiona_produtos: false,
+            status: 'active',
+            password: '',
+        });
         setShowModal(true);
     };
 
     const openEditModal = (member: TeamMember) => {
         setEditingMember(member);
         setCommissionEditedManually(false);
+        const prodRate = Number(member.product_commission_rate || 0);
         setForm({
             name: member.name,
             email: member.email,
             phone: member.phone,
             role: member.role,
             commission_rate: member.commission_rate.toString(),
+            product_commission_rate: prodRate.toString(),
+            comissiona_produtos: prodRate > 0,
             status: member.status,
             password: '', // Não editamos senha por aqui
         });
@@ -236,6 +260,7 @@ const Team: React.FC = () => {
             phone: form.phone,
             role: form.role,
             commission_rate: parseInt(form.commission_rate) || 0,
+            product_commission_rate: form.comissiona_produtos ? (parseInt(form.product_commission_rate) || 0) : 0,
             status: form.status,
             avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(form.name)}&background=random`,
         };
@@ -839,10 +864,52 @@ const Team: React.FC = () => {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">{commissionLabel} (%)</label>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">{commissionLabel} Serviços (%)</label>
                             <input type="number" min="0" max="100" value={form.commission_rate} onChange={(e) => handleCommissionRateChange(e.target.value)}
                                 className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" />
                         </div>
+                    </div>
+
+                    {/* Bloco de Comissão de Produtos */}
+                    <div className="p-3.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/60 dark:bg-white/[0.02] space-y-2.5">
+                        <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                checked={form.comissiona_produtos}
+                                onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setForm((prev) => ({
+                                        ...prev,
+                                        comissiona_produtos: checked,
+                                        product_commission_rate: checked ? (prev.product_commission_rate !== '0' ? prev.product_commission_rate : '10') : '0',
+                                    }));
+                                }}
+                                className="size-4 rounded text-amber-500 focus:ring-amber-500 border-slate-300 dark:border-slate-600"
+                            />
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                Comissionar sobre Venda de Produtos
+                            </span>
+                        </label>
+                        {form.comissiona_produtos ? (
+                            <div className="pl-6 pt-1">
+                                <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">
+                                    Alíquota sobre Produtos (%)
+                                </label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={form.product_commission_rate}
+                                    onChange={(e) => setForm((prev) => ({ ...prev, product_commission_rate: e.target.value }))}
+                                    className="w-full sm:w-48 bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-2.5 text-sm text-slate-900 dark:text-white outline-none"
+                                    placeholder="Ex: 10"
+                                />
+                            </div>
+                        ) : (
+                            <p className="text-[11px] text-slate-400 pl-6 leading-relaxed">
+                                Nenhum produto vendido gerará comissão para este colaborador (padrão Sanchez Barber).
+                            </p>
+                        )}
                     </div>
                     <div>
                         <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Status</label>
