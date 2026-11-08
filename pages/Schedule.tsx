@@ -2924,7 +2924,7 @@ Podemos confirmar? 😄`;
         {isHeaderExpanded && (
           <div className="flex flex-col lg:flex-row lg:items-center justify-between px-4 sm:px-6 py-2 gap-2.5 bg-zinc-950/60 animate-in fade-in duration-150">
             {/* Dias da Semana (Chips Compactos) */}
-            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-0.5 shrink-0">
               {weekDays.map((day) => {
                 const dayKey = toDateKey(day);
                 const isActive = dayKey === selectedDateKey;
@@ -2951,7 +2951,7 @@ Podemos confirmar? 😄`;
             </div>
 
             {/* Indicadores Minimalistas em Linha & Mini Ocupação */}
-            <div className="flex items-center gap-3 sm:gap-4 text-xs text-stone-400 overflow-x-auto scrollbar-hide py-0.5 justify-between lg:justify-end">
+            <div className="flex items-center gap-3 sm:gap-4 text-xs text-stone-400 overflow-x-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-0.5 justify-between lg:justify-end">
               <span className="whitespace-nowrap">
                 <strong className="text-stone-200 font-bold">{loading ? '...' : String(visibleAppointments.length).padStart(2, '0')}</strong> atendi.
               </span>
@@ -3210,9 +3210,48 @@ Podemos confirmar? 😄`;
                               .toUpperCase()}
                           </div>
                         )}
-                        <div className="text-center">
-                          <p className="text-sm font-bold text-slate-900 dark:text-white leading-none">{resource.name}</p>
-                          <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wide">{getVisibleRoleLabel(resource.role)}</p>
+                        <div className="text-center w-full px-1 flex flex-col items-center">
+                          <p className="text-sm font-bold text-slate-900 dark:text-white leading-none truncate max-w-full" title={resource.name}>
+                            {resource.name}
+                          </p>
+                          <p className="text-[10px] text-slate-500 dark:text-zinc-400 mt-1 uppercase tracking-wide">
+                            {getVisibleRoleLabel(resource.role)}
+                          </p>
+
+                          {/* Barra discreta de capacidade/ocupação da agenda */}
+                          {(() => {
+                            const occData = barberOccupancies.find(b => b.id === resource.id);
+                            const occ = occData?.occupancy ?? 0;
+                            const count = occData?.count ?? 0;
+
+                            return (
+                              <div
+                                className="w-full max-w-[100px] mt-1.5 space-y-1 cursor-default"
+                                title={`${resource.name}: ${count} atendimento(s) agendado(s) hoje (${occ}% de ocupação)`}
+                              >
+                                <div className="flex items-center justify-between text-[9px] font-mono leading-none">
+                                  <span className="text-[8px] uppercase tracking-wider text-slate-400 dark:text-zinc-500 font-sans font-semibold">
+                                    Ocupação
+                                  </span>
+                                  <span className={`font-bold ${occ >= 80 ? 'text-amber-500' : occ > 0 ? 'text-[#B88A44]' : 'text-slate-400 dark:text-zinc-600'}`}>
+                                    {occ}%
+                                  </span>
+                                </div>
+                                <div className="w-full h-1 bg-slate-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all duration-300 ${
+                                      occ >= 80
+                                        ? 'bg-amber-500'
+                                        : occ > 0
+                                        ? 'bg-[#B88A44]'
+                                        : 'bg-transparent'
+                                    }`}
+                                    style={{ width: `${Math.min(occ, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
 
                         {/* Gatilho de Bloqueio Rápido por Coluna */}
