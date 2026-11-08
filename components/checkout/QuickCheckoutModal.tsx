@@ -8,6 +8,7 @@ import {
   playCheckoutSuccessChime,
   triggerHapticFeedback,
 } from '../../src/utils/feedbackSensory';
+import { triggerAsyncFiscalEmission } from '../../domain/fiscal/fiscalTrigger';
 
 export interface QuickCheckoutModalProps {
   isOpen: boolean;
@@ -50,6 +51,14 @@ export const QuickCheckoutModal: React.FC<QuickCheckoutModalProps> = ({
         paidAmount: comanda.total,
         recordComandaPayment: true,
         source: 'balcao_express',
+      });
+
+      // Emissão fiscal desacoplada (se habilitada pelo prestador)
+      triggerAsyncFiscalEmission({
+        tenantId,
+        comandaId: comanda.id,
+        valorTotal: comanda.total,
+        clientName: comanda.client_name || undefined,
       });
 
       playCheckoutSuccessChime();

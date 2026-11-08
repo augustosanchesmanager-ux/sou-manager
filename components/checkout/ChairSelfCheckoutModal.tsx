@@ -10,6 +10,7 @@ import {
   playCheckoutSuccessChime,
   triggerHapticFeedback,
 } from '../../src/utils/feedbackSensory';
+import { triggerAsyncFiscalEmission } from '../../domain/fiscal/fiscalTrigger';
 
 export interface ChairSelfCheckoutModalProps {
   isOpen: boolean;
@@ -57,6 +58,12 @@ export const ChairSelfCheckoutModal: React.FC<ChairSelfCheckoutModalProps> = ({
         (payload: any) => {
           if (payload?.new?.status === 'paid') {
             setIsPaid(true);
+            triggerAsyncFiscalEmission({
+              tenantId,
+              comandaId: comanda.id,
+              valorTotal: comanda.total,
+              clientName: comanda.client_name || undefined,
+            });
             playCheckoutSuccessChime();
             triggerHapticFeedback([50, 80, 50]);
             setTimeout(() => {
@@ -104,6 +111,12 @@ export const ChairSelfCheckoutModal: React.FC<ChairSelfCheckoutModalProps> = ({
         source: 'self_checkout_cadeira',
       });
       setIsPaid(true);
+      triggerAsyncFiscalEmission({
+        tenantId,
+        comandaId: comanda.id,
+        valorTotal: comanda.total,
+        clientName: comanda.client_name || undefined,
+      });
       playCheckoutSuccessChime();
       triggerHapticFeedback([50, 80, 50]);
       setTimeout(() => {
