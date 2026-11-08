@@ -4,6 +4,7 @@ import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
 import { fetchSmartReturnData } from '../src/modules/smartReturn/smartReturnService';
 import type {
+    RfmSegment,
     SmartReturnData,
     SmartReturnFilterTab,
     SmartReturnInactivityStatus,
@@ -12,7 +13,47 @@ import type {
 } from '../src/modules/smartReturn/types';
 import { buildWhatsAppUrl } from '../src/lib/utils/phone';
 
+const formatCurrency = (val: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+
 /* ─── Badge Components ───────────────────────────────────────── */
+const RfmBadge: React.FC<{ segment: RfmSegment; label: string }> = ({ segment, label }) => {
+    const config: Record<RfmSegment, { icon: string; cls: string }> = {
+        champion: {
+            icon: 'hotel_class',
+            cls: 'bg-[#B88A44]/15 text-[#9A6F2D] dark:text-[#E3C382] border border-[#B88A44]/35',
+        },
+        loyal: {
+            icon: 'verified',
+            cls: 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25',
+        },
+        promising: {
+            icon: 'trending_up',
+            cls: 'bg-teal-50 dark:bg-teal-950/25 text-teal-700 dark:text-teal-400 border border-teal-500/25',
+        },
+        at_risk: {
+            icon: 'fmd_bad',
+            cls: 'bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-400 border border-amber-500/30',
+        },
+        hibernating: {
+            icon: 'bedtime',
+            cls: 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-white/10',
+        },
+    };
+
+    const current = config[segment] || config.hibernating;
+
+    return (
+        <span
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${current.cls}`}
+            title={`Segmentação RFM: ${label}`}
+        >
+            <span className="material-symbols-outlined text-xs">{current.icon}</span>
+            {label}
+        </span>
+    );
+};
+
 const InactivityBadge: React.FC<{ status: SmartReturnInactivityStatus }> = ({ status }) => {
     const map = {
         up_to_date: {
@@ -58,6 +99,8 @@ const SmartReturn: React.FC = () => {
     });
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<SmartReturnFilterTab>('attention');
+    const [selectedRfm, setSelectedRfm] = useState<'all' | RfmSegment>('all');
+    const [sortBy, setSortBy] = useState<'days_desc' | 'spent_desc' | 'visits_desc' | 'name_asc'>('days_desc');
     const [search, setSearch] = useState('');
 
     const [selectedClient, setSelectedClient] = useState<SmartReturnRecord | null>(null);
@@ -69,7 +112,15 @@ const SmartReturn: React.FC = () => {
         if (!tenantId) {
             setData({
                 records: [],
-                kpis: { totalClients: 0, upToDate: 0, attention: 0, risk: 0, inactive: 0 },
+                kpis: {
+                    totalClients: 0,
+                    upToDate: 0,
+                    attention: 0,
+                    risk: 0,
+                    inactive: 0,
+                    championsCount: 0,
+                    atRiskRevenue: 0,
+                },
                 publicBookingUrl: null,
                 shopName: '',
             });
@@ -100,6 +151,7 @@ const SmartReturn: React.FC = () => {
         const query = search.trim().toLowerCase();
         return data.records
             .filter((c) => activeTab === 'all' || c.status === activeTab)
+            .filter((c) => selectedRfm === 'all' || c.rfmSegment === selectedRfm)
             .filter((c) => {
                 if (!query) return true;
                 return (
@@ -108,8 +160,14 @@ const SmartReturn: React.FC = () => {
                     c.phone.toLowerCase().includes(query) ||
                     (c.lastStaffName && c.lastStaffName.toLowerCase().includes(query))
                 );
+            })
+            .sort((a, b) => {
+                if (sortBy === 'spent_desc') return b.totalSpent - a.totalSpent;
+                if (sortBy === 'visits_desc') return b.totalVisits - a.totalVisits;
+                if (sortBy === 'name_asc') return a.name.localeCompare(b.name);
+                return b.daysSinceLastVisit - a.daysSinceLastVisit;
             });
-    }, [data.records, activeTab, search]);
+    }, [data.records, activeTab, selectedRfm, sortBy, search]);
 
     /* ─── Modal Actions ─────────────────────────────────────────── */
     const handleOpenWhatsAppModal = (client: SmartReturnRecord) => {
@@ -157,6 +215,67 @@ const SmartReturn: React.FC = () => {
                             refresh
                         </span>
                         Atualizar
+                    </button>
+                </div>
+            </div>
+
+            {/* Executive Intelligence Cards (RFM & Receita em Risco) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="card-boutique p-5 border border-[#B88A44]/30 bg-[linear-gradient(135deg,rgba(184,138,68,0.06)_0%,transparent_100%)] flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="size-12 rounded-2xl bg-[#B88A44]/15 border border-[#B88A44]/30 flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-[#9A6F2D] dark:text-[#E3C382] text-2xl">trending_down</span>
+                        </div>
+                        <div>
+                            <p className="text-[11px] font-black uppercase tracking-wider text-[#9A6F2D] dark:text-[#E3C382]">
+                                Receita Estimada em Risco
+                            </p>
+                            <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">
+                                {formatCurrency(data.kpis.atRiskRevenue)}
+                            </p>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                                Soma histórica de clientes em risco ou inativos que podem entrar em churn
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => {
+                            setActiveTab('risk');
+                            setSelectedRfm('all');
+                        }}
+                        className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#9A6F2D] dark:text-[#E3C382] bg-[#B88A44]/10 hover:bg-[#B88A44]/20 border border-[#B88A44]/25 rounded-xl transition-all"
+                    >
+                        Ver Clientes
+                        <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                    </button>
+                </div>
+
+                <div className="card-boutique p-5 border border-primary/30 bg-[linear-gradient(135deg,rgba(217,154,43,0.06)_0%,transparent_100%)] flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="size-12 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-primary-dark text-2xl">hotel_class</span>
+                        </div>
+                        <div>
+                            <p className="text-[11px] font-black uppercase tracking-wider text-primary-dark">
+                                Clientes VIP / Campeões (RFM)
+                            </p>
+                            <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">
+                                {data.kpis.championsCount}
+                            </p>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                                Clientes com maior frequência e faturamento acumulado na barbearia
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => {
+                            setActiveTab('all');
+                            setSelectedRfm('champion');
+                        }}
+                        className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-night bg-primary hover:brightness-105 rounded-xl transition-all"
+                    >
+                        Filtrar VIPs
+                        <span className="material-symbols-outlined text-sm">star</span>
                     </button>
                 </div>
             </div>
@@ -212,46 +331,92 @@ const SmartReturn: React.FC = () => {
                 </div>
             </div>
 
-            {/* Filter Tabs + Search */}
-            <div className="card-boutique p-5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 custom-scrollbar">
-                    {([
-                        { key: 'attention' as SmartReturnFilterTab, label: 'Janela de Retorno', count: data.kpis.attention, highlight: 'text-teal-700 dark:text-teal-400' },
-                        { key: 'risk' as SmartReturnFilterTab, label: 'Em Risco', count: data.kpis.risk, highlight: 'text-[#9A6F2D] dark:text-[#E3C382]' },
-                        { key: 'inactive' as SmartReturnFilterTab, label: 'Inativos', count: data.kpis.inactive, highlight: 'text-rose-500 dark:text-rose-400' },
-                        { key: 'up_to_date' as SmartReturnFilterTab, label: 'No Prazo', count: data.kpis.upToDate, highlight: 'text-emerald-500' },
-                        { key: 'all' as SmartReturnFilterTab, label: 'Todos', count: data.records.length, highlight: 'text-slate-400' },
-                    ] as const).map((tab) => (
-                        <button
-                            key={tab.key}
-                            onClick={() => setActiveTab(tab.key)}
-                            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                                activeTab === tab.key
-                                    ? 'bg-primary text-night shadow-md shadow-primary/20'
-                                    : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10'
-                            }`}
-                        >
-                            {tab.label}
-                            <span
-                                className={`size-5 inline-flex items-center justify-center rounded-full text-[10px] font-black ${
-                                    activeTab === tab.key ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-white/10'
+            {/* Filter Tabs + RFM Selector + Sort + Search */}
+            <div className="card-boutique p-5 space-y-4">
+                <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 custom-scrollbar">
+                        {([
+                            { key: 'attention' as SmartReturnFilterTab, label: 'Janela de Retorno', count: data.kpis.attention, highlight: 'text-teal-700 dark:text-teal-400' },
+                            { key: 'risk' as SmartReturnFilterTab, label: 'Em Risco', count: data.kpis.risk, highlight: 'text-[#9A6F2D] dark:text-[#E3C382]' },
+                            { key: 'inactive' as SmartReturnFilterTab, label: 'Inativos', count: data.kpis.inactive, highlight: 'text-rose-500 dark:text-rose-400' },
+                            { key: 'up_to_date' as SmartReturnFilterTab, label: 'No Prazo', count: data.kpis.upToDate, highlight: 'text-emerald-500' },
+                            { key: 'all' as SmartReturnFilterTab, label: 'Todos', count: data.records.length, highlight: 'text-slate-400' },
+                        ] as const).map((tab) => (
+                            <button
+                                key={tab.key}
+                                onClick={() => setActiveTab(tab.key)}
+                                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                                    activeTab === tab.key
+                                        ? 'bg-primary text-night shadow-md shadow-primary/20'
+                                        : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10'
                                 }`}
                             >
-                                {tab.count}
-                            </span>
-                        </button>
-                    ))}
+                                {tab.label}
+                                <span
+                                    className={`size-5 inline-flex items-center justify-center rounded-full text-[10px] font-black ${
+                                        activeTab === tab.key ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-white/10'
+                                    }`}
+                                >
+                                    {tab.count}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="relative w-full md:max-w-xs">
+                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+                        <input
+                            type="text"
+                            placeholder="Buscar cliente, telefone, barbeiro..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                        />
+                    </div>
                 </div>
 
-                <div className="relative w-full md:max-w-xs">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
-                    <input
-                        type="text"
-                        placeholder="Buscar cliente, telefone, barbeiro..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
-                    />
+                {/* Sub-bar: RFM Segment filter and Sort */}
+                <div className="pt-3 border-t border-slate-100 dark:border-white/5 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2 overflow-x-auto">
+                        <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1">
+                            <span className="material-symbols-outlined text-xs">tune</span>
+                            Segmento RFM:
+                        </span>
+                        {([
+                            { key: 'all', label: 'Todos os Segmentos' },
+                            { key: 'champion', label: 'VIP / Campeão' },
+                            { key: 'loyal', label: 'Leal' },
+                            { key: 'promising', label: 'Promissor' },
+                            { key: 'at_risk', label: 'Em Risco' },
+                            { key: 'hibernating', label: 'Hibernando' },
+                        ] as const).map((rfm) => (
+                            <button
+                                key={rfm.key}
+                                onClick={() => setSelectedRfm(rfm.key as any)}
+                                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all whitespace-nowrap ${
+                                    selectedRfm === rfm.key
+                                        ? 'bg-[#B88A44]/20 text-[#9A6F2D] dark:text-[#E3C382] border border-[#B88A44]/40 font-black'
+                                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                }`}
+                            >
+                                {rfm.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="flex items-center gap-2 ml-auto">
+                        <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Ordenar por:</span>
+                        <select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value as any)}
+                            className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-1 focus:ring-primary"
+                        >
+                            <option value="days_desc">Mais dias sem visita</option>
+                            <option value="spent_desc">Maior LTV (Total Gasto)</option>
+                            <option value="visits_desc">Mais Visitas</option>
+                            <option value="name_asc">Nome (A-Z)</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
@@ -275,16 +440,17 @@ const SmartReturn: React.FC = () => {
                         <table className="w-full">
                             <thead>
                                 <tr className="text-left text-[11px] font-black text-slate-500 bg-slate-50 dark:bg-white/[0.03] border-b border-slate-100 dark:border-white/5 uppercase tracking-wider">
-                                    <th className="px-6 py-4">Cliente</th>
+                                    <th className="px-6 py-4">Cliente &amp; RFM</th>
                                     <th className="px-6 py-4">Última Visita</th>
                                     <th className="px-6 py-4">Ciclo de Retorno</th>
+                                    <th className="px-6 py-4">Histórico &amp; LTV</th>
                                     <th className="px-6 py-4 text-right">Ações</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                                 {filteredRecords.map((client) => (
                                     <tr key={client.id} className="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors group">
-                                        {/* Client Info */}
+                                        {/* Client Info + RFM */}
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
                                                 {client.avatar ? (
@@ -298,8 +464,8 @@ const SmartReturn: React.FC = () => {
                                                         {client.name[0]?.toUpperCase() || 'C'}
                                                     </div>
                                                 )}
-                                                <div>
-                                                    <div className="flex items-center gap-2">
+                                                <div className="space-y-1">
+                                                    <div className="flex flex-wrap items-center gap-1.5">
                                                         <p className="text-sm font-bold text-slate-900 dark:text-white">{client.name}</p>
                                                         {client.isClubMember && (
                                                             <span
@@ -310,8 +476,9 @@ const SmartReturn: React.FC = () => {
                                                                 {client.clubPlanName || 'Clube'}
                                                             </span>
                                                         )}
+                                                        <RfmBadge segment={client.rfmSegment} label={client.rfmSegmentLabel} />
                                                     </div>
-                                                    <p className="text-xs text-slate-500 font-mono mt-0.5">
+                                                    <p className="text-xs text-slate-500 font-mono">
                                                         {client.phone || 'Sem telefone cadastrado'}
                                                     </p>
                                                 </div>
@@ -347,6 +514,18 @@ const SmartReturn: React.FC = () => {
                                         {/* Inactivity Status */}
                                         <td className="px-6 py-4">
                                             <InactivityBadge status={client.status} />
+                                        </td>
+
+                                        {/* Historical LTV & RFM Metrics */}
+                                        <td className="px-6 py-4">
+                                            <div className="space-y-0.5">
+                                                <p className="text-sm font-black text-slate-900 dark:text-slate-100">
+                                                    {formatCurrency(client.totalSpent)}
+                                                </p>
+                                                <p className="text-[11px] text-slate-500">
+                                                    {client.totalVisits} {client.totalVisits === 1 ? 'visita' : 'visitas'} · Ticket Médio: {formatCurrency(client.avgTicket)}
+                                                </p>
+                                            </div>
                                         </td>
 
                                         {/* Actions */}
@@ -418,24 +597,39 @@ const SmartReturn: React.FC = () => {
                 {selectedClient && (
                     <div className="space-y-5">
                         {/* Client Summary Box */}
-                        <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5">
-                            <div className="flex items-center gap-3">
-                                <div className="size-11 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-black text-slate-600 dark:text-slate-300 text-base">
-                                    {selectedClient.name[0]?.toUpperCase()}
-                                </div>
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <h4 className="font-black text-slate-900 dark:text-white text-base">{selectedClient.name}</h4>
-                                        {selectedClient.isClubMember && (
-                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-[#B88A44]/15 text-[#9A6F2D] dark:text-[#E3C382] border border-[#B88A44]/30">
-                                                Clube
-                                            </span>
-                                        )}
+                        <div className="p-4 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="size-11 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-black text-slate-600 dark:text-slate-300 text-base">
+                                        {selectedClient.name[0]?.toUpperCase()}
                                     </div>
-                                    <p className="text-xs text-slate-500 font-mono">{selectedClient.phone}</p>
+                                    <div>
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                            <h4 className="font-black text-slate-900 dark:text-white text-base">{selectedClient.name}</h4>
+                                            {selectedClient.isClubMember && (
+                                                <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-[#B88A44]/15 text-[#9A6F2D] dark:text-[#E3C382] border border-[#B88A44]/30">
+                                                    Clube
+                                                </span>
+                                            )}
+                                            <RfmBadge segment={selectedClient.rfmSegment} label={selectedClient.rfmSegmentLabel} />
+                                        </div>
+                                        <p className="text-xs text-slate-500 font-mono">{selectedClient.phone}</p>
+                                    </div>
                                 </div>
+                                <InactivityBadge status={selectedClient.status} />
                             </div>
-                            <InactivityBadge status={selectedClient.status} />
+
+                            <div className="pt-2 border-t border-slate-200/50 dark:border-white/5 flex items-center justify-between text-xs">
+                                <span className="text-slate-500">
+                                    Total Gasto: <strong className="text-slate-900 dark:text-white font-black">{formatCurrency(selectedClient.totalSpent)}</strong>
+                                </span>
+                                <span className="text-slate-500">
+                                    Visitas: <strong className="text-slate-900 dark:text-white font-black">{selectedClient.totalVisits}</strong>
+                                </span>
+                                <span className="text-slate-500">
+                                    Ticket Médio: <strong className="text-slate-900 dark:text-white font-black">{formatCurrency(selectedClient.avgTicket)}</strong>
+                                </span>
+                            </div>
                         </div>
 
                         {/* Message Preview and Editor */}
