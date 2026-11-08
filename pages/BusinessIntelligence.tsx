@@ -14,10 +14,12 @@ import { staffRepository } from '../domain/staff/repository';
 import { formatCurrency } from '../shared/format/currency';
 
 // Novos componentes dedicados de BI Avançado
+import { BiExecutiveCockpit } from '../components/bi/BiExecutiveCockpit';
 import { ScheduleHeatmap } from '../components/bi/ScheduleHeatmap';
 import { StaffProfitabilityTable } from '../components/bi/StaffProfitabilityTable';
 import { LiquidityWaterfallCard } from '../components/bi/LiquidityWaterfallCard';
 import { StrategicForecastCard } from '../components/bi/StrategicForecastCard';
+import { fetchBiCockpitData, type BiCockpitData, type BiPeriod } from '../src/modules/bi/biCockpitService';
 import {
     ScheduleHeatmapCell,
     StaffProductivityDetail,
@@ -33,7 +35,7 @@ const periodLabels: Record<string, string> = {
     '90d': '90 Dias',
 };
 
-type ActiveBiTab = 'forecast' | 'executive' | 'staff' | 'heatmap' | 'legacy_charts';
+type ActiveBiTab = 'cockpit' | 'forecast' | 'executive' | 'staff' | 'heatmap' | 'legacy_charts';
 
 const BusinessIntelligence: React.FC = () => {
     const { theme } = useTheme();
@@ -43,8 +45,12 @@ const BusinessIntelligence: React.FC = () => {
 
     const initialPeriod = (searchParams.get('period') as any) || '30d';
     const [period, setPeriod] = useState<string>(initialPeriod);
-    const [activeTab, setActiveTab] = useState<ActiveBiTab>('forecast');
+    const [activeTab, setActiveTab] = useState<ActiveBiTab>('cockpit');
     const [referenceDate, setReferenceDate] = useState<string>(new Date().toISOString().split('T')[0]);
+
+    // Estado do Cockpit Executivo
+    const [cockpitData, setCockpitData] = useState<BiCockpitData | null>(null);
+    const [cockpitLoading, setCockpitLoading] = useState<boolean>(true);
 
     // Estados dos novos dados de inteligência
     const [heatmapCells, setHeatmapCells] = useState<ScheduleHeatmapCell[]>([]);
@@ -83,6 +89,29 @@ const BusinessIntelligence: React.FC = () => {
     });
 
     const { data, reload } = useBusinessInsights({ period: period as any });
+
+    // 0. Carregar inteligência unificada para o Cockpit Executivo Atelier Tech
+    useEffect(() => {
+        if (!tenantId) return;
+        let isCancelled = false;
+        setCockpitLoading(true);
+
+        fetchBiCockpitData(tenantId, (period as BiPeriod) || '30d')
+            .then((res) => {
+                if (!isCancelled) {
+                    setCockpitData(res);
+                    setCockpitLoading(false);
+                }
+            })
+            .catch((err) => {
+                console.error('Erro ao carregar dados do Cockpit:', err);
+                if (!isCancelled) setCockpitLoading(false);
+            });
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [tenantId, period]);
 
     // Carregar e agregar dados de inteligência avançada (Heatmap, Staff e Liquidez Real)
     useEffect(() => {
@@ -378,11 +407,12 @@ const BusinessIntelligence: React.FC = () => {
                 {/* Abas de Navegação Analítica */}
                 <div className="flex items-center gap-2 mt-6 pt-4 border-t border-line overflow-x-auto">
                     {[
-                        { key: 'forecast', label: '1. Previsão Estratégica (Semanal / Quinzenal / Mensal)', icon: 'trending_up' },
-                        { key: 'executive', label: '2. Liquidez Real & DRE Cascata', icon: 'payments' },
-                        { key: 'staff', label: '3. Produtividade & Lucro da Equipe', icon: 'badge' },
-                        { key: 'heatmap', label: '4. Mapa de Ocupação da Grade (Heatmap)', icon: 'calendar_month' },
-                        { key: 'legacy_charts', label: '5. Visão Operacional & Clientes', icon: 'insights' },
+                        { key: 'cockpit', label: '1. Cockpit Executivo (Visão Geral)', icon: 'dashboard' },
+                        { key: 'forecast', label: '2. Previsão Estratégica (Semanal / Quinzenal / Mensal)', icon: 'trending_up' },
+                        { key: 'executive', label: '3. Liquidez Real & DRE Cascata', icon: 'payments' },
+                        { key: 'staff', label: '4. Produtividade & Lucro da Equipe', icon: 'badge' },
+                        { key: 'heatmap', label: '5. Mapa de Ocupação da Grade (Heatmap)', icon: 'calendar_month' },
+                        { key: 'legacy_charts', label: '6. Visão Operacional & Clientes', icon: 'insights' },
                     ].map((tab) => (
                         <button
                             key={tab.key}
@@ -399,6 +429,19 @@ const BusinessIntelligence: React.FC = () => {
                     ))}
                 </div>
             </div>
+
+            {/* ABA 0: Cockpit Executivo Atelier Tech (Visão Geral) */}
+            {activeTab === 'cockpit' && (
+                <div className="space-y-6">
+                    {cockpitData ? (
+                        <BiExecutiveCockpit data={cockpitData} loading={cockpitLoading} />
+                    ) : (
+                        <div className="py-20 text-center text-xs text-stone-400">
+                            Carregando indicadores do Cockpit Executivo...
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* ABA 1: Previsão Estratégica Atelier Tech (Semanal, Quinzenal, Mensal) */}
             {activeTab === 'forecast' && (
