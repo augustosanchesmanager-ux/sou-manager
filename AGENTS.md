@@ -133,6 +133,7 @@ INTAKE → AUDIT → CLASSIFY → STOP/GATE → ISOLATE → IMPLEMENT → VALIDA
 
 - Merge em `main` (merge só no encerramento da fase completa, nunca durante subfases) · deploy em produção · migration em produção · novo ADR · mudança de regra de negócio · operação destrutiva (rollback, exclusões).
 - **`MERGE ≠ DEPLOY PROD`** (ADR-026): merge em main não implica deploy. O bloqueio é o Ignored Build Step (produção) + o guard anti-regressão do workflow de promote; verificar `commandForIgnoringBuildStep` pelo campo do projeto Vercel antes de assumir que o bloqueio está ativo.
+- **Deploy de produção só pelo workflow.** `vercel --prod` / `vercel deploy --prod` por CLI é **proibido**: o Ignored Build Step não é avaliado em deploys de CLI, então esse caminho contorna o ADR-026, o Environment `Production` e o guard anti-regressão. Detecção e incidente registrado em [Mecânica real de deploy](#mecânica-real-de-deploy-vercel-smg-barber).
 
 ### Sempre executar automaticamente (sem perguntar)
 
@@ -267,3 +268,5 @@ VITE_APP_HOSTNAME_MAP={"custom.domain":"barber"}   # opcional
   - **Guard anti-regressão (bloqueante):** antes do promote, compara `$GITHUB_SHA` com o HEAD atual de `main` e falha com `🚨 Regressão evitada: O commit que você está tentando promover não é o mais recente da main`.
   - **Aviso de deployment defasado (não bloqueante):** se o SHA do deployment alvo difere do HEAD de `main`, emite `::warning::` — rollback documentado (promover deployment anterior) é permitido, ver `docs/runbooks/P-AUTO_PROMOTE_RUNBOOK.md`.
   - **Timeouts:** todos os jobs (`resolve-validate`, `promote`, `post-validate`) têm `timeout-minutes: 15`.
+- **(D) Deploy por CLI é proibido — bypass conhecido.** O Ignored Build Step só é avaliado no caminho Git. `vercel --prod` / `vercel deploy --prod` a partir de checkout local publica direto em produção e **não** é bloqueado por ele. Assinatura no histórico: deployment com `source: "cli"`, `meta.actor` preenchido e `meta.githubCommitVerification` ausente.
+  - **Incidente observado (2026-11-08):** o merge `577237a` foi corretamente `CANCELED` pelo Ignored Build Step às `09:08:29Z`; 26s depois (`09:08:52Z`) um deploy `source: cli` (actor `antigravity`) republicou `46144ec`, SHA **anterior** ao HEAD de `main`. O delta funcional foi zero (só `.github/` e `AGENTS.md`), mas o caminho de bypass é real e não é coberto pelo bloqueio.
