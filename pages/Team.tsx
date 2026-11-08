@@ -14,6 +14,8 @@ import type { PayoutFrequency } from '../domain/payout/types';
 import { PayoutCycleConfigFields } from '../components/payroll/PayoutCycleConfigModal';
 import { StaffScheduleModal } from '../components/staff/StaffScheduleModal';
 import type { StaffWorkingHours } from '../domain/staff/types';
+import { cardFeeRepository } from '../domain/paymentTerminal/cardFeeRepository';
+import type { CardFeePolicy } from '../domain/paymentTerminal/cardFeeSplitEngine';
 
 interface TeamMember {
     id: string;
@@ -104,6 +106,7 @@ const Team: React.FC = () => {
         allowAdvances: true,
     });
     const [loadingPayoutConfig, setLoadingPayoutConfig] = useState(false);
+    const [cardFeePolicy, setCardFeePolicy] = useState<CardFeePolicy>('gross');
     const [scheduleModalMember, setScheduleModalMember] = useState<TeamMember | null>(null);
 
     const handleSaveStaffSchedule = async (workingHours: StaffWorkingHours) => {
@@ -192,6 +195,7 @@ const Team: React.FC = () => {
             status: 'active',
             password: '',
         });
+        setCardFeePolicy('gross');
         setShowModal(true);
     };
 
@@ -216,6 +220,11 @@ const Team: React.FC = () => {
             payoutMonthDay: 5,
             allowAdvances: true,
         });
+        if (tenantId) {
+            cardFeeRepository.getStaffPolicy(tenantId, member.id)
+                .then((pol) => setCardFeePolicy(pol))
+                .catch(() => setCardFeePolicy('gross'));
+        }
         setShowModal(true);
         setLoadingPayoutConfig(true);
         getConfigByStaff(member.id)
@@ -287,6 +296,11 @@ const Team: React.FC = () => {
                         });
                     } catch (cfgErr) {
                         console.warn('Aviso ao salvar política de repasse:', cfgErr);
+                    }
+                    try {
+                        await cardFeeRepository.setStaffPolicy(tenantId, editingMember.id, cardFeePolicy);
+                    } catch (feeErr) {
+                        console.warn('Aviso ao salvar política de taxa de cartão:', feeErr);
                     }
                 }
                 setToast({ message: 'Colaborador e política de repasse atualizados!', type: 'success' });
@@ -911,6 +925,34 @@ const Team: React.FC = () => {
                             </p>
                         )}
                     </div>
+                    {/* Bloco de Política de Taxa de Maquininha / Cartão (Frente B) */}
+                    <div className="p-3.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/60 dark:bg-white/[0.02] space-y-2">
+                        <div className="flex items-center justify-between">
+                            <label className="block text-xs font-bold uppercase text-slate-500">
+                                Taxa da Maquininha de Cartão
+                            </label>
+                            <span className="text-[10px] text-amber-500 font-bold uppercase">
+                                Rateio Inteligente
+                            </span>
+                        </div>
+
+                        <select
+                            value={cardFeePolicy}
+                            onChange={(e) => setCardFeePolicy(e.target.value as CardFeePolicy)}
+                            className="w-full bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-xs text-slate-900 dark:text-white outline-none"
+                        >
+                            <option value="gross">Bruto (Barbearia absorve 100% da taxa - Isento)</option>
+                            <option value="split">Dividido (Rateio proporcional à comissão)</option>
+                            <option value="deducted">Descontado (Taxa deduzida da comissão do barbeiro)</option>
+                        </select>
+
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                            {cardFeePolicy === 'gross' && 'O profissional recebe a comissão integral. A barbearia absorve todas as taxas de maquininha (sinalizado como isento no extrato).'}
+                            {cardFeePolicy === 'split' && 'A taxa da máquina é dividida proporcionalmente com base na comissão (ex: 50% para a casa, 50% para o barbeiro).'}
+                            {cardFeePolicy === 'deducted' && 'O custo total da taxa da maquininha é deduzido da parcela do profissional no momento do fechamento.'}
+                        </p>
+                    </div>
+
                     <div>
                         <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Status</label>
                         <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}

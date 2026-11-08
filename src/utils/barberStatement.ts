@@ -18,6 +18,16 @@ export interface BarberStatementItem {
   commissionValue: number;
   comandaStatus: 'open' | 'paid' | 'cancelled' | 'blocked' | 'scheduled' | 'in_progress' | 'completed' | string;
   isPaid: boolean;
+  // Extensões da Frente B (Rateio Inteligente de Taxas de Maquininha)
+  paymentMethod?: string | null;
+  cardFeePercentage?: number;
+  cardFeeAmount?: number;
+  cardFeePolicy?: 'gross' | 'split' | 'deducted';
+  barberFeeDeduction?: number;
+  shopFeeAbsorption?: number;
+  isFeeExempt?: boolean;
+  exemptValue?: number;
+  netCommissionValue?: number;
 }
 
 export interface BarberStatementSummary {
@@ -105,6 +115,63 @@ export function calculateBarberStatementSummary(
     totalItems: validItemsCount,
     totalComandas,
     averageTicket,
+  };
+}
+
+export interface CardFeeStatementMetrics {
+  totalExemptFeeValue: number;
+  totalBarberFeeDeductions: number;
+  totalCardFees: number;
+  exemptItemsCount: number;
+  splitItemsCount: number;
+}
+
+/**
+ * 1.1 Apura as métricas de rateio de taxas de cartão para o extrato do profissional.
+ */
+export function calculateCardFeeStatementMetrics(
+  items: BarberStatementItem[]
+): CardFeeStatementMetrics {
+  if (!items || items.length === 0) {
+    return {
+      totalExemptFeeValue: 0,
+      totalBarberFeeDeductions: 0,
+      totalCardFees: 0,
+      exemptItemsCount: 0,
+      splitItemsCount: 0,
+    };
+  }
+
+  let totalExemptFeeValue = 0;
+  let totalBarberFeeDeductions = 0;
+  let totalCardFees = 0;
+  let exemptItemsCount = 0;
+  let splitItemsCount = 0;
+
+  for (const it of items) {
+    if (it.comandaStatus === 'cancelled') continue;
+
+    const cardFee = Number(it.cardFeeAmount) || 0;
+    const deduction = Number(it.barberFeeDeduction) || 0;
+    const exempt = Number(it.exemptValue) || 0;
+
+    totalCardFees += cardFee;
+
+    if (it.isFeeExempt) {
+      exemptItemsCount += 1;
+      totalExemptFeeValue += exempt;
+    } else if (deduction > 0) {
+      splitItemsCount += 1;
+      totalBarberFeeDeductions += deduction;
+    }
+  }
+
+  return {
+    totalExemptFeeValue: Math.round(totalExemptFeeValue * 100) / 100,
+    totalBarberFeeDeductions: Math.round(totalBarberFeeDeductions * 100) / 100,
+    totalCardFees: Math.round(totalCardFees * 100) / 100,
+    exemptItemsCount,
+    splitItemsCount,
   };
 }
 

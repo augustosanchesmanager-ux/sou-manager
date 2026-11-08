@@ -1,5 +1,21 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import {
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays,
+  Settings,
+  Briefcase,
+  Clock,
+  Receipt,
+  CircleDollarSign,
+  Plus,
+  User,
+  ChevronDown,
+  ChevronUp,
+  Ban,
+  Download
+} from 'lucide-react';
 import { supabase, getClientForTable, getScopedClient, ensureAppSupportsModule } from '../services/supabaseClient';
 import { generateIdempotencyKey } from '@/src/utils/idempotency';
 import Toast from '../components/Toast';
@@ -318,6 +334,7 @@ const Schedule: React.FC = () => {
     return 'calendar';
   });
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
+  const [isHeaderExpanded, setIsHeaderExpanded] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info'; action?: { label: string; onClick: () => void } } | null>(null);
 
   const isBarberRole = accessRole === 'barber';
@@ -2146,6 +2163,29 @@ const Schedule: React.FC = () => {
   const visibleConfirmedCount = React.useMemo(() => visibleAppointments
     .filter((appointment) => normalizeAppointmentStatus(appointment.status) === 'confirmed')
     .length, [visibleAppointments]);
+  const visibleCancelledCount = React.useMemo(() => visibleAppointments
+    .filter((appointment) => ['cancelled', 'canceled'].includes(normalizeAppointmentStatus(appointment.status)))
+    .length, [visibleAppointments]);
+  const barberOccupancies = React.useMemo(() => {
+    const activeStaff = staffList.filter((s) => shouldAppearOnSchedule(s.role));
+    if (activeStaff.length === 0) return [];
+    const maxAppointmentsPerDay = 10;
+    return activeStaff.map((staff) => {
+      const count = visibleAppointments.filter((a) => a.staffId === staff.id && !['cancelled', 'canceled'].includes(normalizeAppointmentStatus(a.status))).length;
+      const occupancy = Math.min(Math.round((count / maxAppointmentsPerDay) * 100), 100);
+      const nameParts = (staff.name || '').trim().split(/\s+/);
+      const shortName = nameParts.length > 1 ? `${nameParts[0]} ${nameParts[1][0]}.` : nameParts[0] || 'Barbeiro';
+      const initials = nameParts.length > 1 ? `${nameParts[0][0]}${nameParts[1][0]}`.toUpperCase() : (nameParts[0]?.[0] || 'B').toUpperCase();
+      return {
+        id: staff.id,
+        name: shortName,
+        fullName: staff.name,
+        count,
+        occupancy,
+        initials,
+      };
+    });
+  }, [staffList, visibleAppointments]);
   const visibleRangeLabel = React.useMemo(() => viewMode === 'week'
     ? `${weekDays[0].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} a ${weekDays[6].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}`
     : formatDateDisplay(selectedDate), [viewMode, weekDays, selectedDate]);
@@ -2694,342 +2734,351 @@ Podemos confirmar? 😄`;
 
   return (
     <div className="min-h-[calc(100vh-8rem)] pb-24 animate-fade-in relative">
-      <section className="relative mb-6 rounded-2xl border border-line dark:border-border-dark bg-card dark:bg-card-dark p-5 sm:p-6 text-ink dark:text-white shadow-xs transition-colors">
-        <div className="flex flex-col gap-5">
-          {/* Top Row: Identity + Date Navigator + Primary Creation Actions */}
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 order-1">
-            <div className="space-y-1.5 min-w-0">
-              <div className="flex items-center gap-2 text-xs font-semibold text-ink-soft">
-                <span className="material-symbols-outlined text-base text-primary">calendar_month</span>
-                <span>{isEsteticaApp ? 'Agenda da unidade' : 'Agenda das Cadeiras'}</span>
-                <span>•</span>
-                <span className="capitalize">{visibleRangeLabel}</span>
-              </div>
-              <h1 className="font-display text-2xl sm:text-3xl font-medium tracking-tight text-ink dark:text-white">
-                {isEsteticaApp ? 'Agenda operacional' : 'Ritmo da barbearia'}
-              </h1>
-            </div>
+      <header className="flex flex-col w-full rounded-2xl bg-zinc-950 border border-zinc-800/60 overflow-hidden shadow-2xl shadow-black/50 mb-6 transition-all duration-300">
+        {/* LINHA 1: Contexto Global */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 items-center px-4 sm:px-6 py-4 gap-4 border-b border-zinc-800/50 bg-zinc-950/80">
+          {/* Esquerda: Título */}
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-stone-100 tracking-widest uppercase">
+              Agendamentos
+            </h1>
+            <span className="text-[11px] font-bold text-[#B88A44] bg-[#B88A44]/15 px-2 py-0.5 rounded border border-[#B88A44]/30">
+              {isEsteticaApp ? 'Estética' : 'Sanchez Barber'}
+            </span>
+          </div>
 
-            <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap justify-start lg:justify-end">
-              {/* Ações */}
-              <button
-                onClick={() => setShowQuickWalkInModal(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-ink dark:text-white hover:border-primary/40 active:scale-[0.98] transition-all whitespace-nowrap touch-manipulation"
-                title="Encaixe rápido imediato na cadeira"
-              >
-                <span className="material-symbols-outlined text-base text-amber-500">person_add</span>
-                <span>Encaixe</span>
-              </button>
+          {/* Centro: Controle de Data */}
+          <div className="flex justify-center items-center gap-2 sm:gap-3 text-sm text-stone-400">
+            <button
+              type="button"
+              onClick={() => {
+                const newDate = new Date(selectedDate);
+                newDate.setDate(selectedDate.getDate() - 1);
+                setSelectedDate(newDate);
+              }}
+              className="hover:text-[#B88A44] transition-colors p-1.5 rounded hover:bg-zinc-900 cursor-pointer"
+              title="Dia anterior"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <span className="font-semibold tracking-wide uppercase text-xs sm:text-[13px] text-stone-200 text-center">
+              {selectedDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const newDate = new Date(selectedDate);
+                newDate.setDate(selectedDate.getDate() + 1);
+                setSelectedDate(newDate);
+              }}
+              className="hover:text-[#B88A44] transition-colors p-1.5 rounded hover:bg-zinc-900 cursor-pointer"
+              title="Próximo dia"
+            >
+              <ChevronRight size={18} />
+            </button>
 
-              <button
-                onClick={() => {
-                  setEditingAppointmentId(null);
-                  setEditingComandaStatus(null);
-                  setFormData(prev => ({ ...prev, client: '', clientPhone: '', service: '', serviceIds: [], duration: 1, notes: '' }));
-                  setChefClubInfo(null);
-                  setIsModalOpen(true);
+            {/* DatePicker Integrado */}
+            <div className="relative">
+              <DatePickerInput
+                value={getDateInputValue(selectedDate)}
+                onChange={(e) => {
+                  const newDate = parseDateInputValue(e.target.value);
+                  if (newDate) setSelectedDate(newDate);
                 }}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-primary to-primary-dark px-4 py-2.5 text-xs sm:text-sm font-bold text-night shadow-sm hover:brightness-105 active:scale-[0.98] transition-all whitespace-nowrap touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-              >
-                <span className="material-symbols-outlined text-base">add</span>
-                <span>{isEsteticaApp ? 'Novo atendimento' : 'Novo Agendamento'}</span>
-              </button>
+                className="sr-only"
+                containerClassName="relative"
+                buttonClassName="hover:text-[#B88A44] transition-colors p-1.5 rounded hover:bg-zinc-900 flex items-center cursor-pointer text-stone-400"
+                icon={<CalendarDays size={18} />}
+              />
             </div>
           </div>
 
-          {/* Middle Row: View Switchers & Secondary Controls */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-line dark:border-border-dark order-3 lg:order-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark p-1">
-                <button
-                  onClick={() => setDisplayMode('chair')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${displayMode === 'chair'
-                    ? 'bg-primary text-night shadow-xs'
-                    : 'text-ink-soft hover:text-ink dark:hover:text-white'
-                    }`}
-                >Fila de Cadeiras</button>
-                <button
-                  onClick={() => setDisplayMode('calendar')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${displayMode === 'calendar'
-                    ? 'bg-primary text-night shadow-xs'
-                    : 'text-ink-soft hover:text-ink dark:hover:text-white'
-                    }`}
-                >Grade Geral</button>
-                <button
-                  onClick={() => setDisplayMode('list')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${displayMode === 'list'
-                    ? 'bg-primary text-night shadow-xs'
-                    : 'text-ink-soft hover:text-ink dark:hover:text-white'
-                    }`}
-                >Lista</button>
-              </div>
-
-              {displayMode === 'calendar' && (
-                <div className="flex rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark p-1">
-                  <button
-                    onClick={() => setViewMode('day')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${viewMode === 'day'
-                      ? 'bg-primary text-night shadow-xs'
-                      : 'text-ink-soft hover:text-ink dark:hover:text-white'
-                      }`}
-                  >Dia</button>
-                  <button
-                    onClick={() => setViewMode('week')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${viewMode === 'week'
-                      ? 'bg-primary text-night shadow-xs'
-                      : 'text-ink-soft hover:text-ink dark:hover:text-white'
-                      }`}
-                  >Semana</button>
-                </div>
-              )}
+          {/* Direita: Filtros Globais e Modo Foco */}
+          <div className="flex justify-start lg:justify-end items-center gap-2 sm:gap-3 flex-wrap">
+            {/* Filtro de Profissional */}
+            <div className="relative">
+              <select
+                value={listFilters.professional}
+                onChange={(e) => setListFilters((prev) => ({ ...prev, professional: e.target.value }))}
+                className="appearance-none flex items-center gap-2 pl-8 pr-7 py-2 text-xs font-medium bg-zinc-900 border border-zinc-800 text-stone-300 rounded-lg hover:border-[#B88A44]/50 transition-colors cursor-pointer outline-none"
+              >
+                <option value="all">Todos os Profissionais</option>
+                {staffList.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <User size={14} className="text-[#B88A44] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <ChevronDown size={14} className="text-stone-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap sm:justify-end">
+            {/* Ações da Agenda */}
+            <div className="flex items-center gap-1.5">
               <button
+                type="button"
                 onClick={exportToCSV}
-                className="flex items-center gap-1.5 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark px-3 py-1.5 text-xs font-medium text-ink-soft hover:text-ink dark:hover:text-white transition-all"
+                className="p-2 text-stone-400 bg-zinc-900 border border-zinc-800 rounded-lg hover:text-stone-200 hover:border-zinc-700 transition-colors"
                 title="Exportar agenda em CSV"
               >
-                <span className="material-symbols-outlined text-base">download</span>
-                <span>Exportar</span>
+                <Download size={16} />
               </button>
 
               {displayMode === 'calendar' && (
-                <>
-                  <button
-                    onClick={() => setShowOnlyBlocks(prev => !prev)}
-                    className={`border px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all ${showOnlyBlocks
-                      ? 'border-red-400/40 bg-red-500/10 text-danger'
-                      : 'border-line dark:border-border-dark bg-card dark:bg-surface-dark text-ink-soft hover:text-ink dark:hover:text-white'
-                      }`}
-                    title="Exibir apenas bloqueios na grade"
-                  >
-                    <span className="material-symbols-outlined text-base">block</span>
-                    <span>Bloqueios</span>
-                  </button>
-
-                  <button
-                    onClick={handleOpenCreateBlockModal}
-                    className="flex items-center gap-1.5 rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-danger transition-all hover:bg-red-500/20"
-                  >
-                    <span className="material-symbols-outlined text-base">event_busy</span>
-                    <span>Fechar agenda</span>
-                  </button>
-                </>
+                <button
+                  type="button"
+                  onClick={handleOpenCreateBlockModal}
+                  className="px-2.5 py-1.5 text-xs font-medium bg-red-950/30 border border-red-800/40 text-red-300 rounded-lg hover:bg-red-900/30 transition-colors"
+                  title="Bloquear horário / fechar agenda"
+                >
+                  Bloqueio
+                </button>
               )}
+            </div>
 
+            {/* Divisor */}
+            <div className="w-px h-6 bg-zinc-800 mx-1 hidden sm:block" />
+
+            {/* Botão Modo Foco (Ocultar/Mostrar Painel) */}
+            <button
+              type="button"
+              onClick={() => setIsHeaderExpanded(!isHeaderExpanded)}
+              className="p-2 text-stone-400 bg-zinc-900 border border-zinc-800 rounded-lg hover:text-[#B88A44] hover:border-[#B88A44]/50 transition-all duration-200 flex items-center justify-center shadow-sm cursor-pointer"
+              title={isHeaderExpanded ? 'Ocultar controles (Modo Foco na Grade)' : 'Mostrar controles da Agenda'}
+            >
+              {isHeaderExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </button>
+          </div>
+        </div>
+
+        {/* LINHA 2: Controles de Visualização (Modo Foco) */}
+        {isHeaderExpanded && (
+          <div className="flex flex-wrap items-center px-4 sm:px-6 py-3 gap-3 md:gap-4 border-b border-zinc-800/40 bg-zinc-950/40 animate-in fade-in duration-200">
+            {/* Aba de Tempo */}
+            <div className="flex bg-zinc-900 rounded-lg p-1 border border-zinc-800/80">
               <button
-                onClick={() => navigate('/operations')}
-                className="flex items-center gap-1.5 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark px-3 py-1.5 text-xs font-medium text-ink-soft hover:text-ink dark:hover:text-white transition-all"
-                title="Operações do dia"
+                type="button"
+                onClick={() => setViewMode('day')}
+                className={`px-4 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 cursor-pointer ${
+                  viewMode === 'day'
+                    ? 'bg-zinc-800 text-[#B88A44] shadow-sm font-bold'
+                    : 'text-stone-400 hover:text-stone-200'
+                }`}
               >
-                <span className="material-symbols-outlined text-base text-primary">insights</span>
-                <span>Operações</span>
+                Dia
               </button>
-
               <button
-                onClick={() => setIsWaitlistModalOpen(true)}
-                className="flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/15 px-3 py-1.5 text-xs font-bold text-amber-200 shadow-xs transition-all hover:bg-amber-500/25"
-                title="Fila de Espera de Agendamento"
+                type="button"
+                onClick={() => setViewMode('week')}
+                className={`px-4 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 cursor-pointer ${
+                  viewMode === 'week'
+                    ? 'bg-zinc-800 text-[#B88A44] shadow-sm font-bold'
+                    : 'text-stone-400 hover:text-stone-200'
+                }`}
               >
-                <span className="material-symbols-outlined text-base">hourglass_top</span>
-                <span>Fila de Espera</span>
-                {waitlistWaitingCount > 0 && (
-                  <span className="rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-black text-slate-950">
-                    {waitlistWaitingCount}
-                  </span>
-                )}
+                Semana
               </button>
             </div>
+
+            {/* Aba de Layout */}
+            <div className="flex bg-zinc-900 rounded-lg p-1 border border-zinc-800/80">
+              {[
+                { key: 'chair', label: 'Fila de Cadeiras' },
+                { key: 'calendar', label: 'Grade Geral' },
+                { key: 'list', label: 'Lista' },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setDisplayMode(tab.key as DisplayMode)}
+                  className={`px-4 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 cursor-pointer ${
+                    displayMode === tab.key
+                      ? 'bg-zinc-800 text-[#B88A44] shadow-sm font-bold'
+                      : 'text-stone-400 hover:text-stone-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Operações rápidas */}
+            <button
+              type="button"
+              onClick={() => navigate('/operations')}
+              className="text-xs text-stone-400 hover:text-stone-200 px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 ml-auto hidden sm:flex items-center gap-1.5"
+            >
+              <Settings size={14} />
+              <span>Painel de Operações</span>
+            </button>
+          </div>
+        )}
+
+        {/* LINHA 3: Navegação Diária e Ações de Agendamento */}
+        <div className={`flex flex-col xl:flex-row xl:items-center justify-between px-4 sm:px-6 pb-4 bg-zinc-900/20 ${isHeaderExpanded ? 'pt-4' : 'pt-4'} gap-4`}>
+          {/* Régua de Dias da Semana */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 xl:pb-0 scrollbar-hide">
+            {weekDays.map((day) => {
+              const dayKey = toDateKey(day);
+              const isActive = dayKey === selectedDateKey;
+              const rawWeekday = day.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').trim();
+              const weekdayLabel = rawWeekday.charAt(0).toUpperCase() + rawWeekday.slice(1, 3);
+              const dayNum = String(day.getDate()).padStart(2, '0');
+
+              return (
+                <button
+                  key={dayKey}
+                  type="button"
+                  onClick={() => setSelectedDate(day)}
+                  className={`flex flex-col items-center justify-center min-w-[3.2rem] h-14 rounded-xl border transition-all duration-200 cursor-pointer ${
+                    isActive
+                      ? 'bg-[#B88A44] border-[#B88A44] text-zinc-950 shadow-[0_0_15px_rgba(184,138,68,0.25)] scale-105 font-bold'
+                      : 'bg-zinc-900 border-zinc-800 text-stone-400 hover:border-[#B88A44]/40 hover:bg-zinc-800'
+                  }`}
+                >
+                  <span className={`text-xs ${isActive ? 'font-bold' : 'font-medium'}`}>{weekdayLabel}</span>
+                  <span className={`text-base ${isActive ? 'font-black' : 'font-semibold'}`}>{dayNum}</span>
+                </button>
+              );
+            })}
           </div>
 
-          {/* Topo Atelier Tech: Condensação dos Indicadores (Status Bar Horizontal) */}
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl border border-line dark:border-[#2B2823] bg-card dark:bg-[#12110F] text-xs shadow-sm order-4 lg:order-3">
-            <div className="flex flex-wrap items-center gap-3 sm:gap-6 divide-x divide-line dark:divide-[#2B2823]">
-              {/* 1. Atendimentos */}
+          {/* Botões de Ação */}
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 xl:justify-end">
+            <button
+              type="button"
+              onClick={() => setShowQuickWalkInModal(true)}
+              className="px-4 py-2 text-xs sm:text-sm font-medium bg-zinc-900/50 border border-zinc-700 text-stone-300 rounded-lg hover:border-[#B88A44] hover:text-[#B88A44] transition-all duration-200 cursor-pointer"
+            >
+              Encaixe
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsWaitlistModalOpen(true)}
+              className="px-4 py-2 text-xs sm:text-sm font-medium bg-transparent border border-[#B88A44]/50 text-[#B88A44] rounded-lg hover:bg-[#B88A44]/10 hover:border-[#B88A44] transition-all duration-200 flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>Fila de Espera</span>
+              {waitlistWaitingCount > 0 && (
+                <span className="rounded-full bg-amber-400 px-1.5 py-0.2 text-[10px] font-black text-slate-950">
+                  {waitlistWaitingCount}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingAppointmentId(null);
+                setEditingComandaStatus(null);
+                setFormData((prev) => ({ ...prev, client: '', clientPhone: '', service: '', serviceIds: [], duration: 1, notes: '' }));
+                setChefClubInfo(null);
+                setIsModalOpen(true);
+              }}
+              className="px-5 py-2 text-xs sm:text-sm font-bold bg-[#B88A44] text-zinc-950 rounded-lg hover:bg-[#c99a53] shadow-[0_0_15px_rgba(184,138,68,0.2)] transition-all duration-200 flex items-center gap-2 cursor-pointer"
+            >
+              <Plus size={18} strokeWidth={2.5} />
+              <span>Novo Agendamento</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Rodapé de Informações (Ocultável pelo Modo Foco) */}
+        {isHeaderExpanded && (
+          <div className="animate-in fade-in duration-300">
+            {/* Status Bar Fina de Indicadores */}
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 sm:px-6 py-3 border-t border-zinc-800/60 text-xs sm:text-[13px] font-medium text-stone-400">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-base text-[#B88A44]">calendar_today</span>
-                <span className="font-bold text-ink dark:text-stone-100 tabular-nums">
-                  {loading ? '...' : String(visibleAppointments.length).padStart(2, '0')}
+                <Briefcase size={14} className="text-stone-500" />
+                <span>
+                  <strong className="text-stone-200 font-semibold">{loading ? '...' : String(visibleAppointments.length).padStart(2, '0')}</strong> Atendimentos
                 </span>
-                <span className="text-ink-soft dark:text-stone-400 font-medium">Atendimentos</span>
-                {visibleConfirmedCount > 0 && (
-                  <span className="hidden sm:inline text-[10px] text-stone-500 font-normal">({visibleConfirmedCount} conf.)</span>
-                )}
               </div>
 
-              {/* 2. Pendentes */}
-              <div className="flex items-center gap-2 pl-3 sm:pl-6">
-                <span className="material-symbols-outlined text-base text-amber-500">schedule</span>
-                <span className="font-bold text-amber-500 tabular-nums">
-                  {loading ? '...' : String(visiblePendingCount).padStart(2, '0')}
+              <span className="hidden md:block w-px h-3 bg-zinc-700" />
+
+              <div className="flex items-center gap-2">
+                <Clock size={14} className="text-stone-500" />
+                <span>
+                  <strong className="text-stone-200 font-semibold">{loading ? '...' : String(visiblePendingCount).padStart(2, '0')}</strong> Pendentes
                 </span>
-                <span className="text-ink-soft dark:text-stone-400 font-medium">Pendentes</span>
               </div>
 
-              {/* 3. Comandas */}
-              <div className="flex items-center gap-2 pl-3 sm:pl-6">
-                <span className="material-symbols-outlined text-base text-[#B88A44]">receipt_long</span>
-                <span className="font-bold text-ink dark:text-stone-100 tabular-nums">
-                  {loading ? '...' : String(visibleOpenComandasCount).padStart(2, '0')}
+              <span className="hidden md:block w-px h-3 bg-zinc-700" />
+
+              <div className="flex items-center gap-2">
+                <Receipt size={14} className="text-stone-500" />
+                <span>
+                  <strong className="text-stone-200 font-semibold">{loading ? '...' : String(visibleOpenComandasCount).padStart(2, '0')}</strong> {orderPluralLabel}
                 </span>
-                <span className="text-ink-soft dark:text-stone-400 font-medium">{orderPluralLabel}</span>
               </div>
 
-              {/* 4. Previsto */}
-              <div className="flex items-center gap-2 pl-3 sm:pl-6">
-                <span className="material-symbols-outlined text-base text-emerald-500">payments</span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                  {loading ? '...' : formatScheduleCurrency(visibleExpectedRevenue)}
+              <span className="hidden md:block w-px h-3 bg-zinc-700" />
+
+              <div className="flex items-center gap-2">
+                <Ban size={14} className="text-red-500/80" />
+                <span>
+                  <strong className="text-stone-200 font-semibold">{loading ? '...' : String(visibleCancelledCount).padStart(2, '0')}</strong> Cancelados
                 </span>
-                <span className="text-ink-soft dark:text-stone-400 font-medium">Previsto</span>
+              </div>
+
+              <span className="hidden md:block w-px h-3 bg-zinc-700" />
+
+              <div className="flex items-center gap-2 text-[#B88A44]">
+                <CircleDollarSign size={14} className="text-[#B88A44]/80" />
+                <span>
+                  <strong className="text-stone-100 font-semibold">{loading ? '...' : formatScheduleCurrency(visibleExpectedRevenue)}</strong> Previsto
+                </span>
               </div>
             </div>
 
-            {visibleBlockCount > 0 && (
-              <div className="text-[11px] text-stone-500 dark:text-stone-400 hidden md:block">
-                <span>{visibleBlockCount} bloqueio(s) na grade</span>
+            {/* Ocupação das Cadeiras em Tempo Real */}
+            {barberOccupancies.length > 0 && (
+              <div className="flex items-center gap-3 px-4 sm:px-6 pt-3 pb-4 border-t border-zinc-800/40 overflow-x-auto scrollbar-hide">
+                <span className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider mr-1">Ocupação:</span>
+
+                {barberOccupancies.map((barber) => (
+                  <div
+                    key={barber.id}
+                    className="flex items-center gap-2.5 bg-zinc-900/60 border border-zinc-800/80 rounded-lg p-2 min-w-[150px] hover:border-[#B88A44]/30 transition-colors cursor-pointer"
+                    title={`${barber.fullName}: ${barber.count} atendimento(s) agendado(s)`}
+                  >
+                    {/* Avatar Inicial */}
+                    <div className="w-7 h-7 rounded-full bg-zinc-950 flex items-center justify-center text-[10px] text-[#B88A44] font-bold border border-[#B88A44]/40 shadow-inner">
+                      {barber.initials}
+                    </div>
+
+                    {/* Info e Progresso */}
+                    <div className="flex flex-col w-full gap-1.5">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-stone-300 font-medium truncate max-w-[75px]">{barber.name}</span>
+                        <span
+                          className={`font-bold text-[11px] ${
+                            barber.occupancy >= 90
+                              ? 'text-emerald-400'
+                              : barber.occupancy < 40
+                                ? 'text-stone-400'
+                                : 'text-[#B88A44]'
+                          }`}
+                        >
+                          {barber.occupancy}%
+                        </span>
+                      </div>
+                      {/* Barra de Progresso */}
+                      <div className="w-full bg-zinc-950 rounded-full h-1 overflow-hidden shadow-inner">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            barber.occupancy >= 90 ? 'bg-emerald-500' : 'bg-[#B88A44]'
+                          }`}
+                          style={{ width: `${barber.occupancy}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
-
-          {/* Week Day Pills Strip — Semana de Referência */}
-          <div className="pt-3 border-t border-line dark:border-border-dark space-y-2.5 order-2 lg:order-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-ink-soft flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-sm text-primary">date_range</span>
-                  <span>Semana de referência:</span>
-                </span>
-                <span className="text-xs font-bold text-ink dark:text-white capitalize">
-                  {weekDays[0].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} a{' '}
-                  {weekDays[6].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1.5 self-end sm:self-auto">
-                {/* Botão Semana Anterior */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newDate = new Date(selectedDate);
-                    newDate.setDate(selectedDate.getDate() - 7);
-                    setSelectedDate(newDate);
-                  }}
-                  className="flex items-center justify-center p-1.5 rounded-lg border border-line dark:border-border-dark bg-card dark:bg-surface-dark text-ink-soft hover:text-ink dark:hover:text-white hover:bg-gold-pale dark:hover:bg-card-dark transition-colors"
-                  title="Semana anterior"
-                  aria-label="Semana anterior"
-                >
-                  <span className="material-symbols-outlined text-base">chevron_left</span>
-                </button>
-
-                {/* Botão Hoje */}
-                {toDateKey(selectedDate) !== toDateKey(new Date()) && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDate(new Date())}
-                    className="px-2.5 py-1 text-xs font-bold text-primary hover:bg-gold-pale/50 dark:hover:bg-card-dark rounded-lg border border-primary/30 transition-colors"
-                  >
-                    Hoje
-                  </button>
-                )}
-
-                {/* Botão Próxima Semana */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newDate = new Date(selectedDate);
-                    newDate.setDate(selectedDate.getDate() + 7);
-                    setSelectedDate(newDate);
-                  }}
-                  className="flex items-center justify-center p-1.5 rounded-lg border border-line dark:border-border-dark bg-card dark:bg-surface-dark text-ink-soft hover:text-ink dark:hover:text-white hover:bg-gold-pale dark:hover:bg-card-dark transition-colors"
-                  title="Próxima semana"
-                  aria-label="Próxima semana"
-                >
-                  <span className="material-symbols-outlined text-base">chevron_right</span>
-                </button>
-
-                {/* Opção para ver outros dias do mês */}
-                <div className="relative flex items-center pl-1 border-l border-line dark:border-border-dark ml-0.5">
-                  <DatePickerInput
-                    value={getDateInputValue(selectedDate)}
-                    onChange={(e) => {
-                      const newDate = parseDateInputValue(e.target.value);
-                      if (newDate) setSelectedDate(newDate);
-                    }}
-                    className="sr-only"
-                    containerClassName="relative"
-                    buttonClassName="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark text-xs font-semibold text-ink-soft hover:text-ink dark:hover:text-white hover:border-primary/50 transition-colors"
-                    icon={
-                      <>
-                        <span className="material-symbols-outlined text-base text-primary">calendar_month</span>
-                        <span className="hidden sm:inline">Ver outro dia do mês</span>
-                        <span className="sm:hidden">Outro dia</span>
-                      </>
-                    }
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Pills dos 7 dias da semana (Formato Cápsula Elegante e Proporcional) */}
-            <div className="flex items-center justify-start sm:justify-center gap-2 sm:gap-3 overflow-x-auto py-1 px-1 custom-scrollbar">
-              {weekDays.map((day) => {
-                const dayKey = toDateKey(day);
-                const isSelected = dayKey === selectedDateKey;
-                const isToday = dayKey === toDateKey(new Date());
-                const rawWeekday = day.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').trim();
-                const weekdayLabel = rawWeekday.charAt(0).toUpperCase() + rawWeekday.slice(1, 3);
-                const dayNum = String(day.getDate()).padStart(2, '0');
-
-                return (
-                  <button
-                    key={dayKey}
-                    type="button"
-                    onClick={() => setSelectedDate(day)}
-                    className={`group w-12 sm:w-14 py-2 sm:py-2.5 rounded-2xl shrink-0 flex flex-col items-center justify-center transition-all select-none touch-manipulation cursor-pointer ${
-                      isSelected
-                        ? 'bg-amber-400 text-night shadow-[0_0_18px_rgba(245,158,11,0.4)] scale-105 font-bold ring-2 ring-amber-400/60'
-                        : isToday
-                          ? 'bg-card dark:bg-[#12141A] border-2 border-primary/60 text-ink dark:text-white hover:border-primary'
-                          : 'bg-card dark:bg-[#12141A] border border-line dark:border-white/10 text-ink-soft hover:text-ink dark:hover:text-white hover:border-amber-500/40'
-                    }`}
-                  >
-                    {/* Dot indicador superior */}
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full mb-1 transition-all ${
-                        isSelected
-                          ? 'bg-night/80'
-                          : isToday
-                            ? 'bg-primary'
-                            : 'bg-slate-400/40 dark:bg-white/30 group-hover:bg-primary/60'
-                      }`}
-                    />
-
-                    {/* Dia da semana (em cima) */}
-                    <span
-                      className={`text-[10px] sm:text-[11px] font-semibold tracking-wider ${
-                        isSelected ? 'text-night/80 font-bold' : 'text-ink-soft'
-                      }`}
-                    >
-                      {weekdayLabel}
-                    </span>
-
-                    {/* Número do dia (embaixo) */}
-                    <span
-                      className={`text-sm sm:text-base font-bold font-sans tabular-nums mt-0.5 ${
-                        isSelected ? 'text-night font-black' : 'text-ink dark:text-white'
-                      }`}
-                    >
-                      {dayNum}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </section>
+        )}
+      </header>
 
       {displayMode === 'chair' ? (
         <BarberChairQueue
