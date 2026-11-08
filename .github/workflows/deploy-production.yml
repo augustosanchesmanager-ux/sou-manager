@@ -51,6 +51,7 @@ jobs:
   resolve-validate:
     name: resolve & validate (read-only)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       project: ${{ steps.guard.outputs.project }}
       domain: ${{ steps.guard.outputs.domain }}
@@ -115,6 +116,7 @@ jobs:
     needs: resolve-validate
     if: needs.resolve-validate.outputs.promote == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment:
       name: Production
       url: ${{ needs.resolve-validate.outputs.domain }}
@@ -127,6 +129,48 @@ jobs:
           if [ -z "$VERCEL_TOKEN" ]; then
             echo "::error::Secret VERCEL_TOKEN ausente. A promocao real nao pode ser executada ate o PO provisionar um token granular (GAP P-AUTO)."
             exit 1
+          fi
+
+      - name: Guard anti-regressao (run deve estar no HEAD atual da main)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          MAIN_SHA=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')
+          echo "main HEAD    = $MAIN_SHA"
+          echo "workflow SHA = $GITHUB_SHA"
+          if [ "$MAIN_SHA" != "$GITHUB_SHA" ]; then
+            echo "🚨 Regressão evitada: O commit que você está tentando promover não é o mais recente da main"
+            exit 1
+          fi
+
+      - name: Aviso deployment alvo x HEAD da main (nao bloqueante)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TEAM_SCOPE: ${{ secrets.VERCEL_TEAM_SCOPE }}
+          DEPLOYMENT_URL: ${{ inputs.deployment_url }}
+        run: |
+          set -uo pipefail
+          MAIN_SHA=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha' 2>/dev/null || true)
+          if [ -z "$MAIN_SHA" ]; then
+            echo "::notice::Nao foi possivel resolver o HEAD da main. Aviso ignorado."
+            exit 0
+          fi
+          API_URL="https://api.vercel.com/v13/deployments/${DEPLOYMENT_URL}"
+          if [ -n "${VERCEL_TEAM_SCOPE:-}" ]; then
+            API_URL="$API_URL?slug=$VERCEL_TEAM_SCOPE"
+          fi
+          TARGET_SHA=$(curl -sS -H "Authorization: Bearer $VERCEL_TOKEN" "$API_URL" | jq -r '.meta.githubCommitSha // empty' 2>/dev/null || true)
+          if [ -z "$TARGET_SHA" ]; then
+            echo "::notice::Nao foi possivel obter o SHA do deployment alvo. Aviso ignorado."
+            exit 0
+          fi
+          echo "deployment alvo = $TARGET_SHA"
+          echo "main HEAD       = $MAIN_SHA"
+          if [ "$TARGET_SHA" != "$MAIN_SHA" ]; then
+            echo "::warning::Deployment alvo ($TARGET_SHA) difere do HEAD da main ($MAIN_SHA). Permitido apenas em rollback documentado (docs/runbooks/P-AUTO_PROMOTE_RUNBOOK.md)."
           fi
 
       - name: vercel promote
@@ -150,6 +194,7 @@ jobs:
     needs: [resolve-validate, promote]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: Production
     steps:
       - name: Health check (somente apos promocao real)
