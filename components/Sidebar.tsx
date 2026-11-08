@@ -220,6 +220,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         { name: 'Fechamento de Caixa', icon: Lock, path: '/cash-closing', module: 'financial', hideFromEsteticaMenu: true },
         { name: 'Notas Fiscais (NFS-e)', icon: Receipt, path: '/fiscal', module: 'financial', hideFromEsteticaMenu: true },
         { name: 'Contas a Receber', icon: FileSpreadsheet, path: '/accounts-receivable', module: 'financial', hideFromEsteticaMenu: true },
+        { name: 'Conta do Cliente (Fiado)', icon: Wallet, path: '/client-accounts', module: 'financial', hideFromEsteticaMenu: true },
         { name: 'Contas a Pagar', icon: CreditCard, path: '/expenses', module: 'financial', hideFromEsteticaMenu: true },
         { name: 'Folha de Pagamento', icon: Users, path: '/payroll', module: 'financial', hideFromEsteticaMenu: true },
       ],
