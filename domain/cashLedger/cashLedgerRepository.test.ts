@@ -6,8 +6,11 @@ describe('cashLedgerRepository', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        cashLedgerRepository.clearInMemory();
         try {
-            localStorage.clear();
+            if (typeof localStorage !== 'undefined') {
+                localStorage.clear();
+            }
         } catch {
             // ignore
         }
