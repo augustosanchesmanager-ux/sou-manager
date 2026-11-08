@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { usePaymentTerminals } from '../../src/hooks/usePaymentTerminals';
 import type { TerminalAcquirer, TerminalRateMethod } from '../../domain/paymentTerminal/types';
+import { cardFeeRepository } from '../../domain/paymentTerminal/cardFeeRepository';
+import type { CardFeePolicy } from '../../domain/paymentTerminal/cardFeeSplitEngine';
 
 const POPULAR_ACQUIRERS: TerminalAcquirer[] = [
   'Stone',
@@ -23,6 +26,27 @@ export const PaymentTerminalsSection: React.FC = () => {
     setDefaultTerminal,
     deleteTerminal,
   } = usePaymentTerminals();
+
+  const { tenantId } = useAuth();
+  const [globalPolicy, setGlobalPolicy] = useState<CardFeePolicy>('gross');
+  const [policySaving, setPolicySaving] = useState(false);
+
+  useEffect(() => {
+    if (tenantId) {
+      cardFeeRepository.getTenantDefaultPolicy(tenantId).then(setGlobalPolicy).catch(() => setGlobalPolicy('gross'));
+    }
+  }, [tenantId]);
+
+  const handleUpdateGlobalPolicy = async (policy: CardFeePolicy) => {
+    if (!tenantId) return;
+    setPolicySaving(true);
+    try {
+      await cardFeeRepository.setTenantDefaultPolicy(tenantId, policy);
+      setGlobalPolicy(policy);
+    } finally {
+      setPolicySaving(false);
+    }
+  };
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);

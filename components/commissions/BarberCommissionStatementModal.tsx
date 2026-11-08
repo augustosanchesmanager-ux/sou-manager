@@ -4,6 +4,7 @@ import { formatCurrency } from '../../shared/format/currency';
 import { getEffectiveCommissionRate } from '../../src/lib/staff/roles';
 import {
   calculateBarberStatementSummary,
+  calculateCardFeeStatementMetrics,
   getDateRangeForStatementPeriod,
   STATEMENT_PERIOD_LABELS,
   type BarberStatementItem,
@@ -150,6 +151,11 @@ export const BarberCommissionStatementModal: React.FC<BarberCommissionStatementM
   // Compute 360 statement summary
   const summary = useMemo(() => {
     return calculateBarberStatementSummary(items);
+  }, [items]);
+
+  // Compute card fee metrics
+  const cardFeeMetrics = useMemo(() => {
+    return calculateCardFeeStatementMetrics(items);
   }, [items]);
 
   if (!isOpen) return null;
@@ -327,6 +333,26 @@ export const BarberCommissionStatementModal: React.FC<BarberCommissionStatementM
           </div>
         </div>
 
+        {/* Banner de Valorização: Isenção de Taxas Administrativas de Cartão (Frente B) */}
+        {cardFeeMetrics.totalExemptFeeValue > 0 && (
+          <div className="p-3.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <span className="material-symbols-outlined text-emerald-500 text-xl">verified</span>
+              <div>
+                <p className="text-xs font-bold text-emerald-400">
+                  Isenção de Taxa Administrativa da Máquina
+                </p>
+                <p className="text-[11px] text-slate-300">
+                  A barbearia absorveu <strong>{formatCurrency(cardFeeMetrics.totalExemptFeeValue)}</strong> em taxas de cartão neste período em benefício do profissional.
+                </p>
+              </div>
+            </div>
+            <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">
+              100% Absorvido
+            </span>
+          </div>
+        )}
+
         {/* Detailed Items Table */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
@@ -361,7 +387,8 @@ export const BarberCommissionStatementModal: React.FC<BarberCommissionStatementM
                     <th className="px-4 py-2.5">Cliente</th>
                     <th className="px-4 py-2.5">Serviço / Item</th>
                     <th className="px-4 py-2.5 text-right">Valor Item</th>
-                    <th className="px-4 py-2.5 text-right">Comissão</th>
+                    <th className="px-4 py-2.5 text-center">Taxa Maquininha</th>
+                    <th className="px-4 py-2.5 text-right">Comissão Líquida</th>
                     <th className="px-4 py-2.5 text-center">Status Caixa</th>
                   </tr>
                 </thead>
@@ -380,9 +407,35 @@ export const BarberCommissionStatementModal: React.FC<BarberCommissionStatementM
                       <td className="px-4 py-3 text-right font-medium text-slate-900 dark:text-white whitespace-nowrap">
                         {formatCurrency(it.grossValue)}
                       </td>
+                      <td className="px-4 py-3 text-center whitespace-nowrap">
+                        {it.isFeeExempt ? (
+                          <div className="inline-flex flex-col items-center">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                              <span className="size-1.5 rounded-full bg-emerald-400" />
+                              Isento de taxa administrativa da máquina
+                            </span>
+                            {(it.exemptValue || 0) > 0 && (
+                              <span className="text-[9px] text-slate-400 mt-0.5">
+                                Casa absorveu {formatCurrency(it.exemptValue!)}
+                              </span>
+                            )}
+                          </div>
+                        ) : (it.barberFeeDeduction || 0) > 0 ? (
+                          <div className="inline-flex flex-col items-center">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                              Rateio: -{formatCurrency(it.barberFeeDeduction || 0)}
+                            </span>
+                            <span className="text-[9px] text-slate-400 mt-0.5">
+                              Taxa {it.cardFeePercentage}%
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 text-[10px]">—</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-right font-black whitespace-nowrap">
                         <span className={it.isPaid ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
-                          {staffCommissionPercentage > 0 ? formatCurrency(it.commissionValue) : '—'}
+                          {staffCommissionPercentage > 0 ? formatCurrency(it.netCommissionValue !== undefined ? it.netCommissionValue : it.commissionValue) : '—'}
                         </span>
                         <span className="text-[10px] font-normal text-slate-400 ml-1">
                           {staffCommissionPercentage > 0 ? `(${it.commissionRate}%)` : '(Fixo)'}

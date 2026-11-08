@@ -1,5 +1,7 @@
 import { supabase } from '../../../services/supabaseClient';
 import type { BarberStatementItem } from '../../utils/barberStatement';
+import { cardFeeRepository } from '../../../domain/paymentTerminal/cardFeeRepository';
+import { calculateCardFeeSplit } from '../../../domain/paymentTerminal/cardFeeSplitEngine';
 
 export interface StatementStaffMember {
   id: string;
@@ -245,6 +247,64 @@ export async function fetchBarberStatementData(params: {
     }
   }
 
+  // 6.1 Buscar pagamentos e política de taxa de maquininha do profissional (Frente B)
+  const staffFeePolicy = await cardFeeRepository.getStaffPolicy(tenantId, staffId);
+  const paymentsByComandaId = new Map<string, any>();
+
+  if (allComandaIds.length > 0) {
+    try {
+      const { data: payData } = await supabase
+        .from('comanda_payments')
+        .select('id, comanda_id, payment_type, payment_method, amount')
+        .in('comanda_id', allComandaIds)
+        .is('reversed_at', null);
+
+      if (payData) {
+        for (const p of payData) {
+          paymentsByComandaId.set(p.comanda_id, p);
+        }
+      }
+    } catch {
+      // Degradação graciosa
+    }
+  }
+
+  const resolveItemCardFee = (comandaId: string, gross: number, rate: number, isPaid: boolean) => {
+    const pay = paymentsByComandaId.get(comandaId);
+    const method = pay?.payment_method || pay?.payment_type || (isPaid ? 'Cartão' : 'Em Aberto');
+    const isCredit = /cr[eé]dito|credit/i.test(method);
+    const isDebit = /d[eé]bito|debit/i.test(method);
+    const isCard = isCredit || isDebit || /cart[aã]o|card/i.test(method);
+
+    let feePercentage = 0;
+    if (isCredit) {
+      feePercentage = 2.89;
+    } else if (isDebit) {
+      feePercentage = 1.25;
+    } else if (isCard) {
+      feePercentage = 2.0;
+    }
+
+    const split = calculateCardFeeSplit({
+      grossAmount: gross,
+      commissionRate: rate,
+      feePercentage,
+      policy: staffFeePolicy,
+    });
+
+    return {
+      paymentMethod: method,
+      cardFeePercentage: split.feePercentage,
+      cardFeeAmount: split.feeAmount,
+      cardFeePolicy: split.policy,
+      barberFeeDeduction: split.barberFeeDeduction,
+      shopFeeAbsorption: split.shopFeeAbsorption,
+      isFeeExempt: split.isFeeExempt,
+      exemptValue: split.exemptValue,
+      netCommissionValue: split.netCommission,
+    };
+  };
+
   // 7. Montar itens consolidados do extrato
   const statementItems: BarberStatementItem[] = [];
   const processedItemIds = new Set<string>();
@@ -287,6 +347,8 @@ export async function fetchBarberStatementData(params: {
           ? Number(commRec.commission_value)
           : (gross * commissionPercentage) / 100;
 
+        const feeData = resolveItemCardFee(comanda.id, gross, commissionPercentage, isPaid);
+
         statementItems.push({
           id: `cmd-${comanda.id}`,
           comandaId: comanda.id,
@@ -300,6 +362,7 @@ export async function fetchBarberStatementData(params: {
           commissionValue: commValue,
           comandaStatus: comanda.status,
           isPaid,
+          ...feeData,
         });
       }
     } else {
@@ -330,6 +393,7 @@ export async function fetchBarberStatementData(params: {
         }
 
         const effectiveRate = gross > 0 ? Math.round((commValue / gross) * 100) : applicableRate;
+        const feeData = resolveItemCardFee(comanda.id, gross, effectiveRate, isPaid);
 
         statementItems.push({
           id: it.id,
@@ -344,6 +408,7 @@ export async function fetchBarberStatementData(params: {
           commissionValue: commValue,
           comandaStatus: comanda.status,
           isPaid,
+          ...feeData,
         });
       }
     }
@@ -370,6 +435,15 @@ export async function fetchBarberStatementData(params: {
       commissionValue: commValue,
       comandaStatus: appt.status,
       isPaid: false,
+      paymentMethod: 'Agendado',
+      cardFeePercentage: 0,
+      cardFeeAmount: 0,
+      cardFeePolicy: staffFeePolicy,
+      barberFeeDeduction: 0,
+      shopFeeAbsorption: 0,
+      isFeeExempt: true,
+      exemptValue: 0,
+      netCommissionValue: commValue,
     });
   }
 
