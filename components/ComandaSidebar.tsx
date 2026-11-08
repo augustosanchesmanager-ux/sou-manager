@@ -47,6 +47,8 @@ interface ComandaSidebarProps {
     onCancel: () => void;
     onPrint: () => void;
     onCheckout: () => void;
+    onQuickCheckout?: () => void;
+    onChairSelfCheckout?: () => void;
     onReopenPaid?: () => void;
 }
 
@@ -137,6 +139,8 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
     onCancel,
     onPrint,
     onCheckout,
+    onQuickCheckout,
+    onChairSelfCheckout,
     onReopenPaid,
 }) => {
     const { appSlug } = useAuth();
@@ -359,13 +363,36 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
 
                 <div className="grid gap-2">
                     {comanda.status === 'open' && (
-                        <Button
-                            onClick={onCheckout}
-                            leftIcon="point_of_sale"
-                            className="w-full justify-center"
-                        >
-                            {isEsteticaApp ? `Finalizar ${orderLabelLower}` : 'Fechar comanda'}
-                        </Button>
+                        <>
+                            {onQuickCheckout && (
+                                <button
+                                    type="button"
+                                    onClick={onQuickCheckout}
+                                    className="w-full py-2.5 px-4 rounded-xl font-black text-xs uppercase tracking-wide bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-md shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer hover:scale-[1.01]"
+                                >
+                                    <span className="material-symbols-outlined text-base">bolt</span>
+                                    <span>Baixa Balcão Express</span>
+                                </button>
+                            )}
+                            {onChairSelfCheckout && (
+                                <button
+                                    type="button"
+                                    onClick={onChairSelfCheckout}
+                                    className="w-full py-2 px-3 rounded-xl font-bold text-xs border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                                >
+                                    <span className="material-symbols-outlined text-base">smartphone</span>
+                                    <span>QR Code Cadeira (Pix)</span>
+                                </button>
+                            )}
+                            <Button
+                                onClick={onCheckout}
+                                variant="secondary"
+                                leftIcon="point_of_sale"
+                                className="w-full justify-center text-xs"
+                            >
+                                {isEsteticaApp ? `Checkout Avançado ${orderLabelLower}` : 'Checkout Completo'}
+                            </Button>
+                        </>
                     )}
                     {comanda.status === 'paid' && (
                         canManageFinancialReversal && onReopenPaid && financialHistory && financialHistory.reversalStatus === 'none' && financialHistory.reversibleAmount > 0 ? (

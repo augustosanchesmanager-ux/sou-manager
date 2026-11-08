@@ -44,6 +44,9 @@ import { getQuickPeriodDateRange, calculateComandaKpiSummary } from '../src/util
 import { QuickOpenComandaModal, type QuickOpenComandaPayload } from '@/src/components/comandas/QuickOpenComandaModal';
 import { type CatalogItem } from '@/src/utils/comandaQuickActions';
 import { comandaQuickService } from '@/services/comandaQuickService';
+import { QuickCheckoutModal } from '../components/checkout/QuickCheckoutModal';
+import { ChairSelfCheckoutModal } from '../components/checkout/ChairSelfCheckoutModal';
+import { useTenantOptional } from '../src/context/TenantContext';
 
 type SortField = 'date' | 'client' | 'status' | 'total';
 type SortDirection = 'asc' | 'desc';
@@ -481,6 +484,8 @@ const fetchSingleComandaFinancialHistory = async (
 const Comandas: React.FC = () => {
     const navigate = useNavigate();
     const { appSlug, schema, tenantId, user, accessRole, canAccessSuperAdmin } = useAuth();
+    const tenantContext = useTenantOptional();
+    const tenant = tenantContext?.tenant;
     const labels = getBusinessLabels(appSlug);
     const isEsteticaApp = appSlug === 'estetica';
     const orderLabel = labels.order;
@@ -548,6 +553,8 @@ const Comandas: React.FC = () => {
 
     // Frente 1.G: Estado e dados do Modal de Abertura Rápida
     const [isQuickOpenModalOpen, setIsQuickOpenModalOpen] = useState(false);
+    const [quickCheckoutModalOpen, setQuickCheckoutModalOpen] = useState(false);
+    const [chairCheckoutModalOpen, setChairCheckoutModalOpen] = useState(false);
     const [quickClients, setQuickClients] = useState<Array<{ id: string; name: string; avatar?: string; phone?: string }>>([]);
     const [quickStaff, setQuickStaff] = useState<Array<{ id: string; name: string; role?: string }>>([]);
     const [quickCatalogItems, setQuickCatalogItems] = useState<CatalogItem[]>([]);
@@ -2107,6 +2114,8 @@ const Comandas: React.FC = () => {
                         onCancel={() => selectedComanda && (setDeleteComanda(selectedComanda), setCancelReason(''), setCancelReasonOther(''))}
                         onPrint={() => selectedComanda && handlePrint(selectedComanda)}
                         onCheckout={() => selectedComanda && navigate(`/checkout/${selectedComanda.id}`)}
+                        onQuickCheckout={() => setQuickCheckoutModalOpen(true)}
+                        onChairSelfCheckout={() => setChairCheckoutModalOpen(true)}
                         onReopenPaid={() => selectedComanda && openReopenPaidModal(selectedComanda)}
                     />
                 </aside>
@@ -2457,6 +2466,48 @@ const Comandas: React.FC = () => {
                     setSelectedComandaId(existingId);
                 }}
                 orderLabel={orderLabel}
+            />
+
+            {/* Frente 2: Modo Balcão Express (1 Toque) */}
+            <QuickCheckoutModal
+                isOpen={quickCheckoutModalOpen}
+                onClose={() => setQuickCheckoutModalOpen(false)}
+                comanda={selectedComanda ? {
+                    id: selectedComanda.id,
+                    total: selectedComanda.total,
+                    client_name: selectedComanda.clients?.name || null,
+                    items: selectedComanda.comanda_items,
+                } : null}
+                tenantId={tenantId || ''}
+                onSuccess={(comandaId, method) => {
+                    setToast({
+                        message: `Comanda #${comandaId.slice(0, 8)} liquidada com sucesso no Balcão Express (${method.toUpperCase()})!`,
+                        type: 'success',
+                    });
+                    void fetchData();
+                }}
+                onOpenChairQrCode={() => setChairCheckoutModalOpen(true)}
+            />
+
+            {/* Frente 2: Self-Checkout na Cadeira (QR Code Dinâmico PIX) */}
+            <ChairSelfCheckoutModal
+                isOpen={chairCheckoutModalOpen}
+                onClose={() => setChairCheckoutModalOpen(false)}
+                comanda={selectedComanda ? {
+                    id: selectedComanda.id,
+                    total: selectedComanda.total,
+                    client_name: selectedComanda.clients?.name || null,
+                    staff_name: selectedComanda.staff?.name || null,
+                } : null}
+                tenantId={tenantId || ''}
+                tenantName={tenant?.name || 'SMG BARBER'}
+                onSuccess={(comandaId) => {
+                    setToast({
+                        message: `Pagamento recebido na cadeira! Comanda #${comandaId.slice(0, 8)} liquidada.`,
+                        type: 'success',
+                    });
+                    void fetchData();
+                }}
             />
         </div>
     );
