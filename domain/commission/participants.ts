@@ -74,12 +74,17 @@ export const buildInferredPrimaryParticipant = (
   savedParticipants: ParticipantRow[],
   staffById: Map<string, { id: string; role: string; commission_rate?: number | null }>,
   fallbackStaffId?: string | null,
+  itemValue?: number,
 ): ParticipantRow | null => {
   const totalPayout = savedParticipants
     .filter((p) => p.affects_commission)
     .reduce((sum, p) => {
+      if (p.payout_type === 'fixed') {
+        const val = itemValue && itemValue > 0 ? p.payout_value / itemValue : 1;
+        return sum + val;
+      }
       const rate = normalizePercentage(p.payout_value);
-      return sum + (p.payout_type === 'fixed' ? p.payout_value : rate);
+      return sum + rate;
     }, 0);
 
   const remaining = 1 - totalPayout;
@@ -184,7 +189,7 @@ export const normalizeCommissionParticipants = (
 
     // Apenas infere se o fallback/primary for elegível, ou se não houver profissional identificado no item
     if (!effectiveStaffId || isEffectiveEligible) {
-      const inferred = buildInferredPrimaryParticipant(item.id, unique, staffById, fallbackStaffId);
+      const inferred = buildInferredPrimaryParticipant(item.id, unique, staffById, fallbackStaffId, itemValue);
       if (inferred) unique.push(inferred);
     }
   }

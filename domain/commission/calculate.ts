@@ -225,13 +225,12 @@ export const calculateCommissionValue = (
   commissionRate: number,
 ): number => {
   if (!participant.affects_commission) return 0;
-  const rate = normalizePercentage(commissionRate);
 
   if (participant.payout_type === 'fixed') {
-    const base = Math.min(participant.payout_value, receivedValue);
-    return base * rate;
+    return Math.min(participant.payout_value, receivedValue);
   }
 
+  const rate = normalizePercentage(commissionRate);
   const participantBase = receivedValue * normalizePercentage(participant.payout_value);
   return participantBase * rate;
 };
