@@ -21,6 +21,10 @@ export interface OpenComandaItem {
   client_id?: string | null;
   client_name: string;
   client_phone?: string | null;
+  staff_id?: string | null;
+  staff_name?: string | null;
+  appointment_id?: string | null;
+  appointment_start_time?: string | null;
   total: number;
   created_at: string;
   is_unidentified: boolean;
@@ -44,6 +48,13 @@ export const ClientAccount: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'debt' | 'credit' | 'limit'>('all');
+
+  // Filtros e ordenação para Comandas em Aberto (Balcão)
+  const [openSortOrder, setOpenSortOrder] = useState<
+    'created_desc' | 'created_asc' | 'name_asc' | 'name_desc' | 'scheduled_asc' | 'scheduled_desc' | 'total_desc' | 'total_asc'
+  >('created_desc');
+  const [openPeriodFilter, setOpenPeriodFilter] = useState<'all' | 'today' | 'yesterday' | 'week' | 'month'>('all');
+  const [openStaffFilter, setOpenStaffFilter] = useState<string>('all');
 
   // Modais
   const [selectedWallet, setSelectedWallet] = useState<ClientWallet | null>(null);
@@ -84,6 +95,10 @@ export const ClientAccount: React.FC = () => {
         client_id: c.client_id,
         client_name: c.clients?.name || 'Cliente não identificado',
         client_phone: c.clients?.phone || null,
+        staff_id: c.staff_id || null,
+        staff_name: c.staff?.name || null,
+        appointment_id: c.appointment_id || null,
+        appointment_start_time: c.appointments?.start_time || null,
         total: Number(c.total) || 0,
         created_at: c.created_at,
         is_unidentified: !c.client_id || !c.clients?.name,
@@ -127,17 +142,107 @@ export const ClientAccount: React.FC = () => {
     });
   }, [wallets, searchTerm, statusFilter]);
 
-  // Filtragem de comandas em aberto
+  // Lista única de profissionais presentes nas comandas em aberto
+  const openStaffOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of openComandas) {
+      if (c.staff_id && c.staff_name) {
+        map.set(c.staff_id, c.staff_name);
+      }
+    }
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  }, [openComandas]);
+
+  // Verificador de período para agendamento / vencimento
+  const isDateInPeriod = (dateStr: string, period: 'all' | 'today' | 'yesterday' | 'week' | 'month') => {
+    if (period === 'all') return true;
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return false;
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrowStart = new Date(todayStart.getTime() + 86400000);
+    const yesterdayStart = new Date(todayStart.getTime() - 86400000);
+
+    if (period === 'today') {
+      return d >= todayStart && d < tomorrowStart;
+    }
+    if (period === 'yesterday') {
+      return d >= yesterdayStart && d < todayStart;
+    }
+    if (period === 'week') {
+      const weekStart = new Date(todayStart);
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      return d >= weekStart && d < tomorrowStart;
+    }
+    if (period === 'month') {
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      return d >= monthStart;
+    }
+    return true;
+  };
+
+  // Filtragem e ordenação de comandas em aberto
   const filteredOpenComandas = useMemo(() => {
-    return openComandas.filter((c) => {
-      const term = searchTerm.toLowerCase();
-      const match =
-        c.client_name.toLowerCase().includes(term) ||
-        (c.client_phone || '').includes(term) ||
-        c.id.toLowerCase().includes(term);
-      return match;
-    });
-  }, [openComandas, searchTerm]);
+    return openComandas
+      .filter((c) => {
+        const term = searchTerm.toLowerCase().trim();
+        const matchSearch =
+          !term ||
+          c.client_name.toLowerCase().includes(term) ||
+          (c.client_phone || '').includes(term) ||
+          (c.staff_name || '').toLowerCase().includes(term) ||
+          c.id.toLowerCase().includes(term);
+        if (!matchSearch) return false;
+
+        if (openStaffFilter !== 'all' && c.staff_id !== openStaffFilter) {
+          return false;
+        }
+
+        const dateToCheck = c.appointment_start_time || c.created_at;
+        if (!isDateInPeriod(dateToCheck, openPeriodFilter)) {
+          return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (openSortOrder === 'name_asc') {
+          return a.client_name.localeCompare(b.client_name, 'pt-BR');
+        }
+        if (openSortOrder === 'name_desc') {
+          return b.client_name.localeCompare(a.client_name, 'pt-BR');
+        }
+        if (openSortOrder === 'created_asc') {
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        }
+        if (openSortOrder === 'created_desc') {
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+        if (openSortOrder === 'scheduled_asc') {
+          const dateA = new Date(a.appointment_start_time || a.created_at).getTime();
+          const dateB = new Date(b.appointment_start_time || b.created_at).getTime();
+          return dateA - dateB;
+        }
+        if (openSortOrder === 'scheduled_desc') {
+          const dateA = new Date(a.appointment_start_time || a.created_at).getTime();
+          const dateB = new Date(b.appointment_start_time || b.created_at).getTime();
+          return dateB - dateA;
+        }
+        if (openSortOrder === 'total_desc') {
+          return b.total - a.total;
+        }
+        if (openSortOrder === 'total_asc') {
+          return a.total - b.total;
+        }
+        return 0;
+      });
+  }, [openComandas, searchTerm, openStaffFilter, openPeriodFilter, openSortOrder]);
+
+  const filteredOpenComandasTotal = useMemo(() => {
+    return filteredOpenComandas.reduce((sum, c) => sum + c.total, 0);
+  }, [filteredOpenComandas]);
 
   // Salvar Limite Manual
   const handleSaveLimit = async () => {
@@ -582,21 +687,99 @@ export const ClientAccount: React.FC = () => {
         </>
       ) : (
         <>
-          {/* Barra de Busca - Comandas em Aberto */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-card-dark border border-slate-200/80 dark:border-border-dark flex flex-col md:flex-row gap-4 items-center justify-between">
-            <div className="relative w-full md:w-96">
-              <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-lg">search</span>
-              <input
-                type="text"
-                placeholder="Buscar comanda por cliente ou código..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 rounded-xl text-xs bg-slate-50 dark:bg-surface-dark border border-slate-200 dark:border-border-dark focus:outline-none focus:ring-1 focus:ring-amber-500"
-              />
+          {/* Barra de Busca e Filtros - Comandas em Aberto */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-card-dark border border-slate-200/80 dark:border-border-dark flex flex-col gap-3 shadow-xs">
+            <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+              {/* Campo de Busca */}
+              <div className="relative flex-1 max-w-md">
+                <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-lg">search</span>
+                <input
+                  type="text"
+                  placeholder="Buscar por cliente, telefone, código ou profissional..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 rounded-xl text-xs bg-slate-50 dark:bg-surface-dark border border-slate-200 dark:border-border-dark focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium"
+                />
+              </div>
+
+              {/* Controles de Filtros e Ordenação */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Ordenação (A-Z, etc.) */}
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-surface-dark border border-slate-200 dark:border-border-dark">
+                  <span className="material-symbols-outlined text-sm text-slate-400">sort</span>
+                  <select
+                    value={openSortOrder}
+                    onChange={(e) => setOpenSortOrder(e.target.value as any)}
+                    className="bg-transparent text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+                  >
+                    <option value="created_desc">Criação: Mais Recentes</option>
+                    <option value="created_asc">Criação: Mais Antigas</option>
+                    <option value="name_asc">Cliente: A → Z</option>
+                    <option value="name_desc">Cliente: Z → A</option>
+                    <option value="scheduled_asc">Atendimento: Mais Próximos</option>
+                    <option value="scheduled_desc">Atendimento: Mais Distantes</option>
+                    <option value="total_desc">Valor: Maior primeiro</option>
+                    <option value="total_asc">Valor: Menor primeiro</option>
+                  </select>
+                </div>
+
+                {/* Filtro por Período */}
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-surface-dark border border-slate-200 dark:border-border-dark">
+                  <span className="material-symbols-outlined text-sm text-slate-400">calendar_today</span>
+                  <select
+                    value={openPeriodFilter}
+                    onChange={(e) => setOpenPeriodFilter(e.target.value as any)}
+                    className="bg-transparent text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+                  >
+                    <option value="all">Período: Todos</option>
+                    <option value="today">Período: Hoje</option>
+                    <option value="yesterday">Período: Ontem</option>
+                    <option value="week">Período: Esta Semana</option>
+                    <option value="month">Período: Este Mês</option>
+                  </select>
+                </div>
+
+                {/* Filtro por Profissional */}
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-surface-dark border border-slate-200 dark:border-border-dark">
+                  <span className="material-symbols-outlined text-sm text-slate-400">content_cut</span>
+                  <select
+                    value={openStaffFilter}
+                    onChange={(e) => setOpenStaffFilter(e.target.value)}
+                    className="bg-transparent text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer max-w-[170px]"
+                  >
+                    <option value="all">Profissional: Todos</option>
+                    {openStaffOptions.map((st) => (
+                      <option key={st.id} value={st.id}>
+                        {st.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
 
-            <div className="text-xs text-slate-500 dark:text-slate-400">
-              Totalizando <strong className="text-rose-500">R$ {openComandasTotal.toFixed(2)}</strong> em <strong className="text-slate-900 dark:text-white">{openComandas.length}</strong> comandas abertas
+            {/* Contador / Resumo Filtrado */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-white/5 text-[11px] text-slate-500 dark:text-slate-400">
+              <div>
+                Exibindo <strong className="text-slate-900 dark:text-white">{filteredOpenComandas.length}</strong> de <strong className="text-slate-900 dark:text-white">{openComandas.length}</strong> comandas abertas
+                {(openPeriodFilter !== 'all' || openStaffFilter !== 'all' || searchTerm) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setOpenPeriodFilter('all');
+                      setOpenStaffFilter('all');
+                      setOpenSortOrder('created_desc');
+                    }}
+                    className="ml-2 text-amber-500 hover:underline font-bold cursor-pointer"
+                  >
+                    Limpar filtros
+                  </button>
+                )}
+              </div>
+              <div>
+                Total filtrado: <strong className="text-rose-500 font-mono text-xs font-bold">R$ {filteredOpenComandasTotal.toFixed(2)}</strong>
+              </div>
             </div>
           </div>
 
@@ -608,7 +791,9 @@ export const ClientAccount: React.FC = () => {
                   <tr className="bg-slate-50 dark:bg-surface-dark border-b border-slate-200 dark:border-border-dark text-[10px] font-black uppercase tracking-wider text-slate-400">
                     <th className="py-3 px-4">Cliente</th>
                     <th className="py-3 px-4">Telefone</th>
+                    <th className="py-3 px-4">Profissional</th>
                     <th className="py-3 px-4">Comanda</th>
+                    <th className="py-3 px-4">Atendimento (Vencimento)</th>
                     <th className="py-3 px-4">Aberta em</th>
                     <th className="py-3 px-4 text-right">Valor em Aberto</th>
                     <th className="py-3 px-4 text-center">Ação</th>
@@ -617,62 +802,104 @@ export const ClientAccount: React.FC = () => {
                 <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                   {loading ? (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-400">
+                      <td colSpan={8} className="py-8 text-center text-slate-400">
                         <span className="material-symbols-outlined text-2xl animate-spin block mb-1">sync</span>
                         Carregando comandas em aberto...
                       </td>
                     </tr>
                   ) : filteredOpenComandas.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-400">
-                        Nenhuma comanda em aberto no balcão no momento.
+                      <td colSpan={8} className="py-8 text-center text-slate-400">
+                        Nenhuma comanda encontrada para os filtros selecionados.
                       </td>
                     </tr>
                   ) : (
-                    filteredOpenComandas.map((cmd) => (
-                      <tr key={cmd.id} className="hover:bg-slate-50/60 dark:hover:bg-white/[0.02] transition-colors">
-                        <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">
-                          <div className="flex items-center gap-2">
-                            <span className={`material-symbols-outlined text-base ${cmd.is_unidentified ? 'text-amber-500' : 'text-slate-400'}`}>
-                              {cmd.is_unidentified ? 'person_outline' : 'person'}
-                            </span>
-                            <span>{cmd.client_name}</span>
-                            {cmd.is_unidentified && (
-                              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                                Não identificado
+                    filteredOpenComandas.map((cmd) => {
+                      const apptDate = cmd.appointment_start_time ? new Date(cmd.appointment_start_time) : null;
+                      const isToday = apptDate ? apptDate.toDateString() === new Date().toDateString() : false;
+
+                      return (
+                        <tr key={cmd.id} className="hover:bg-slate-50/60 dark:hover:bg-white/[0.02] transition-colors">
+                          <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">
+                            <div className="flex items-center gap-2">
+                              <span className={`material-symbols-outlined text-base ${cmd.is_unidentified ? 'text-amber-500' : 'text-slate-400'}`}>
+                                {cmd.is_unidentified ? 'person_outline' : 'person'}
+                              </span>
+                              <span>{cmd.client_name}</span>
+                              {cmd.is_unidentified && (
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                  Não identificado
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400 font-mono">
+                            {cmd.client_phone || '—'}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            {cmd.staff_name ? (
+                              <div className="flex items-center gap-1.5 font-medium text-slate-800 dark:text-slate-200">
+                                <span className="material-symbols-outlined text-xs text-amber-500">content_cut</span>
+                                <span>{cmd.staff_name}</span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 font-mono text-[11px]">—</span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 font-mono font-bold text-slate-700 dark:text-slate-300">
+                            #{cmd.id.slice(0, 8).toUpperCase()}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            {apptDate ? (
+                              <div className="flex flex-col">
+                                <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-white">
+                                  <span className="material-symbols-outlined text-xs text-amber-500">event</span>
+                                  <span>
+                                    {apptDate.toLocaleString('pt-BR', {
+                                      day: '2-digit',
+                                      month: '2-digit',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}
+                                  </span>
+                                </div>
+                                {isToday && (
+                                  <span className="inline-block mt-0.5 w-fit px-1.5 py-0.2 rounded text-[9px] font-black bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                    Hoje
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-slate-400 text-[11px] italic">
+                                <span className="material-symbols-outlined text-xs">storefront</span>
+                                Balcão (Avulso)
                               </span>
                             )}
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400 font-mono">
-                          {cmd.client_phone || '—'}
-                        </td>
-                        <td className="py-3.5 px-4 font-mono font-bold text-slate-700 dark:text-slate-300">
-                          #{cmd.id.slice(0, 8).toUpperCase()}
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400">
-                          {new Date(cmd.created_at).toLocaleString('pt-BR', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </td>
-                        <td className="py-3.5 px-4 text-right font-black text-rose-600 dark:text-rose-400 tabular-nums">
-                          R$ {cmd.total.toFixed(2)}
-                        </td>
-                        <td className="py-3.5 px-4 text-center">
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/checkout/${cmd.id}`)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs transition-colors cursor-pointer shadow-xs"
-                          >
-                            <span className="material-symbols-outlined text-sm">point_of_sale</span>
-                            <span>Receber no Caixa</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                          </td>
+                          <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400">
+                            {new Date(cmd.created_at).toLocaleString('pt-BR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </td>
+                          <td className="py-3.5 px-4 text-right font-black text-rose-600 dark:text-rose-400 tabular-nums">
+                            R$ {cmd.total.toFixed(2)}
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/checkout/${cmd.id}`)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs transition-colors cursor-pointer shadow-xs"
+                            >
+                              <span className="material-symbols-outlined text-sm">point_of_sale</span>
+                              <span>Receber no Caixa</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>

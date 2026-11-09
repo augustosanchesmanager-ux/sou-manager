@@ -54,4 +54,11 @@ describe('ClientAccount: Página de Conta do Cliente (Fiado e Carteira)', () => 
     expect(html).toContain('Saldo Líquido da Barbearia');
     expect(html).toContain('Buscar por nome ou telefone...');
   });
+
+  it('should_render_open_comandas_tab_selector', () => {
+    const html = renderToStaticMarkup(<ClientAccount />);
+
+    expect(html).toContain('Comandas em Aberto');
+    expect(html).toContain('Carteira &amp; Fiados');
+  });
 });
