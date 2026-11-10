@@ -90,9 +90,14 @@ describe('calculateCommissionValue', () => {
     expect(calculateCommissionValue(200, p, 0.5)).toBe(100);
   });
 
-  it('calculates fixed commission', () => {
+  it('calculates fixed commission directly without applying commissionRate', () => {
     const p = makeParticipant({ payout_type: 'fixed', payout_value: 50 });
-    expect(calculateCommissionValue(200, p, 0.4)).toBe(20);
+    expect(calculateCommissionValue(200, p, 0.4)).toBe(50);
+  });
+
+  it('caps fixed commission at receivedValue', () => {
+    const p = makeParticipant({ payout_type: 'fixed', payout_value: 50 });
+    expect(calculateCommissionValue(30, p, 0.4)).toBe(30);
   });
 
   it('returns 0 when receivedValue is 0', () => {

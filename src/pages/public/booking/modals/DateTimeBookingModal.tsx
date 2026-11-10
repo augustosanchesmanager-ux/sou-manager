@@ -3,8 +3,20 @@
  * Date and Time slot selection with final booking confirmation.
  */
 
-import React, { useMemo } from 'react';
-import { ArrowLeft, X, Clock, Calendar as CalendarIcon, Loader2, ChevronRight, Check, Sunrise, Sun, Moon } from 'lucide-react';
+import React, { useMemo, useState, useEffect } from 'react';
+import {
+  ArrowLeft,
+  X,
+  Clock,
+  Calendar as CalendarIcon,
+  Loader2,
+  ChevronRight,
+  ChevronLeft,
+  Check,
+  Sunrise,
+  Sun,
+  Moon,
+} from 'lucide-react';
 import type { PublicSlot, TimePeriodGroup } from '../hooks/types';
 
 interface DateTimeBookingModalProps {
@@ -92,6 +104,131 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
     return periodGroups.reduce((acc, g) => acc + g.slots.length, 0);
   }, [periodGroups]);
 
+  const [isCalendarExpanded, setIsCalendarExpanded] = useState(false);
+
+  const initialDate = useMemo(() => {
+    if (selectedDate && /^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
+      const parts = selectedDate.split('-').map(Number);
+      return { year: parts[0], month: parts[1] - 1 };
+    }
+    if (dateOptions.length > 0 && /^\d{4}-\d{2}-\d{2}$/.test(dateOptions[0].value)) {
+      const parts = dateOptions[0].value.split('-').map(Number);
+      return { year: parts[0], month: parts[1] - 1 };
+    }
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  }, [selectedDate, dateOptions]);
+
+  const [viewYear, setViewYear] = useState<number>(initialDate.year);
+  const [viewMonth, setViewMonth] = useState<number>(initialDate.month);
+
+  useEffect(() => {
+    if (selectedDate && /^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
+      const parts = selectedDate.split('-').map(Number);
+      setViewYear(parts[0]);
+      setViewMonth(parts[1] - 1);
+    }
+  }, [selectedDate]);
+
+  const activeMonthLabel = useMemo(() => {
+    const d = new Date(viewYear, viewMonth, 1);
+    const monthName = d.toLocaleDateString('pt-BR', { month: 'long' });
+    return `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${viewYear}`;
+  }, [viewYear, viewMonth]);
+
+  const minDateStr = dateOptions[0]?.value || '';
+  const maxDateStr = dateOptions[dateOptions.length - 1]?.value || '';
+
+  const canGoPrevMonth = useMemo(() => {
+    if (!minDateStr) return false;
+    const parts = minDateStr.split('-').map(Number);
+    return viewYear > parts[0] || (viewYear === parts[0] && viewMonth > parts[1] - 1);
+  }, [viewYear, viewMonth, minDateStr]);
+
+  const canGoNextMonth = useMemo(() => {
+    if (!maxDateStr) return false;
+    const parts = maxDateStr.split('-').map(Number);
+    return viewYear < parts[0] || (viewYear === parts[0] && viewMonth < parts[1] - 1);
+  }, [viewYear, viewMonth, maxDateStr]);
+
+  const handlePrevMonth = () => {
+    if (!canGoPrevMonth) return;
+    if (viewMonth === 0) {
+      setViewYear((y) => y - 1);
+      setViewMonth(11);
+    } else {
+      setViewMonth((m) => m - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (!canGoNextMonth) return;
+    if (viewMonth === 11) {
+      setViewYear((y) => y + 1);
+      setViewMonth(0);
+    } else {
+      setViewMonth((m) => m + 1);
+    }
+  };
+
+  const calendarCells = useMemo(() => {
+    const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay();
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const availableSet = new Set(dateOptions.map((d) => d.value));
+
+    const cells: Array<{
+      key: string;
+      dayNumber: number;
+      dateValue: string | null;
+      isAvailable: boolean;
+      isSelected: boolean;
+    }> = [];
+
+    for (let i = 0; i < firstDayOfWeek; i++) {
+      cells.push({
+        key: `empty-${i}`,
+        dayNumber: 0,
+        dateValue: null,
+        isAvailable: false,
+        isSelected: false,
+      });
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const mm = String(viewMonth + 1).padStart(2, '0');
+      const dd = String(day).padStart(2, '0');
+      const dateValue = `${viewYear}-${mm}-${dd}`;
+      const isAvailable = availableSet.has(dateValue);
+      const isSelected = selectedDate === dateValue;
+
+      cells.push({
+        key: dateValue,
+        dayNumber: day,
+        dateValue,
+        isAvailable,
+        isSelected,
+      });
+    }
+
+    return cells;
+  }, [viewYear, viewMonth, dateOptions, selectedDate]);
+
+  // Current week (7 days) or the 7-day chunk containing the selectedDate
+  const weekDays = useMemo(() => {
+    if (dateOptions.length <= 7) return dateOptions;
+
+    const selectedIdx = dateOptions.findIndex((d) => d.value === selectedDate);
+    if (selectedIdx === -1 || selectedIdx < 7) {
+      return dateOptions.slice(0, 7);
+    }
+
+    const startIndex = Math.min(
+      Math.floor(selectedIdx / 7) * 7,
+      Math.max(0, dateOptions.length - 7)
+    );
+    return dateOptions.slice(startIndex, startIndex + 7);
+  }, [dateOptions, selectedDate]);
+
   if (!isOpen) return null;
 
   return (
@@ -163,34 +300,130 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
             </div>
           </div>
 
-          {/* Date Picker Carousel */}
+          {/* Date Picker (Semana Atual + Expandir Calendário Mensal) */}
           <div className="space-y-2">
-            <span className="block text-xs font-bold text-neutral-300 uppercase tracking-wider">
-              1. Selecione o Dia
-            </span>
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none snap-x">
-              {dateOptions.map((date) => {
-                const isSelected = selectedDate === date.value;
-
-                return (
-                  <button
-                    key={date.value}
-                    type="button"
-                    onClick={() => onSelectDate(date.value)}
-                    className={`flex flex-col items-center justify-center py-2 px-2.5 rounded-2xl flex-shrink-0 min-w-[56px] transition-all cursor-pointer snap-start ${
-                      isSelected
-                        ? 'bg-amber-500 text-neutral-950 font-black shadow-lg shadow-amber-500/25 scale-[1.02]'
-                        : 'bg-neutral-950 border border-neutral-800 text-neutral-300 hover:border-neutral-600'
-                    }`}
-                  >
-                    <span className="text-[9px] font-bold uppercase tracking-tight">
-                      {date.dayLabel || date.weekday}
-                    </span>
-                    <span className="text-sm font-black mt-0.5 tabular-nums">{date.dayNumber}</span>
-                  </button>
-                );
-              })}
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="block text-xs font-bold text-neutral-300 uppercase tracking-wider">
+                  1. Selecione o Dia
+                </span>
+                <span className="text-[11px] font-semibold text-amber-400 capitalize block">
+                  {activeMonthLabel}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCalendarExpanded((prev) => !prev)}
+                className="text-xs font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-colors cursor-pointer"
+              >
+                <CalendarIcon size={13} />
+                <span>{isCalendarExpanded ? 'Ver semana' : 'Expandir calendário'}</span>
+              </button>
             </div>
+
+            {isCalendarExpanded ? (
+              <div className="p-3 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-3 animate-in fade-in zoom-in-95 duration-150">
+                {/* Month Navigation */}
+                <div className="flex items-center justify-between px-1">
+                  <button
+                    type="button"
+                    onClick={handlePrevMonth}
+                    disabled={!canGoPrevMonth}
+                    className={`size-7 rounded-lg border flex items-center justify-center transition-colors ${
+                      canGoPrevMonth
+                        ? 'border-neutral-800 text-neutral-300 hover:bg-neutral-800 hover:text-white cursor-pointer'
+                        : 'border-neutral-900 text-neutral-700 cursor-not-allowed opacity-40'
+                    }`}
+                    title="Mês anterior"
+                  >
+                    <ChevronLeft size={15} />
+                  </button>
+
+                  <span className="text-xs font-bold text-white capitalize">
+                    {activeMonthLabel}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={handleNextMonth}
+                    disabled={!canGoNextMonth}
+                    className={`size-7 rounded-lg border flex items-center justify-center transition-colors ${
+                      canGoNextMonth
+                        ? 'border-neutral-800 text-neutral-300 hover:bg-neutral-800 hover:text-white cursor-pointer'
+                        : 'border-neutral-900 text-neutral-700 cursor-not-allowed opacity-40'
+                    }`}
+                    title="Próximo mês"
+                  >
+                    <ChevronRight size={15} />
+                  </button>
+                </div>
+
+                {/* Weekday headers */}
+                <div className="grid grid-cols-7 gap-1 text-center">
+                  {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((w) => (
+                    <span key={w} className="text-[10px] font-bold text-neutral-500 uppercase">
+                      {w}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Days grid */}
+                <div className="grid grid-cols-7 gap-1">
+                  {calendarCells.map((cell) => {
+                    if (!cell.dateValue) {
+                      return <div key={cell.key} className="h-8" />;
+                    }
+
+                    return (
+                      <button
+                        key={cell.key}
+                        type="button"
+                        disabled={!cell.isAvailable}
+                        onClick={() => {
+                          if (cell.dateValue) {
+                            onSelectDate(cell.dateValue);
+                          }
+                        }}
+                        className={`h-8 rounded-xl text-xs font-bold transition-all flex items-center justify-center tabular-nums ${
+                          cell.isSelected
+                            ? 'bg-amber-500 text-neutral-950 font-black shadow-md shadow-amber-500/25 scale-105'
+                            : cell.isAvailable
+                            ? 'text-neutral-200 hover:bg-neutral-800 hover:text-amber-400 cursor-pointer'
+                            : 'text-neutral-700 cursor-not-allowed opacity-30'
+                        }`}
+                      >
+                        {cell.dayNumber}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              /* Week view (Semana Atual) */
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none snap-x">
+                {weekDays.map((date) => {
+                  const isSelected = selectedDate === date.value;
+
+                  return (
+                    <button
+                      key={date.value}
+                      type="button"
+                      onClick={() => onSelectDate(date.value)}
+                      className={`flex flex-col items-center justify-center py-2 px-2.5 rounded-2xl flex-shrink-0 min-w-[56px] transition-all cursor-pointer snap-start ${
+                        isSelected
+                          ? 'bg-amber-500 text-neutral-950 font-black shadow-lg shadow-amber-500/25 scale-[1.02]'
+                          : 'bg-neutral-950 border border-neutral-800 text-neutral-300 hover:border-neutral-600'
+                      }`}
+                    >
+                      <span className="text-[9px] font-bold uppercase tracking-tight">
+                        {date.dayLabel || date.weekday}
+                      </span>
+                      <span className="text-sm font-black mt-0.5 tabular-nums">{date.dayNumber}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Time Slots Grid */}

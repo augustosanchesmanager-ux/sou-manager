@@ -269,14 +269,18 @@ class ComandaRepositoryImpl extends SupabaseRepository {
   async listOpenWithClients(tenantId: string, appSlug?: AppSlug): Promise<Array<{
     id: string;
     client_id: string | null;
+    staff_id?: string | null;
+    appointment_id?: string | null;
     total: number;
     status: string;
     created_at: string;
     clients?: { id: string; name: string; phone?: string | null } | null;
+    staff?: { id: string; name: string } | null;
+    appointments?: { id: string; start_time?: string | null; date?: string | null; time?: string | null } | null;
   }>> {
     try {
       const result = await this.scopeClient(appSlug).from(this.tableName)
-        .select('id, client_id, total, status, created_at, clients(id, name, phone)')
+        .select('id, client_id, staff_id, appointment_id, total, status, created_at, clients(id, name, phone), staff(id, name), appointments(id, start_time, date, time)')
         .eq('tenant_id', tenantId)
         .eq('status', 'open')
         .order('created_at', { ascending: false });
@@ -330,10 +334,14 @@ export interface ComandaRepository extends IRepository<Comanda> {
   listOpenWithClients(tenantId: string, appSlug?: AppSlug): Promise<Array<{
     id: string;
     client_id: string | null;
+    staff_id?: string | null;
+    appointment_id?: string | null;
     total: number;
     status: string;
     created_at: string;
     clients?: { id: string; name: string; phone?: string | null } | null;
+    staff?: { id: string; name: string } | null;
+    appointments?: { id: string; start_time?: string | null; date?: string | null; time?: string | null } | null;
   }>>;
   insertWithIdempotency(data: Record<string, unknown>, idempotencyKey: string, tenantId: string): Promise<string>;
 }
