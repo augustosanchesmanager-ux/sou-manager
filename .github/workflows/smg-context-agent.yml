@@ -1,0 +1,50 @@
+name: SMG Context Agent (Phase 2)
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  investigate-and-plan:
+    # Só roda se a issue receber a label 'agente: analisar'
+    if: github.event.label.name == 'agente: analisar'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read       # REGRA DE OURO: Somente leitura do código
+      issues: write        # Permissão para comentar na issue
+
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar Dependências
+        run: npm ci
+
+      - name: Executar Agente de Contexto
+        id: agent
+        env:
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        # Roda o script que vai investigar o código e gerar o plano
+        run: |
+          npx tsx scripts/smg-context-agent.ts > plan.md
+
+      - name: Postar Plano na Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('plan.md', 'utf8');
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🤖 **Plano de Execução Gerado pelo Agente de Contexto**\n\n${plan}\n\n---\n*Augusto, responda com \`LGTM\` (Looks Good To Me) para autorizar a Fase 3 (Implementação).*`
+            });

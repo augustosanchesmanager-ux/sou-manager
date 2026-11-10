@@ -73,3 +73,9 @@ h4_*.json
 # Local design tooling & secondary agent harnesses (untracked)
 .opencode/skills/impeccable/
 .claude/
+.clinerules
+.omo/
+.playwright-mcp/
+HANDOFF_CONTEXT.md
+*.local-backup*
+supabase/supabase/.temp/
