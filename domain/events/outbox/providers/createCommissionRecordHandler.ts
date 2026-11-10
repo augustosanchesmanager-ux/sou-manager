@@ -241,7 +241,10 @@ export const createCommissionRecordHandler = (
           quantity,
         });
 
-        const commissionRate = getEffectiveCommissionRate(staff as any);
+        const commissionRate =
+          participant.payout_type === 'fixed'
+            ? 1.0
+            : getEffectiveCommissionRate(staff as any);
         const commissionValue = calculateCommissionValue(
           financialBase.receivedValue,
           participant,

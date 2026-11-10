@@ -91,11 +91,10 @@ var calculateTotalPayouts = (receivedValue, participants) => {
 };
 var calculateCommissionValue = (receivedValue, participant, commissionRate) => {
   if (!participant.affects_commission) return 0;
-  const rate = normalizePercentage(commissionRate);
   if (participant.payout_type === "fixed") {
-    const base = Math.min(participant.payout_value, receivedValue);
-    return base * rate;
+    return Math.min(participant.payout_value, receivedValue);
   }
+  const rate = normalizePercentage(commissionRate);
   const participantBase = receivedValue * normalizePercentage(participant.payout_value);
   return participantBase * rate;
 };
@@ -144,10 +143,14 @@ var hasPartialSavedPayout = (participant, itemValue) => {
   const rate = normalizePercentage(participant.payout_value);
   return rate > 0 && rate < 1;
 };
-var buildInferredPrimaryParticipant = (comandaItemId, savedParticipants, staffById, fallbackStaffId) => {
+var buildInferredPrimaryParticipant = (comandaItemId, savedParticipants, staffById, fallbackStaffId, itemValue) => {
   const totalPayout = savedParticipants.filter((p) => p.affects_commission).reduce((sum, p) => {
+    if (p.payout_type === "fixed") {
+      const val = itemValue && itemValue > 0 ? p.payout_value / itemValue : 1;
+      return sum + val;
+    }
     const rate = normalizePercentage(p.payout_value);
-    return sum + (p.payout_type === "fixed" ? p.payout_value : rate);
+    return sum + rate;
   }, 0);
   const remaining = 1 - totalPayout;
   if (remaining <= 0.01) return null;
@@ -217,7 +220,7 @@ var normalizeCommissionParticipants = (item, comanda, rawParticipants, itemValue
     const effectiveStaff = effectiveStaffId ? staffById.get(effectiveStaffId) : null;
     const isEffectiveEligible = effectiveStaff ? isCommissionEligible(effectiveStaff) : false;
     if (!effectiveStaffId || isEffectiveEligible) {
-      const inferred = buildInferredPrimaryParticipant(item.id, unique, staffById, fallbackStaffId);
+      const inferred = buildInferredPrimaryParticipant(item.id, unique, staffById, fallbackStaffId, itemValue);
       if (inferred) unique.push(inferred);
     }
   }
