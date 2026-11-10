@@ -404,10 +404,13 @@ const PublicBookingPage: React.FC = () => {
   const handleSelectStaff = useCallback(
     (staffId: string) => {
       selectStaff(staffId);
+      if (!selectedDate && dateOptions.length > 0) {
+        selectDate(dateOptions[0].value);
+      }
       setIsStaffModalOpen(false);
       setIsDateTimeModalOpen(true);
     },
-    [selectStaff]
+    [selectStaff, selectedDate, dateOptions, selectDate]
   );
 
   // Return from Phase 2 (Staff Selection) back to services grid
