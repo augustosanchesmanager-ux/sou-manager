@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { AlertCircle, CheckCircle, XCircle, ExternalLink } from 'lucide-react';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
+import Modal from '../components/ui/Modal';
 import EmptyStateFinance from '../components/financial/EmptyStateFinance';
 import { AuditAdjustmentButton } from '../components/audit';
 import { useAuth } from '../context/AuthContext';
+import { useTenantOptional } from '../src/context/TenantContext';
 import { supabase, getScopedClient } from '../services/supabaseClient';
 import { formatCurrency } from '../shared/format/currency';
 import { settleCheckoutComanda } from '../src/lib/finance/settlement';
@@ -120,7 +122,7 @@ interface ReceiptRecord {
     status: string;
 }
 
-type ActiveTab = 'todos' | 'comandas' | 'clube' | 'recibos' | 'historico';
+type ActiveTab = 'fiado' | 'todos' | 'comandas' | 'clube' | 'recibos' | 'historico';
 
 interface ARListEntry extends AREntry {
     listId: string;
@@ -137,6 +139,10 @@ const SOURCE_LABELS: Record<ARSource, string> = {
     recibo: 'Recibo',
 };
 const EMPTY_STATE_COPY: Record<ActiveTab, { title: string; description: string }> = {
+    fiado: {
+        title: 'Nenhum fiado pendente',
+        description: 'Não há clientes com débitos ou comandas em aberto no momento.',
+    },
     todos: {
         title: 'Nenhuma conta a receber pendente',
         description: 'Não há comandas abertas, recebíveis do Clube ou recibos pendentes neste período.',
@@ -208,10 +214,28 @@ const extractClientNameFromTransactionDescription = (description?: string | null
 
 const AccountsReceivable: React.FC = () => {
     const { tenantId, accessRole, canAccessSuperAdmin, user } = useAuth();
+    const tenantContext = useTenantOptional();
     const hasTenantContext = Boolean(tenantId);
     const navigate = useNavigate();
 
-    const [activeTab, setActiveTab] = useState<ActiveTab>('todos');
+    const [activeTab, setActiveTab] = useState<ActiveTab>('fiado');
+    const [pixKey, setPixKey] = useState<string>(() => {
+        if (tenantId) {
+            return localStorage.getItem(`smg_pix_key_${tenantId}`) || '';
+        }
+        return '';
+    });
+    const [consolidatedModalGroup, setConsolidatedModalGroup] = useState<null | {
+        groupId: string;
+        clientName: string;
+        clientPhone: string | null;
+        total: number;
+        oldestDate: string;
+        entries: ARListEntry[];
+    }>(null);
+    const [consolidatedMethod, setConsolidatedMethod] = useState<PaymentMethod>('pix');
+    const [consolidatedNotes, setConsolidatedNotes] = useState('');
+    const [isConsolidating, setIsConsolidating] = useState(false);
     const [filterMonth, setFilterMonth] = useState(() => {
         const d = new Date();
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -1016,6 +1040,9 @@ const AccountsReceivable: React.FC = () => {
         if (activeTab === 'historico') {
             return settledComandas;
         }
+        if (activeTab === 'fiado') {
+            return receivables.filter(e => e.source === 'comanda' && e.status === 'open');
+        }
         if (activeTab === 'todos') {
             return receivables;
         }
@@ -1098,6 +1125,7 @@ const AccountsReceivable: React.FC = () => {
             count: number;
             total: number;
             lastDate: string;
+            oldestDate: string;
             entries: ARListEntry[];
         }>();
 
@@ -1114,6 +1142,7 @@ const AccountsReceivable: React.FC = () => {
                     count: 1,
                     total: Number(entry.amount || 0),
                     lastDate: createdAt,
+                    oldestDate: createdAt,
                     entries: [entry],
                 });
                 return;
@@ -1124,6 +1153,9 @@ const AccountsReceivable: React.FC = () => {
             current.entries.push(entry);
             if (new Date(createdAt).getTime() > new Date(current.lastDate).getTime()) {
                 current.lastDate = createdAt;
+            }
+            if (new Date(createdAt).getTime() < new Date(current.oldestDate).getTime()) {
+                current.oldestDate = createdAt;
             }
         });
 
@@ -1138,13 +1170,173 @@ const AccountsReceivable: React.FC = () => {
             });
     }, [filteredEntries, sortKey]);
 
+    const fiadoDebtorClients = useMemo(() => {
+        const groups = new Map<string, {
+            groupId: string;
+            clientName: string;
+            clientPhone: string | null;
+            count: number;
+            total: number;
+            lastDate: string;
+            oldestDate: string;
+            entries: ARListEntry[];
+        }>();
+
+        receivables.filter(e => e.source === 'comanda' && e.status === 'open').forEach((entry) => {
+            const groupKey = `${entry.clientName || CLIENT_FALLBACK_LABEL}|${entry.clientPhone || ''}`;
+            const current = groups.get(groupKey);
+            const createdAt = entry.dateValue || new Date().toISOString();
+
+            if (!current) {
+                groups.set(groupKey, {
+                    groupId: groupKey,
+                    clientName: entry.clientName || CLIENT_FALLBACK_LABEL,
+                    clientPhone: entry.clientPhone || null,
+                    count: 1,
+                    total: Number(entry.amount || 0),
+                    lastDate: createdAt,
+                    oldestDate: createdAt,
+                    entries: [entry],
+                });
+                return;
+            }
+
+            current.count += 1;
+            current.total += Number(entry.amount || 0);
+            current.entries.push(entry);
+            if (new Date(createdAt).getTime() > new Date(current.lastDate).getTime()) {
+                current.lastDate = createdAt;
+            }
+            if (new Date(createdAt).getTime() < new Date(current.oldestDate).getTime()) {
+                current.oldestDate = createdAt;
+            }
+        });
+
+        return Array.from(groups.values()).sort((a, b) => b.total - a.total);
+    }, [receivables]);
+
+    const totalFiadoDebt = useMemo(() => {
+        return fiadoDebtorClients.reduce((sum, c) => sum + c.total, 0);
+    }, [fiadoDebtorClients]);
+
     const tabs: { key: ActiveTab; label: string; count?: number }[] = [
+        { key: 'fiado', label: 'Fiado / Clientes', count: fiadoDebtorClients.length },
         { key: 'todos', label: 'Pendentes (Todos)', count: allEntries.length },
         { key: 'comandas', label: 'Comandas Abertas', count: openComandas.length },
         { key: 'clube', label: 'Club dos Chefes', count: clubReceivables.filter(r => !r.transaction_id).length },
         { key: 'recibos', label: 'Recibos', count: pendingReceipts.length },
         { key: 'historico', label: 'Histórico / Baixadas', count: paidComandaSettlements.length },
     ];
+
+    const getDaysOverdue = (dateString: string): number => {
+        const past = new Date(dateString).getTime();
+        if (isNaN(past)) return 0;
+        const now = Date.now();
+        const diffMs = now - past;
+        return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+    };
+
+    const getUrgencyBadge = (days: number) => {
+        if (days >= 15) {
+            return {
+                label: `${days}d em atraso (Crítico)`,
+                classes: 'bg-rose-500/10 text-rose-600 border-rose-500/30 dark:bg-rose-500/20 dark:text-rose-400 font-extrabold',
+            };
+        }
+        if (days >= 7) {
+            return {
+                label: `${days}d em atraso (Atenção)`,
+                classes: 'bg-amber-500/10 text-amber-600 border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-400 font-bold',
+            };
+        }
+        if (days > 0) {
+            return {
+                label: `${days}d pendente`,
+                classes: 'bg-sky-500/10 text-sky-600 border-sky-500/30 dark:bg-sky-500/20 dark:text-sky-400 font-semibold',
+            };
+        }
+        return {
+            label: 'Hoje',
+            classes: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-400 font-semibold',
+        };
+    };
+
+    const handleSendWhatsAppCharge = (group: { clientName: string; clientPhone: string | null; total: number; entries: ARListEntry[] }) => {
+        if (!group.clientPhone) {
+            setToast({ message: 'Cliente não possui telefone cadastrado para cobrança via WhatsApp.', type: 'error' });
+            return;
+        }
+        const cleanPhone = group.clientPhone.replace(/\D/g, '');
+        const phoneWithCountry = cleanPhone.length <= 11 ? `55${cleanPhone}` : cleanPhone;
+        const firstName = group.clientName.trim().split(' ')[0] || 'Cliente';
+        const formattedTotal = formatCurrency(group.total);
+        const shop = tenantContext?.tenant?.name || 'sua barbearia';
+        const openComandasCount = group.entries.filter(e => e.status === 'open').length;
+
+        let msg = `Olá, *${firstName}*! Tudo bem? 💈\n\n`;
+        msg += `Passando para enviar o resumo da sua conta em aberto na *${shop}*.\n`;
+        msg += `📋 Comandas pendentes: *${openComandasCount}*\n`;
+        msg += `💰 Saldo total em aberto: *${formattedTotal}*\n\n`;
+
+        if (pixKey.trim()) {
+            msg += `Você pode efetuar o acerto via PIX através da chave:\n`;
+            msg += `🔑 Chave PIX: *${pixKey.trim()}*\n\n`;
+            msg += `Assim que realizar o pagamento, por gentileza nos envie o comprovante por aqui. `;
+        }
+
+        msg += `Agradecemos a confiança e estamos à disposição! 🤝`;
+
+        const url = `https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(msg)}`;
+        window.open(url, '_blank', 'noopener,noreferrer');
+    };
+
+    const handleConsolidatedSettlement = async () => {
+        if (!consolidatedModalGroup || !tenantId) return;
+        const openComandasToSettle = consolidatedModalGroup.entries.filter(
+            e => e.source === 'comanda' && e.status === 'open'
+        );
+        if (openComandasToSettle.length === 0) {
+            setToast({ message: 'Nenhuma comanda aberta elegível para baixa.', type: 'info' });
+            setConsolidatedModalGroup(null);
+            return;
+        }
+
+        setIsConsolidating(true);
+        setToast({ message: `Liquidando ${openComandasToSettle.length} comanda(s) no caixa...`, type: 'info' });
+
+        try {
+            let settledCount = 0;
+            for (const entry of openComandasToSettle) {
+                await settleCheckoutComanda({
+                    comandaId: entry.id,
+                    tenantId,
+                    supabase,
+                    paymentMethod: consolidatedMethod,
+                    paidAmount: Number(entry.amount || 0),
+                    paymentDateReal: new Date().toISOString(),
+                    source: 'checkout',
+                    notes: `Liquidação consolidada fiado · Cliente: ${consolidatedModalGroup.clientName}${consolidatedNotes ? ` · ${consolidatedNotes}` : ''}`,
+                    idempotencyKey: createSettlementKey(entry.id),
+                });
+                settledCount++;
+            }
+
+            setToast({
+                message: `Liquidação concluída! ${settledCount} comanda(s) baixada(s) com sucesso no caixa.`,
+                type: 'success',
+            });
+            setConsolidatedModalGroup(null);
+            setConsolidatedNotes('');
+            await fetchData();
+        } catch (err: any) {
+            setToast({
+                message: err?.message || 'Erro ao realizar liquidação consolidada.',
+                type: 'error',
+            });
+        } finally {
+            setIsConsolidating(false);
+        }
+    };
 
     const getStatusBadge = (status: string) => {
         if (status === 'overdue') return 'bg-red-500/10 text-red-600 border-red-500/20';
@@ -1372,7 +1564,123 @@ const AccountsReceivable: React.FC = () => {
                         </div>
                     </div>
 
-                    {listFilters.viewMode === 'grouped' ? (
+                    {activeTab === 'fiado' ? (
+                        <div className="p-4 space-y-4">
+                            {/* Banner de Controle de Fiado e Chave PIX */}
+                            <div className="p-4 rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50/50 dark:bg-white/[0.02] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div>
+                                    <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Total em Aberto na Carteira (Fiado)</p>
+                                    <p className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-0.5">
+                                        {formatCurrency(totalFiadoDebt)}
+                                    </p>
+                                    <p className="text-xs text-slate-500 mt-0.5">
+                                        {fiadoDebtorClients.length} cliente(s) com débitos pendentes de pagamento.
+                                    </p>
+                                </div>
+                                <div className="flex flex-col sm:items-end gap-1">
+                                    <label className="text-[11px] font-bold text-slate-500 uppercase">
+                                        Chave PIX da Barbearia (Cobrança WhatsApp)
+                                    </label>
+                                    <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                                        <input
+                                            type="text"
+                                            value={pixKey}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setPixKey(val);
+                                                if (tenantId) localStorage.setItem(`smg_pix_key_${tenantId}`, val);
+                                            }}
+                                            placeholder="Ex: CNPJ, celular, e-mail ou aleatória"
+                                            className="px-3 py-1.5 text-xs font-mono rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark text-slate-900 dark:text-white w-full sm:w-64 focus:outline-none focus:border-primary"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Grid de Cartões Consolidados por Cliente Devedor */}
+                            {fiadoDebtorClients.length === 0 ? (
+                                <div className="p-8 text-center rounded-xl border border-dashed border-slate-200 dark:border-border-dark">
+                                    <CheckCircle className="size-8 text-emerald-500 mx-auto mb-2" />
+                                    <p className="text-sm font-bold text-slate-900 dark:text-white">Nenhum cliente com fiado em aberto</p>
+                                    <p className="text-xs text-slate-500 mt-0.5">Todas as contas a receber dos clientes estão em dia!</p>
+                                </div>
+                            ) : (
+                                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                    {fiadoDebtorClients.map((client) => {
+                                        const days = getDaysOverdue(client.oldestDate);
+                                        const urgency = getUrgencyBadge(days);
+                                        const openComandasCount = client.entries.filter(e => e.status === 'open').length;
+
+                                        return (
+                                            <div
+                                                key={client.groupId}
+                                                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-border-dark dark:bg-card-dark flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-all"
+                                            >
+                                                <div>
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div className="min-w-0">
+                                                            <p className="text-sm font-black text-slate-900 dark:text-white truncate">
+                                                                {client.clientName}
+                                                            </p>
+                                                            {client.clientPhone ? (
+                                                                <p className="text-xs text-slate-500 mt-0.5">{client.clientPhone}</p>
+                                                            ) : (
+                                                                <span className="text-[10px] text-amber-600 font-semibold">Sem telefone</span>
+                                                            )}
+                                                        </div>
+                                                        <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase border shrink-0 ${urgency.classes}`}>
+                                                            {urgency.label}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="mt-3.5 p-3 rounded-xl bg-slate-50 dark:bg-white/5 space-y-1.5">
+                                                        <div className="flex justify-between items-center text-xs">
+                                                            <span className="text-slate-500 font-semibold">Saldo Devedor:</span>
+                                                            <span className="font-black text-sm text-rose-600 dark:text-rose-400">
+                                                                {formatCurrency(client.total)}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center text-xs text-slate-500">
+                                                            <span>Comandas pendentes:</span>
+                                                            <span className="font-bold text-slate-700 dark:text-slate-300">
+                                                                {openComandasCount}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center text-[11px] text-slate-400">
+                                                            <span>Desde:</span>
+                                                            <span>{new Date(client.oldestDate).toLocaleDateString('pt-BR')}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleSendWhatsAppCharge(client)}
+                                                        disabled={!client.clientPhone}
+                                                        title={client.clientPhone ? "Cobrar via WhatsApp com Chave PIX" : "Cliente sem telefone cadastrado"}
+                                                        className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                                                    >
+                                                        <ExternalLink className="size-3.5" />
+                                                        Cobrar WhatsApp
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setConsolidatedModalGroup(client)}
+                                                        title="Liquidar todas as comandas pendentes deste cliente com baixa no caixa"
+                                                        className="inline-flex items-center justify-center gap-1 py-2 px-3 rounded-lg text-xs font-bold bg-primary hover:brightness-105 text-night transition-all shadow-sm"
+                                                    >
+                                                        <CheckCircle className="size-3.5" />
+                                                        Baixar no Caixa
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    ) : listFilters.viewMode === 'grouped' ? (
                         <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
                             {groupedEntries.map((group) => (
                                 <div key={group.groupId} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
@@ -1679,6 +1987,87 @@ const AccountsReceivable: React.FC = () => {
                 isSubmitting={reversingId === reversalEntry?.id}
                 onConfirm={handleConfirmReversal}
             />
+
+            {consolidatedModalGroup && (
+                <Modal
+                    isOpen={Boolean(consolidatedModalGroup)}
+                    onClose={() => !isConsolidating && setConsolidatedModalGroup(null)}
+                    title="Liquidação Consolidada no Caixa"
+                    maxWidth="sm"
+                >
+                    <div className="space-y-4">
+                        <div className="p-4 rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 space-y-2">
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-slate-500">Cliente:</span>
+                                <span className="font-bold text-slate-900 dark:text-white">{consolidatedModalGroup.clientName}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-slate-500">Comandas a Baixar:</span>
+                                <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                    {consolidatedModalGroup.entries.filter(e => e.source === 'comanda' && e.status === 'open').length} comanda(s)
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm pt-2 border-t border-slate-200 dark:border-white/10">
+                                <span className="font-bold text-slate-700 dark:text-slate-300">Valor Total a Quitar:</span>
+                                <span className="font-black text-rose-600 dark:text-rose-400 text-base">
+                                    {formatCurrency(consolidatedModalGroup.total)}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
+                                Forma de Pagamento Recebida
+                            </label>
+                            <select
+                                value={consolidatedMethod}
+                                onChange={(e) => setConsolidatedMethod(e.target.value as PaymentMethod)}
+                                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark text-sm font-semibold text-slate-900 dark:text-white"
+                            >
+                                <option value="pix">📱 PIX</option>
+                                <option value="dinheiro">💵 Dinheiro</option>
+                                <option value="debito">💳 Cartão de Débito</option>
+                                <option value="credito">💳 Cartão de Crédito</option>
+                                <option value="outro">💰 Outro</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
+                                Observação no Caixa (Opcional)
+                            </label>
+                            <input
+                                type="text"
+                                value={consolidatedNotes}
+                                onChange={(e) => setConsolidatedNotes(e.target.value)}
+                                placeholder="Ex: Quitação total de fiado no balcão"
+                                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark text-sm text-slate-900 dark:text-white"
+                            />
+                        </div>
+
+                        <div className="flex gap-2 pt-2">
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                className="flex-1"
+                                disabled={isConsolidating}
+                                onClick={() => setConsolidatedModalGroup(null)}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="primary"
+                                className="flex-1"
+                                disabled={isConsolidating}
+                                onClick={handleConsolidatedSettlement}
+                            >
+                                {isConsolidating ? 'Baixando...' : 'Confirmar Baixa'}
+                            </Button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
         </div>
     );
 };

@@ -52,7 +52,7 @@ import {
     isManagerLikeRole,
     type ZeroCloseOrigin,
 } from '../src/lib/finance/zeroClose';
-import { receivesCommission } from '../src/lib/staff/roles';
+import { receivesCommission, canPerformServices } from '../src/lib/staff/roles';
 import {
     DISCOUNT_REASON_LABELS,
     DISCOUNT_TYPE_LABELS,
@@ -140,6 +140,7 @@ interface Staff {
     id: string;
     name: string;
     role?: string | null;
+    commission_rate?: number | string | null;
 }
 
 interface QuickProductForm {
@@ -499,6 +500,10 @@ const Checkout: React.FC = () => {
             finishButtonRef.current?.focus();
         }, 50);
     }, [total, selectedTerminalId, terminals]);
+    const serviceStaff = useMemo(
+        () => staff.filter(canPerformServices),
+        [staff],
+    );
     const assignedCommissionStaff = useMemo(
         () => staff.filter(pro => assignedStaffIds.includes(pro.id) && receivesCommission(pro)),
         [assignedStaffIds, staff],
@@ -606,7 +611,7 @@ const Checkout: React.FC = () => {
 
             const [clientsRes, staffRes, servicesRes, productsRes, promoRes] = await Promise.all([
                 client.from('clients').select('id, name, avatar, phone').eq('tenant_id', resolvedTenantId).order('name'),
-                client.from('staff').select('id, name, role').eq('tenant_id', resolvedTenantId).eq('status', 'active').order('name'),
+                client.from('staff').select('id, name, role, commission_rate').eq('tenant_id', resolvedTenantId).eq('status', 'active').order('name'),
                 client.from('services').select('*').eq('tenant_id', resolvedTenantId).or('active.is.null,active.eq.true'),
                 client.from('products').select('*').eq('tenant_id', resolvedTenantId).or('active.is.null,active.eq.true'),
                 client.from('promotions').select('*').eq('tenant_id', resolvedTenantId).eq('active', true),
@@ -1081,7 +1086,7 @@ const Checkout: React.FC = () => {
             quantity: 1,
             service_id: type === 'service' ? item.id : undefined,
             product_id: type === 'product' ? item.id : undefined,
-            staff_id: staff.length > 0 ? staff[0].id : '',
+            staff_id: type === 'service' ? (serviceStaff[0]?.id || '') : (staff[0]?.id || ''),
             usedCredit: shouldUseCredit
         };
 
@@ -1736,7 +1741,7 @@ const Checkout: React.FC = () => {
                                                         className="bg-transparent text-[10px] font-bold text-slate-600 dark:text-slate-300 border-none outline-none p-0 cursor-pointer hover:text-primary-dark [color-scheme:light] dark:[color-scheme:dark]"
                                                     >
                                                         <option value="" className="bg-white dark:bg-[#1A1A1A] text-slate-400">Nenhum</option>
-                                                        {staff.map(pro => (
+                                                        {(item.type === 'service' ? serviceStaff : staff).map(pro => (
                                                             <option key={pro.id} value={pro.id} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{pro.name}</option>
                                                         ))}
                                                     </select>
@@ -3104,7 +3109,7 @@ const Checkout: React.FC = () => {
                                         className="px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1A1A1A] text-sm"
                                     >
                                         <option value="">Selecionar...</option>
-                                        {staff.filter(s => s.id !== item.staff_id).map(s => (
+                                        {serviceStaff.filter(s => s.id !== item.staff_id).map(s => (
                                             <option key={s.id} value={s.id}>{s.name}</option>
                                         ))}
                                     </select>

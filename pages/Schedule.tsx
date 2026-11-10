@@ -89,6 +89,7 @@ interface DBStaff {
   name: string;
   role: string;
   avatar: string;
+  commission_rate?: number | string | null;
 }
 
 interface DBService {
@@ -655,7 +656,7 @@ const Schedule: React.FC = () => {
     const promotionsClient = getClientForTable('promotions', scheduleAppSlug);
 
     const [staffRes, servicesRes, clientsRes, promoRes] = await Promise.all([
-      supabase.from('staff').select('id, name, role, avatar').eq('tenant_id', tenantId).eq('status', 'active'),
+      supabase.from('staff').select('id, name, role, avatar, commission_rate').eq('tenant_id', tenantId).eq('status', 'active'),
       servicesClient.from('services').select('id, name, duration, buffer, price').eq('tenant_id', tenantId).eq('active', true),
       clientsClient.from('clients').select('id, name, phone').eq('tenant_id', tenantId).order('name'),
       promotionsClient.from('promotions').select('*').eq('tenant_id', tenantId).eq('active', true),
@@ -2167,7 +2168,7 @@ const Schedule: React.FC = () => {
     .filter((appointment) => ['cancelled', 'canceled'].includes(normalizeAppointmentStatus(appointment.status)))
     .length, [visibleAppointments]);
   const barberOccupancies = React.useMemo(() => {
-    const activeStaff = staffList.filter((s) => shouldAppearOnSchedule(s.role));
+    const activeStaff = staffList.filter((s) => shouldAppearOnSchedule(s));
     if (activeStaff.length === 0) return [];
     const maxAppointmentsPerDay = 10;
     return activeStaff.map((staff) => {
