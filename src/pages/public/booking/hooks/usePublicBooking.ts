@@ -141,14 +141,28 @@ function formatDateForDisplay(dateStr: string): { dayLabel: string; weekday: str
   return { dayLabel, weekday, day };
 }
 
-function groupSlotsByPeriod(slots: PublicSlot[], timezone: string = 'America/Sao_Paulo'): TimePeriodGroup[] {
+export function groupSlotsByPeriod(slots: PublicSlot[], timezone: string = 'America/Sao_Paulo'): TimePeriodGroup[] {
   const periods: TimePeriodGroup[] = [
     { label: 'Manhã', slots: [], startHour: 0, endHour: 12 },
     { label: 'Tarde', slots: [], startHour: 12, endHour: 18 },
     { label: 'Noite', slots: [], startHour: 18, endHour: 24 },
   ];
 
-  for (const slot of slots) {
+  // Deduplicate slots with identical start_time (e.g. when "any" staff is selected)
+  const sortedSlots = [...slots].sort(
+    (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+  );
+  const seenTimes = new Set<string>();
+  const uniqueSlots: PublicSlot[] = [];
+  for (const slot of sortedSlots) {
+    const timeKey = String(new Date(slot.start_time).getTime());
+    if (!seenTimes.has(timeKey)) {
+      seenTimes.add(timeKey);
+      uniqueSlots.push(slot);
+    }
+  }
+
+  for (const slot of uniqueSlots) {
     const d = new Date(slot.start_time);
     let hour: number;
     try {
@@ -168,11 +182,6 @@ function groupSlotsByPeriod(slots: PublicSlot[], timezone: string = 'America/Sao
         break;
       }
     }
-  }
-
-  // Sort slots within each period chronologically by time
-  for (const period of periods) {
-    period.slots.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
   }
 
   return periods;
@@ -393,12 +402,10 @@ export function usePublicBooking() {
         ? prev.selectedServiceIds.filter((id) => id !== serviceId)
         : [...prev.selectedServiceIds, serviceId];
 
-      // Reset downstream steps when services change
+      // Reset slot selection when services change (duration may change) while preserving staff/date
       return {
         ...prev,
         selectedServiceIds: newServiceIds,
-        selectedStaffId: null,
-        selectedDate: null,
         selectedSlot: null,
         slotsResponse: null,
       };
@@ -409,7 +416,6 @@ export function usePublicBooking() {
     setState((prev) => ({
       ...prev,
       selectedStaffId: staffId,
-      selectedDate: null,
       selectedSlot: null,
       slotsResponse: null,
     }));

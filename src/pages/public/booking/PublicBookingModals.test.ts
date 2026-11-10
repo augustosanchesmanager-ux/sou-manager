@@ -7,6 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { PublicService, PublicStaff, PublicSlot } from './hooks/types';
+import { groupSlotsByPeriod } from './hooks/usePublicBooking';
 
 describe('PublicBookingModals — Specification & Invariant Tests', () => {
   const mockService: PublicService = {
@@ -171,6 +172,41 @@ describe('PublicBookingModals — Specification & Invariant Tests', () => {
       expect(classifyPeriod('2026-10-31T17:00:00+00:00')).toBe('Tarde'); // 14:00 BRT
       expect(classifyPeriod('2026-11-01T00:00:00+00:00')).toBe('Noite'); // 21:00 BRT
       expect(classifyPeriod('2026-11-01T00:30:00+00:00')).toBe('Noite'); // 21:30 BRT
+    });
+
+    it('should_deduplicate_identical_start_times_and_sort_chronologically_in_groupSlotsByPeriod', () => {
+      // Arrange: slots from two barbers at the same 09:00 BRT and out of order
+      const multiBarberSlots: PublicSlot[] = [
+        {
+          staff_id: 'barber-2',
+          start_time: '2026-11-11T17:00:00+00:00', // 14:00 BRT
+          end_time: '2026-11-11T17:30:00+00:00',
+          available: true,
+        },
+        {
+          staff_id: 'barber-1',
+          start_time: '2026-11-11T12:00:00+00:00', // 09:00 BRT
+          end_time: '2026-11-11T12:30:00+00:00',
+          available: true,
+        },
+        {
+          staff_id: 'barber-2',
+          start_time: '2026-11-11T12:00:00+00:00', // duplicate 09:00 BRT
+          end_time: '2026-11-11T12:30:00+00:00',
+          available: true,
+        },
+      ];
+
+      // Act
+      const groups = groupSlotsByPeriod(multiBarberSlots, 'America/Sao_Paulo');
+      const morning = groups.find((g) => g.label === 'Manhã');
+      const afternoon = groups.find((g) => g.label === 'Tarde');
+
+      // Assert
+      expect(morning?.slots).toHaveLength(1);
+      expect(morning?.slots[0].start_time).toBe('2026-11-11T12:00:00+00:00');
+      expect(afternoon?.slots).toHaveLength(1);
+      expect(afternoon?.slots[0].start_time).toBe('2026-11-11T17:00:00+00:00');
     });
   });
 });

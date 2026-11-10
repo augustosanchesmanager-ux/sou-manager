@@ -18,6 +18,7 @@ import {
   Moon,
 } from 'lucide-react';
 import type { PublicSlot, TimePeriodGroup } from '../hooks/types';
+import { groupSlotsByPeriod } from '../hooks/usePublicBooking';
 
 interface DateTimeBookingModalProps {
   isOpen: boolean;
@@ -68,36 +69,7 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
     if (groupedSlots && groupedSlots.length > 0) {
       return groupedSlots.filter((group) => group.slots.length > 0);
     }
-    // Fallback: Group availableSlots by Manhã (<12h), Tarde (12-18h), Noite (>=18h)
-    const groups: TimePeriodGroup[] = [
-      { label: 'Manhã', slots: [], startHour: 0, endHour: 12 },
-      { label: 'Tarde', slots: [], startHour: 12, endHour: 18 },
-      { label: 'Noite', slots: [], startHour: 18, endHour: 24 },
-    ];
-    for (const slot of availableSlots) {
-      const d = new Date(slot.start_time);
-      let hour: number;
-      try {
-        const hourStr = d.toLocaleTimeString('pt-BR', {
-          hour: '2-digit',
-          hour12: false,
-          timeZone: 'America/Sao_Paulo',
-        });
-        hour = parseInt(hourStr, 10);
-      } catch {
-        hour = d.getHours();
-      }
-      for (const group of groups) {
-        if (hour >= group.startHour && hour < group.endHour) {
-          group.slots.push(slot);
-          break;
-        }
-      }
-    }
-    for (const group of groups) {
-      group.slots.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
-    }
-    return groups.filter((group) => group.slots.length > 0);
+    return groupSlotsByPeriod(availableSlots).filter((group) => group.slots.length > 0);
   }, [groupedSlots, availableSlots]);
 
   const totalSlotsCount = useMemo(() => {
@@ -441,7 +413,15 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
             </div>
 
             {/* Loading Slots */}
-            {isLoadingSlots ? (
+            {!selectedDate ? (
+              <div className="p-5 rounded-2xl bg-neutral-950 border border-neutral-800 text-center space-y-1 py-6">
+                <CalendarIcon className="size-6 text-neutral-500 mx-auto mb-1 opacity-60" />
+                <p className="text-xs font-bold text-white">Selecione uma data acima</p>
+                <p className="text-[11px] text-neutral-400">
+                  Escolha um dia para carregar os horários disponíveis.
+                </p>
+              </div>
+            ) : isLoadingSlots ? (
               <div className="grid grid-cols-3 gap-2 animate-pulse py-2">
                 {['slot-sk-1', 'slot-sk-2', 'slot-sk-3', 'slot-sk-4', 'slot-sk-5', 'slot-sk-6'].map((id) => (
                   <div key={id} className="h-10 bg-neutral-950 border border-neutral-800 rounded-xl" />
@@ -472,7 +452,7 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
 
                           return (
                             <button
-                              key={slot.start_time}
+                              key={`${slot.staff_id}-${slot.start_time}`}
                               type="button"
                               onClick={() => onSelectSlot(slot)}
                               className={`py-2 px-2 rounded-xl text-xs font-bold border text-center transition-all cursor-pointer active:scale-95 ${
