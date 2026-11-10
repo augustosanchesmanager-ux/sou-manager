@@ -32,6 +32,7 @@ import {
 } from '../components/financial/cashCloseUtils';
 import { escapeHtml } from '../shared/strings';
 import { useAuth } from '../context/AuthContext';
+import { canPerformServices } from '../src/lib/staff/roles';
 import BarberAdvanceModal from '../components/payroll/BarberAdvanceModal';
 
 const CashClosingPage: React.FC = () => {
@@ -360,10 +361,17 @@ const CashClosingPage: React.FC = () => {
         }
     }, [closing.handleSaveConference]);
 
-    const allBarbersConferido = closing.barberClosingDetails.every(b =>
+    const eligibleBarberClosings = useMemo(() => {
+        return closing.barberClosingDetails.filter(b => {
+            const staff = closing.staffMap[b.staffId];
+            return canPerformServices(staff || { role: b.role });
+        });
+    }, [closing.barberClosingDetails, closing.staffMap]);
+
+    const allBarbersConferido = eligibleBarberClosings.length > 0 && eligibleBarberClosings.every(b =>
         Object.values(b.checklist).every(v => v)
     );
-    const pendingBarberCount = closing.barberClosingDetails.filter(b =>
+    const pendingBarberCount = eligibleBarberClosings.filter(b =>
         !Object.values(b.checklist).every(v => v)
     ).length;
 
@@ -494,7 +502,7 @@ const CashClosingPage: React.FC = () => {
             )}
 
             {/* Conferência de Caixa Individual por Barbeiro */}
-            {!closing.loading && closing.barberClosingDetails.length > 0 && (
+            {!closing.loading && eligibleBarberClosings.length > 0 && (
                 <div className="space-y-2">
                     <div className="flex items-center gap-2">
                         <Users size={16} className="text-slate-400" />
@@ -506,14 +514,14 @@ const CashClosingPage: React.FC = () => {
                                 {pendingBarberCount} pendente{pendingBarberCount > 1 ? 's' : ''}
                             </span>
                         )}
-                        {allBarbersConferido && closing.barberClosingDetails.length > 0 && (
+                        {allBarbersConferido && eligibleBarberClosings.length > 0 && (
                             <span className="inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-700 dark:text-emerald-300">
                                 Todos conferidos
                             </span>
                         )}
                     </div>
                     <div className="space-y-2">
-                        {closing.barberClosingDetails.map(barber => (
+                        {eligibleBarberClosings.map(barber => (
                             <BarberClosingCard
                                 key={barber.staffId}
                                 barber={barber}

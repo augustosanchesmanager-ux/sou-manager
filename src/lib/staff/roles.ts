@@ -14,16 +14,34 @@ const normalizeSavedRate = (value?: number | string | null) => {
   return numeric > 1 ? numeric / 100 : numeric;
 };
 
-export const shouldAppearOnSchedule = (staff?: StaffRoleLike | null) => {
-  const role = normalizeRole(staff?.role);
-  return role === 'barber' || role === 'manager' || role === 'seller';
-};
-
 /**
  * Helper to extract raw commission rate supporting both snake_case and camelCase.
  */
 const getRawCommissionRate = (staff?: StaffRoleLike | null): number | string | null => {
   return staff?.commission_rate ?? staff?.commissionRate ?? null;
+};
+
+/**
+ * Determines if a staff member can perform services on chair/schedule.
+ * Returns true for role === 'barber' and for role === 'manager' with commission_rate > 0.
+ * Defensively supports both staff object and raw role string.
+ */
+export const canPerformServices = (staff?: StaffRoleLike | string | null): boolean => {
+  if (!staff) return false;
+  const roleStr = typeof staff === 'string' ? staff : staff.role;
+  const role = normalizeRole(roleStr);
+  if (role === 'barber') return true;
+  if (role === 'manager') {
+    if (typeof staff === 'string') return false;
+    const rawRate = getRawCommissionRate(staff);
+    const rate = Number(rawRate ?? 0);
+    return rate > 0;
+  }
+  return false;
+};
+
+export const shouldAppearOnSchedule = (staff?: StaffRoleLike | string | null): boolean => {
+  return canPerformServices(staff);
 };
 
 /**
