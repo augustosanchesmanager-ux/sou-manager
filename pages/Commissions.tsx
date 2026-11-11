@@ -7,9 +7,15 @@ import { AuditAdjustmentButton } from '../components/audit';
 import BarberCommissionStatementModal from '../components/commissions/BarberCommissionStatementModal';
 import { useAuth } from '../context/AuthContext';
 import { getScopedClient } from '../services/supabaseClient';
-import { getEffectiveCommissionRate } from '../src/lib/staff/roles';
+import { getEffectiveCommissionRateForItem, receivesCommissionForItem } from '../src/lib/staff/roles';
 import { normalizePercentage } from '../shared/numbers/normalize';
-import { calculateParticipantBaseValue, resolveCommissionBase, resolveFinancialBase, isCommissionEligible } from '../domain/commission/calculate';
+import {
+  calculateCommissionValue,
+  calculateParticipantBaseValue,
+  isCommissionEligible,
+  resolveCommissionBase,
+  resolveFinancialBase,
+} from '../domain/commission/calculate';
 import { formatParticipantPayout } from '../domain/commission/format';
 import type { ParticipantRow as DomainParticipantRow, CommissionBaseChoice as DomainCommissionBaseChoice, ZeroCommissionReason } from '../domain/commission/types';
 import {
@@ -27,6 +33,7 @@ interface StaffMember {
     role: string;
     avatar: string;
     commission_rate: number | null;
+    product_commission_rate?: number | null;
 }
 
 type ComandaStatus = 'open' | 'paid' | 'blocked' | 'cancelled';
@@ -524,7 +531,7 @@ const Commissions: React.FC = () => {
 
         const staffRes = await client
             .from('staff')
-            .select('id, name, role, avatar, commission_rate')
+            .select('id, name, role, avatar, commission_rate, product_commission_rate')
             .eq('tenant_id', tenantId);
         if (staffRes.error) throw staffRes.error;
 
@@ -653,7 +660,7 @@ const Commissions: React.FC = () => {
                 .flatMap((participant): CommissionLine[] => {
                     const staffId = getParticipantStaffId(participant);
                     const staff = staffById[staffId];
-                    if (!isCommissionEligible(staff)) return [];
+                    if (!receivesCommissionForItem(staff, item)) return [];
                     const participationRate = participant.payout_type === 'percentage'
                         ? normalizePercentage(participant.payout_value)
                         : null;
@@ -683,10 +690,14 @@ const Commissions: React.FC = () => {
                     const zeroReason = financialBase.zeroReason;
 
                     const commissionBase = participant.payout_type === 'fixed'
-                        ? toNumber(participant.payout_value)
+                        ? Math.min(toNumber(participant.payout_value), receivedValue)
                         : receivedValue * Number(participationRate || 0);
-                    const commissionRate = getEffectiveCommissionRate(staff);
-                    const commissionValue = commissionBase * commissionRate;
+                    const commissionRate = getEffectiveCommissionRateForItem(staff, item);
+                    const commissionValue = calculateCommissionValue(
+                        receivedValue,
+                        participant,
+                        commissionRate,
+                    );
                     const sharedValue = isShared ? commissionBase : 0;
 
                     return [{

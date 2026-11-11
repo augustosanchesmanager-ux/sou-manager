@@ -62,7 +62,10 @@ export {
   calculateTotalPayouts,
   calculateCommissionValue,
   isCommissionEligible,
+  isProductComandaItem,
+  isEligibleForCommissionItem,
   getEffectiveRate,
+  getEffectiveItemRate,
   getDefaultRateForRole,
   // domain/commission/participants.ts
   isSharedExecution,

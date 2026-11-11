@@ -70,6 +70,7 @@ export interface BarberSummary {
     staffName: string;
     role: string;
     commissionRate: number;
+    productCommissionRate?: number;
     /** Base liquidada: unica base de comissao e repasse. */
     totalReceived: number;
     /** Base ainda nao liquidada (fiado); nao gera repasse. Opcional por
@@ -283,7 +284,7 @@ export const buildBarberSettlementLines = (barber: BarberSettlementPdfInput): st
 
 export const buildBarberSummaries = (
     comandas: ComandaDetail[],
-    staffMap: Record<string, { name: string; role: string; commissionRate: number }>,
+    staffMap: Record<string, { name: string; role: string; commissionRate: number; productCommissionRate?: number }>,
 ): BarberSummary[] => {
     const byBarber = new Map<string, {
         totalReceived: number;
@@ -361,6 +362,7 @@ export const buildBarberSummaries = (
             staffName: info?.name || (staffId === 'sem-profissional' ? 'Sem profissional' : 'Desconhecido'),
             role: info?.role || '',
             commissionRate: info?.commissionRate ?? 40,
+            ...(info?.productCommissionRate !== undefined ? { productCommissionRate: info.productCommissionRate } : {}),
             totalReceived: data.totalReceived,
             pendingTotal: data.pendingTotal,
             comandaCount: data.paidComandas.length,

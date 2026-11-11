@@ -55,6 +55,7 @@ interface StaffRecord {
     name: string;
     role: string | null;
     commission_rate: number | null;
+    product_commission_rate?: number | null;
 }
 
 interface UseCashClosingReturn {
@@ -163,6 +164,7 @@ export function useCashClosing(
     const [cashClosingRecord, setCashClosingRecord] = useState<CashClosingRecord | null>(null);
     const [barberClosingRecords, setBarberClosingRecords] = useState<BarberClosingRecord[]>([]);
     const [closingEvents, setClosingEvents] = useState<CashClosingEventRecord[]>([]);
+    const [barberAdvancesByStaff, setBarberAdvancesByStaff] = useState<Record<string, number>>({});
 
     const fetchRequestIdRef = useRef(0);
 
@@ -265,6 +267,7 @@ export function useCashClosing(
             }
             setBarberClosingRecords(snapshot.barberClosings as unknown as BarberClosingRecord[]);
             setClosingEvents(snapshot.events);
+            setBarberAdvancesByStaff(snapshot.barberAdvancesByStaff || {});
 
             setAppointments(snapshot.appointments as unknown as AppointmentRecord[]);
             setComandas(snapshot.comandas as unknown as ComandaRecord[]);
@@ -294,8 +297,15 @@ export function useCashClosing(
     useEffect(() => { fetchData(); }, [fetchData]);
 
     const staffMap = useMemo(() => {
-        const map: Record<string, { name: string; role: string; commissionRate: number }> = {};
-        staffList.forEach(s => { map[s.id] = { name: s.name, role: s.role || '', commissionRate: normalizePercentage(s.commission_rate ?? 40) }; });
+        const map: Record<string, { name: string; role: string; commissionRate: number; productCommissionRate: number }> = {};
+        staffList.forEach(s => {
+            map[s.id] = {
+                name: s.name,
+                role: s.role || '',
+                commissionRate: normalizePercentage(s.commission_rate ?? 40),
+                productCommissionRate: normalizePercentage(s.product_commission_rate ?? 0),
+            };
+        });
         return map;
     }, [staffList]);
 
@@ -362,8 +372,9 @@ export function useCashClosing(
             barberSummaries,
             reversalEntries,
             barberClosingRecords,
+            barberAdvancesByStaff,
         });
-    }, [filteredEntries, extras, comandas, appointments, filteredComandaDetails, barberSummaries, reversalEntries, barberClosingRecords]);
+    }, [filteredEntries, extras, comandas, appointments, filteredComandaDetails, barberSummaries, reversalEntries, barberClosingRecords, barberAdvancesByStaff]);
 
     const {
         totals,

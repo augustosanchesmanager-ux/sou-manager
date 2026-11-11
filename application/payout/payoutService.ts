@@ -21,6 +21,7 @@
 
 import { roundCents, sumCents } from '../../domain/payout/money';
 import { consumeAdvancesFifo } from '../../domain/payout/advanceDeduction';
+import { isProductComandaItem } from '../../domain/commission/calculate';
 import {
     assertTransition,
 } from '../../domain/payout/settlementStateMachine';
@@ -45,6 +46,8 @@ export interface ComputeSettlementParams {
     periodEnd: string;
     /** ComissÃ£o percentual do profissional (0.5 = 50%). */
     commissionRate: number;
+    /** ComissÃ£o percentual sobre produtos (0 = sem comissÃ£o). */
+    productCommissionRate?: number;
     /** BÃ´nus/diÃ¡rias do perÃ­odo. Entra na fÃ³rmula, nÃ£o na base. */
     bonusesAdded?: number;
 }
@@ -81,19 +84,21 @@ export class PayoutService {
         ]);
 
         const rate = normalizeRate(params.commissionRate);
+        const productRate = normalizeRate(params.productCommissionRate ?? 0);
 
         // Cada parcela é arredondada antes de ser somada. Somar primeiro e
         // arredondar depois deixaria divergência entre a soma das parcelas e
         // o total, que é exatamente o que o CHECK do banco proíbe.
         // Se a linha já traz commission_value reconciliado do livro-razão (D7/D8/C1/C2),
         // usamos o valor do ledger diretamente. Se não (fallback legado ou mock de teste),
-        // aplicamos rate sobre amount.
+        // aplicamos a alíquota correta (serviço vs produto) sobre amount.
         const computedGross = sumCents(
             payments.map((payment) => {
                 if (payment.commission_value !== undefined && payment.commission_value !== null) {
                     return roundCents(Number(payment.commission_value));
                 }
-                return roundCents(Number(payment.amount) * rate);
+                const itemRate = isProductComandaItem(payment) ? productRate : rate;
+                return roundCents(Number(payment.amount) * itemRate);
             }),
         );
         const grossCommission = Math.max(0, computedGross);
@@ -370,6 +375,7 @@ async getSettledPaymentItems(params: {
     periodStart: string;
     periodEnd: string;
     commissionRate: number;
+    productCommissionRate?: number;
 }): Promise<PayoutReceiptItem[]> {
     const periodStartIso = startOfDayIso(params.periodStart);
     const periodEndIso = endOfDayIso(params.periodEnd);
@@ -379,6 +385,7 @@ async getSettledPaymentItems(params: {
         periodStartIso,
         periodEndIso,
         params.commissionRate,
+        params.productCommissionRate ?? 0,
     );
 }
 

@@ -22,6 +22,17 @@ import CashLedger from './CashLedger';
 
 type ActiveTab = 'all' | 'income' | 'expense' | 'ledger';
 
+const formatCashflowDate = (rawDate: string): string => {
+    const trimmed = String(rawDate || '').trim();
+    if (!trimmed) return '-';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed) || /^\d{4}-\d{2}-\d{2}[T ]00:00:00(?:\.\d+)?(?:Z|\+00(?::00)?)?$/.test(trimmed)) {
+        const [y, m, d] = trimmed.slice(0, 10).split('-');
+        return `${d}/${m}/${y}`;
+    }
+    const parsed = new Date(trimmed);
+    return Number.isNaN(parsed.getTime()) ? trimmed : parsed.toLocaleDateString('pt-BR');
+};
+
 interface TransactionRecord {
     id: string;
     tenant_id?: string | null;
@@ -564,7 +575,7 @@ const Cashflow: React.FC = () => {
             'Transaction original',
         ];
         const rows = filteredEntries.map((entry) => [
-            new Date(entry.date).toLocaleDateString('pt-BR'),
+            formatCashflowDate(entry.date),
             entry.description,
             entry.category,
             entry.paymentMethod,
@@ -814,7 +825,7 @@ const Cashflow: React.FC = () => {
                                                 ? 'bg-amber-50/90 ring-1 ring-inset ring-amber-400/50 dark:bg-amber-500/10'
                                                 : 'hover:bg-slate-50/80 dark:hover:bg-white/5'}
                                         >
-                                            <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-200">{new Date(entry.date).toLocaleDateString('pt-BR')}</td>
+                                            <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-200">{formatCashflowDate(entry.date)}</td>
                                             <td className="px-5 py-4 text-sm font-semibold text-slate-900 dark:text-white">{entry.description}</td>
                                             <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-200">{entry.category}</td>
                                             <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-200">{entry.paymentMethod}</td>

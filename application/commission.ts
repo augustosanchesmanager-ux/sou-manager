@@ -32,6 +32,7 @@ import {
     resolveCommissionBase,
     resolveFinancialBase,
     calculateCommissionValue,
+    isProductComandaItem,
 } from '../domain/commission/calculate';
 import type { ZeroCommissionReason } from '../domain/commission/types';
 import {
@@ -62,6 +63,7 @@ export interface StaffMember {
     role?: string;
     avatar?: string;
     commission_rate?: number | null;
+    product_commission_rate?: number | null;
 }
 
 export interface ComandaRow {
@@ -91,11 +93,12 @@ export interface AppointmentRow {
 export interface ServiceItem {
     id: string;
     comanda_id: string;
-    service_id?: string;
-    product_name?: string;
+    service_id?: string | null;
+    product_id?: string | null;
+    product_name?: string | null;
     item_type?: string;
     type?: string;
-    staff_id?: string;
+    staff_id?: string | null;
     unit_price?: number;
     price?: number;
     amount?: number;
@@ -340,7 +343,12 @@ class CommissionApplicationServiceImpl {
                 .flatMap((participant): CommissionLine[] => {
                     const staffId = getParticipantStaffId(participant);
                     const staff = staffById[staffId];
-                    if (!receivesCommission(staff)) return [];
+                    const isProduct = isProductComandaItem(item as any);
+                    const isManagerProductOnly =
+                        isProduct &&
+                        String(staff?.role || '').trim().toLowerCase() === 'manager' &&
+                        Number(staff?.product_commission_rate ?? 0) > 0;
+                    if (!receivesCommission(staff) && !isManagerProductOnly) return [];
 
                     const participationRate = participant.payout_type === 'percentage'
                         ? normalizePercentage(participant.payout_value)
@@ -364,11 +372,17 @@ class CommissionApplicationServiceImpl {
                     const zeroReason = financialBase.zeroReason;
 
                     const commissionBase = participant.payout_type === 'fixed'
-                        ? toNumber(participant.payout_value)
+                        ? Math.min(toNumber(participant.payout_value), receivedValue)
                         : receivedValue * Number(participationRate || 0);
 
-                    const commissionRate = getEffectiveCommissionRate(staff);
-                    const commissionValue = commissionBase * commissionRate;
+                    const commissionRate = isProduct
+                        ? normalizePercentage(staff?.product_commission_rate ?? 0)
+                        : getEffectiveCommissionRate(staff);
+                    const commissionValue = calculateCommissionValue(
+                        receivedValue,
+                        participant as any,
+                        commissionRate,
+                    );
                     const sharedValue = isShared ? commissionBase : 0;
 
                     const participantNames = isShared
