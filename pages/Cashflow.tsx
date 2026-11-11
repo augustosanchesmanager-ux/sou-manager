@@ -17,8 +17,10 @@ import {
     reverseFinancialTransaction,
     type FinancialReversalType,
 } from '../src/lib/finance/reversal';
+import { isAuditPinFormatValid, normalizeAuditPin } from '../src/lib/audit/competence';
+import CashLedger from './CashLedger';
 
-type ActiveTab = 'all' | 'income' | 'expense';
+type ActiveTab = 'all' | 'income' | 'expense' | 'ledger';
 
 interface TransactionRecord {
     id: string;
@@ -95,6 +97,10 @@ const CASHFLOW_EMPTY_COPY: Record<ActiveTab, { title: string; description: strin
         title: 'Nenhuma saída encontrada',
         description: 'Saídas, estornos e devoluções registradas no período aparecerão aqui.',
     },
+    ledger: {
+        title: 'Livro Operacional & Vales',
+        description: 'Consulte e liquide despesas operacionais e vales.',
+    },
 };
 
 const toDateTimeInputValue = (date: Date) => {
@@ -127,11 +133,17 @@ const Cashflow: React.FC = () => {
     const { tenantId, accessRole, canAccessSuperAdmin } = useAuth();
     const hasTenantContext = Boolean(tenantId);
     const [searchParams, setSearchParams] = useSearchParams();
+    const txParam = searchParams.get('tx');
+    const actionParam = searchParams.get('action');
     const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
+        const view = searchParams.get('view');
+        if (view === 'ledger') return 'ledger';
         const type = searchParams.get('type');
-        if (type === 'income' || type === 'expense') return type;
+        if (type === 'income' || type === 'expense' || type === 'ledger') return type;
         return 'all';
     });
+    const [highlightedTxId, setHighlightedTxId] = useState<string | null>(txParam);
+    const handledTxParamRef = React.useRef<string | null>(null);
     const [filterMonth, setFilterMonth] = useState(() => {
         const d = new Date();
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -148,6 +160,7 @@ const Cashflow: React.FC = () => {
     const [reversalDate, setReversalDate] = useState(() => toDateTimeInputValue(new Date()));
     const [reasonType, setReasonType] = useState<ReversalReason>('devolucao_ao_cliente');
     const [reasonNote, setReasonNote] = useState('');
+    const [reversalAuditPin, setReversalAuditPin] = useState('');
     const [reversalConfirmed, setReversalConfirmed] = useState(false);
     const [reversalIdempotencyKey, setReversalIdempotencyKey] = useState<string | null>(null);
     const [reversingId, setReversingId] = useState<string | null>(null);
@@ -159,6 +172,8 @@ const Cashflow: React.FC = () => {
         setActiveTab(tab);
         if (tab === 'all') {
             setSearchParams({});
+        } else if (tab === 'ledger') {
+            setSearchParams({ view: 'ledger' });
         } else {
             setSearchParams({ type: tab });
         }
@@ -305,8 +320,84 @@ const Cashflow: React.FC = () => {
     }, [filterMonth, tenantId]);
 
     useEffect(() => {
+        const view = searchParams.get('view');
+        const type = searchParams.get('type');
+        if (view === 'ledger') {
+            setActiveTab('ledger');
+        } else if (type === 'income' || type === 'expense') {
+            setActiveTab(type);
+        }
+    }, [searchParams]);
+
+    useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    const isReversalEligible = useCallback((entry: CashflowEntry) => (
+        canRequestFinancialReversal
+        && entry.transactionType === 'income'
+        && (entry.transactionStatus === 'paid' || entry.transactionStatus === 'Pago' || !entry.transactionStatus)
+        && entry.sourceType === 'comanda'
+        && Boolean(entry.tenantId)
+        && Boolean(entry.id)
+        && entry.reversibleAmount > 0
+    ), [canRequestFinancialReversal]);
+
+    const openReversalModal = useCallback((entry: CashflowEntry, presetWrongSettlement = false) => {
+        setReversalEntry(entry);
+        setReversalType(presetWrongSettlement ? 'wrong_settlement' : 'full_refund');
+        setReversalAmount(entry.reversibleAmount.toFixed(2));
+        setRefundMethod(normalizeRefundMethod(entry.paymentMethod));
+        setReversalDate(toDateTimeInputValue(new Date()));
+        setReasonType(presetWrongSettlement ? 'baixa_indevida' : 'devolucao_ao_cliente');
+        setReasonNote('');
+        setReversalAuditPin('');
+        setReversalConfirmed(false);
+        setReversalIdempotencyKey(createReversalKey(entry.id));
+    }, []);
+
+    useEffect(() => {
+        if (!txParam || !tenantId || loading) return;
+        const targetKey = `${txParam}:${actionParam || 'default'}`;
+        if (handledTxParamRef.current === targetKey) return;
+
+        const found = entries.find((entry) => entry.id === txParam);
+        if (found) {
+            handledTxParamRef.current = targetKey;
+            setHighlightedTxId(found.id);
+            if (isReversalEligible(found) && (actionParam === 'reverse' || actionParam === 'wrong_settlement')) {
+                openReversalModal(found, actionParam === 'wrong_settlement');
+            } else {
+                setSelectedEntry(found);
+            }
+            return;
+        }
+
+        // Busca mês da transação caso pertença a outro período
+        let cancelled = false;
+        (async () => {
+            const { data } = await supabase
+                .from('transactions')
+                .select('id, date, created_at')
+                .eq('tenant_id', tenantId)
+                .eq('id', txParam)
+                .maybeSingle();
+
+            if (cancelled || !data) return;
+            const rawDate = data.date || data.created_at;
+            if (!rawDate) return;
+            const d = new Date(rawDate);
+            if (Number.isNaN(d.getTime())) return;
+            const targetMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            if (targetMonth !== filterMonth) {
+                setFilterMonth(targetMonth);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [txParam, actionParam, tenantId, loading, entries, filterMonth, isReversalEligible, openReversalModal]);
 
     const totalEntradas = entries
         .filter((entry) => entry.type === 'entrada')
@@ -326,32 +417,11 @@ const Cashflow: React.FC = () => {
         return true;
     });
 
-    const isReversalEligible = (entry: CashflowEntry) => (
-        canRequestFinancialReversal
-        && entry.transactionType === 'income'
-        && (entry.transactionStatus === 'paid' || entry.transactionStatus === 'Pago' || !entry.transactionStatus)
-        && entry.sourceType === 'comanda'
-        && Boolean(entry.tenantId)
-        && Boolean(entry.id)
-        && entry.reversibleAmount > 0
-    );
-
-    const openReversalModal = (entry: CashflowEntry) => {
-        setReversalEntry(entry);
-        setReversalType('full_refund');
-        setReversalAmount(entry.reversibleAmount.toFixed(2));
-        setRefundMethod(normalizeRefundMethod(entry.paymentMethod));
-        setReversalDate(toDateTimeInputValue(new Date()));
-        setReasonType('devolucao_ao_cliente');
-        setReasonNote('');
-        setReversalConfirmed(false);
-        setReversalIdempotencyKey(createReversalKey(entry.id));
-    };
-
     const closeReversalModal = () => {
         if (reversingId) return;
         setReversalEntry(null);
         setReasonNote('');
+        setReversalAuditPin('');
         setReversalConfirmed(false);
         setReversalIdempotencyKey(null);
     };
@@ -386,6 +456,10 @@ const Cashflow: React.FC = () => {
             setToast({ message: 'Confirme que a transaction original sera preservada.', type: 'error' });
             return;
         }
+        if (reversalAuditPin.trim() && !isAuditPinFormatValid(reversalAuditPin)) {
+            setToast({ message: 'O PIN gerencial deve conter de 6 a 8 dígitos.', type: 'error' });
+            return;
+        }
 
         setReversingId(reversalEntry.id);
         setToast({ message: 'Registrando reversão financeira...', type: 'info' });
@@ -401,10 +475,12 @@ const Cashflow: React.FC = () => {
                 refundMethod: requiresRefundMethod ? refundMethod : null,
                 reversalDate: parsedReversalDate.toISOString(),
                 idempotencyKey: reversalIdempotencyKey || createReversalKey(reversalEntry.id),
+                auditPin: reversalAuditPin.trim() || null,
             });
             setToast({ message: 'Reversão financeira registrada com sucesso.', type: 'success' });
             setReversalEntry(null);
             setReasonNote('');
+            setReversalAuditPin('');
             setReversalConfirmed(false);
             setReversalIdempotencyKey(null);
             await fetchData();
@@ -423,6 +499,7 @@ const Cashflow: React.FC = () => {
         all: 'Fluxo de Caixa',
         income: 'Entradas',
         expense: 'Saídas',
+        ledger: 'Livro Operacional & Vales',
     };
 
     const emptyStateCopy = hasTenantContext
@@ -578,7 +655,7 @@ const Cashflow: React.FC = () => {
                 </div>
             </div>
 
-            <div className="flex gap-2 p-1 bg-slate-100 dark:bg-white/5 rounded-xl w-fit">
+            <div className="flex flex-wrap gap-2 p-1 bg-slate-100 dark:bg-white/5 rounded-xl w-fit">
                 <button
                     onClick={() => handleTabChange('all')}
                     className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
@@ -609,7 +686,22 @@ const Cashflow: React.FC = () => {
                 >
                     Saídas
                 </button>
+                <button
+                    onClick={() => handleTabChange('ledger')}
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                        activeTab === 'ledger'
+                            ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-400 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
+                >
+                    Livro Operacional & Vales
+                </button>
             </div>
+
+            {activeTab === 'ledger' ? (
+                <CashLedger />
+            ) : (
+                <>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                 <MetricCard
@@ -716,7 +808,12 @@ const Cashflow: React.FC = () => {
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                                     {filteredEntries.map((entry) => (
-                                        <tr key={entry.id} className="hover:bg-slate-50/80 dark:hover:bg-white/5">
+                                        <tr
+                                            key={entry.id}
+                                            className={entry.id === highlightedTxId
+                                                ? 'bg-amber-50/90 ring-1 ring-inset ring-amber-400/50 dark:bg-amber-500/10'
+                                                : 'hover:bg-slate-50/80 dark:hover:bg-white/5'}
+                                        >
                                             <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-200">{new Date(entry.date).toLocaleDateString('pt-BR')}</td>
                                             <td className="px-5 py-4 text-sm font-semibold text-slate-900 dark:text-white">{entry.description}</td>
                                             <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-200">{entry.category}</td>
@@ -779,6 +876,8 @@ const Cashflow: React.FC = () => {
                             </table>
                         </div>
                     </section>
+                </>
+            )}
                 </>
             )}
 
@@ -895,6 +994,21 @@ const Cashflow: React.FC = () => {
                                     rows={3}
                                     className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-primary dark:border-border-dark dark:bg-card-dark dark:text-white"
                                     placeholder="Descreva o contexto do estorno/devolução para auditoria."
+                                />
+                            </label>
+
+                            <label className="space-y-2 md:col-span-2">
+                                <span className="text-xs font-bold uppercase text-slate-500">
+                                    PIN gerencial (obrigatório quando a data estiver em caixa fechado)
+                                </span>
+                                <input
+                                    type="password"
+                                    inputMode="numeric"
+                                    maxLength={8}
+                                    value={reversalAuditPin}
+                                    onChange={(event) => setReversalAuditPin(normalizeAuditPin(event.target.value))}
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-primary dark:border-border-dark dark:bg-card-dark dark:text-white"
+                                    placeholder="Digite seu PIN de 6 a 8 dígitos (se aplicável)"
                                 />
                             </label>
                         </div>

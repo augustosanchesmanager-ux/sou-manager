@@ -29,17 +29,8 @@ import {
 import type { ComandaStatus } from '../shared/status/comanda';
 import { isSharedServiceItem, calculateParticipantBaseValue } from '../domain/commission';
 import type { ParticipantRow as DomainParticipantRow } from '../domain/commission/types';
-import { createReversalKey, reverseFinancialTransaction } from '../src/lib/finance/reversal';
-import { cashClosingRepository } from '../domain/cashClosing/repository';
-import {
-  competenceDateToIso,
-  formatCompetenceDateLabel,
-  isAuditPinFormatValid,
-  isValidCompetenceDate,
-  normalizeAuditPin,
-  toLocalDateInput,
-} from '../src/lib/audit/competence';
 import { isManagerLikeRole } from '../src/lib/finance/zeroClose';
+import { markComandaAsFiado } from '../src/lib/finance/settlement';
 import { getQuickPeriodDateRange, calculateComandaKpiSummary } from '../src/utils/comandaFilters';
 import { QuickOpenComandaModal, type QuickOpenComandaPayload } from '@/src/components/comandas/QuickOpenComandaModal';
 import { type CatalogItem } from '@/src/utils/comandaQuickActions';
@@ -81,6 +72,7 @@ interface Comanda {
     staff_id?: string | null;
     appointment_id?: string | null;
     status: ComandaStatus;
+    is_fiado?: boolean;
     cancellation_type?: string | null;
     cancelled_at?: string | null;
     cancelled_by_user_id?: string | null;
@@ -184,14 +176,6 @@ const CANCEL_TYPE_OPTIONS = [
     { value: 'client_gave_up', label: 'Cliente desistiu' },
     { value: 'appointment_cancelled', label: 'Agendamento cancelado' },
     { value: 'other', label: 'Outro' },
-] as const;
-
-const REOPEN_REASON_OPTIONS = [
-    { value: 'baixa_indevida', label: 'Baixa indevida' },
-    { value: 'erro_forma_pagamento', label: 'Erro na forma de pagamento' },
-    { value: 'erro_operacional', label: 'Erro operacional (itens/profissional/valor)' },
-    { value: 'cobranca_duplicada', label: 'Cobrança duplicada' },
-    { value: 'outro', label: 'Outro motivo auditado' },
 ] as const;
 
 const COMANDAS_PREFERENCES_KEY = 'soumanager:comandas:preferences:v2';
@@ -536,17 +520,7 @@ const Comandas: React.FC = () => {
     const [deleting, setDeleting] = useState(false);
     const [cancelReason, setCancelReason] = useState('');
     const [cancelReasonOther, setCancelReasonOther] = useState('');
-    const [reopenComanda, setReopenComanda] = useState<Comanda | null>(null);
-    const [reopenReasonType, setReopenReasonType] = useState<string>('baixa_indevida');
-    const [reopenReasonNote, setReopenReasonNote] = useState('');
-    const [reopenConfirmed, setReopenConfirmed] = useState(false);
-    const [reopenIdempotencyKey, setReopenIdempotencyKey] = useState<string | null>(null);
-    const [reopenCompetenceDate, setReopenCompetenceDate] = useState<string>(() => toLocalDateInput(new Date()));
-    const [reopenAuditPin, setReopenAuditPin] = useState('');
-    const [reopenPinError, setReopenPinError] = useState<string | null>(null);
-    const [reopenCashClosed, setReopenCashClosed] = useState(false);
-    const [reopenCheckingCash, setReopenCheckingCash] = useState(false);
-    const [reopening, setReopening] = useState(false);
+    const [markingFiadoId, setMarkingFiadoId] = useState<string | null>(null);
     const [filtersModalOpen, setFiltersModalOpen] = useState(false);
     const [loadError, setLoadError] = useState<string | null>(null);
     const canManageFinancialReversal = isManagerLikeRole(accessRole, canAccessSuperAdmin);
@@ -789,7 +763,7 @@ const Comandas: React.FC = () => {
 
     // Lazy load do histórico financeiro e reversals sob demanda (apenas quando uma comanda é aberta)
     useEffect(() => {
-        const targetId = selectedComandaId || reopenComanda?.id;
+        const targetId = selectedComandaId;
         if (!targetId || financialHistoryByComandaId[targetId]) return;
 
         let isMounted = true;
@@ -816,50 +790,7 @@ const Comandas: React.FC = () => {
 
         void loadHistory();
         return () => { isMounted = false; };
-    }, [selectedComandaId, reopenComanda?.id, tenantId, canAccessSuperAdmin, appSlug, schema, financialHistoryByComandaId]);
-
-    // Sinaliza quando a competência escolhida cai em um caixa já confirmado.
-    useEffect(() => {
-        if (!reopenComanda || !reopenCompetenceDate) {
-            setReopenCashClosed(false);
-            setReopenCheckingCash(false);
-            return;
-        }
-
-        const effectiveTenantId = tenantId || reopenComanda.tenant_id || null;
-        if (!effectiveTenantId) {
-            setReopenCashClosed(false);
-            setReopenCheckingCash(false);
-            return;
-        }
-
-        let isMounted = true;
-        setReopenCheckingCash(true);
-
-        void (async () => {
-            try {
-                const closing = await cashClosingRepository.getByBusinessDate(
-                    effectiveTenantId,
-                    reopenCompetenceDate,
-                );
-
-                if (!isMounted) return;
-                setReopenCashClosed(closing?.status === 'confirmed');
-            } catch (error) {
-                if (!isMounted) return;
-                logSupabaseError('[Comandas] Falha ao verificar caixa confirmado da competencia', error, {
-                    comandaId: reopenComanda.id,
-                    businessDate: reopenCompetenceDate,
-                    tenantId: effectiveTenantId,
-                });
-                setReopenCashClosed(false);
-            } finally {
-                if (isMounted) setReopenCheckingCash(false);
-            }
-        })();
-
-        return () => { isMounted = false; };
-    }, [reopenComanda, reopenCompetenceDate, tenantId]);
+    }, [selectedComandaId, tenantId, canAccessSuperAdmin, appSlug, schema, financialHistoryByComandaId]);
 
     useEffect(() => {
         if (comandas.length === 0 || !tenantId) return;
@@ -1427,7 +1358,41 @@ const Comandas: React.FC = () => {
         }
     };
 
-    const openReopenPaidModal = async (comanda: Comanda) => {
+    const handleMarkAsFiado = async (comanda: Comanda) => {
+        if (!comanda.client_id) {
+            setToast({ message: 'Para definir como Fiado, identifique um cliente na comanda primeiro.', type: 'error' });
+            return;
+        }
+        const effectiveTenantId = tenantId || comanda.tenant_id;
+        if (!effectiveTenantId) {
+            setToast({ message: 'Contexto de tenant inválido para marcar fiado.', type: 'error' });
+            return;
+        }
+        setMarkingFiadoId(comanda.id);
+        try {
+            await markComandaAsFiado({
+                comandaId: comanda.id,
+                tenantId: effectiveTenantId,
+                supabase,
+            });
+            setComandas((prev) =>
+                prev.map((c) => (c.id === comanda.id ? { ...c, is_fiado: true } : c)),
+            );
+            setToast({
+                message: `${orderLabel} #${getDisplayId(comanda.id)} definido como Fiado. O recebimento e a comissão serão contabilizados somente na baixa em Contas a Receber.`,
+                type: 'success',
+            });
+        } catch (error: any) {
+            setToast({
+                message: error?.message || `Não foi possível definir o ${orderLabelLower} como fiado.`,
+                type: 'error',
+            });
+        } finally {
+            setMarkingFiadoId(null);
+        }
+    };
+
+    const openReopenInCashflow = async (comanda: Comanda) => {
         if (!canManageFinancialReversal) {
             setToast({ message: `Apenas gestores podem estornar e reabrir um ${orderLabelLower} finalizado.`, type: 'error' });
             return;
@@ -1456,165 +1421,7 @@ const Comandas: React.FC = () => {
             });
             return;
         }
-        setReopenComanda(comanda);
-        setReopenReasonType('baixa_indevida');
-        setReopenReasonNote('');
-        setReopenConfirmed(false);
-        setReopenIdempotencyKey(createReversalKey(history.transactionId));
-        setReopenCompetenceDate(toLocalDateInput(new Date()));
-        setReopenAuditPin('');
-        setReopenPinError(null);
-        setReopenCashClosed(false);
-    };
-
-    const closeReopenPaidModal = () => {
-        if (reopening) return;
-        setReopenComanda(null);
-        setReopenReasonType('baixa_indevida');
-        setReopenReasonNote('');
-        setReopenConfirmed(false);
-        setReopenIdempotencyKey(null);
-        setReopenAuditPin('');
-        setReopenPinError(null);
-        setReopenCashClosed(false);
-    };
-
-    const handleConfirmReopenPaidComanda = async (openCheckoutAfter: boolean) => {
-        if (!reopenComanda) return;
-        if (!canManageFinancialReversal) {
-            setToast({ message: `Apenas gestores podem estornar e reabrir ${orderPluralLower} finalizados.`, type: 'error' });
-            return;
-        }
-
-        const history = financialHistoryByComandaId[reopenComanda.id];
-        if (!history || !history.transactionId || history.reversibleAmount <= 0 || history.reversalStatus !== 'none') {
-            setToast({
-                message: 'Transação financeira original não encontrada ou sem saldo integral para estorno.',
-                type: 'error',
-            });
-            return;
-        }
-
-        if (!reopenReasonType || !reopenReasonNote.trim()) {
-            setToast({ message: 'Informe o motivo e a observação obrigatória para auditoria do estorno.', type: 'error' });
-            return;
-        }
-
-        if (!reopenConfirmed) {
-            setToast({ message: 'Confirme a ciência do estorno financeiro auditado antes de continuar.', type: 'error' });
-            return;
-        }
-
-        if (!isValidCompetenceDate(reopenCompetenceDate)) {
-            setToast({ message: 'Informe uma data de competência válida. A data não pode ser futura.', type: 'error' });
-            return;
-        }
-
-        if (!isAuditPinFormatValid(reopenAuditPin)) {
-            const message = 'O PIN gerencial deve conter de 6 a 8 dígitos.';
-            setReopenPinError(message);
-            setToast({ message, type: 'error' });
-            return;
-        }
-
-        setReopening(true);
-        try {
-            const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
-            const effectiveTenantId = canAccessSuperAdmin
-                ? (tenantId || reopenComanda.tenant_id || null)
-                : requireTenantContext({
-                    tenantId,
-                    appSlug: currentAppSlug,
-                    schema,
-                    table: 'comandas',
-                    operation: 'reverse and reopen comanda',
-                }).tenantId;
-
-            if (!effectiveTenantId) {
-                setToast({ message: 'Contexto de tenant inválido para estorno financeiro.', type: 'error' });
-                return;
-            }
-
-            // Pré-validação no banco: feedback imediato e sem consumir a chave
-            // de idempotência. A checagem definitiva ocorre dentro da RPC de
-            // reversão, na mesma transação.
-            setReopenPinError(null);
-            const { data: pinValidation, error: pinValidationError } = await supabase.rpc('validate_audit_pin', {
-                p_pin: reopenAuditPin,
-                p_tenant_id: effectiveTenantId,
-            });
-
-            if (pinValidationError) {
-                logSupabaseError('[Comandas] Falha ao validar PIN gerencial', pinValidationError, {
-                    comandaId: reopenComanda.id,
-                });
-                setToast({ message: 'Não foi possível validar o PIN gerencial. Tente novamente.', type: 'error' });
-                return;
-            }
-
-            const pinResult = (pinValidation || {}) as { valid?: boolean; reason?: string };
-            if (pinResult.valid !== true) {
-                const message = pinResult.reason === 'not_configured'
-                    ? 'Nenhum PIN gerencial configurado para o seu usuário neste tenant. Acione o responsável pelo provisionamento.'
-                    : pinResult.reason === 'invalid_format'
-                        ? 'O PIN gerencial deve conter de 6 a 8 dígitos.'
-                        : 'PIN gerencial inválido. Verifique e tente novamente.';
-                setReopenPinError(message);
-                setToast({ message, type: 'error' });
-                return;
-            }
-
-            const targetComandaId = reopenComanda.id;
-            await reverseFinancialTransaction({
-                tenantId: effectiveTenantId,
-                originalTransactionId: history.transactionId,
-                supabase,
-                reversalType: 'wrong_settlement',
-                amount: history.reversibleAmount,
-                reasonType: reopenReasonType,
-                reasonNote: reopenReasonNote.trim(),
-                refundMethod: null,
-                reversalDate: competenceDateToIso(reopenCompetenceDate) || new Date().toISOString(),
-                idempotencyKey: reopenIdempotencyKey || createReversalKey(history.transactionId),
-                auditPin: reopenAuditPin,
-            });
-
-            setReopenComanda(null);
-            const retroactiveNotice = reopenCashClosed;
-            setReopenReasonType('baixa_indevida');
-            setReopenReasonNote('');
-            setReopenConfirmed(false);
-            setReopenIdempotencyKey(null);
-            setReopenAuditPin('');
-            setReopenPinError(null);
-            setReopenCashClosed(false);
-
-            if (openCheckoutAfter) {
-                setToast({
-                    message: `Baixa estornada com sucesso. Redirecionando para o checkout do ${orderLabelLower}...`,
-                    type: 'success',
-                });
-                navigate(`/checkout/${targetComandaId}`);
-                return;
-            }
-
-            setToast({
-                message: `Baixa estornada e ${orderLabelLower} reaberto para edição${retroactiveNotice ? ' (ajuste retroativo sinalizado)' : ''}.`,
-                type: 'success',
-            });
-            await fetchData();
-        } catch (error: any) {
-            logSupabaseError('[Comandas] Erro ao estornar e reabrir comanda paga', error, {
-                comandaId: reopenComanda.id,
-                transactionId: history.transactionId,
-            });
-            setToast({
-                message: error?.message || `Não foi possível estornar a baixa do ${orderLabelLower}. Nenhuma alteração foi aplicada.`,
-                type: 'error',
-            });
-        } finally {
-            setReopening(false);
-        }
+        navigate(`/cashflow?tx=${encodeURIComponent(history.transactionId)}&action=wrong_settlement`);
     };
 
     const handleBulkClose = async () => {
@@ -2116,7 +1923,9 @@ const Comandas: React.FC = () => {
                         onCheckout={() => selectedComanda && navigate(`/checkout/${selectedComanda.id}`)}
                         onQuickCheckout={() => setQuickCheckoutModalOpen(true)}
                         onChairSelfCheckout={() => setChairCheckoutModalOpen(true)}
-                        onReopenPaid={() => selectedComanda && openReopenPaidModal(selectedComanda)}
+                        onMarkAsFiado={() => selectedComanda && handleMarkAsFiado(selectedComanda)}
+                        markingFiado={markingFiadoId === selectedComanda.id}
+                        onReopenPaid={() => selectedComanda && openReopenInCashflow(selectedComanda)}
                     />
                 </aside>
             )}
@@ -2256,197 +2065,6 @@ const Comandas: React.FC = () => {
                         </div>
                     </div>
                 )}
-            </Modal>
-
-            <Modal
-                isOpen={!!reopenComanda}
-                onClose={closeReopenPaidModal}
-                title={`Estornar Baixa e Reabrir ${orderLabel}`}
-                maxWidth="lg"
-            >
-                {reopenComanda && (() => {
-                    const reopenHistory = financialHistoryByComandaId[reopenComanda.id] || null;
-                    return (
-                        <div className="space-y-4">
-                            <div className="rounded-xl border border-primary/30 bg-gold-pale p-4 text-xs text-primary-dark">
-                                <p className="font-bold">Reversão contábil auditada (wrong_settlement)</p>
-                                <p className="mt-1 leading-relaxed">
-                                    A transação original de entrada será preservada. O sistema registrará uma saída reversa no Fluxo de Caixa, estornará comissões vinculadas e reabrirá o {orderLabelLower} com status <strong>{isEsteticaApp ? 'Aberto' : 'Aberta'}</strong>.
-                                </p>
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                <div className="rounded-xl border border-line bg-card p-3">
-                                    <p className="text-[10px] font-black uppercase tracking-wider text-ink-soft">
-                                        {orderLabel} e Cliente
-                                    </p>
-                                    <p className="mt-1 text-sm font-bold text-ink">
-                                        #{getDisplayId(reopenComanda.id)} — {reopenComanda.clients.name}
-                                    </p>
-                                    {reopenHistory && (
-                                        <p className="mt-1 font-mono text-[11px] text-ink-soft">
-                                            Tx: {reopenHistory.transactionId}
-                                        </p>
-                                    )}
-                                </div>
-                                <div className="rounded-xl border border-line bg-card p-3">
-                                    <p className="text-[10px] font-black uppercase tracking-wider text-ink-soft">
-                                        Valor do Estorno
-                                    </p>
-                                    <p className="mt-1 text-lg font-black tabular-nums tracking-[-0.02em] whitespace-nowrap text-primary-dark">
-                                        {formatCurrency(reopenHistory ? reopenHistory.reversibleAmount : reopenComanda.total)}
-                                    </p>
-                                    <p className="mt-0.5 text-xs text-ink-soft">
-                                        Forma original: {reopenHistory?.paymentMethod || reopenComanda.payment_method || NOT_INFORMED_FALLBACK}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="rounded-2xl border border-[#B88A44]/60 bg-[#14110B] p-4 text-[#F5E7C8] shadow-[inset_0_1px_0_rgba(184,138,68,0.25)]">
-                                <div className="flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-[18px] text-[#B88A44]">encrypted</span>
-                                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#B88A44]">
-                                        Autorização gerencial
-                                    </p>
-                                </div>
-                                <p className="mt-1 text-[11px] leading-relaxed text-[#C9B9A0]">
-                                    O estorno é lançado na data de competência abaixo. O PIN é validado no banco e nunca é exposto ao navegador.
-                                </p>
-
-                                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                    <div>
-                                        <label htmlFor="reopen-competence-date" className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[#B88A44]">
-                                            Data de competência
-                                        </label>
-                                        <input
-                                            id="reopen-competence-date"
-                                            type="date"
-                                            value={reopenCompetenceDate}
-                                            max={toLocalDateInput(new Date())}
-                                            onChange={(e) => setReopenCompetenceDate(e.target.value)}
-                                            disabled={reopening}
-                                            className="w-full rounded-xl border border-[#B88A44]/40 bg-[#1A1610] px-3 py-2.5 text-sm font-semibold text-[#F5E7C8] outline-none transition [color-scheme:dark] focus:border-[#B88A44] focus:ring-1 focus:ring-[#B88A44]/50"
-                                        />
-                                        <p className="mt-1 text-[10px] text-[#A79C8A]">
-                                            {isValidCompetenceDate(reopenCompetenceDate)
-                                                ? `Lançamento em ${formatCompetenceDateLabel(reopenCompetenceDate)}.`
-                                                : 'Informe uma data válida e não futura.'}
-                                            {reopenHistory?.date ? ` Data original: ${formatCompetenceDateLabel(toLocalDateInput(reopenHistory.date))}.` : ''}
-                                        </p>
-                                    </div>
-
-                                    <div>
-                                        <label htmlFor="reopen-audit-pin" className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[#B88A44]">
-                                            PIN do gestor
-                                        </label>
-                                        <input
-                                            id="reopen-audit-pin"
-                                            type="password"
-                                            inputMode="numeric"
-                                            autoComplete="one-time-code"
-                                            value={reopenAuditPin}
-                                            onChange={(e) => {
-                                                setReopenAuditPin(normalizeAuditPin(e.target.value));
-                                                setReopenPinError(null);
-                                            }}
-                                            disabled={reopening}
-                                            placeholder="••••••"
-                                            maxLength={8}
-                                            className="w-full rounded-xl border border-[#B88A44]/40 bg-[#1A1610] px-3 py-2.5 text-sm font-semibold tracking-[0.35em] text-[#F5E7C8] outline-none transition placeholder:text-[#6B6252] focus:border-[#B88A44] focus:ring-1 focus:ring-[#B88A44]/50"
-                                        />
-                                        <p className={`mt-1 text-[10px] ${reopenPinError ? 'font-semibold text-rose-300' : 'text-[#A79C8A]'}`}>
-                                            {reopenPinError || '6 a 8 dígitos. Validado no banco via RPC.'}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {reopenCashClosed && (
-                                    <div className="mt-3 rounded-xl border border-amber-500/50 bg-amber-500/10 p-3 text-[11px] leading-relaxed text-amber-200">
-                                        <p className="font-bold">O caixa desta data já está fechado.</p>
-                                        <p className="mt-0.5">
-                                            A alteração será permitida e sinalizada como ajuste retroativo (<span className="font-mono">retroactive_adjustment</span>).
-                                        </p>
-                                    </div>
-                                )}
-                                {!reopenCashClosed && reopenCheckingCash && (
-                                    <p className="mt-2 text-[10px] text-[#A79C8A]">Verificando fechamento de caixa da data...</p>
-                                )}
-                            </div>
-
-                            <div className="space-y-3">
-                                <div>
-                                    <label className="mb-1 block text-xs font-bold uppercase text-ink-soft">
-                                        Motivo do estorno
-                                    </label>
-                                    <select
-                                        value={reopenReasonType}
-                                        onChange={(e) => setReopenReasonType(e.target.value)}
-                                        disabled={reopening}
-                                        className="w-full rounded-xl border border-line bg-card p-3 text-sm font-semibold text-ink focus:border-primary focus:outline-none"
-                                    >
-                                        {REOPEN_REASON_OPTIONS.map((opt) => (
-                                            <option key={opt.value} value={opt.value}>
-                                                {opt.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="mb-1 block text-xs font-bold uppercase text-ink-soft">
-                                        Observação obrigatória para auditoria
-                                    </label>
-                                    <textarea
-                                        value={reopenReasonNote}
-                                        onChange={(e) => setReopenReasonNote(e.target.value)}
-                                        disabled={reopening}
-                                        rows={3}
-                                        placeholder={`Descreva por que a baixa deste ${orderLabelLower} está sendo estornada e reaberta...`}
-                                        className="w-full rounded-xl border border-line bg-card p-3 text-sm text-ink placeholder:text-ink-soft/60 focus:border-primary focus:outline-none"
-                                    />
-                                </div>
-                            </div>
-
-                            <label className="flex items-start gap-3 rounded-xl border border-line p-3 text-xs text-ink-soft">
-                                <input
-                                    type="checkbox"
-                                    checked={reopenConfirmed}
-                                    onChange={(e) => setReopenConfirmed(e.target.checked)}
-                                    disabled={reopening}
-                                    className="mt-0.5 size-4 rounded border-line text-primary focus:ring-primary/40"
-                                />
-                                <span>
-                                    Confirmo que esta ação registrará uma saída reversa auditada no financeiro, reverterá comissões geradas pela baixa anterior e reabrirá o {orderLabelLower} para edição.
-                                </span>
-                            </label>
-
-                            <div className="flex flex-col-reverse gap-2 border-t border-line pt-3 sm:flex-row sm:justify-end">
-                                <Button
-                                    variant="secondary"
-                                    onClick={closeReopenPaidModal}
-                                    disabled={reopening}
-                                >
-                                    Cancelar
-                                </Button>
-                                <Button
-                                    variant="secondary"
-                                    leftIcon="lock_open"
-                                    onClick={() => handleConfirmReopenPaidComanda(false)}
-                                    disabled={reopening || reopenCheckingCash || !reopenReasonNote.trim() || !reopenConfirmed || !isAuditPinFormatValid(reopenAuditPin) || !isValidCompetenceDate(reopenCompetenceDate)}
-                                >
-                                    {reopening ? 'Processando...' : 'Apenas Estornar e Reabrir'}
-                                </Button>
-                                <Button
-                                    leftIcon="point_of_sale"
-                                    onClick={() => handleConfirmReopenPaidComanda(true)}
-                                    disabled={reopening || reopenCheckingCash || !reopenReasonNote.trim() || !reopenConfirmed || !isAuditPinFormatValid(reopenAuditPin) || !isValidCompetenceDate(reopenCompetenceDate)}
-                                >
-                                    {reopening ? 'Processando...' : 'Estornar e Abrir Checkout'}
-                                </Button>
-                            </div>
-                        </div>
-                    );
-                })()}
             </Modal>
 
             {/* Frente 1.G: Modal de Abertura Rápida de Comandas */}

@@ -21,6 +21,7 @@
 
 import { SupabaseRepository } from '../shared/supabase-repository';
 import { createSupabaseClient } from '../shared/supabase-client-factory';
+import { supabase as sharedSupabase } from '../../services/supabaseClient';
 import type { DatabaseClient } from '../shared/database-client';
 import type { IRepository } from '../shared/repository';
 import type { Comanda, UpdateComandaInput, ComandaListOptions } from './types';
@@ -317,6 +318,32 @@ class ComandaRepositoryImpl extends SupabaseRepository {
       this.throwOnError(err, 'insert comanda with idempotency');
     }
   }
+
+  /**
+   * Marks an open comanda as fiado via transactional RPC (ADR-045) without settling
+   * or emitting cash/commission events until actual receipt in Accounts Receivable.
+   */
+  async markAsFiado(params: {
+    id: string;
+    tenantId: string;
+    dueDate?: string | null;
+    note?: string | null;
+  }): Promise<void> {
+    try {
+      const { error } = await sharedSupabase.rpc('mark_comanda_as_fiado', {
+        p_tenant_id: params.tenantId,
+        p_comanda_id: params.id,
+        p_due_date: params.dueDate ?? null,
+        p_note: params.note ?? null,
+      });
+
+      if (error) {
+        throw error;
+      }
+    } catch (err) {
+      this.throwOnError(err, 'Erro ao definir comanda como fiado');
+    }
+  }
 }
 
 export interface ComandaRepository extends IRepository<Comanda> {
@@ -344,6 +371,12 @@ export interface ComandaRepository extends IRepository<Comanda> {
     appointments?: { id: string; start_time?: string | null; date?: string | null; time?: string | null } | null;
   }>>;
   insertWithIdempotency(data: Record<string, unknown>, idempotencyKey: string, tenantId: string): Promise<string>;
+  markAsFiado(params: {
+    id: string;
+    tenantId: string;
+    dueDate?: string | null;
+    note?: string | null;
+  }): Promise<void>;
 }
 
 export const comandaRepository: ComandaRepository = new ComandaRepositoryImpl();

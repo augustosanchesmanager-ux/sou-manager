@@ -10,6 +10,7 @@ interface ComandaItemData {
     staff_id?: string | null;
     appointment_id?: string | null;
     status: 'blocked' | 'open' | 'paid' | 'cancelled';
+    is_fiado?: boolean;
     total: number;
     created_at: string;
     clients: {
@@ -186,6 +187,11 @@ const ComandaListItem: React.FC<ComandaListItemProps> = ({
                         <span className="rounded-full border border-line bg-gold-pale px-1.5 py-0.5 tabular-nums text-[10px] font-bold text-ink-soft">
                             #{getDisplayId(comanda.id)}
                         </span>
+                        {comanda.is_fiado && comanda.status === 'open' && (
+                            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                                Fiado
+                            </span>
+                        )}
                     </div>
 
                     <div className="mt-1 flex items-center gap-3 text-xs tabular-nums text-ink-soft">
