@@ -337,6 +337,18 @@ class CheckoutApplicationServiceImpl {
     async verifyComandaOpenStatus(comandaId: string, tenantId: string): Promise<void> {
         const status = await comandaRepository.getStatus(comandaId, tenantId);
 
+        if (status === 'blocked') {
+            console.error('[SMG][CHECKOUT][CONCURRENCY] Comanda bloqueada antes do sync', {
+                comandaId,
+                currentStatus: status,
+                expectedStatus: 'open',
+                tenantId,
+            });
+            throw new CheckoutError(
+                `Comanda #${comandaId} está bloqueada (agendamento futuro ou pendente de desbloqueio). Desbloqueie a comanda antes de finalizar.`
+            );
+        }
+
         if (status && status !== 'open') {
             console.error('[SMG][CHECKOUT][CONCURRENCY] Comanda mudou de estado antes do sync', {
                 comandaId,

@@ -348,6 +348,17 @@ describe('CheckoutApplicationService', () => {
       ).rejects.toThrow('não está mais aberta');
     });
 
+    it('should_throw_clear_message_when_comanda_status_is_blocked', async () => {
+      mockGetStatus.mockResolvedValue('blocked');
+
+      await expect(
+        checkoutApplicationService.finish(
+          makeFinishRequest({ comandaId: 'comanda-blocked', paymentStatus: 'paid', total: 50 }),
+          'idem-blocked',
+        ),
+      ).rejects.toThrow('está bloqueada');
+    });
+
     it('should_throw_when_items_insert_count_mismatches', async () => {
       const scenario = makeItemsInsertFailureScenario();
       mockSupabaseFrom.mockImplementation(buildMockFromImplementation(scenario));
