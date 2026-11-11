@@ -2227,6 +2227,10 @@ const Schedule: React.FC = () => {
   const visibleBlockCount = React.useMemo(() => viewMode === 'week'
     ? scheduleBlocks.filter((block) => weekDays.some((day) => blockAppliesToDate(block, toDateKey(day)))).length
     : scheduleBlocks.filter((block) => blockAppliesToDate(block, selectedDateKey)).length, [viewMode, scheduleBlocks, weekDays, selectedDateKey]);
+  // Largura mínima da Grade: garante rolagem horizontal no mobile em vez de colunas espremidas.
+  const scheduleGridTimeGutterWidth = 80;
+  const dayGridMinWidth = scheduleGridTimeGutterWidth + staffList.length * 128;
+  const weekGridMinWidth = scheduleGridTimeGutterWidth + weekDays.length * 96;
   const formatScheduleCurrency = (value: number) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 
   const escapeCSV = (value: string | number | null | undefined) => {
@@ -2860,7 +2864,7 @@ Podemos confirmar? 😄`;
             </div>
 
             {/* Display Mode: Cadeiras / Grade / Lista */}
-            <div className="hidden md:flex bg-zinc-900 rounded-lg p-0.5 border border-zinc-800 text-xs font-semibold">
+            <div className="flex bg-zinc-900 rounded-lg p-0.5 border border-zinc-800 text-xs font-semibold">
               {[
                 { key: 'chair', label: 'Cadeiras' },
                 { key: 'calendar', label: 'Grade' },
@@ -3052,9 +3056,9 @@ Podemos confirmar? 😄`;
 
         <div className="flex-1 bg-white dark:bg-surface-dark rounded-2xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col shadow-sm min-w-0">
           {viewMode === 'week' ? (
-            <>
-              <div className="flex border-b border-slate-200 dark:border-border-dark shrink-0">
-                <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5" />
+            <div className="w-full overflow-x-auto custom-scrollbar">
+              <div className="flex border-b border-slate-200 dark:border-border-dark shrink-0" style={{ minWidth: weekGridMinWidth }}>
+                <div className="sticky left-0 z-30 w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5" />
                 {weekDays.map((day, i) => {
                   const isToday = day.toDateString() === new Date().toDateString();
                   const isSelected = day.toDateString() === selectedDate.toDateString();
@@ -3068,7 +3072,7 @@ Podemos confirmar? 😄`;
                     <div
                       key={i}
                       onClick={() => { setSelectedDate(day); setViewMode('day'); }}
-                      className={`flex-1 py-3 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-white/[0.03] ${isSelected ? 'bg-amber-500/10 dark:bg-amber-500/15' : ''
+                      className={`min-w-[96px] flex-1 py-3 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-white/[0.03] ${isSelected ? 'bg-amber-500/10 dark:bg-amber-500/15' : ''
                         } ${hasDayBlock ? 'bg-red-50/70 dark:bg-red-900/10' : ''
                         }`}
                     >
@@ -3101,8 +3105,8 @@ Podemos confirmar? 😄`;
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
                   </div>
                 ) : (
-                  <div className="flex min-h-[2600px]">
-                    <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 flex flex-col">
+                  <div className="flex min-h-[2600px]" style={{ minWidth: viewMode === 'week' ? weekGridMinWidth : dayGridMinWidth }}>
+                    <div className="sticky left-0 z-30 w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 flex flex-col">
                       {dynamicTimeSlots.map(hour => (
                         <div key={hour} className="flex-1 border-b border-slate-200 dark:border-border-dark text-xs font-bold text-slate-400 flex items-start justify-center pt-2 tabular-nums tracking-[-0.02em]">
                           {getDecimalTimeLabel(hour)}
@@ -3122,7 +3126,7 @@ Podemos confirmar? 😄`;
                         return (
                           <div
                             key={di}
-                            className={`flex-1 border-r border-slate-200 dark:border-border-dark last:border-r-0 relative group overflow-hidden ${isToday ? 'bg-amber-500/[0.03] dark:bg-amber-500/[0.04]' : ''} ${isDayFullyBlocked ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}
+                            className={`min-w-[96px] flex-1 border-r border-slate-200 dark:border-border-dark last:border-r-0 relative group overflow-hidden ${isToday ? 'bg-amber-500/[0.03] dark:bg-amber-500/[0.04]' : ''} ${isDayFullyBlocked ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}
                             onDragOver={handleDragOver}
                             onDrop={(e) => {
                               const aptId = e.dataTransfer.getData('aptId');
@@ -3216,17 +3220,17 @@ Podemos confirmar? 😄`;
                   </div>
                 )}
               </div>
-            </>
+            </div>
           ) : (
-            <>
-              <div className="flex border-b border-slate-200 dark:border-border-dark">
-                <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5"></div>
+            <div className="w-full overflow-x-auto custom-scrollbar">
+              <div className="flex border-b border-slate-200 dark:border-border-dark" style={{ minWidth: dayGridMinWidth }}>
+                <div className="sticky left-0 z-30 w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5"></div>
                 <div className="flex-1 flex">
                   {staffList.length === 0 ? (
                     <div className="flex-1 py-4 text-center text-sm text-slate-500">Nenhum profissional encontrado</div>
                   ) : (
                     staffList.map(resource => (
-                      <div key={resource.id} className="flex-1 py-3 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-1.5 relative">
+                      <div key={resource.id} className="min-w-[128px] flex-1 py-3 px-2 border-r border-slate-200 dark:border-border-dark last:border-r-0 flex flex-col items-center justify-center gap-1.5 relative">
                         {resource.avatar && !resource.avatar.includes('ui-avatars.com') ? (
                           <div
                             className="size-10 rounded-full bg-slate-200 dark:bg-[#12110F] overflow-hidden border border-[#B88A44]/60 bg-cover bg-center shadow-xs"
@@ -3348,8 +3352,8 @@ Podemos confirmar? 😄`;
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                   </div>
                 ) : (
-                  <div className="flex min-h-[2600px]">
-                    <div className="w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 flex flex-col">
+                  <div className="flex min-h-[2600px]" style={{ minWidth: viewMode === 'week' ? weekGridMinWidth : dayGridMinWidth }}>
+                    <div className="sticky left-0 z-30 w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 flex flex-col">
                       {dynamicTimeSlots.map(hour => (
                         <div key={hour} className="flex-1 border-b border-slate-200 dark:border-border-dark text-xs font-bold text-slate-400 flex items-start justify-center pt-2 relative tabular-nums tracking-[-0.02em]">
                           {getDecimalTimeLabel(hour)}
@@ -3367,7 +3371,7 @@ Podemos confirmar? 😄`;
                       {staffList.map(resource => (
                         <div
                           key={resource.id}
-                          className="flex-1 border-r border-slate-200 dark:border-border-dark last:border-r-0 relative z-10 group overflow-hidden"
+                          className="min-w-[128px] flex-1 border-r border-slate-200 dark:border-border-dark last:border-r-0 relative z-10 group overflow-hidden"
                           onDragOver={handleDragOver}
                           onDrop={(e) => handleDropAppointment(e, resource.id)}
                         >
@@ -3502,7 +3506,7 @@ Podemos confirmar? 😄`;
                   </div>
                 )}
               </div>
-            </>
+            </div>
           )}
         </div>
 
