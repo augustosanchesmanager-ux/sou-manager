@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildWhatsAppUrl, normalizePhone } from './phone';
+import { buildWhatsAppUrl, findClientByCanonicalPhone, getCanonicalBrPhone, normalizePhone } from './phone';
 
 describe('normalizePhone', () => {
   it('should return valid digits when phone is formatted without country code (11 digits)', () => {
@@ -55,5 +55,26 @@ describe('buildWhatsAppUrl', () => {
   it('should return null when phone is invalid', () => {
     const url = buildWhatsAppUrl('Gabriel', '123', 'Mensagem teste');
     expect(url).toBeNull();
+  });
+});
+
+describe('getCanonicalBrPhone & findClientByCanonicalPhone', () => {
+  it('should_strip_ddi_55_and_reject_repeated_digit_placeholders', () => {
+    expect(getCanonicalBrPhone('+55 11 97684-4344')).toBe('11976844344');
+    expect(getCanonicalBrPhone('5511961142570')).toBe('11961142570');
+    expect(getCanonicalBrPhone('11976844344')).toBe('11976844344');
+    expect(getCanonicalBrPhone('11111111111')).toBeNull();
+    expect(getCanonicalBrPhone('+5511111111111')).toBeNull();
+    expect(getCanonicalBrPhone('0000000000')).toBeNull();
+  });
+
+  it('should_prefer_primary_owner_over_shared_phone_dependent', () => {
+    const clients = [
+      { id: 'son-1', name: 'SAMUEL - ISRAEL', phone: '5511958713888', is_shared_phone: true },
+      { id: 'dad-1', name: 'ISRAEL', phone: '+55 11 95871-3888', is_shared_phone: false },
+    ];
+
+    const matched = findClientByCanonicalPhone(clients, '11958713888');
+    expect(matched?.id).toBe('dad-1');
   });
 });

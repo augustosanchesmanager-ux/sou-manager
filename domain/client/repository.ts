@@ -26,6 +26,7 @@ import type { DatabaseClient } from '../shared/database-client';
 import type { IRepository } from '../shared/repository';
 import type { Client, ClientImportRow, CreateClientInput, ImportJobResult, UpdateClientInput } from './types';
 import type { AppSlug } from '../shared/app';
+import { findClientByCanonicalPhone, getCanonicalBrPhone } from '../../src/lib/utils/phone';
 
 export { RepositoryError } from '../shared/errors';
 
@@ -138,13 +139,36 @@ class ClientRepositoryImpl extends SupabaseRepository {
     }
   }
 
+  async findByCanonicalPhone(phone: string, tenantId: string): Promise<Client | null> {
+    const canonical = getCanonicalBrPhone(phone);
+    if (!canonical) return null;
+
+    const tail = canonical.slice(-4);
+    const result = await this.from()
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .ilike('phone', `%${tail}%`);
+
+    const rows = this.extractData<Record<string, unknown>[]>(result, 'Erro ao buscar cliente por telefone');
+    const matched = findClientByCanonicalPhone(
+      rows.map((row) => ({
+        ...toClient(row),
+        is_shared_phone: Boolean(row.is_shared_phone),
+      })),
+      canonical,
+    );
+    return matched ?? null;
+  }
+
   async create(input: CreateClientInput, tenantId: string): Promise<Client> {
+    const canonicalPhone = getCanonicalBrPhone(input.phone);
+
     try {
       const payload: Record<string, unknown> = {
         name: input.name,
-        email: input.email,
-        phone: input.phone,
-        birthday: input.birthday,
+        email: input.email ?? '',
+        phone: canonicalPhone ?? input.phone,
+        birthday: input.birthday || null,
         avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(input.name)}&background=random`,
         tenant_id: tenantId,
       };
@@ -160,6 +184,12 @@ class ClientRepositoryImpl extends SupabaseRepository {
         .single();
       return toClient(this.extractData(result, 'Erro ao criar cliente') as Record<string, unknown>);
     } catch (err) {
+      if (canonicalPhone && (err as { code?: string })?.code === '23505') {
+        const existingAfterConflict = await this.findByCanonicalPhone(canonicalPhone, tenantId);
+        if (existingAfterConflict) {
+          return existingAfterConflict;
+        }
+      }
       this.throwOnError(err, 'Erro ao criar cliente');
     }
   }
@@ -272,6 +302,7 @@ export interface ClientRepository extends IRepository<Client> {
   listWithEffectiveLastVisit(tenantId: string): Promise<Client[]>;
   get(id: string, tenantId: string): Promise<Client | null>;
   exists(id: string, tenantId: string): Promise<boolean>;
+  findByCanonicalPhone(phone: string, tenantId: string): Promise<Client | null>;
   create(input: CreateClientInput, tenantId: string): Promise<Client>;
   update(id: string, input: UpdateClientInput, tenantId: string): Promise<void>;
   delete(id: string, tenantId: string): Promise<void>;

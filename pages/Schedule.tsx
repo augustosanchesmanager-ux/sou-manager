@@ -54,7 +54,8 @@ import {
   detectPresetAppointmentConflicts,
 } from '../services/scheduleQuickBlocks';
 import { isSharedServiceItem, calculateParticipantBaseValue } from '../domain/commission';
-import { buildWhatsAppUrl } from '../src/lib/utils/phone';
+import { buildWhatsAppUrl, findClientByCanonicalPhone } from '../src/lib/utils/phone';
+import { clientRepository } from '../domain/client/repository';
 import { confirmAppointmentAttendance, correctAppointmentAttendance } from '../src/lib/finance/attendance';
 import { unblockComandaIfDue } from '../src/lib/finance/unblock';
 import { BarberChairQueue } from '../components/schedule/BarberChairQueue';
@@ -1822,7 +1823,6 @@ const Schedule: React.FC = () => {
     }
 
     const scheduleAppSlug = ensureAppSupportsModule(appSlug || 'barber', 'schedule', ['barber']);
-    const saveClientsClient = getClientForTable('clients', scheduleAppSlug);
 
     const selectedService = selectedServices[0];
     const selectedStaff = staffList.find(s => s.id === formData.staffId);
@@ -1831,15 +1831,31 @@ const Schedule: React.FC = () => {
 
     let clientId: string | null = null;
     if (isNewClientMode) {
-      const { data: newClient, error: clientError } = await saveClientsClient.from('clients').insert({
-        name: formData.client,
-        phone: formData.clientPhone || '',
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.client)}&background=random`,
-        tenant_id: tenantId
-      }).select().single();
-      if (clientError) { setError('Erro ao cadastrar cliente.'); return; }
-      clientId = newClient.id;
-      setClientsList(prev => [...prev, newClient]);
+      const localMatch = findClientByCanonicalPhone<DBClient>(clientsList, formData.clientPhone);
+      if (localMatch) {
+        clientId = localMatch.id;
+      } else {
+        try {
+          const resolvedClient = await clientRepository.create(
+            {
+              name: formData.client,
+              email: '',
+              phone: formData.clientPhone || '',
+              birthday: '',
+            },
+            tenantId,
+          );
+          clientId = resolvedClient.id;
+          setClientsList(prev =>
+            prev.some(c => c.id === resolvedClient.id)
+              ? prev
+              : [...prev, { id: resolvedClient.id, name: resolvedClient.name, phone: resolvedClient.phone }],
+          );
+        } catch {
+          setError('Erro ao cadastrar cliente.');
+          return;
+        }
+      }
     } else {
       const existing = clientsList.find(c => c.name.toLowerCase() === formData.client.toLowerCase());
       if (existing) clientId = existing.id;
