@@ -4,6 +4,7 @@ import { getClientForTable, requireTenantContext, supabase } from '../../../../s
 import { generateIdempotencyKey } from '@/src/utils/idempotency';
 import { logSupabaseError } from '../../../../domain/shared/errors';
 import { appointmentApplicationService } from '../../../../application/appointment';
+import { findClientByCanonicalPhone, getCanonicalBrPhone } from '../../../lib/utils/phone';
 import type {
   BusyState,
   DashboardClient,
@@ -84,6 +85,12 @@ export const useDashboardActions = () => {
         throw new Error('Tenant invalido para cadastrar cliente.');
       }
 
+      const canonicalPhone = getCanonicalBrPhone(payload.phone);
+      const existingByPhone = findClientByCanonicalPhone(options?.existingClients ?? [], payload.phone);
+      if (existingByPhone) {
+        return existingByPhone;
+      }
+
       const existingClient = options?.existingClients?.find(
         (client) => client.name.toLowerCase() === payload.name.toLowerCase() && client.phone === payload.phone,
       );
@@ -97,17 +104,49 @@ export const useDashboardActions = () => {
         if (!domainClientInfo) throw new Error('Cliente invalido para este ambiente.');
         const { client, resolvedTenantId } = domainClientInfo;
 
+        if (canonicalPhone) {
+          const { data: candidates } = await client
+            .from('clients')
+            .select('id, name, phone, email, is_shared_phone')
+            .eq('tenant_id', resolvedTenantId)
+            .ilike('phone', `%${canonicalPhone.slice(-4)}%`);
+
+          const dbMatch = findClientByCanonicalPhone(
+            (candidates ?? []) as Array<DashboardClient & { is_shared_phone?: boolean }>,
+            canonicalPhone,
+          );
+          if (dbMatch) {
+            return dbMatch;
+          }
+        }
+
         const { data, error } = await client
           .from('clients')
           .insert({
             name: payload.name,
-            phone: payload.phone,
+            phone: canonicalPhone ?? payload.phone,
             email: payload.email,
             avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(payload.name)}&background=random`,
             tenant_id: resolvedTenantId,
           })
           .select()
           .single();
+
+        if (error && canonicalPhone && (error as { code?: string }).code === '23505') {
+          const { data: retryCandidates } = await client
+            .from('clients')
+            .select('id, name, phone, email, is_shared_phone')
+            .eq('tenant_id', resolvedTenantId)
+            .ilike('phone', `%${canonicalPhone.slice(-4)}%`);
+
+          const retryMatch = findClientByCanonicalPhone(
+            (retryCandidates ?? []) as Array<DashboardClient & { is_shared_phone?: boolean }>,
+            canonicalPhone,
+          );
+          if (retryMatch) {
+            return retryMatch;
+          }
+        }
 
         if (error || !data) {
           throw error || new Error('Erro ao cadastrar cliente.');

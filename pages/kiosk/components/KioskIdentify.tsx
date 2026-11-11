@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useKioskTheme } from '../KioskThemeProvider';
-import { supabase } from '../../../services/supabaseClient';
 import DatePickerInput from '../../../components/ui/DatePickerInput';
+import { clientRepository } from '../../../domain/client/repository';
 
 interface Client {
     id: string;
@@ -44,16 +44,9 @@ const KioskIdentify: React.FC<KioskIdentifyProps> = ({ tenantId, onIdentified })
         if (phone.length < 10) { setError('Digite um telefone válido.'); return; }
         setLoading(true);
         try {
-            const { data } = await supabase
-                .from('clients')
-                .select('id, name, phone')
-                .eq('tenant_id', tenantId)
-                .ilike('phone', `%${phone}%`)
-                .limit(1)
-                .single();
-
-            if (data) {
-                setFoundClient(data);
+            const matched = await clientRepository.findByCanonicalPhone(phone, tenantId);
+            if (matched) {
+                setFoundClient({ id: matched.id, name: matched.name, phone: matched.phone });
                 setStep('confirm');
             } else {
                 setStep('register');
@@ -70,14 +63,11 @@ const KioskIdentify: React.FC<KioskIdentifyProps> = ({ tenantId, onIdentified })
         if (!lgpdConsent) { setError('É necessário aceitar o termo de uso dos dados.'); return; }
         setLoading(true);
         try {
-            const { data, error: insertError } = await supabase
-                .from('clients')
-                .insert({ tenant_id: tenantId, name: name.trim(), phone, birthday: birthday || null })
-                .select('id, name, phone')
-                .single();
-
-            if (insertError) throw insertError;
-            if (data) onIdentified(data);
+            const created = await clientRepository.create(
+                { name: name.trim(), email: '', phone, birthday: birthday || '' },
+                tenantId,
+            );
+            onIdentified({ id: created.id, name: created.name, phone: created.phone });
         } catch {
             setError('Erro ao cadastrar. Tente novamente.');
         } finally {
