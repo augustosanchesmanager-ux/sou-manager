@@ -38,6 +38,7 @@ import { type CatalogItem } from '@/src/utils/comandaQuickActions';
 import { comandaQuickService } from '@/services/comandaQuickService';
 import { QuickCheckoutModal } from '../components/checkout/QuickCheckoutModal';
 import { ChairSelfCheckoutModal } from '../components/checkout/ChairSelfCheckoutModal';
+import { ComandaAdminAdjustModal } from '../components/comandas/ComandaAdminAdjustModal';
 import { useTenantOptional } from '../src/context/TenantContext';
 
 type SortField = 'date' | 'client' | 'status' | 'total';
@@ -84,6 +85,8 @@ interface Comanda {
     membership_credit_effect?: boolean | null;
     legacy_reference_month?: string | null;
     closed_at?: string | null;
+    payment_date_real?: string | null;
+    settled_at?: string | null;
     discount?: number | null;
     payment_method?: string | null;
     total: number;
@@ -530,6 +533,7 @@ const Comandas: React.FC = () => {
     const [isQuickOpenModalOpen, setIsQuickOpenModalOpen] = useState(false);
     const [quickCheckoutModalOpen, setQuickCheckoutModalOpen] = useState(false);
     const [chairCheckoutModalOpen, setChairCheckoutModalOpen] = useState(false);
+    const [adminAdjustModalOpen, setAdminAdjustModalOpen] = useState(false);
     const [quickClients, setQuickClients] = useState<Array<{ id: string; name: string; avatar?: string; phone?: string }>>([]);
     const [quickStaff, setQuickStaff] = useState<Array<{ id: string; name: string; role?: string }>>([]);
     const [quickCatalogItems, setQuickCatalogItems] = useState<CatalogItem[]>([]);
@@ -1929,9 +1933,31 @@ const Comandas: React.FC = () => {
                         onMarkAsFiado={() => selectedComanda && handleMarkAsFiado(selectedComanda)}
                         markingFiado={markingFiadoId === selectedComanda.id}
                         onReopenPaid={() => selectedComanda && openReopenInCashflow(selectedComanda)}
+                        onAdminAdjust={canManageFinancialReversal ? () => setAdminAdjustModalOpen(true) : undefined}
                     />
                 </aside>
             )}
+
+            <ComandaAdminAdjustModal
+                isOpen={adminAdjustModalOpen}
+                comanda={selectedComanda}
+                tenantId={tenantId || selectedComanda?.tenant_id || null}
+                onClose={() => setAdminAdjustModalOpen(false)}
+                onSuccess={async (result) => {
+                    setFinancialHistoryByComandaId((prev) => {
+                        const next = { ...prev };
+                        delete next[result.comandaId];
+                        return next;
+                    });
+                    setToast({
+                        message: result.retroactiveAdjustment
+                            ? 'Ajuste gerencial auditado salvo (marcado como retroativo em caixa fechado).'
+                            : 'Ajuste gerencial auditado salvo com sucesso.',
+                        type: 'success',
+                    });
+                    await fetchData();
+                }}
+            />
 
             <ComandaFiltersModal
                 isOpen={filtersModalOpen}

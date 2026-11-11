@@ -20,6 +20,8 @@ interface ComandaItemType {
     created_at: string;
     updated_at?: string;
     closed_at?: string | null;
+    payment_date_real?: string | null;
+    settled_at?: string | null;
     clients: {
         name: string;
         avatar: string;
@@ -53,6 +55,7 @@ interface ComandaSidebarProps {
     onMarkAsFiado?: () => void;
     markingFiado?: boolean;
     onReopenPaid?: () => void;
+    onAdminAdjust?: () => void;
 }
 
 interface ComandaFinancialReversal {
@@ -147,6 +150,7 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
     onMarkAsFiado,
     markingFiado = false,
     onReopenPaid,
+    onAdminAdjust,
 }) => {
     const { appSlug } = useAuth();
     const labels = getBusinessLabels(appSlug);
@@ -443,6 +447,16 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
                     >
                         Imprimir
                     </Button>
+                    {canManageFinancialReversal && onAdminAdjust && comanda.status !== 'cancelled' && (
+                        <Button
+                            variant="secondary"
+                            onClick={onAdminAdjust}
+                            leftIcon="tune"
+                            className="w-full justify-center text-xs border-primary/30 bg-primary/5 text-primary-dark hover:bg-primary/15"
+                        >
+                            Ajuste Gerencial Auditado
+                        </Button>
+                    )}
                     {comanda.status === 'open' && (
                         <Button
                             variant="ghost"
