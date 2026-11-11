@@ -40,7 +40,7 @@ import BookingSuccessVoucher, {
 } from './BookingSuccessVoucher';
 import { ServiceSpecificationModal } from './modals/ServiceSpecificationModal';
 import { StaffSelectionModal } from './modals/StaffSelectionModal';
-import { DateTimeBookingModal } from './modals/DateTimeBookingModal';
+import { DateTimeBookingModal, buildFitInWhatsAppMessage } from './modals/DateTimeBookingModal';
 import { PublicBookingCancelModal } from './modals/PublicBookingCancelModal';
 import { ServicesGridSelector } from './components/ServicesGridSelector';
 import { PublicProductsShowcase } from './components/PublicProductsShowcase';
@@ -520,6 +520,22 @@ const PublicBookingPage: React.FC = () => {
     return staff?.name || 'Qualquer Profissional';
   }, [selectedStaffId, ANY_STAFF_ID, availableStaff]);
 
+  const whatsappFitInUrl = useMemo(() => {
+    const rawPhone =
+      tenantProfile?.whatsapp_number ||
+      tenantProfile?.social_links?.whatsapp ||
+      tenantProfile?.phone;
+    if (!rawPhone || !selectedDate) return null;
+
+    const message = buildFitInWhatsAppMessage({
+      services: serviceNameDisplay,
+      staff: selectedStaffName,
+      date: selectedDate,
+      clientName,
+    });
+    return buildSafeWhatsAppUrl(rawPhone, message);
+  }, [tenantProfile, selectedDate, serviceNameDisplay, selectedStaffName, clientName]);
+
   // Loading state
   if (isLoading && !tenantProfile) {
     return (
@@ -847,6 +863,7 @@ const PublicBookingPage: React.FC = () => {
         formatPriceBRL={formatPriceBRL}
         formatDuration={formatDuration}
         formatSlotTime={formatSlotTime}
+        whatsappFitInUrl={whatsappFitInUrl}
       />
 
       {/* Direct Lead Edit Modal */}
