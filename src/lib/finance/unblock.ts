@@ -1,7 +1,32 @@
 import { logSupabaseError } from '../supabase/errors';
 
 const RPC_TIMEOUT_MS = 30000;
+const DEFAULT_TIMEZONE = 'America/Sao_Paulo';
 const ERROR_MESSAGE = 'Não foi possível desbloquear a comanda. Nenhuma alteração foi aplicada. Tente novamente ou acione o gestor.';
+
+const toDateKeyInTimezone = (dateInput: string | Date, timezone = DEFAULT_TIMEZONE): string | null => {
+  const parsed = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(parsed);
+};
+
+export const isAppointmentDateDueInTimezone = (
+  appointmentStartTime?: string | null,
+  timezone = DEFAULT_TIMEZONE,
+  now: Date = new Date(),
+): boolean => {
+  if (!appointmentStartTime) return false;
+  const appointmentKey = toDateKeyInTimezone(appointmentStartTime, timezone);
+  const todayKey = toDateKeyInTimezone(now, timezone);
+  if (!appointmentKey || !todayKey) return false;
+  return appointmentKey <= todayKey;
+};
 
 const withRpcTimeout = async <T,>(promise: Promise<T>): Promise<T> => {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -145,8 +170,68 @@ export const batchUnblockComandas = async ({
 
   return {
     success: true,
-    unblockedCount: Number(result.unblocked_count || 0),
+    unblockedCount: Number(result.unblocked_count ?? result.unblocked ?? 0),
     comandaIds: result.comanda_ids || comandaIds,
     message: result.message || 'Comandas desbloqueadas com sucesso.',
+  };
+};
+
+export interface UnblockComandaIfDueInput {
+  tenantId: string;
+  comandaId: string;
+  status?: string | null;
+  appointmentStartTime?: string | null;
+  timezone?: string;
+  now?: Date;
+  supabase: any;
+}
+
+export interface UnblockComandaIfDueResult {
+  unblocked: boolean;
+  status: string;
+  isFutureAppointment: boolean;
+}
+
+/**
+ * Desbloqueia automaticamente uma comanda `blocked` vinculada a agendamento
+ * quando a data do agendamento ja chegou (<= hoje no fuso do tenant).
+ */
+export const unblockComandaIfDue = async ({
+  tenantId,
+  comandaId,
+  status,
+  appointmentStartTime,
+  timezone = DEFAULT_TIMEZONE,
+  now = new Date(),
+  supabase,
+}: UnblockComandaIfDueInput): Promise<UnblockComandaIfDueResult> => {
+  if (status !== 'blocked') {
+    return {
+      unblocked: false,
+      status: status || 'open',
+      isFutureAppointment: false,
+    };
+  }
+
+  const isDue = isAppointmentDateDueInTimezone(appointmentStartTime, timezone, now);
+  if (!isDue) {
+    return {
+      unblocked: false,
+      status: 'blocked',
+      isFutureAppointment: Boolean(appointmentStartTime),
+    };
+  }
+
+  await unblockComanda({
+    tenantId,
+    comandaId,
+    mode: 'auto',
+    supabase,
+  });
+
+  return {
+    unblocked: true,
+    status: 'open',
+    isFutureAppointment: false,
   };
 };

@@ -56,6 +56,7 @@ import {
 import { isSharedServiceItem, calculateParticipantBaseValue } from '../domain/commission';
 import { buildWhatsAppUrl } from '../src/lib/utils/phone';
 import { confirmAppointmentAttendance, correctAppointmentAttendance } from '../src/lib/finance/attendance';
+import { unblockComandaIfDue } from '../src/lib/finance/unblock';
 import { BarberChairQueue } from '../components/schedule/BarberChairQueue';
 import { QuickWalkInModal, type QuickWalkInPayload } from '../components/schedule/QuickWalkInModal';
 import { AppointmentActionMenu } from '../components/schedule/AppointmentActionMenu';
@@ -984,7 +985,24 @@ const Schedule: React.FC = () => {
       }
 
       if (existingComanda?.id && existingComanda.status !== 'cancelled') {
-        setOpenComandasByAppointment((prev) => ({ ...prev, [apt.id]: existingComanda.id }));
+        if (existingComanda.status === 'blocked') {
+          try {
+            const unblockResult = await unblockComandaIfDue({
+              tenantId,
+              comandaId: existingComanda.id,
+              status: existingComanda.status,
+              appointmentStartTime: apt.startTime,
+              supabase: getScopedClient('barber'),
+            });
+            if (unblockResult.unblocked) {
+              setOpenComandasByAppointment((prev) => ({ ...prev, [apt.id]: existingComanda.id }));
+            }
+          } catch (unblockError) {
+            console.warn('[Schedule] Falha ao auto-desbloquear comanda ao abrir:', unblockError);
+          }
+        } else {
+          setOpenComandasByAppointment((prev) => ({ ...prev, [apt.id]: existingComanda.id }));
+        }
         navigate(`/checkout/${existingComanda.id}`);
         return;
       }

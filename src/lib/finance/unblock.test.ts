@@ -12,6 +12,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   unblockComanda,
   batchUnblockComandas,
+  isAppointmentDateDueInTimezone,
+  unblockComandaIfDue,
 } from './unblock';
 
 const mockRpc = vi.fn();
@@ -181,5 +183,98 @@ describe('M4-P6 — batchUnblockComandas', () => {
         supabase: mockSupabase,
       }),
     ).rejects.toThrow('Tenant nao encontrado');
+  });
+});
+
+describe('isAppointmentDateDueInTimezone & unblockComandaIfDue', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns true when appointment after 21h BRT is on the same Sao Paulo date as now', () => {
+    // 2026-11-11T01:30:00Z = 2026-11-10 22:30 BRT (same Sao Paulo day as 2026-11-10T23:00:00Z = 20:00 BRT)
+    const now = new Date('2026-11-10T23:00:00Z');
+    const lateEveningBr = '2026-11-11T01:30:00Z';
+
+    expect(isAppointmentDateDueInTimezone(lateEveningBr, 'America/Sao_Paulo', now)).toBe(true);
+  });
+
+  it('returns false when appointment is on a future Sao Paulo date', () => {
+    const now = new Date('2026-11-10T23:00:00Z'); // 2026-11-10 20:00 BRT
+    const tomorrowMorningBr = '2026-11-11T12:00:00Z'; // 2026-11-11 09:00 BRT
+
+    expect(isAppointmentDateDueInTimezone(tomorrowMorningBr, 'America/Sao_Paulo', now)).toBe(false);
+  });
+
+  it('auto-unblocks a blocked comanda when appointment date is due', async () => {
+    mockRpc.mockResolvedValue({
+      data: {
+        success: true,
+        comanda_id: 'comanda-due',
+        previous_status: 'blocked',
+        new_status: 'open',
+        mode: 'auto',
+        message: 'OK',
+      },
+      error: null,
+    });
+
+    const result = await unblockComandaIfDue({
+      tenantId: 'tenant-1',
+      comandaId: 'comanda-due',
+      status: 'blocked',
+      appointmentStartTime: '2026-11-10T14:00:00-03:00',
+      now: new Date('2026-11-10T22:00:00-03:00'),
+      supabase: mockSupabase,
+    });
+
+    expect(result).toEqual({
+      unblocked: true,
+      status: 'open',
+      isFutureAppointment: false,
+    });
+    expect(mockRpc).toHaveBeenCalledWith(
+      'unblock_comanda',
+      expect.objectContaining({
+        p_tenant_id: 'tenant-1',
+        p_comanda_id: 'comanda-due',
+        p_mode: 'auto',
+      }),
+    );
+  });
+
+  it('does not call RPC when blocked comanda belongs to a future appointment', async () => {
+    const result = await unblockComandaIfDue({
+      tenantId: 'tenant-1',
+      comandaId: 'comanda-future',
+      status: 'blocked',
+      appointmentStartTime: '2026-11-12T10:00:00-03:00',
+      now: new Date('2026-11-10T22:00:00-03:00'),
+      supabase: mockSupabase,
+    });
+
+    expect(result).toEqual({
+      unblocked: false,
+      status: 'blocked',
+      isFutureAppointment: true,
+    });
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+
+  it('skips RPC when comanda is already open', async () => {
+    const result = await unblockComandaIfDue({
+      tenantId: 'tenant-1',
+      comandaId: 'comanda-open',
+      status: 'open',
+      appointmentStartTime: '2026-11-10T10:00:00-03:00',
+      supabase: mockSupabase,
+    });
+
+    expect(result).toEqual({
+      unblocked: false,
+      status: 'open',
+      isFutureAppointment: false,
+    });
+    expect(mockRpc).not.toHaveBeenCalled();
   });
 });
