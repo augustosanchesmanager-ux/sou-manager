@@ -27,6 +27,7 @@ import { serviceRepository } from '../../domain/service/repository';
 import type { ServiceRecord } from '../../domain/service/repository';
 import { appointmentRepository } from '../../domain/appointment/repository';
 import { financialReversalRepository } from '../../domain/financial/reversal-repository';
+import { getClientForTable } from '../../services/supabaseClient';
 import type { ComandaDetail, ComandaItemDetail } from '../../components/financial/cashCloseUtils';
 import type {
     AppointmentSnapshot,
@@ -123,6 +124,37 @@ export async function loadReversals(tenantId: string, transactionIds: string[]):
     }
 }
 
+export async function loadDayBarberAdvances(
+    tenantId: string,
+    start: string,
+    end: string,
+): Promise<Record<string, number>> {
+    try {
+        const client = getClientForTable('barber_advances', 'barber');
+        if (!client || typeof client.from !== 'function') return {};
+        const { data, error } = await client
+            .from('barber_advances')
+            .select('staff_id, amount')
+            .eq('tenant_id', tenantId)
+            .is('reversed_at', null)
+            .gte('issued_at', start)
+            .lte('issued_at', end);
+
+        if (error || !Array.isArray(data)) return {};
+        return data.reduce<Record<string, number>>((acc, row: any) => {
+            const staffId = row?.staff_id;
+            const amount = Number(row?.amount || 0);
+            if (staffId && amount > 0) {
+                acc[staffId] = Math.round(((acc[staffId] || 0) + amount + Number.EPSILON) * 100) / 100;
+            }
+            return acc;
+        }, {});
+    } catch (err) {
+        console.warn('[SMG][CASH_CLOSING][ADVANCES] Erro ao carregar vales do dia:', err);
+        return {};
+    }
+}
+
 // ─── Comanda Details Builder ─────────────────────────────────────
 
 /**
@@ -165,14 +197,14 @@ function buildComandaDetails(
         const cmdItems = itemsByComanda.get(cmd.id) || [];
         const detailItems: ComandaItemDetail[] = cmdItems.map(item => {
             const itemStaffId = item.staff_id || cmd.staff_id;
+            const hasProductId = Boolean((item as any).product_id);
             const hasProductName = Boolean(item.product_name && item.product_name.trim().length > 0);
             const hasValidService = Boolean(item.service_id && serviceMap[item.service_id]);
-            // service_id resolvido tem precedencia: um item de balcao
-            // cadastrado em services e com product_name legado continua
-            // sendo comissionado como servico.
-            const resolvedType: 'service' | 'product' = hasValidService
-                ? 'service'
-                : (hasProductName ? 'product' : 'service');
+            // product_id explicito ou ausência de service_id com product_name indica produto;
+            // service_id resolvido tem precedência quando product_id não existe.
+            const resolvedType: 'service' | 'product' = hasProductId
+                ? 'product'
+                : (hasValidService ? 'service' : (hasProductName ? 'product' : 'service'));
             return {
                 id: item.id,
                 serviceName: serviceMap[item.service_id || ''] || item.product_name || 'Item',
@@ -263,12 +295,14 @@ export async function loadDailySnapshot(tenantId: string, date: string): Promise
         receivables,
         referenceData,
         closings,
+        barberAdvancesByStaff,
     ] = await Promise.all([
         loadTransactions(tenantId, start, end),
         loadAppointments(tenantId, start, end),
         loadReceivables(tenantId),
         loadReferenceData(tenantId),
         loadClosings(tenantId, date),
+        loadDayBarberAdvances(tenantId, start, end),
     ]);
 
     const staffMap: Record<string, { name: string; role: string }> = {};
@@ -328,5 +362,6 @@ export async function loadDailySnapshot(tenantId: string, date: string): Promise
         openComandasTotal: openComandas.reduce((sum, c) => sum + Number((c as any).total || 0), 0),
         clubOverdueCount: clubOverdue.length,
         clubOverdueTotal: clubOverdue.reduce((sum, r) => sum + Number(r.amount || 0), 0),
+        barberAdvancesByStaff,
     };
 }

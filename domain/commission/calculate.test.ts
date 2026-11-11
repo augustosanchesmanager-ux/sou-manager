@@ -6,7 +6,10 @@ import {
   resolveCommissionBase,
   resolveFinancialBase,
   isCommissionEligible,
+  isProductComandaItem,
+  isEligibleForCommissionItem,
   getEffectiveRate,
+  getEffectiveItemRate,
   getDefaultRateForRole,
   detectZeroReason,
   calculateCommissionReversal,
@@ -90,14 +93,18 @@ describe('calculateCommissionValue', () => {
     expect(calculateCommissionValue(200, p, 0.5)).toBe(100);
   });
 
-  it('calculates fixed commission directly without applying commissionRate', () => {
+  it('applies commissionRate to fixed co-execution participant base (ADR-047)', () => {
     const p = makeParticipant({ payout_type: 'fixed', payout_value: 50 });
-    expect(calculateCommissionValue(200, p, 0.4)).toBe(50);
+    expect(calculateCommissionValue(200, p, 0.4)).toBe(20);
+
+    // Real-world example (ADR-047): R$ 80 service, assistant fixed base R$ 20, 50% profile rate -> R$ 10.
+    const assistant = makeParticipant({ role: 'assistant', payout_type: 'fixed', payout_value: 20 });
+    expect(calculateCommissionValue(80, assistant, 50)).toBe(10);
   });
 
-  it('caps fixed commission at receivedValue', () => {
+  it('caps fixed base at receivedValue before applying commissionRate', () => {
     const p = makeParticipant({ payout_type: 'fixed', payout_value: 50 });
-    expect(calculateCommissionValue(30, p, 0.4)).toBe(30);
+    expect(calculateCommissionValue(30, p, 0.4)).toBe(12);
   });
 
   it('returns 0 when receivedValue is 0', () => {
@@ -410,6 +417,32 @@ describe('FIX-001 — Commission scenarios', () => {
 
     it('negative reversedAmount → 0', () => {
       expect(calculateCommissionReversal(25, -10, 100)).toBe(0);
+    });
+  });
+
+  describe('ADR-047: product vs service item classification & rate selection', () => {
+    it('should_classify_as_product_when_product_id_or_name_without_service_id', () => {
+      expect(isProductComandaItem({ product_id: 'prod-1', service_id: null })).toBe(true);
+      expect(isProductComandaItem({ service_id: null, product_name: 'Pomada' })).toBe(true);
+      expect(isProductComandaItem({ service_id: 'svc-1', product_name: 'Corte' })).toBe(false);
+      // Legacy minimal fixtures with no service_id, product_id, or product_name remain services.
+      expect(isProductComandaItem({ service_id: null })).toBe(false);
+    });
+
+    it('should_apply_product_commission_rate_only_to_products_and_commission_rate_to_services', () => {
+      const barberNoProduct = { role: 'barber', commission_rate: 50, product_commission_rate: 0 };
+      const barberWithProduct = { role: 'barber', commission_rate: 50, product_commission_rate: 10 };
+      const managerProductOnly = { role: 'manager', commission_rate: 0, product_commission_rate: 15 };
+
+      const serviceItem = { service_id: 'svc-1', product_id: null };
+      const productItem = { service_id: null, product_id: 'prod-1' };
+
+      expect(getEffectiveItemRate(barberNoProduct, serviceItem)).toBeCloseTo(0.5, 6);
+      expect(getEffectiveItemRate(barberNoProduct, productItem)).toBe(0);
+      expect(getEffectiveItemRate(barberWithProduct, productItem)).toBeCloseTo(0.1, 6);
+      expect(isEligibleForCommissionItem(managerProductOnly, productItem)).toBe(true);
+      expect(getEffectiveItemRate(managerProductOnly, productItem)).toBeCloseTo(0.15, 6);
+      expect(getEffectiveItemRate(managerProductOnly, serviceItem)).toBe(0);
     });
   });
 });

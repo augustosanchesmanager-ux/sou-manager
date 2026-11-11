@@ -17,6 +17,36 @@ export function normalizePhone(phone: string | null | undefined): NormalizedPhon
   return { digits, isValid: false };
 }
 
+/**
+ * Returns canonical 10-11 digit Brazilian phone (without +55/55),
+ * or null for invalid lengths or repeated-digit placeholders (e.g. 11111111111).
+ */
+export function getCanonicalBrPhone(phone: string | null | undefined): string | null {
+  const { digits, isValid } = normalizePhone(phone);
+  if (!isValid) return null;
+  if (/^(\d)\1+$/.test(digits)) return null;
+  return digits;
+}
+
+/**
+ * Finds the primary matching client by canonical Brazilian phone (ignoring +55/55 and formatting).
+ * Prefers non-shared phone owners (is_shared_phone !== true).
+ */
+export function findClientByCanonicalPhone<
+  T extends { phone?: string | null; is_shared_phone?: boolean | null },
+>(clients: readonly T[], phone: string | null | undefined): T | undefined {
+  const target = getCanonicalBrPhone(phone);
+  if (!target) return undefined;
+
+  let sharedMatch: T | undefined;
+  for (const client of clients) {
+    if (getCanonicalBrPhone(client.phone) !== target) continue;
+    if (client.is_shared_phone !== true) return client;
+    if (!sharedMatch) sharedMatch = client;
+  }
+  return sharedMatch;
+}
+
 export function buildWhatsAppUrl(
   name: string,
   phone: string | null | undefined,

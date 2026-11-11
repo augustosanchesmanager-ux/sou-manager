@@ -25,8 +25,8 @@ import {
   normalizePercentage,
   resolveFinancialBase,
   calculateCommissionValue,
-  isCommissionEligible,
-  getEffectiveRate,
+  isEligibleForCommissionItem,
+  getEffectiveItemRate,
   normalizeCommissionParticipants,
 } from '../_shared/financial-core/index.ts';
 
@@ -36,6 +36,7 @@ export interface WorkerStaffRow {
   id: string;
   role?: string | null;
   commission_rate?: number | null;
+  product_commission_rate?: number | null;
 }
 
 export interface WorkerParticipantRow {
@@ -49,6 +50,8 @@ export interface WorkerParticipantRow {
 export interface WorkerItemRow {
   id: string;
   service_id?: string | null;
+  product_id?: string | null;
+  product_name?: string | null;
   staff_id?: string | null;
   unit_price?: number | null;
   quantity?: number | null;
@@ -189,7 +192,7 @@ export const calculateCommissionRecordsFromContext = (
       if (!staffId) continue;
 
       const staff = staffById.get(staffId);
-      if (!staff || !isCommissionEligible(staff)) continue;
+      if (!staff || !isEligibleForCommissionItem(staff as any, item as any)) continue;
       sourceStaffIds.add(staffId);
 
       const financialBase = resolveFinancialBase({
@@ -203,7 +206,7 @@ export const calculateCommissionRecordsFromContext = (
         quantity,
       });
 
-      const commissionRate = getEffectiveRate(staff);
+      const commissionRate = getEffectiveItemRate(staff as any, item as any);
       const commissionValue = calculateCommissionValue(
         financialBase.receivedValue,
         participant as any,

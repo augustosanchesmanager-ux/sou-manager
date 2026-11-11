@@ -19,7 +19,7 @@
  */
 
 import { normalizePercentage } from '../../shared/numbers/normalize';
-import type { CommissionBaseChoice, ParticipantRow, StaffRoleLike, FinancialBaseInput, FinancialBaseResult, ZeroCommissionReason } from './types';
+import type { CommissionBaseChoice, CommissionItemLike, ParticipantRow, StaffRoleLike, FinancialBaseInput, FinancialBaseResult, ZeroCommissionReason } from './types';
 
 /**
  * Resolve o valor base de um item para fins de comissão (BRUTO).
@@ -226,11 +226,12 @@ export const calculateCommissionValue = (
 ): number => {
   if (!participant.affects_commission) return 0;
 
+  const rate = normalizePercentage(commissionRate);
   if (participant.payout_type === 'fixed') {
-    return Math.min(participant.payout_value, receivedValue);
+    const participantBase = Math.min(participant.payout_value, receivedValue);
+    return participantBase * rate;
   }
 
-  const rate = normalizePercentage(commissionRate);
   const participantBase = receivedValue * normalizePercentage(participant.payout_value);
   return participantBase * rate;
 };
@@ -255,11 +256,57 @@ export const isCommissionEligible = (staff: StaffRoleLike): boolean => {
 };
 
 /**
+ * Classifies whether a comanda item represents a product (retail/counter)
+ * vs. a service, matching the schema contract where services carry service_id
+ * and products carry product_id (or product_name without service_id).
+ */
+export const isProductComandaItem = (item?: CommissionItemLike | null): boolean => {
+  if (!item) return false;
+  if (item.type === 'product' || item.item_type === 'product') return true;
+  if (item.type === 'service' || item.item_type === 'service') return false;
+  if (item.product_id) return true;
+  if (item.service_id) return false;
+  return Boolean(item.product_name && String(item.product_name).trim().length > 0);
+};
+
+/**
+ * Determines if a staff member is eligible to receive commission on a given item.
+ * Managers with product_commission_rate > 0 earn product commissions even when
+ * their service commission_rate is 0.
+ */
+export const isEligibleForCommissionItem = (
+  staff: StaffRoleLike,
+  item?: CommissionItemLike | null,
+): boolean => {
+  if (isCommissionEligible(staff)) return true;
+  const role = (staff.role || '').toLowerCase();
+  if (role === 'manager' && isProductComandaItem(item)) {
+    return Number(staff.product_commission_rate ?? 0) > 0;
+  }
+  return false;
+};
+
+/**
  * Returns the effective commission rate for a staff member.
  * Returns 0 if not eligible for commission.
  */
 export const getEffectiveRate = (staff: StaffRoleLike): number => {
   if (!isCommissionEligible(staff)) return 0;
+  return normalizePercentage(staff.commission_rate ?? 0);
+};
+
+/**
+ * Returns the unified commission rate for a staff member on an item:
+ * products use `staff.product_commission_rate` (default 0); services use `staff.commission_rate`.
+ */
+export const getEffectiveItemRate = (
+  staff: StaffRoleLike,
+  item?: CommissionItemLike | null,
+): number => {
+  if (!isEligibleForCommissionItem(staff, item)) return 0;
+  if (isProductComandaItem(item)) {
+    return normalizePercentage(staff.product_commission_rate ?? 0);
+  }
   return normalizePercentage(staff.commission_rate ?? 0);
 };
 

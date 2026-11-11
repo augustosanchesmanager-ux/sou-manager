@@ -30,7 +30,10 @@
  */
 
 import { normalizePercentage } from '../../../../shared/numbers/normalize';
-import { receivesCommission, getEffectiveCommissionRate } from '../../../../src/lib/staff/roles';
+import {
+  receivesCommissionForItem,
+  getEffectiveCommissionRateForItem,
+} from '../../../../src/lib/staff/roles';
 import {
   resolveFinancialBase,
   calculateCommissionValue,
@@ -57,9 +60,10 @@ export interface ComandaRow {
 export interface ComandaItemRow {
   id: string;
   comanda_id: string;
-  service_id?: string;
-  product_name?: string;
-  staff_id?: string;
+  service_id?: string | null;
+  product_id?: string | null;
+  product_name?: string | null;
+  staff_id?: string | null;
   unit_price?: number;
   price?: number;
   amount?: number;
@@ -74,6 +78,7 @@ export interface StaffRow {
   name?: string;
   role?: string;
   commission_rate?: number | null;
+  product_commission_rate?: number | null;
 }
 
 export interface CreateCommissionRecordDeps {
@@ -231,7 +236,7 @@ export const createCommissionRecordHandler = (
         if (!staffId) continue;
 
         const staff = staffById.get(staffId);
-        if (!staff || !receivesCommission(staff as any)) continue;
+        if (!staff || !receivesCommissionForItem(staff as any, item as any)) continue;
 
         // Resolve financial base for this item
         const financialBase = resolveFinancialBase({
@@ -241,10 +246,7 @@ export const createCommissionRecordHandler = (
           quantity,
         });
 
-        const commissionRate =
-          participant.payout_type === 'fixed'
-            ? 1.0
-            : getEffectiveCommissionRate(staff as any);
+        const commissionRate = getEffectiveCommissionRateForItem(staff as any, item as any);
         const commissionValue = calculateCommissionValue(
           financialBase.receivedValue,
           participant,

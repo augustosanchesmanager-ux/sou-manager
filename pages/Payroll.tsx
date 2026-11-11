@@ -30,6 +30,7 @@ interface PayrollRow {
     avatar: string;
     /** Taxa efetiva em fração (0.4 = 40%). */
     commissionRate: number;
+    productCommissionRate: number;
     /**
      * Pré-visualização calculada por `computeSettlement`, que é leitura pura.
      * Não substitui os valores do acerto persistido quando existe.
@@ -74,12 +75,15 @@ const Payroll: React.FC = () => {
     const [rows, setRows] = useState<PayrollRow[]>([]);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
+    const toLocalDateStr = (d: Date) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
     const [startDate, setStartDate] = useState(() => {
         const now = new Date();
         const start = new Date(now.getFullYear(), now.getMonth(), 1);
-        return start.toISOString().split('T')[0];
+        return toLocalDateStr(start);
     });
-    const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const [endDate, setEndDate] = useState(() => toLocalDateStr(new Date()));
     const [searchName, setSearchName] = useState('');
 
     const [busyStaffId, setBusyStaffId] = useState<string | null>(null);
@@ -125,6 +129,7 @@ const Payroll: React.FC = () => {
                 periodStart: startDate,
                 periodEnd: endDate,
                 commissionRate: generateModalRow.commissionRate,
+                productCommissionRate: generateModalRow.productCommissionRate,
                 bonusesAdded: parsedBonus,
             })
             .then((result) => {
@@ -160,6 +165,7 @@ const Payroll: React.FC = () => {
             const next: PayrollRow[] = [];
 
             for (const professional of professionals) {
+                const productRate = professional.productCommissionRate ?? 0;
                 // Leitura pura: nada é persistido na pré-visualização.
                 const [preview, existing, config] = await Promise.all([
                     payout.computeSettlement({
@@ -168,6 +174,7 @@ const Payroll: React.FC = () => {
                         periodStart: startDate,
                         periodEnd: endDate,
                         commissionRate: professional.commissionRate,
+                        productCommissionRate: productRate,
                     }),
                     payout.getSettlementForPeriod(
                         tenantId,
@@ -184,6 +191,7 @@ const Payroll: React.FC = () => {
                     role: professional.role,
                     avatar: professional.avatar,
                     commissionRate: professional.commissionRate,
+                    productCommissionRate: productRate,
                     preview,
                     settlement: existing,
                     config,
@@ -233,6 +241,7 @@ const Payroll: React.FC = () => {
                     periodStart: startDate,
                     periodEnd: endDate,
                     commissionRate: generateModalRow.commissionRate,
+                    productCommissionRate: generateModalRow.productCommissionRate,
                     bonusesAdded: parsedBonus,
                 });
                 setToast({ message: 'Acerto gerado com sucesso.', type: 'success' });
@@ -1021,6 +1030,7 @@ const Payroll: React.FC = () => {
                               role: receiptModalRow.role,
                               avatar: receiptModalRow.avatar,
                               commissionRate: receiptModalRow.commissionRate,
+                              productCommissionRate: receiptModalRow.productCommissionRate,
                           }
                         : null
                 }

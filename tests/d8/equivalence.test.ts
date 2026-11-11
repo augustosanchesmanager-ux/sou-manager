@@ -145,4 +145,98 @@ describe('D8 equivalence (B): worker calculate == certified rule', () => {
     };
     expect(calculateCommissionRecordsFromContext(ctx).records).toHaveLength(0);
   });
+
+  it('applies product_commission_rate (0% or custom %) to product items in worker core', async () => {
+    const { calculateCommissionRecordsFromContext } = await import(
+      '@/supabase/functions/worker-dispatcher/calculate.ts'
+    );
+
+    const productCtxZero = {
+      ...HARNESS_CONTEXT_A,
+      comanda_items: [
+        {
+          id: 'dddddddd-0000-0000-0000-0000000000p1',
+          service_id: null,
+          product_id: 'pppppppp-0000-0000-0000-000000000001',
+          product_name: 'Pomada',
+          staff_id: 'aaaaaaa1-0000-0000-0000-000000000001',
+          unit_price: 80,
+          quantity: 1,
+        },
+      ],
+      participants: [
+        {
+          comanda_item_id: 'dddddddd-0000-0000-0000-0000000000p1',
+          staff_id: 'aaaaaaa1-0000-0000-0000-000000000001',
+          payout_type: 'percentage',
+          payout_value: 100,
+          affects_commission: true,
+        },
+      ],
+      staff: [
+        {
+          id: 'aaaaaaa1-0000-0000-0000-000000000001',
+          role: 'barber',
+          commission_rate: 50,
+          product_commission_rate: 0,
+        },
+      ],
+    };
+    expect(calculateCommissionRecordsFromContext(productCtxZero).records).toHaveLength(0);
+
+    const productCtxTen = {
+      ...productCtxZero,
+      staff: [
+        {
+          id: 'aaaaaaa1-0000-0000-0000-000000000001',
+          role: 'barber',
+          commission_rate: 50,
+          product_commission_rate: 10,
+        },
+      ],
+    };
+    const { records } = calculateCommissionRecordsFromContext(productCtxTen);
+    expect(records).toHaveLength(1);
+    expect(records[0].commissionRate).toBeCloseTo(0.1, 6);
+    expect(records[0].commissionValue).toBeCloseTo(8, 6);
+  });
+
+  it('applies staff commission_rate over fixed co-execution participant base (ADR-047)', async () => {
+    const { calculateCommissionRecordsFromContext } = await import(
+      '@/supabase/functions/worker-dispatcher/calculate.ts'
+    );
+
+    const fixedCoExecCtx = {
+      ...HARNESS_CONTEXT_A,
+      receivedValue: 80,
+      comanda: { id: 'cccccccc-0000-0000-0000-00000000000a', staff_id: 'mgr-0', total: 80, discount: 0 },
+      comanda_items: [
+        {
+          id: 'dddddddd-0000-0000-0000-0000000000f1',
+          service_id: 'svc-botox',
+          staff_id: 'mgr-0',
+          unit_price: 80,
+          quantity: 1,
+        },
+      ],
+      participants: [
+        {
+          comanda_item_id: 'dddddddd-0000-0000-0000-0000000000f1',
+          staff_id: 'aaaaaaa1-0000-0000-0000-000000000001',
+          payout_type: 'fixed',
+          payout_value: 20,
+          affects_commission: true,
+        },
+      ],
+      staff: [
+        { id: 'mgr-0', role: 'manager', commission_rate: 0, product_commission_rate: 0 },
+        { id: 'aaaaaaa1-0000-0000-0000-000000000001', role: 'barber', commission_rate: 50, product_commission_rate: 0 },
+      ],
+    };
+
+    const { records } = calculateCommissionRecordsFromContext(fixedCoExecCtx);
+    expect(records).toHaveLength(1);
+    expect(records[0].commissionRate).toBeCloseTo(0.5, 6);
+    expect(records[0].commissionValue).toBeCloseTo(10, 6);
+  });
 });
