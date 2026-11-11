@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { bankReconciliationService } from '../services/bankReconciliationService';
+import { cashClosingRepository } from '../domain/cashClosing/repository';
+import { supabase } from '../services/supabaseClient';
+import { formatCurrency } from '../shared/format/currency';
 import {
   BankAccount,
   BankStatementTransaction,
@@ -18,6 +22,7 @@ import {
   AlertCircle,
   FileText,
   Building2,
+  Calendar,
   Plus,
   RefreshCw,
   ArrowUpRight,
@@ -34,6 +39,15 @@ import {
 
 export default function BankReconciliation() {
   const { tenantId } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [auditDate, setAuditDate] = useState<string>(() => searchParams.get('date') || '');
+  const [eodSummary, setEodSummary] = useState<{
+    closingStatus: 'confirmed' | 'draft' | 'none';
+    digitalInflows: number;
+    bankOutflows: number;
+    txCount: number;
+  } | null>(null);
 
   // Estados principais
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
@@ -308,18 +322,82 @@ export default function BankReconciliation() {
     }
   };
 
-  // Filtragem local por texto
+  useEffect(() => {
+    const paramDate = searchParams.get('date') || '';
+    setAuditDate(paramDate);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!tenantId || !auditDate) {
+      setEodSummary(null);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const dayStart = `${auditDate}T00:00:00`;
+        const dayEnd = `${auditDate}T23:59:59.999`;
+        const [closing, txResult] = await Promise.all([
+          cashClosingRepository.getByBusinessDate(tenantId, auditDate).catch(() => null),
+          supabase
+            .from('transactions')
+            .select('type, amount, payment_method, status')
+            .eq('tenant_id', tenantId)
+            .gte('date', dayStart)
+            .lte('date', dayEnd),
+        ]);
+        if (cancelled) return;
+
+        const rows = (txResult.data || []) as Array<{
+          type: string;
+          amount: number | string | null;
+          payment_method: string | null;
+          status?: string | null;
+        }>;
+        let digitalInflows = 0;
+        let bankOutflows = 0;
+        for (const row of rows) {
+          const val = Math.abs(Number(row.amount || 0));
+          const method = String(row.payment_method || '').toLowerCase();
+          if (row.type === 'income' && method !== 'cash' && method !== 'dinheiro') {
+            digitalInflows += val;
+          } else if (row.type === 'expense') {
+            bankOutflows += val;
+          }
+        }
+        setEodSummary({
+          closingStatus: closing?.status === 'confirmed' ? 'confirmed' : closing ? 'draft' : 'none',
+          digitalInflows,
+          bankOutflows,
+          txCount: rows.length,
+        });
+      } catch {
+        if (!cancelled) setEodSummary(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId, auditDate]);
+
+  // Filtragem local por texto e data de fechamento (EOD)
   const filteredTransactions = useMemo(() => {
-    if (!searchTerm) return transactions;
     const term = searchTerm.toLowerCase();
-    return transactions.filter(
-      (tx) =>
+    return transactions.filter((tx) => {
+      if (auditDate && !String(tx.transaction_date || '').startsWith(auditDate)) {
+        return false;
+      }
+      if (!term) return true;
+      return (
         tx.description.toLowerCase().includes(term) ||
         (tx.memo && tx.memo.toLowerCase().includes(term)) ||
         tx.amount.toString().includes(term) ||
         tx.transaction_date.includes(term)
-    );
-  }, [transactions, searchTerm]);
+      );
+    });
+  }, [transactions, searchTerm, auditDate]);
 
   const selectedAccount = bankAccounts.find((a) => a.id === selectedAccountId);
 
@@ -456,6 +534,48 @@ export default function BankReconciliation() {
         </div>
       </div>
 
+      {/* Banner de Auditoria EOD x Extrato Bancário */}
+      {auditDate && eodSummary && (
+        <div className="p-4 bg-white dark:bg-card-dark rounded-xl border border-teal-500/30 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black uppercase tracking-wider text-teal-700 dark:text-teal-300">
+                Auditoria EOD ({new Date(`${auditDate}T00:00:00`).toLocaleDateString('pt-BR')})
+              </span>
+              <span
+                className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                  eodSummary.closingStatus === 'confirmed'
+                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                    : eodSummary.closingStatus === 'draft'
+                      ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                      : 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300'
+                }`}
+              >
+                Caixa: {eodSummary.closingStatus === 'confirmed' ? 'Confirmado' : eodSummary.closingStatus === 'draft' ? 'Rascunho' : 'Sem fechamento'}
+              </span>
+            </div>
+            <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+              Recebimentos digitais/Pix/Cartão ({formatCurrency(eodSummary.digitalInflows)}) · Saídas/Contas a Pagar ({formatCurrency(eodSummary.bankOutflows)}) · {eodSummary.txCount} lançamento(s)
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate('/cash-closing')}>
+              Ver Fechamento de Caixa
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setAuditDate('');
+                setSearchParams({});
+              }}
+            >
+              Limpar Data
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Filtros e Barra de Ações da Lista */}
       <div className="p-4 bg-white dark:bg-card-dark rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
         {/* Abas de Status */}
@@ -482,9 +602,23 @@ export default function BankReconciliation() {
           ))}
         </div>
 
-        {/* Busca e Atualização */}
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <div className="relative flex-1 md:w-64">
+        {/* Busca, Data EOD e Atualização */}
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <label className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-200">
+            <Calendar className="w-3.5 h-3.5 text-gray-400" />
+            <input
+              type="date"
+              value={auditDate}
+              onChange={(e) => {
+                const next = e.target.value;
+                setAuditDate(next);
+                setSearchParams(next ? { date: next } : {});
+              }}
+              aria-label="Filtrar data de conciliação EOD"
+              className="bg-transparent outline-none [color-scheme:light] dark:[color-scheme:dark]"
+            />
+          </label>
+          <div className="relative flex-1 md:w-56">
             <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"

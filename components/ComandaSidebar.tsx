@@ -10,6 +10,7 @@ interface ComandaItemType {
     staff_id?: string | null;
     appointment_id?: string | null;
     status: 'blocked' | 'open' | 'paid' | 'cancelled';
+    is_fiado?: boolean;
     cancellation_reason?: string | null;
     closure_mode?: 'standard' | 'legacy_membership' | null;
     closure_note?: string | null;
@@ -49,6 +50,8 @@ interface ComandaSidebarProps {
     onCheckout: () => void;
     onQuickCheckout?: () => void;
     onChairSelfCheckout?: () => void;
+    onMarkAsFiado?: () => void;
+    markingFiado?: boolean;
     onReopenPaid?: () => void;
 }
 
@@ -141,6 +144,8 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
     onCheckout,
     onQuickCheckout,
     onChairSelfCheckout,
+    onMarkAsFiado,
+    markingFiado = false,
     onReopenPaid,
 }) => {
     const { appSlug } = useAuth();
@@ -356,7 +361,7 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
                             </p>
                         </div>
                         <span className="rounded-full border border-line bg-gold-pale px-2 py-1 text-[10px] font-bold text-ink-soft">
-                            {comanda.status === 'open' ? 'Pendente' : 'Finalizado'}
+                            {comanda.status === 'open' ? (comanda.is_fiado ? 'Fiado (Pendente)' : 'Pendente') : 'Finalizado'}
                         </span>
                     </div>
                 </div>
@@ -383,6 +388,22 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
                                     <span className="material-symbols-outlined text-base">smartphone</span>
                                     <span>QR Code Cadeira (Pix)</span>
                                 </button>
+                            )}
+                            {onMarkAsFiado && !comanda.is_fiado && (
+                                <Button
+                                    onClick={onMarkAsFiado}
+                                    variant="secondary"
+                                    leftIcon="account_balance_wallet"
+                                    disabled={markingFiado}
+                                    className="w-full justify-center text-xs border-amber-500/30 bg-amber-500/10 text-amber-800 hover:bg-amber-500/20 dark:text-amber-300"
+                                >
+                                    {markingFiado ? 'Marcando Fiado...' : 'Definir como Fiado'}
+                                </Button>
+                            )}
+                            {comanda.is_fiado && (
+                                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] font-semibold text-amber-800 dark:text-amber-300">
+                                    Marcado como Fiado · Recebimento e comissão serão contabilizados na baixa em Contas a Receber.
+                                </div>
                             )}
                             <Button
                                 onClick={onCheckout}

@@ -6,6 +6,7 @@
  */
 
 import { getClientForTable } from '../../services/supabaseClient';
+import { hasSupabaseEnv } from '../../src/lib/supabase/client';
 import { PayoutRepository } from '../payout/payoutRepository';
 import { clientWalletRepository } from '../clientWallet/walletRepository';
 import type {
@@ -17,8 +18,13 @@ import type {
     FiadoReceivableSummary,
 } from './types';
 
-// Storage in-memory para testes e modo demo/offline
+// Storage in-memory exclusivo para testes unitários e modo demo sem Supabase
 const inMemoryLedgers = new Map<string, LedgerEntry[]>();
+
+const isDemoOrTestMode = (): boolean =>
+    !hasSupabaseEnv ||
+    import.meta.env.MODE === 'test' ||
+    (typeof process !== 'undefined' && Boolean(process.env?.VITEST));
 
 export class CashLedgerRepository {
     private payoutRepo: PayoutRepository | null = null;
@@ -160,50 +166,42 @@ export class CashLedgerRepository {
     ): Promise<LedgerEntry[]> {
         if (!tenantId) return [];
 
-        if (inMemoryLedgers.has(tenantId)) {
-            return inMemoryLedgers.get(tenantId)!;
-        }
-
-        try {
-            const client = getClientForTable('transactions', 'barber');
-            if (!client) {
-                return this.getDemoEntries(tenantId);
+        if (isDemoOrTestMode()) {
+            if (inMemoryLedgers.has(tenantId)) {
+                return inMemoryLedgers.get(tenantId)!;
             }
-
-            const { data, error } = await client
-                .from('transactions')
-                .select('*')
-                .eq('tenant_id', tenantId)
-                .order('date', { ascending: false });
-
-            if (error || !data || data.length === 0) {
-                return this.getDemoEntries(tenantId);
-            }
-
-            const mapped = data.map((row: Record<string, unknown>) => ({
-                id: String(row.id || ''),
-                tenant_id: String(row.tenant_id || tenantId),
-                type: (row.type as 'income' | 'expense') || 'income',
-                category: String(row.category || 'Geral'),
-                description: String(row.description || 'Movimentação'),
-                amount: Number(row.amount || 0),
-                due_date: String(row.date || row.created_at || '').split('T')[0],
-                payment_date: row.status === 'paid' ? String(row.date || '').split('T')[0] : null,
-                status: (row.status as 'pending' | 'paid' | 'cancelled') || 'paid',
-                recipient_or_payer: String(row.customer_name || row.staff_name || row.recipient || ''),
-                payment_method: row.payment_method ? String(row.payment_method) : null,
-                source_type: row.source_type ? String(row.source_type) : null,
-                source_id: row.source_id ? String(row.source_id) : null,
-                notes: row.notes ? String(row.notes) : null,
-                created_at: String(row.created_at || ''),
-                updated_at: String(row.updated_at || ''),
-            }));
-
-            inMemoryLedgers.set(tenantId, mapped);
-            return mapped;
-        } catch {
             return this.getDemoEntries(tenantId);
         }
+
+        const client = getClientForTable('transactions', 'barber');
+        const { data, error } = await client
+            .from('transactions')
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .order('date', { ascending: false });
+
+        if (error) {
+            throw error;
+        }
+
+        return (data || []).map((row: Record<string, unknown>) => ({
+            id: String(row.id || ''),
+            tenant_id: String(row.tenant_id || tenantId),
+            type: (row.type as 'income' | 'expense') || 'income',
+            category: String(row.category || 'Geral'),
+            description: String(row.description || 'Movimentação'),
+            amount: Number(row.amount || 0),
+            due_date: String(row.date || row.created_at || '').split('T')[0],
+            payment_date: row.status === 'paid' ? String(row.date || '').split('T')[0] : null,
+            status: (row.status as 'pending' | 'paid' | 'cancelled') || 'paid',
+            recipient_or_payer: String(row.customer_name || row.staff_name || row.recipient || ''),
+            payment_method: row.payment_method ? String(row.payment_method) : null,
+            source_type: row.source_type ? String(row.source_type) : null,
+            source_id: row.source_id ? String(row.source_id) : null,
+            notes: row.notes ? String(row.notes) : null,
+            created_at: String(row.created_at || ''),
+            updated_at: String(row.updated_at || ''),
+        }));
     }
 
     /**
@@ -213,41 +211,42 @@ export class CashLedgerRepository {
         tenantId: string,
         input: Omit<LedgerEntry, 'id' | 'tenant_id'>
     ): Promise<LedgerEntry> {
-        const id = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const id = crypto.randomUUID();
+        const nowIso = new Date().toISOString();
         const entry: LedgerEntry = {
             id,
             tenant_id: tenantId,
             ...input,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
+            created_at: nowIso,
+            updated_at: nowIso,
         };
 
-        // Atualiza in-memory imediatamente para consistência
-        const list = this.getDemoEntries(tenantId);
-        list.unshift(entry);
-        this.saveDemoEntries(tenantId, list);
+        if (isDemoOrTestMode()) {
+            const list = this.getDemoEntries(tenantId);
+            list.unshift(entry);
+            this.saveDemoEntries(tenantId, list);
+            return entry;
+        }
 
-        try {
-            const client = getClientForTable('transactions', 'barber');
-            if (client) {
-                await client
-                    .from('transactions')
-                    .insert({
-                        id,
-                        tenant_id: tenantId,
-                        type: entry.type,
-                        category: entry.category,
-                        description: entry.description,
-                        amount: entry.amount,
-                        date: entry.status === 'paid' ? (entry.payment_date || entry.due_date) : entry.due_date,
-                        status: entry.status,
-                        payment_method: entry.payment_method,
-                        source_type: entry.source_type || 'manual',
-                        source_id: entry.source_id,
-                    });
-            }
-        } catch {
-            // Sucesso garantido pelo armazenamento local
+        const client = getClientForTable('transactions', 'barber');
+        const { error } = await client
+            .from('transactions')
+            .insert({
+                id,
+                tenant_id: tenantId,
+                type: entry.type,
+                category: entry.category,
+                description: entry.description,
+                amount: entry.amount,
+                date: entry.status === 'paid' ? (entry.payment_date || entry.due_date) : entry.due_date,
+                status: entry.status,
+                payment_method: entry.payment_method,
+                source_type: entry.source_type || 'manual',
+                source_id: entry.source_id,
+            });
+
+        if (error) {
+            throw error;
         }
 
         return entry;
@@ -268,45 +267,56 @@ export class CashLedgerRepository {
             };
         }
 
-        let settledCount = 0;
-        let totalSettledAmount = 0;
-        const failedIds: string[] = [];
-
-        // Atualiza in-memory imediatamente
-        const list = this.getDemoEntries(tenantId);
-        for (const entry of list) {
-            if (entryIds.includes(entry.id)) {
-                entry.status = 'paid';
-                entry.payment_method = paymentMethod;
-                entry.payment_date = paymentDate;
-                settledCount++;
-                totalSettledAmount += entry.amount;
+        if (isDemoOrTestMode()) {
+            let settledCount = 0;
+            let totalSettledAmount = 0;
+            const list = this.getDemoEntries(tenantId);
+            for (const entry of list) {
+                if (entryIds.includes(entry.id)) {
+                    entry.status = 'paid';
+                    entry.payment_method = paymentMethod;
+                    entry.payment_date = paymentDate;
+                    settledCount++;
+                    totalSettledAmount += entry.amount;
+                }
             }
+            this.saveDemoEntries(tenantId, list);
+            return {
+                success: true,
+                settledCount,
+                totalSettledAmount,
+                failedIds: [],
+                message: `${settledCount} lançamentos baixados com sucesso.`,
+            };
         }
-        this.saveDemoEntries(tenantId, list);
 
-        try {
-            const client = getClientForTable('transactions', 'barber');
-            if (client) {
-                await client
-                    .from('transactions')
-                    .update({
-                        status: 'paid',
-                        payment_method: paymentMethod,
-                        date: paymentDate,
-                    })
-                    .eq('tenant_id', tenantId)
-                    .in('id', entryIds);
-            }
-        } catch {
-            // Continua
+        const client = getClientForTable('transactions', 'barber');
+        const { data: updatedRows, error } = await client
+            .from('transactions')
+            .update({
+                status: 'paid',
+                payment_method: paymentMethod,
+                date: paymentDate,
+            })
+            .eq('tenant_id', tenantId)
+            .in('id', entryIds)
+            .select('id, amount');
+
+        if (error) {
+            throw error;
         }
+
+        const settledCount = updatedRows?.length ?? entryIds.length;
+        const totalSettledAmount = (updatedRows || []).reduce(
+            (sum: number, row: { amount?: number | string | null }) => sum + Number(row.amount || 0),
+            0,
+        );
 
         return {
             success: true,
             settledCount,
             totalSettledAmount,
-            failedIds,
+            failedIds: [],
             message: `${settledCount} lançamentos baixados com sucesso.`,
         };
     }
@@ -318,50 +328,32 @@ export class CashLedgerRepository {
         const { tenantId, staffId, staffName, amount, paymentMethod, notes, issuedAt } = input;
         const effectiveDate = issuedAt || new Date().toISOString().split('T')[0];
 
-        // 1. Tenta acionar a RPC canônica do Payout se disponível
-        try {
-            const payout = this.getPayoutRepo();
-            if (payout) {
-                const payoutResult = await payout.registerAdvance({
-                    tenantId,
-                    staffId,
-                    amount,
-                    paymentMethod,
-                    notes: notes ? `[Vale] ${notes}` : `[Vale Balcão] ${staffName}`,
-                });
-
-                if (payoutResult && payoutResult.success) {
-                    const entry: LedgerEntry = {
-                        id: payoutResult.transactionId || `tx_vale_${Date.now()}`,
-                        tenant_id: tenantId,
-                        type: 'expense',
-                        category: 'Vale / Adiantamento',
-                        description: `Vale - ${staffName}`,
+        // 1. Tenta acionar a RPC canônica do Payout se disponível (apenas fora de modo demo/teste)
+        if (!isDemoOrTestMode()) {
+            try {
+                const payout = this.getPayoutRepo();
+                if (payout) {
+                    const payoutResult = await payout.registerAdvance({
+                        tenantId,
+                        staffId,
                         amount,
-                        due_date: effectiveDate,
-                        payment_date: effectiveDate,
-                        status: 'paid',
-                        recipient_or_payer: staffName,
-                        payment_method: paymentMethod,
-                        source_type: 'barber_advance',
-                        source_id: payoutResult.advanceId,
-                        notes: notes || 'Adiantamento de comissão lançado via Central Financeira',
-                    };
-                    const list = this.getDemoEntries(tenantId);
-                    list.unshift(entry);
-                    this.saveDemoEntries(tenantId, list);
+                        paymentMethod,
+                        notes: notes ? `[Vale] ${notes}` : `[Vale Balcão] ${staffName}`,
+                    });
 
-                    return {
-                        success: true,
-                        advanceId: payoutResult.advanceId,
-                        transactionId: payoutResult.transactionId,
-                        amount,
-                        message: `Vale de R$ ${amount.toFixed(2)} registrado com sucesso e vinculado à folha do profissional.`,
-                    };
+                    if (payoutResult && payoutResult.success) {
+                        return {
+                            success: true,
+                            advanceId: payoutResult.advanceId,
+                            transactionId: payoutResult.transactionId,
+                            amount,
+                            message: `Vale de R$ ${amount.toFixed(2)} registrado com sucesso e vinculado à folha do profissional.`,
+                        };
+                    }
                 }
+            } catch (err) {
+                throw err;
             }
-        } catch {
-            // Continua para fallback
         }
 
         // 2. Fallback de persistência no livro razão

@@ -35,12 +35,8 @@ const Commissions = lazy(() => import('./pages/Commissions'));
 const DailySummary = lazy(() => import('./pages/DailySummary'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Expenses = lazy(() => import('./pages/Expenses'));
-const Financial = lazy(() => import('./pages/Financial'));
-const FinancialOverview = lazy(() => import('./pages/FinancialOverview'));
 const FiscalPage = lazy(() => import('./pages/Fiscal'));
 const AccountsReceivable = lazy(() => import('./pages/AccountsReceivable'));
-const ClientAccount = lazy(() => import('./pages/ClientAccount'));
-const CashLedger = lazy(() => import('./pages/CashLedger'));
 const BankReconciliation = lazy(() => import('./pages/BankReconciliation'));
 const CashClosingPage = lazy(() => import('./pages/CashClosingPage'));
 const KioskAdmin = lazy(() => import('./pages/KioskAdmin'));
@@ -308,8 +304,8 @@ const AppRoutes: React.FC = () => {
             <Route path="/chef-club-subscriptions/new" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubSubscriptionNew /></ManagerRoute></FeatureRoute></ModuleRoute>} />
             <Route path="/chef-club-subscriptions/:subscriptionId" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubSubscriptionDetail /></ManagerRoute></FeatureRoute></ModuleRoute>} />
 
-            <Route path="/financial" element={<Navigate to="/financial-overview" replace />} />
-            <Route path="/financial-overview" element={<ManagerRoute><FeatureRoute feature="finance"><FinancialOverview /></FeatureRoute></ManagerRoute>} />
+            <Route path="/financial" element={<Navigate to="/cashflow" replace />} />
+            <Route path="/financial-overview" element={<Navigate to="/cashflow" replace />} />
             <Route path="/cashflow" element={<ManagerRoute><FeatureRoute feature="finance"><Cashflow /></FeatureRoute></ManagerRoute>} />
             <Route path="/cash-closing" element={<ManagerRoute><FeatureRoute feature="cash_closing"><CashClosingPage /></FeatureRoute></ManagerRoute>} />
             <Route path="/bank-reconciliation" element={<ManagerRoute><FeatureRoute feature="finance"><BankReconciliation /></FeatureRoute></ManagerRoute>} />
@@ -317,10 +313,10 @@ const AppRoutes: React.FC = () => {
             <Route path="/expenses" element={<ManagerRoute><FeatureRoute feature="expenses"><Expenses /></FeatureRoute></ManagerRoute>} />
             <Route path="/receipts" element={<EsteticaBlockedRoute><ManagerRoute><FeatureRoute feature="finance"><Receipts /></FeatureRoute></ManagerRoute></EsteticaBlockedRoute>} />
             <Route path="/accounts-receivable" element={<ManagerRoute><FeatureRoute feature="receivables"><AccountsReceivable /></FeatureRoute></ManagerRoute>} />
-            <Route path="/entrada-saida" element={<ManagerRoute><CashLedger /></ManagerRoute>} />
-            <Route path="/cash-ledger" element={<Navigate to="/entrada-saida" replace />} />
-            <Route path="/client-accounts" element={<ManagerRoute><ClientAccount /></ManagerRoute>} />
-            <Route path="/conta-cliente" element={<Navigate to="/client-accounts" replace />} />
+            <Route path="/entrada-saida" element={<Navigate to="/cashflow?view=ledger" replace />} />
+            <Route path="/cash-ledger" element={<Navigate to="/cashflow?view=ledger" replace />} />
+            <Route path="/client-accounts" element={<Navigate to="/accounts-receivable?tab=creditos" replace />} />
+            <Route path="/conta-cliente" element={<Navigate to="/accounts-receivable?tab=creditos" replace />} />
             <Route path="/payroll" element={<ManagerRoute><Payroll /></ManagerRoute>} />
             <Route path="/commissions" element={<ModuleRoute moduleName="commissions"><FeatureRoute feature="commissions"><ManagerRoute><Commissions /></ManagerRoute></FeatureRoute></ModuleRoute>} />
             <Route path="/reports" element={<ManagerRoute><Reports /></ManagerRoute>} />

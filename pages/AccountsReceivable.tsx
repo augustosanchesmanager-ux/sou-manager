@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { AlertCircle, CheckCircle, XCircle, ExternalLink } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { AlertCircle, CheckCircle, XCircle, ExternalLink, Wallet } from 'lucide-react';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
@@ -11,6 +11,8 @@ import { useTenantOptional } from '../src/context/TenantContext';
 import { supabase, getScopedClient } from '../services/supabaseClient';
 import { formatCurrency } from '../shared/format/currency';
 import { settleCheckoutComanda } from '../src/lib/finance/settlement';
+import { clientWalletRepository } from '../domain/clientWallet/walletRepository';
+import type { ClientWallet } from '../domain/clientWallet/types';
 import {
     closeZeroAmountComanda,
     isManagerLikeRole,
@@ -19,16 +21,10 @@ import {
 import { fetchChefClubCreditsByClient, type ChefClubClientCredits } from '../src/lib/supabase/chefClub';
 import { getAvailableCreditsForService } from '../src/utils/chefClubCredits';
 import {
-    createReversalKey,
-    reverseFinancialTransaction,
-    type FinancialReversalType,
-} from '../src/lib/finance/reversal';
-import {
     AccountsReceivableKPIs,
     AccountsReceivableFilters,
     SettlementModal,
     CancelComandaModal,
-    ReversalModal,
     type ARFilters,
     type AREntry,
     type ARSource,
@@ -38,7 +34,6 @@ import {
     type OpenComandaDetail,
     type PaidComandaSettlement,
     type PaymentMethod,
-    type ReversalReason,
     type ReversalStatus,
     type ReversalSummary,
     type SettlementMode,
@@ -122,7 +117,7 @@ interface ReceiptRecord {
     status: string;
 }
 
-type ActiveTab = 'fiado' | 'todos' | 'comandas' | 'clube' | 'recibos' | 'historico';
+type ActiveTab = 'fiado' | 'creditos' | 'todos' | 'comandas' | 'clube' | 'recibos' | 'historico';
 
 interface ARListEntry extends AREntry {
     listId: string;
@@ -141,7 +136,11 @@ const SOURCE_LABELS: Record<ARSource, string> = {
 const EMPTY_STATE_COPY: Record<ActiveTab, { title: string; description: string }> = {
     fiado: {
         title: 'Nenhum fiado pendente',
-        description: 'Não há clientes com débitos ou comandas em aberto no momento.',
+        description: 'Não há clientes devedores ou comandas em fiado em aberto no momento.',
+    },
+    creditos: {
+        title: 'Nenhum crédito positivo em carteira',
+        description: 'Clientes com saldo pré-pago ou limite de crédito aparecerão nesta aba (separados dos devedores de fiado).',
     },
     todos: {
         title: 'Nenhuma conta a receber pendente',
@@ -217,8 +216,21 @@ const AccountsReceivable: React.FC = () => {
     const tenantContext = useTenantOptional();
     const hasTenantContext = Boolean(tenantId);
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
 
-    const [activeTab, setActiveTab] = useState<ActiveTab>('fiado');
+    const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
+        const param = searchParams.get('tab');
+        if (param && ['fiado', 'creditos', 'todos', 'comandas', 'clube', 'recibos', 'historico'].includes(param)) {
+            return param as ActiveTab;
+        }
+        return 'fiado';
+    });
+    const [wallets, setWallets] = useState<ClientWallet[]>([]);
+    const [depositWallet, setDepositWallet] = useState<ClientWallet | null>(null);
+    const [depositAmount, setDepositAmount] = useState('');
+    const [limitWallet, setLimitWallet] = useState<ClientWallet | null>(null);
+    const [limitInput, setLimitInput] = useState('');
+    const [savingWalletAction, setSavingWalletAction] = useState(false);
     const [pixKey, setPixKey] = useState<string>(() => {
         if (tenantId) {
             return localStorage.getItem(`smg_pix_key_${tenantId}`) || '';
@@ -227,13 +239,16 @@ const AccountsReceivable: React.FC = () => {
     });
     const [consolidatedModalGroup, setConsolidatedModalGroup] = useState<null | {
         groupId: string;
+        clientId?: string | null;
         clientName: string;
         clientPhone: string | null;
         total: number;
+        walletDebt?: number;
         oldestDate: string;
         entries: ARListEntry[];
     }>(null);
     const [consolidatedMethod, setConsolidatedMethod] = useState<PaymentMethod>('pix');
+    const [consolidatedPaymentDate, setConsolidatedPaymentDate] = useState(() => toDateTimeInputValue(new Date()));
     const [consolidatedNotes, setConsolidatedNotes] = useState('');
     const [isConsolidating, setIsConsolidating] = useState(false);
     const [filterMonth, setFilterMonth] = useState(() => {
@@ -267,16 +282,6 @@ const AccountsReceivable: React.FC = () => {
     const [cancellingId, setCancellingId] = useState<string | null>(null);
     const cancelLockRef = React.useRef(false);
     const [paidComandaSettlements, setPaidComandaSettlements] = useState<PaidComandaSettlement[]>([]);
-    const [reversalEntry, setReversalEntry] = useState<PaidComandaSettlement | null>(null);
-    const [reversalType, setReversalType] = useState<FinancialReversalType>('full_refund');
-    const [reversalAmount, setReversalAmount] = useState('');
-    const [refundMethod, setRefundMethod] = useState<PaymentMethod>('pix');
-    const [reversalDate, setReversalDate] = useState(() => toDateTimeInputValue(new Date()));
-    const [reasonType, setReasonType] = useState<ReversalReason>('devolucao_ao_cliente');
-    const [reasonNote, setReasonNote] = useState('');
-    const [reversalConfirmed, setReversalConfirmed] = useState(false);
-    const [reversalIdempotencyKey, setReversalIdempotencyKey] = useState<string | null>(null);
-    const [reversingId, setReversingId] = useState<string | null>(null);
     const [clubReceivables, setClubReceivables] = useState<ClubReceivableRecord[]>([]);
     const [pendingReceipts, setPendingReceipts] = useState<ReceiptRecord[]>([]);
 
@@ -314,6 +319,7 @@ const AccountsReceivable: React.FC = () => {
                 comandasResult,
                 clubResult,
                 transactionsResult,
+                walletsData,
             ] = await Promise.all([
                 barberSupabase
                     .from('comandas')
@@ -335,7 +341,9 @@ const AccountsReceivable: React.FC = () => {
                     .gte('date', startOfMonth)
                     .lte('date', endOfMonth)
                     .order('date', { ascending: false }),
+                clientWalletRepository.listWallets(tenantId).catch(() => [] as ClientWallet[]),
             ]);
+            setWallets(walletsData);
 
             if (comandasResult.error) throw comandasResult.error;
             const rawComandas = (comandasResult.data || []) as ComandaRecord[];
@@ -865,84 +873,8 @@ const AccountsReceivable: React.FC = () => {
         && (entry.transactionStatus === 'paid' || entry.transactionStatus === 'Pago' || !entry.transactionStatus)
     );
 
-    const openReversalModal = (entry: PaidComandaSettlement) => {
-        setReversalEntry(entry);
-        setReversalType('full_refund');
-        setReversalAmount(entry.reversibleAmount.toFixed(2));
-        setRefundMethod(entry.paymentMethod);
-        setReversalDate(toDateTimeInputValue(new Date()));
-        setReasonType('devolucao_ao_cliente');
-        setReasonNote('');
-        setReversalConfirmed(false);
-        setReversalIdempotencyKey(createReversalKey(entry.id));
-    };
-
-    const closeReversalModal = () => {
-        if (reversingId) return;
-        setReversalEntry(null);
-        setReasonNote('');
-        setReversalConfirmed(false);
-        setReversalIdempotencyKey(null);
-    };
-
-    const handleConfirmReversal = async () => {
-        if (!tenantId || !reversalEntry) {
-            setToast({ message: 'Contexto inválido para reversão financeira.', type: 'error' });
-            return;
-        }
-
-        const amount = Number(String(reversalAmount).replace(',', '.'));
-        const requiresRefundMethod = reversalType === 'full_refund' || reversalType === 'partial_refund';
-        const parsedReversalDate = new Date(reversalDate);
-
-        if (!Number.isFinite(amount) || amount <= 0 || amount > reversalEntry.reversibleAmount) {
-            setToast({ message: 'Informe um valor de reversão válido.', type: 'error' });
-            return;
-        }
-        if (!reversalDate || Number.isNaN(parsedReversalDate.getTime())) {
-            setToast({ message: 'Informe uma data real de reversão válida.', type: 'error' });
-            return;
-        }
-        if (requiresRefundMethod && !refundMethod) {
-            setToast({ message: 'Informe a forma de devolução.', type: 'error' });
-            return;
-        }
-        if (!reasonType || !reasonNote.trim()) {
-            setToast({ message: 'Informe motivo e observação para continuar.', type: 'error' });
-            return;
-        }
-        if (!reversalConfirmed) {
-            setToast({ message: 'Confirme que a transaction original sera preservada.', type: 'error' });
-            return;
-        }
-
-        setReversingId(reversalEntry.id);
-        setToast({ message: 'Registrando reversão financeira...', type: 'info' });
-        try {
-            await reverseFinancialTransaction({
-                tenantId,
-                originalTransactionId: reversalEntry.id,
-                supabase,
-                reversalType,
-                amount,
-                reasonType,
-                reasonNote,
-                refundMethod: requiresRefundMethod ? refundMethod : null,
-                reversalDate: parsedReversalDate.toISOString(),
-                idempotencyKey: reversalIdempotencyKey || createReversalKey(reversalEntry.id),
-            });
-            setToast({ message: 'Reversão financeira registrada com sucesso.', type: 'success' });
-            setReversalEntry(null);
-            setReasonNote('');
-            setReversalConfirmed(false);
-            setReversalIdempotencyKey(null);
-            await fetchData();
-        } catch (error: any) {
-            console.error('Erro ao registrar reversão em contas a receber:', error);
-            setToast({ message: error?.message || 'Não foi possível registrar a reversão financeira. Nenhuma alteração foi aplicada.', type: 'error' });
-        } finally {
-            setReversingId(null);
-        }
+    const handleOpenReversalInCashflow = (entry: PaidComandaSettlement) => {
+        navigate(`/cashflow?tx=${encodeURIComponent(entry.id)}&action=reverse`);
     };
 
     useEffect(() => {
@@ -1036,12 +968,33 @@ const AccountsReceivable: React.FC = () => {
         });
     }, [paidComandaSettlements]);
 
+    const [walletSearch, setWalletSearch] = useState('');
+
+    useEffect(() => {
+        const param = searchParams.get('tab');
+        if (param && ['fiado', 'creditos', 'todos', 'comandas', 'clube', 'recibos', 'historico'].includes(param)) {
+            setActiveTab(param as ActiveTab);
+        }
+    }, [searchParams]);
+
+    const handleTabSelect = (tab: ActiveTab) => {
+        setActiveTab(tab);
+        if (tab === 'fiado') {
+            setSearchParams({});
+        } else {
+            setSearchParams({ tab });
+        }
+    };
+
     const tabbedEntries = useMemo(() => {
         if (activeTab === 'historico') {
             return settledComandas;
         }
         if (activeTab === 'fiado') {
             return receivables.filter(e => e.source === 'comanda' && e.status === 'open');
+        }
+        if (activeTab === 'creditos') {
+            return [];
         }
         if (activeTab === 'todos') {
             return receivables;
@@ -1170,30 +1123,65 @@ const AccountsReceivable: React.FC = () => {
             });
     }, [filteredEntries, sortKey]);
 
+    // Regra de ouro: aba Fiados exibe EXCLUSIVAMENTE clientes devedores (comandas abertas ou saldo negativo de carteira).
+    // Saldos positivos (créditos pré-pagos) pertencem exclusivamente à aba Créditos / Carteira.
+    const positiveCreditWallets = useMemo(() => {
+        return wallets.filter((w) => Number(w.balance || 0) > 0);
+    }, [wallets]);
+
+    const filteredCreditWallets = useMemo(() => {
+        const term = (walletSearch || listFilters.search).trim().toLowerCase();
+        return wallets
+            .filter((w) => Number(w.balance || 0) >= 0 && (Number(w.balance || 0) > 0 || Number(w.credit_limit || 0) > 0 || term.length > 0))
+            .filter((w) => {
+                if (!term) return true;
+                return (
+                    (w.client_name || '').toLowerCase().includes(term) ||
+                    (w.client_phone || '').includes(term)
+                );
+            })
+            .sort((a, b) => Number(b.balance || 0) - Number(a.balance || 0));
+    }, [wallets, walletSearch, listFilters.search]);
+
+    const totalPositiveCredits = useMemo(() => {
+        return positiveCreditWallets.reduce((sum, w) => sum + Number(w.balance || 0), 0);
+    }, [positiveCreditWallets]);
+
     const fiadoDebtorClients = useMemo(() => {
+        const negativeWalletByClientId = new Map<string, ClientWallet>();
+        wallets.forEach((w) => {
+            if (Number(w.balance || 0) < 0) {
+                negativeWalletByClientId.set(w.client_id, w);
+            }
+        });
+
         const groups = new Map<string, {
             groupId: string;
+            clientId?: string | null;
             clientName: string;
             clientPhone: string | null;
             count: number;
             total: number;
+            walletDebt: number;
             lastDate: string;
             oldestDate: string;
             entries: ARListEntry[];
         }>();
 
         receivables.filter(e => e.source === 'comanda' && e.status === 'open').forEach((entry) => {
-            const groupKey = `${entry.clientName || CLIENT_FALLBACK_LABEL}|${entry.clientPhone || ''}`;
+            const groupKey = entry.clientId || `${entry.clientName || CLIENT_FALLBACK_LABEL}|${entry.clientPhone || ''}`;
             const current = groups.get(groupKey);
             const createdAt = entry.dateValue || new Date().toISOString();
 
             if (!current) {
                 groups.set(groupKey, {
                     groupId: groupKey,
+                    clientId: entry.clientId || null,
                     clientName: entry.clientName || CLIENT_FALLBACK_LABEL,
                     clientPhone: entry.clientPhone || null,
                     count: 1,
                     total: Number(entry.amount || 0),
+                    walletDebt: 0,
                     lastDate: createdAt,
                     oldestDate: createdAt,
                     entries: [entry],
@@ -1212,15 +1200,40 @@ const AccountsReceivable: React.FC = () => {
             }
         });
 
-        return Array.from(groups.values()).sort((a, b) => b.total - a.total);
-    }, [receivables]);
+        negativeWalletByClientId.forEach((wallet, clientId) => {
+            const debtAmount = Math.abs(Number(wallet.balance || 0));
+            const existing = groups.get(clientId);
+            if (existing) {
+                existing.walletDebt = debtAmount;
+                return;
+            }
+            const movedAt = wallet.last_movement_at || new Date().toISOString();
+            groups.set(clientId, {
+                groupId: clientId,
+                clientId,
+                clientName: wallet.client_name || CLIENT_FALLBACK_LABEL,
+                clientPhone: wallet.client_phone || null,
+                count: 0,
+                total: debtAmount,
+                walletDebt: debtAmount,
+                lastDate: movedAt,
+                oldestDate: movedAt,
+                entries: [],
+            });
+        });
+
+        return Array.from(groups.values())
+            .filter((g) => g.total > 0)
+            .sort((a, b) => b.total - a.total);
+    }, [receivables, wallets]);
 
     const totalFiadoDebt = useMemo(() => {
         return fiadoDebtorClients.reduce((sum, c) => sum + c.total, 0);
     }, [fiadoDebtorClients]);
 
     const tabs: { key: ActiveTab; label: string; count?: number }[] = [
-        { key: 'fiado', label: 'Fiado / Clientes', count: fiadoDebtorClients.length },
+        { key: 'fiado', label: 'Fiados (Devedores)', count: fiadoDebtorClients.length },
+        { key: 'creditos', label: 'Créditos / Carteira', count: positiveCreditWallets.length },
         { key: 'todos', label: 'Pendentes (Todos)', count: allEntries.length },
         { key: 'comandas', label: 'Comandas Abertas', count: openComandas.length },
         { key: 'clube', label: 'Club dos Chefes', count: clubReceivables.filter(r => !r.transaction_id).length },
@@ -1295,17 +1308,24 @@ const AccountsReceivable: React.FC = () => {
         const openComandasToSettle = consolidatedModalGroup.entries.filter(
             e => e.source === 'comanda' && e.status === 'open'
         );
-        if (openComandasToSettle.length === 0) {
+        const parsedDate = new Date(consolidatedPaymentDate);
+        if (!consolidatedPaymentDate || Number.isNaN(parsedDate.getTime())) {
+            setToast({ message: 'Informe uma data real de recebimento válida.', type: 'error' });
+            return;
+        }
+        const walletDebt = Number(consolidatedModalGroup.walletDebt || 0);
+        if (openComandasToSettle.length === 0 && walletDebt <= 0) {
             setToast({ message: 'Nenhuma comanda aberta elegível para baixa.', type: 'info' });
             setConsolidatedModalGroup(null);
             return;
         }
 
         setIsConsolidating(true);
-        setToast({ message: `Liquidando ${openComandasToSettle.length} comanda(s) no caixa...`, type: 'info' });
+        setToast({ message: `Liquidando pendências de ${consolidatedModalGroup.clientName} no caixa...`, type: 'info' });
 
         try {
             let settledCount = 0;
+            const paymentIso = parsedDate.toISOString();
             for (const entry of openComandasToSettle) {
                 await settleCheckoutComanda({
                     comandaId: entry.id,
@@ -1313,7 +1333,7 @@ const AccountsReceivable: React.FC = () => {
                     supabase,
                     paymentMethod: consolidatedMethod,
                     paidAmount: Number(entry.amount || 0),
-                    paymentDateReal: new Date().toISOString(),
+                    paymentDateReal: paymentIso,
                     source: 'checkout',
                     notes: `Liquidação consolidada fiado · Cliente: ${consolidatedModalGroup.clientName}${consolidatedNotes ? ` · ${consolidatedNotes}` : ''}`,
                     idempotencyKey: createSettlementKey(entry.id),
@@ -1321,8 +1341,22 @@ const AccountsReceivable: React.FC = () => {
                 settledCount++;
             }
 
+            if (walletDebt > 0 && consolidatedModalGroup.clientId) {
+                await clientWalletRepository.recordTransaction({
+                    tenantId,
+                    clientId: consolidatedModalGroup.clientId,
+                    type: 'payment_settlement',
+                    amount: walletDebt,
+                    description: `Quitação de fiado via ${consolidatedMethod.toUpperCase()}`,
+                    paymentMethod: consolidatedMethod,
+                    createdBy: user?.id || null,
+                });
+            }
+
             setToast({
-                message: `Liquidação concluída! ${settledCount} comanda(s) baixada(s) com sucesso no caixa.`,
+                message: settledCount > 0
+                    ? `Liquidação concluída! ${settledCount} comanda(s) baixada(s) na data real do recebimento.`
+                    : `Quitação de fiado registrada com sucesso!`,
                 type: 'success',
             });
             setConsolidatedModalGroup(null);
@@ -1335,6 +1369,56 @@ const AccountsReceivable: React.FC = () => {
             });
         } finally {
             setIsConsolidating(false);
+        }
+    };
+
+    const handleSaveDepositCredit = async () => {
+        if (!tenantId || !depositWallet) return;
+        const amount = Number(String(depositAmount).replace(',', '.'));
+        if (!Number.isFinite(amount) || amount <= 0) {
+            setToast({ message: 'Informe um valor positivo para recarga de crédito.', type: 'error' });
+            return;
+        }
+        setSavingWalletAction(true);
+        try {
+            await clientWalletRepository.recordTransaction({
+                tenantId,
+                clientId: depositWallet.client_id,
+                type: 'credit_deposit',
+                amount,
+                description: 'Recarga de crédito pré-pago em carteira',
+                paymentMethod: 'pix',
+                createdBy: user?.id || null,
+            });
+            setToast({ message: `Crédito de ${formatCurrency(amount)} adicionado para ${depositWallet.client_name || 'cliente'}.`, type: 'success' });
+            setDepositWallet(null);
+            setDepositAmount('');
+            await fetchData();
+        } catch (err: any) {
+            setToast({ message: err?.message || 'Erro ao registrar recarga de crédito.', type: 'error' });
+        } finally {
+            setSavingWalletAction(false);
+        }
+    };
+
+    const handleSaveWalletLimit = async () => {
+        if (!tenantId || !limitWallet) return;
+        const parsedLimit = Number(String(limitInput).replace(',', '.'));
+        if (!Number.isFinite(parsedLimit) || parsedLimit < 0) {
+            setToast({ message: 'Informe um limite de fiado válido (maior ou igual a zero).', type: 'error' });
+            return;
+        }
+        setSavingWalletAction(true);
+        try {
+            await clientWalletRepository.updateCreditLimit(tenantId, limitWallet.client_id, parsedLimit);
+            setToast({ message: `Limite de fiado atualizado para ${formatCurrency(parsedLimit)}.`, type: 'success' });
+            setLimitWallet(null);
+            setLimitInput('');
+            await fetchData();
+        } catch (err: any) {
+            setToast({ message: err?.message || 'Erro ao atualizar limite de fiado.', type: 'error' });
+        } finally {
+            setSavingWalletAction(false);
         }
     };
 
@@ -1484,7 +1568,7 @@ const AccountsReceivable: React.FC = () => {
                 {tabs.map(tab => (
                     <button
                         key={tab.key}
-                        onClick={() => setActiveTab(tab.key)}
+                        onClick={() => handleTabSelect(tab.key)}
                         className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
                             activeTab === tab.key
                                 ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
@@ -1531,7 +1615,110 @@ const AccountsReceivable: React.FC = () => {
                         Buscando comandas abertas, recebíveis do Clube e recibos pendentes do período selecionado.
                     </p>
                 </section>
-            ) : filteredEntries.length === 0 ? (
+            ) : activeTab === 'creditos' ? (
+                <section className="rounded-2xl border border-slate-200/80 dark:border-border-dark bg-white dark:bg-card-dark overflow-hidden">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-border-dark px-5 py-4">
+                        <div>
+                            <h3 className="text-base font-bold text-slate-950 dark:text-white flex items-center gap-2">
+                                <Wallet className="size-4 text-emerald-500" />
+                                Créditos Pré-Pagos &amp; Limites (Carteiras)
+                            </h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                Clientes com saldo positivo ou limite configurado ficam aqui, separados da lista de devedores (Fiados).
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <input
+                                type="text"
+                                value={walletSearch}
+                                onChange={(e) => setWalletSearch(e.target.value)}
+                                placeholder="Buscar cliente..."
+                                className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white focus:outline-none focus:border-primary"
+                            />
+                            <div className="rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                                Total em Créditos: {formatCurrency(totalPositiveCredits)}
+                            </div>
+                        </div>
+                    </div>
+
+                    {filteredCreditWallets.length === 0 ? (
+                        <div className="p-10 text-center">
+                            <Wallet className="size-8 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                            <h4 className="text-sm font-bold text-slate-900 dark:text-white">{EMPTY_STATE_COPY.creditos.title}</h4>
+                            <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">{EMPTY_STATE_COPY.creditos.description}</p>
+                        </div>
+                    ) : (
+                        <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
+                            {filteredCreditWallets.map((wallet) => (
+                                <div
+                                    key={wallet.client_id}
+                                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-border-dark dark:bg-card-dark flex flex-col justify-between"
+                                >
+                                    <div>
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-black text-slate-900 dark:text-white truncate">
+                                                    {wallet.client_name || CLIENT_FALLBACK_LABEL}
+                                                </p>
+                                                <p className="text-xs text-slate-500 mt-0.5">
+                                                    {wallet.client_phone || 'Sem telefone'}
+                                                </p>
+                                            </div>
+                                            {wallet.balance > 0 ? (
+                                                <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-300">
+                                                    Crédito positivo
+                                                </span>
+                                            ) : (
+                                                <span className="rounded-full bg-slate-100 dark:bg-white/10 px-2.5 py-0.5 text-[10px] font-bold uppercase text-slate-600 dark:text-slate-300">
+                                                    Limite ativo
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <div className="mt-3 p-3 rounded-xl bg-slate-50 dark:bg-white/5 space-y-1.5 text-xs">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-slate-500">Saldo disponível:</span>
+                                                <span className={`font-black text-sm ${wallet.balance > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-200'}`}>
+                                                    {formatCurrency(wallet.balance)}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between items-center text-slate-500">
+                                                <span>Limite de fiado:</span>
+                                                <span className="font-bold text-slate-700 dark:text-slate-300">
+                                                    {formatCurrency(wallet.credit_limit)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setDepositWallet(wallet);
+                                                setDepositAmount('');
+                                            }}
+                                            className="flex-1 py-2 px-2.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+                                        >
+                                            + Crédito
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setLimitWallet(wallet);
+                                                setLimitInput(String(wallet.credit_limit || 0));
+                                            }}
+                                            className="py-2 px-3 rounded-lg text-xs font-bold border border-slate-200 dark:border-border-dark text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                                        >
+                                            Ajustar Limite
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </section>
+            ) : (activeTab !== 'fiado' && filteredEntries.length === 0) || (activeTab === 'fiado' && fiadoDebtorClients.length === 0) ? (
                 <section className="rounded-2xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark p-10 text-center">
                     <div className="mx-auto size-12 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400 mb-4">
                         <AlertCircle className="size-6" />
@@ -1541,7 +1728,7 @@ const AccountsReceivable: React.FC = () => {
                         {emptyStateCopy.description}
                     </p>
                     {hasTenantContext && activeTab !== 'todos' && (
-                        <Button type="button" variant="secondary" className="mt-5" onClick={() => setActiveTab('todos')}>
+                        <Button type="button" variant="secondary" className="mt-5" onClick={() => handleTabSelect('todos')}>
                             Ver todas as origens
                         </Button>
                     )}
@@ -1666,7 +1853,10 @@ const AccountsReceivable: React.FC = () => {
                                                     </button>
                                                     <button
                                                         type="button"
-                                                        onClick={() => setConsolidatedModalGroup(client)}
+                                                        onClick={() => {
+                                                            setConsolidatedPaymentDate(toDateTimeInputValue(new Date()));
+                                                            setConsolidatedModalGroup(client);
+                                                        }}
                                                         title="Liquidar todas as comandas pendentes deste cliente com baixa no caixa"
                                                         className="inline-flex items-center justify-center gap-1 py-2 px-3 rounded-lg text-xs font-bold bg-primary hover:brightness-105 text-night transition-all shadow-sm"
                                                     >
@@ -1907,10 +2097,10 @@ const AccountsReceivable: React.FC = () => {
                                                         variant="secondary"
                                                         size="sm"
                                                         className="rounded-xl text-amber-700 dark:text-amber-300"
-                                                        onClick={() => openReversalModal(entry.settlement!)}
-                                                        disabled={Boolean(reversingId)}
+                                                        onClick={() => handleOpenReversalInCashflow(entry.settlement!)}
+                                                        title="Estornos são executados exclusivamente no Fluxo de Caixa."
                                                     >
-                                                        Estornar
+                                                        Estornar no Fluxo
                                                     </Button>
                                                 )}
                                             </td>
@@ -1966,28 +2156,6 @@ const AccountsReceivable: React.FC = () => {
                 onConfirm={handleConfirmCancel}
             />
 
-            <ReversalModal
-                isOpen={Boolean(reversalEntry)}
-                onClose={closeReversalModal}
-                entry={reversalEntry}
-                reversalType={reversalType}
-                onReversalTypeChange={setReversalType}
-                reversalAmount={reversalAmount}
-                onReversalAmountChange={setReversalAmount}
-                refundMethod={refundMethod}
-                onRefundMethodChange={setRefundMethod}
-                reversalDate={reversalDate}
-                onReversalDateChange={setReversalDate}
-                reasonType={reasonType}
-                onReasonTypeChange={setReasonType}
-                reasonNote={reasonNote}
-                onReasonNoteChange={setReasonNote}
-                reversalConfirmed={reversalConfirmed}
-                onReversalConfirmedChange={setReversalConfirmed}
-                isSubmitting={reversingId === reversalEntry?.id}
-                onConfirm={handleConfirmReversal}
-            />
-
             {consolidatedModalGroup && (
                 <Modal
                     isOpen={Boolean(consolidatedModalGroup)}
@@ -2024,12 +2192,24 @@ const AccountsReceivable: React.FC = () => {
                                 onChange={(e) => setConsolidatedMethod(e.target.value as PaymentMethod)}
                                 className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark text-sm font-semibold text-slate-900 dark:text-white"
                             >
-                                <option value="pix">📱 PIX</option>
-                                <option value="dinheiro">💵 Dinheiro</option>
-                                <option value="debito">💳 Cartão de Débito</option>
-                                <option value="credito">💳 Cartão de Crédito</option>
-                                <option value="outro">💰 Outro</option>
+                                <option value="pix">PIX</option>
+                                <option value="cash">Dinheiro</option>
+                                <option value="debit">Cartão de Débito</option>
+                                <option value="credit">Cartão de Crédito</option>
+                                <option value="other">Outro</option>
                             </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
+                                Data Real do Recebimento
+                            </label>
+                            <input
+                                type="datetime-local"
+                                value={consolidatedPaymentDate}
+                                onChange={(e) => setConsolidatedPaymentDate(e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark text-sm font-semibold text-slate-900 dark:text-white [color-scheme:light] dark:[color-scheme:dark]"
+                            />
                         </div>
 
                         <div>
@@ -2063,6 +2243,73 @@ const AccountsReceivable: React.FC = () => {
                                 onClick={handleConsolidatedSettlement}
                             >
                                 {isConsolidating ? 'Baixando...' : 'Confirmar Baixa'}
+                            </Button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+
+            {depositWallet && (
+                <Modal
+                    isOpen={Boolean(depositWallet)}
+                    onClose={() => !savingWalletAction && setDepositWallet(null)}
+                    title={`Adicionar Crédito Pré-Pago — ${depositWallet.client_name || 'Cliente'}`}
+                    maxWidth="sm"
+                >
+                    <div className="space-y-4">
+                        <p className="text-xs text-slate-500">
+                            Saldo atual em créditos: <strong className="text-emerald-600">{formatCurrency(depositWallet.balance)}</strong>
+                        </p>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Valor da Recarga (R$)</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                min="0.01"
+                                value={depositAmount}
+                                onChange={(e) => setDepositAmount(e.target.value)}
+                                placeholder="Ex: 100.00"
+                                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark text-sm text-slate-900 dark:text-white"
+                            />
+                        </div>
+                        <div className="flex gap-2 pt-2">
+                            <Button type="button" variant="secondary" className="flex-1" disabled={savingWalletAction} onClick={() => setDepositWallet(null)}>
+                                Cancelar
+                            </Button>
+                            <Button type="button" variant="primary" className="flex-1" disabled={savingWalletAction} onClick={handleSaveDepositCredit}>
+                                {savingWalletAction ? 'Salvando...' : 'Confirmar Crédito'}
+                            </Button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+
+            {limitWallet && (
+                <Modal
+                    isOpen={Boolean(limitWallet)}
+                    onClose={() => !savingWalletAction && setLimitWallet(null)}
+                    title={`Ajustar Limite de Fiado — ${limitWallet.client_name || 'Cliente'}`}
+                    maxWidth="sm"
+                >
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Limite Liberado (R$)</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={limitInput}
+                                onChange={(e) => setLimitInput(e.target.value)}
+                                placeholder="Ex: 250.00"
+                                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark text-sm text-slate-900 dark:text-white"
+                            />
+                        </div>
+                        <div className="flex gap-2 pt-2">
+                            <Button type="button" variant="secondary" className="flex-1" disabled={savingWalletAction} onClick={() => setLimitWallet(null)}>
+                                Cancelar
+                            </Button>
+                            <Button type="button" variant="primary" className="flex-1" disabled={savingWalletAction} onClick={handleSaveWalletLimit}>
+                                {savingWalletAction ? 'Salvando...' : 'Salvar Limite'}
                             </Button>
                         </div>
                     </div>

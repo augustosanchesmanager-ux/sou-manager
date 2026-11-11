@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
 import { supabase } from '../../services/supabaseClient';
-import { settleCheckoutComanda } from '../../src/lib/finance/settlement';
+import { settleCheckoutComanda, markComandaAsFiado } from '../../src/lib/finance/settlement';
 import { formatBrlCurrency } from '../../src/utils/checkoutQuickPay';
 import {
   playCheckoutSuccessChime,
@@ -185,39 +185,28 @@ export const QuickCheckoutModal: React.FC<QuickCheckoutModalProps> = ({
     setError(null);
 
     try {
-      // 1. Registra no livro razão da conta do cliente (débito/fiado autorizado com PIN)
+      // 1. Marca a comanda como fiado mantendo status = 'open' (sem gerar caixa nem comissão antes do pagamento — ADR-045)
+      await markComandaAsFiado({
+        comandaId: comanda.id,
+        tenantId,
+        supabase,
+        note: `Comanda #${shortId} definida como Fiado (Aut. PIN Gestor)`,
+      });
+
+      // 2. Registra movimentação de controle de limite na carteira do cliente
       await clientWalletRepository.recordTransaction({
         tenantId,
         clientId: comanda.client_id,
         type: 'debit_comanda',
         amount: comanda.total,
-        description: `Comanda #${shortId} fechada na conta (A Prazo / Aut. PIN Gestor)`,
+        description: `Comanda #${shortId} definida como Fiado (Aut. PIN Gestor)`,
         comandaId: comanda.id,
-        paymentMethod: 'account',
-      });
-
-      // 2. Liquida comanda no backend financeiro
-      await settleCheckoutComanda({
-        comandaId: comanda.id,
-        tenantId,
-        supabase,
-        paymentMethod: 'other',
-        paidAmount: comanda.total,
-        recordComandaPayment: true,
-        source: 'balcao_express_conta_cliente',
-      });
-
-      // 3. Emissão fiscal desacoplada
-      triggerAsyncFiscalEmission({
-        tenantId,
-        comandaId: comanda.id,
-        valorTotal: comanda.total,
-        clientName: comanda.client_name || undefined,
+        paymentMethod: 'fiado',
       });
 
       playCheckoutSuccessChime();
       triggerHapticFeedback([40, 60, 40]);
-      onSuccess(comanda.id, 'Na Conta (Fiado)');
+      onSuccess(comanda.id, 'Fiado (Contas a Receber)');
       onClose();
     } catch (err: any) {
       console.error('[QuickCheckoutModal] Erro ao fechar na conta do cliente:', err);

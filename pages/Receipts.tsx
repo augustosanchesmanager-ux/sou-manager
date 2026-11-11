@@ -1,14 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
 import { AuditAdjustmentButton } from '../components/audit';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
-import {
-    createReversalKey,
-    reverseFinancialTransaction,
-    type FinancialReversalType,
-} from '../src/lib/finance/reversal';
 
 type ReversalStatus = 'none' | 'partial' | 'full';
 
@@ -51,17 +47,6 @@ interface FinancialReversalRecord {
     created_at?: string | null;
 }
 
-type ReversalReason =
-    | 'baixa_indevida'
-    | 'cobranca_duplicada'
-    | 'devolucao_ao_cliente'
-    | 'erro_forma_pagamento'
-    | 'erro_operacional'
-    | 'cancelamento_administrativo'
-    | 'cliente_duplicado'
-    | 'outro';
-
-type RefundMethod = 'pix' | 'cash' | 'credit' | 'debit' | 'other';
 type ActionMessage = { type: 'success' | 'error' | 'info'; message: string };
 
 const getReversalTypeLabel = (value?: string | null) => {
@@ -95,26 +80,8 @@ const getInitials = (value: string) =>
         .map((part) => part[0]?.toUpperCase())
         .join('') || 'SM';
 
-const toDateTimeInputValue = (date: Date) => {
-    const offsetMs = date.getTimezoneOffset() * 60000;
-    return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
-};
-
-const normalizeRefundMethod = (value?: string | null): RefundMethod => {
-    const normalized = String(value || '').trim().toLowerCase();
-
-    if (['pix', 'cash', 'credit', 'debit', 'other'].includes(normalized)) {
-        return normalized as RefundMethod;
-    }
-    if (normalized.includes('dinheiro') || normalized.includes('cash')) return 'cash';
-    if (normalized.includes('credito') || normalized.includes('credit') || normalized.includes('cartao')) return 'credit';
-    if (normalized.includes('debito') || normalized.includes('debit')) return 'debit';
-    if (normalized.includes('pix')) return 'pix';
-
-    return 'pix';
-};
-
 const Receipts: React.FC = () => {
+    const navigate = useNavigate();
     const { user, tenantId, accessRole, canAccessSuperAdmin } = useAuth();
     const [receipts, setReceipts] = useState<Receipt[]>([]);
     const [loading, setLoading] = useState(true);
@@ -131,17 +98,6 @@ const Receipts: React.FC = () => {
     // Modal / View State
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
-    const [reversalReceipt, setReversalReceipt] = useState<Receipt | null>(null);
-    const [reversalType, setReversalType] = useState<FinancialReversalType>('full_refund');
-    const [reversalAmount, setReversalAmount] = useState('');
-    const [refundMethod, setRefundMethod] = useState<RefundMethod>('pix');
-    const [reversalDate, setReversalDate] = useState(() => toDateTimeInputValue(new Date()));
-    const [reasonType, setReasonType] = useState<ReversalReason>('devolucao_ao_cliente');
-    const [reasonNote, setReasonNote] = useState('');
-    const [reversalConfirmed, setReversalConfirmed] = useState(false);
-    const [reversalIdempotencyKey, setReversalIdempotencyKey] = useState<string | null>(null);
-    const [reversingId, setReversingId] = useState<string | null>(null);
-    const [reversalError, setReversalError] = useState('');
     
     // Create Receipt Modal
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -324,94 +280,8 @@ const Receipts: React.FC = () => {
         && receipt.reversibleAmount > 0
     );
 
-    const openReversalModal = (receipt: Receipt) => {
-        setReversalReceipt(receipt);
-        setReversalType('full_refund');
-        setReversalAmount(receipt.reversibleAmount.toFixed(2));
-        setRefundMethod(normalizeRefundMethod(receipt.paymentMethod));
-        setReversalDate(toDateTimeInputValue(new Date()));
-        setReasonType('devolucao_ao_cliente');
-        setReasonNote('');
-        setReversalConfirmed(false);
-        setReversalError('');
-        setReversalIdempotencyKey(createReversalKey(receipt.id));
-    };
-
-    const closeReversalModal = () => {
-        if (reversingId) return;
-        setReversalReceipt(null);
-        setReasonNote('');
-        setReversalConfirmed(false);
-        setReversalError('');
-        setReversalIdempotencyKey(null);
-    };
-
-    const handleConfirmReversal = async () => {
-        if (!tenantId || !reversalReceipt) {
-            setReversalError('Contexto invalido para reversao financeira.');
-            return;
-        }
-
-        const amount = Number(String(reversalAmount).replace(',', '.'));
-        const requiresRefundMethod = reversalType === 'full_refund' || reversalType === 'partial_refund';
-        const parsedReversalDate = new Date(reversalDate);
-
-        if (!Number.isFinite(amount) || amount <= 0 || amount > reversalReceipt.reversibleAmount) {
-            setReversalError('Informe um valor de reversao valido.');
-            return;
-        }
-        if (!reversalDate || Number.isNaN(parsedReversalDate.getTime())) {
-            setReversalError('Informe uma data real de reversao valida.');
-            return;
-        }
-        if (requiresRefundMethod && !refundMethod) {
-            setReversalError('Informe a forma de devolucao.');
-            return;
-        }
-        if (!reasonType || !reasonNote.trim()) {
-            setReversalError('Informe motivo e observação para continuar.');
-            return;
-        }
-        if (!reversalConfirmed) {
-            setReversalError('Confirme que o recibo e a transaction original serao preservados.');
-            return;
-        }
-
-        setReversingId(reversalReceipt.id);
-        setReversalError('');
-        try {
-            await reverseFinancialTransaction({
-                tenantId,
-                originalTransactionId: reversalReceipt.id,
-                supabase,
-                reversalType,
-                amount,
-                reasonType,
-                reasonNote,
-                refundMethod: requiresRefundMethod ? refundMethod : null,
-                reversalDate: parsedReversalDate.toISOString(),
-                idempotencyKey: reversalIdempotencyKey || createReversalKey(reversalReceipt.id),
-            });
-            setReversalReceipt(null);
-            setReasonNote('');
-            setReversalConfirmed(false);
-            setReversalError('');
-            setReversalIdempotencyKey(null);
-            await fetchReceipts();
-            setActionMessage({
-                type: 'success',
-                message: 'Reversao financeira registrada com sucesso. O recibo original foi preservado.',
-            });
-        } catch (error: any) {
-            console.error('Erro ao registrar reversao pelo recibo:', error);
-            setReversalError(error?.message || 'Não foi possível registrar a reversão financeira. Nenhuma alteração foi aplicada.');
-            setActionMessage({
-                type: 'error',
-                message: 'Não foi possível registrar a reversão financeira. Nenhuma alteração foi aplicada.',
-            });
-        } finally {
-            setReversingId(null);
-        }
+    const openReversalInCashflow = (receipt: Receipt) => {
+        navigate(`/cashflow?tx=${encodeURIComponent(receipt.id)}&action=reverse`);
     };
 
     const handlePrint = () => {
@@ -709,10 +579,9 @@ const Receipts: React.FC = () => {
                                         <div className="flex items-center justify-end gap-0.5 sm:gap-1">
                                             {isReversalEligible(receipt) && (
                                                 <button
-                                                    onClick={() => openReversalModal(receipt)}
+                                                    onClick={() => openReversalInCashflow(receipt)}
                                                     className="p-1.5 sm:p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10 dark:hover:text-amber-400 rounded-lg transition-colors"
-                                                    title="Estornar"
-                                                    disabled={Boolean(reversingId)}
+                                                    title="Estornar no Fluxo de Caixa"
                                                 >
                                                     <span className="material-symbols-outlined text-[20px]">undo</span>
                                                 </button>
@@ -967,162 +836,6 @@ const Receipts: React.FC = () => {
                         Imprimir Recibo
                     </button>
                 </div>
-            </Modal>
-
-            {/* Reversal Modal */}
-            <Modal
-                isOpen={!!reversalReceipt}
-                onClose={closeReversalModal}
-                title="Estorno / devolucao auditada"
-                maxWidth="lg"
-            >
-                {reversalReceipt && (
-                    <div className="space-y-5">
-                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
-                            <p className="font-bold">O recibo e a transaction original não serão apagados. O sistema criará uma movimentação reversa auditada.</p>
-                            <p className="mt-2">Use estorno apenas quando houver erro de baixa, devolucao ao cliente ou correcao financeira autorizada.</p>
-                        </div>
-
-                        {reversalError && (
-                            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
-                                {reversalError}
-                            </div>
-                        )}
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div className="rounded-xl border border-slate-200 dark:border-border-dark p-4">
-                                <p className="text-xs font-bold uppercase text-slate-500">Recibo original</p>
-                                <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">{reversalReceipt.number}</p>
-                                <p className="mt-1 text-xs text-slate-500">{reversalReceipt.name}</p>
-                            </div>
-                            <div className="rounded-xl border border-slate-200 dark:border-border-dark p-4">
-                                <p className="text-xs font-bold uppercase text-slate-500">Valor original</p>
-                                <p className="mt-2 text-lg font-black text-emerald-600 dark:text-emerald-400">
-                                    {reversalReceipt.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                </p>
-                                {reversalReceipt.reversedAmount > 0 && (
-                                    <p className="mt-2 text-xs font-semibold text-amber-600 dark:text-amber-300">
-                                        Ja revertido: {reversalReceipt.reversedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                    </p>
-                                )}
-                                <p className="mt-1 text-xs font-semibold text-slate-500">
-                                    Saldo reversivel: {reversalReceipt.reversibleAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <label className="space-y-2">
-                                <span className="text-xs font-bold uppercase text-slate-500">Tipo de reversao</span>
-                                <select
-                                    value={reversalType}
-                                    onChange={(event) => setReversalType(event.target.value as FinancialReversalType)}
-                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-primary dark:border-border-dark dark:bg-card-dark dark:text-white"
-                                >
-                                    <option value="wrong_settlement">Baixa indevida</option>
-                                    <option value="full_refund">Devolucao total</option>
-                                    <option value="partial_refund">Devolucao parcial</option>
-                                </select>
-                            </label>
-
-                            <label className="space-y-2">
-                                <span className="text-xs font-bold uppercase text-slate-500">Valor a reverter</span>
-                                <input
-                                    type="number"
-                                    min="0.01"
-                                    max={reversalReceipt.reversibleAmount}
-                                    step="0.01"
-                                    value={reversalAmount}
-                                    onChange={(event) => setReversalAmount(event.target.value)}
-                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-primary dark:border-border-dark dark:bg-card-dark dark:text-white"
-                                />
-                            </label>
-
-                            <label className="space-y-2">
-                                <span className="text-xs font-bold uppercase text-slate-500">Forma de devolucao</span>
-                                <select
-                                    value={refundMethod}
-                                    onChange={(event) => setRefundMethod(event.target.value as RefundMethod)}
-                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-primary dark:border-border-dark dark:bg-card-dark dark:text-white"
-                                >
-                                    <option value="pix">Pix</option>
-                                    <option value="cash">Dinheiro</option>
-                                    <option value="credit">Cartao de credito</option>
-                                    <option value="debit">Cartao de debito</option>
-                                    <option value="other">Outro</option>
-                                </select>
-                            </label>
-
-                            <label className="space-y-2">
-                                <span className="text-xs font-bold uppercase text-slate-500">Data real da reversao</span>
-                                <input
-                                    type="datetime-local"
-                                    value={reversalDate}
-                                    onChange={(event) => setReversalDate(event.target.value)}
-                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-primary dark:border-border-dark dark:bg-card-dark dark:text-white [color-scheme:light] dark:[color-scheme:dark]"
-                                />
-                            </label>
-
-                            <label className="space-y-2 md:col-span-2">
-                                <span className="text-xs font-bold uppercase text-slate-500">Motivo</span>
-                                <select
-                                    value={reasonType}
-                                    onChange={(event) => setReasonType(event.target.value as ReversalReason)}
-                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-primary dark:border-border-dark dark:bg-card-dark dark:text-white"
-                                >
-                                    <option value="baixa_indevida">Baixa indevida</option>
-                                    <option value="cobranca_duplicada">Cobranca duplicada</option>
-                                    <option value="devolucao_ao_cliente">Devolucao ao cliente</option>
-                                    <option value="erro_forma_pagamento">Erro de forma de pagamento</option>
-                                    <option value="erro_operacional">Erro operacional</option>
-                                    <option value="cancelamento_administrativo">Cancelamento administrativo</option>
-                                    <option value="cliente_duplicado">Cliente duplicado</option>
-                                    <option value="outro">Outro</option>
-                                </select>
-                            </label>
-
-                            <label className="space-y-2 md:col-span-2">
-                                <span className="text-xs font-bold uppercase text-slate-500">Observação obrigatória</span>
-                                <textarea
-                                    value={reasonNote}
-                                    onChange={(event) => setReasonNote(event.target.value)}
-                                    rows={3}
-                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-primary dark:border-border-dark dark:bg-card-dark dark:text-white"
-                                    placeholder="Descreva o contexto do estorno/devolucao para auditoria."
-                                />
-                            </label>
-                        </div>
-
-                        <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4 text-sm text-slate-600 dark:border-border-dark dark:text-slate-300">
-                            <input
-                                type="checkbox"
-                                checked={reversalConfirmed}
-                                onChange={(event) => setReversalConfirmed(event.target.checked)}
-                                className="mt-1 size-4 rounded border-slate-300 text-primary focus:ring-primary"
-                            />
-                            <span>
-                                Confirmo que esta ação criará uma movimentação reversa auditada e preservará o recibo e a transaction original.
-                            </span>
-                        </label>
-
-                        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 border-t border-slate-200 pt-4 dark:border-border-dark">
-                            <button
-                                onClick={closeReversalModal}
-                                disabled={Boolean(reversingId)}
-                                className="px-6 py-2.5 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={handleConfirmReversal}
-                                disabled={reversingId === reversalReceipt.id}
-                                className="px-6 py-2.5 rounded-lg text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 transition-colors disabled:opacity-50"
-                            >
-                                {reversingId === reversalReceipt.id ? 'Registrando...' : 'Confirmar estorno'}
-                            </button>
-                        </div>
-                    </div>
-                )}
             </Modal>
 
             {/* Create Receipt Modal */}

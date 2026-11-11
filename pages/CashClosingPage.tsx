@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { AlertTriangle, Users } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { AlertTriangle, Building2, Users } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import Toast from '../components/Toast';
@@ -36,6 +37,7 @@ import { canPerformServices } from '../src/lib/staff/roles';
 import BarberAdvanceModal from '../components/payroll/BarberAdvanceModal';
 
 const CashClosingPage: React.FC = () => {
+    const navigate = useNavigate();
     const { tenantId, user } = useAuth();
     const hasTenantContext = Boolean(tenantId);
 
@@ -399,8 +401,16 @@ const CashClosingPage: React.FC = () => {
                 onOpenCash={closing.openCashRegister}
             />
 
-            {/* Audit Button */}
-            <div className="flex justify-end">
+            {/* Audit & EOD Bank Reconciliation Bar */}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+                <button
+                    type="button"
+                    onClick={() => navigate(`/bank-reconciliation?date=${encodeURIComponent(closing.filterDate)}`)}
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3.5 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                >
+                    <Building2 size={14} className="text-teal-600 dark:text-teal-400" />
+                    Conciliar Banco do Dia
+                </button>
                 <AuditAdjustmentButton
                     context={{
                         sourceType: 'cash_closing',

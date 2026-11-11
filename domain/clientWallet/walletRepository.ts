@@ -6,6 +6,7 @@
  */
 
 import { getClientForTable } from '../../services/supabaseClient';
+import { hasSupabaseEnv } from '../../src/lib/supabase/client';
 import type {
   ClientWallet,
   ClientWalletTransaction,
@@ -13,9 +14,14 @@ import type {
 } from './types';
 import { calculateNewBalance } from './walletEngine';
 
-// Armazenamento em memória para testes e modo offline/demo
+// Armazenamento em memória exclusivo para testes unitários e modo demo sem Supabase
 const inMemoryWallets = new Map<string, ClientWallet>();
 const inMemoryTransactions = new Map<string, ClientWalletTransaction[]>();
+
+const isDemoOrTestMode = (): boolean =>
+  !hasSupabaseEnv ||
+  import.meta.env.MODE === 'test' ||
+  (typeof process !== 'undefined' && Boolean(process.env?.VITEST));
 
 export class ClientWalletRepository {
   /**
@@ -46,6 +52,19 @@ export class ClientWalletRepository {
     const key = this.getWalletKey(tenantId, clientId);
     if (inMemoryWallets.has(key)) {
       return inMemoryWallets.get(key)!;
+    }
+
+    if (isDemoOrTestMode()) {
+      const demoWallet: ClientWallet = {
+        client_id: clientId,
+        tenant_id: tenantId,
+        client_name: 'Cliente',
+        client_phone: '',
+        balance: 0,
+        credit_limit: 0,
+      };
+      inMemoryWallets.set(key, demoWallet);
+      return demoWallet;
     }
 
     try {
@@ -106,36 +125,65 @@ export class ClientWalletRepository {
    */
   async listWallets(tenantId: string): Promise<ClientWallet[]> {
     if (!tenantId) return [];
+    if (isDemoOrTestMode()) {
+      return Array.from(inMemoryWallets.values()).filter((w) => w.tenant_id === tenantId);
+    }
 
     try {
       const client = getClientForTable('clients');
-      const { data: clientsData, error } = await client
-        .from('clients')
-        .select('id, name, phone')
-        .eq('tenant_id', tenantId)
-        .order('name');
+      const [clientsResult, walletsResult] = await Promise.all([
+        client
+          .from('clients')
+          .select('id, name, phone')
+          .eq('tenant_id', tenantId)
+          .order('name'),
+        client
+          .from('client_wallets')
+          .select('client_id, balance, credit_limit, last_movement_at')
+          .eq('tenant_id', tenantId),
+      ]);
 
-      if (error || !clientsData) {
+      if (clientsResult.error || !clientsResult.data) {
+        if (!isDemoOrTestMode() && clientsResult.error) throw clientsResult.error;
         return Array.from(inMemoryWallets.values()).filter((w) => w.tenant_id === tenantId);
       }
 
+      const dbWalletsByClient = new Map<string, {
+        balance: number;
+        credit_limit: number;
+        last_movement_at?: string;
+      }>();
+
+      if (!walletsResult.error && Array.isArray(walletsResult.data)) {
+        for (const row of walletsResult.data as Array<Record<string, unknown>>) {
+          dbWalletsByClient.set(String(row.client_id), {
+            balance: Number(row.balance || 0),
+            credit_limit: Number(row.credit_limit || 0),
+            last_movement_at: row.last_movement_at ? String(row.last_movement_at) : undefined,
+          });
+        }
+      }
+
       const wallets: ClientWallet[] = [];
-      for (const c of clientsData) {
+      for (const c of clientsResult.data) {
         const key = this.getWalletKey(tenantId, c.id);
+        const dbRow = dbWalletsByClient.get(c.id);
         const existing = inMemoryWallets.get(key);
+        const resolved = dbRow ?? existing;
         wallets.push({
           client_id: c.id,
           tenant_id: tenantId,
           client_name: c.name,
           client_phone: c.phone || '',
-          balance: existing ? existing.balance : 0,
-          credit_limit: existing ? existing.credit_limit : 0,
-          last_movement_at: existing?.last_movement_at,
+          balance: resolved ? resolved.balance : 0,
+          credit_limit: resolved ? resolved.credit_limit : 0,
+          last_movement_at: resolved?.last_movement_at,
         });
       }
 
       return wallets;
-    } catch {
+    } catch (err) {
+      if (!isDemoOrTestMode()) throw err;
       return Array.from(inMemoryWallets.values()).filter((w) => w.tenant_id === tenantId);
     }
   }
@@ -150,9 +198,13 @@ export class ClientWalletRepository {
     const key = this.getWalletKey(tenantId, clientId);
     inMemoryWallets.set(key, wallet);
 
+    if (isDemoOrTestMode()) {
+      return wallet;
+    }
+
     try {
       const client = getClientForTable('clients');
-      await client
+      const { error } = await client
         .from('client_wallets')
         .upsert({
           tenant_id: tenantId,
@@ -160,8 +212,10 @@ export class ClientWalletRepository {
           credit_limit: wallet.credit_limit,
           balance: wallet.balance,
           updated_at: new Date().toISOString(),
-        });
+        }, { onConflict: 'tenant_id,client_id' });
+      if (error && !isDemoOrTestMode()) throw error;
     } catch (err) {
+      if (!isDemoOrTestMode()) throw err;
       console.warn('[ClientWalletRepository] Aviso ao persistir limite:', err);
     }
 
@@ -194,7 +248,7 @@ export class ClientWalletRepository {
     inMemoryWallets.set(key, wallet);
 
     const tx: ClientWalletTransaction = {
-      id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: crypto.randomUUID(),
       tenant_id: tenantId,
       client_id: clientId,
       type,
@@ -212,10 +266,13 @@ export class ClientWalletRepository {
     clientTxs.unshift(tx);
     inMemoryTransactions.set(key, clientTxs);
 
+    if (isDemoOrTestMode()) {
+      return tx;
+    }
+
     try {
       const client = getClientForTable('clients');
-      // Atualiza carteira
-      await client
+      const { error: walletError } = await client
         .from('client_wallets')
         .upsert({
           tenant_id: tenantId,
@@ -224,10 +281,11 @@ export class ClientWalletRepository {
           credit_limit: wallet.credit_limit,
           last_movement_at: wallet.last_movement_at,
           updated_at: wallet.last_movement_at,
-        });
+        }, { onConflict: 'tenant_id,client_id' });
+      if (walletError && !isDemoOrTestMode()) throw walletError;
 
       // Grava transação
-      await client
+      const { error: txError } = await client
         .from('client_wallet_transactions')
         .insert({
           id: tx.id,
@@ -243,7 +301,9 @@ export class ClientWalletRepository {
           created_at: tx.created_at,
           created_by: tx.created_by,
         });
+      if (txError && !isDemoOrTestMode()) throw txError;
     } catch (err) {
+      if (!isDemoOrTestMode()) throw err;
       console.warn('[ClientWalletRepository] Transação mantida com segurança:', err);
     }
 
@@ -257,6 +317,9 @@ export class ClientWalletRepository {
     const key = this.getWalletKey(tenantId, clientId);
     if (inMemoryTransactions.has(key)) {
       return inMemoryTransactions.get(key)!;
+    }
+    if (isDemoOrTestMode()) {
+      return [];
     }
 
     try {

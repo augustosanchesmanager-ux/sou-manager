@@ -15,6 +15,11 @@ export interface Comanda {
   status: string;
   total: number;
   payment_method: string | null;
+  /** Explicit fiado marker (ADR-045): open comanda awaiting payment on receipt date. */
+  is_fiado?: boolean;
+  fiado_marked_at?: string | null;
+  fiado_due_date?: string | null;
+  fiado_note?: string | null;
   /** NOT a comandas column. Notes live on transactions/closure_note. */
   notes?: string | null;
   created_at: string;
@@ -45,6 +50,10 @@ export interface UpdateComandaInput {
   cancelled_by_user_id?: string | null;
   hidden_from_financial?: boolean;
   closure_note?: string | null;
+  is_fiado?: boolean;
+  fiado_marked_at?: string | null;
+  fiado_due_date?: string | null;
+  fiado_note?: string | null;
 }
 
 export interface ComandaListOptions {

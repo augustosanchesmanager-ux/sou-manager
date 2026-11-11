@@ -212,3 +212,44 @@ export const settleCheckoutComanda = async ({
     message: result.message || 'Baixa financeira registrada com sucesso.',
   };
 };
+
+export interface MarkComandaAsFiadoInput {
+  comandaId: string;
+  tenantId: string;
+  supabase: any;
+  dueDate?: string | null;
+  note?: string | null;
+}
+
+/**
+ * Marks an open comanda as fiado (ADR-045) without settling or emitting
+ * cash/commission events until actual payment receipt in Accounts Receivable.
+ */
+export const markComandaAsFiado = async ({
+  comandaId,
+  tenantId,
+  supabase,
+  dueDate,
+  note,
+}: MarkComandaAsFiadoInput): Promise<void> => {
+  if (!comandaId || !tenantId || !supabase) {
+    throw new Error('Dados obrigatórios ausentes para marcar comanda como fiado.');
+  }
+
+  const { error } = await withSettlementTimeout<any>(
+    supabase.rpc('mark_comanda_as_fiado', {
+      p_tenant_id: tenantId,
+      p_comanda_id: comandaId,
+      p_due_date: dueDate ?? null,
+      p_note: note ?? null,
+    }),
+  );
+
+  if (error) {
+    logSupabaseError('[settlement] mark_comanda_as_fiado failed', error, {
+      comandaId,
+      tenantId,
+    });
+    throw new Error(error.message || 'Não foi possível definir a comanda como fiado.');
+  }
+};
