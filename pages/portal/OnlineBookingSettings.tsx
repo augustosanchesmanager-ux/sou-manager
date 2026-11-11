@@ -139,6 +139,7 @@ const OnlineBookingSettings: React.FC = () => {
   const [startHour, setStartHour] = useState<number>(7);
   const [endHour, setEndHour] = useState<number>(20);
   const [appointmentIntervalMinutes, setAppointmentIntervalMinutes] = useState<number>(30);
+  const [minBookingNoticeMinutes, setMinBookingNoticeMinutes] = useState<number>(30);
   const [instagramInput, setInstagramInput] = useState<string>('');
   const [whatsappInput, setWhatsappInput] = useState<string>('');
   const [mapsInput, setMapsInput] = useState<string>('');
@@ -206,6 +207,12 @@ const OnlineBookingSettings: React.FC = () => {
           legacyData.appointment_interval_minutes > 0
         ) {
           setAppointmentIntervalMinutes(legacyData.appointment_interval_minutes);
+        }
+        if (
+          typeof legacyData.min_booking_notice_minutes === 'number' &&
+          legacyData.min_booking_notice_minutes >= 0
+        ) {
+          setMinBookingNoticeMinutes(legacyData.min_booking_notice_minutes);
         }
       }
 
@@ -404,6 +411,7 @@ const OnlineBookingSettings: React.FC = () => {
         work_start_time: workStartTime,
         work_end_time: workEndTime,
         appointment_interval_minutes: appointmentIntervalMinutes,
+        min_booking_notice_minutes: minBookingNoticeMinutes,
       });
 
       setCustomSlug(saved.slug || sanitizedSlug);
@@ -1093,6 +1101,56 @@ const OnlineBookingSettings: React.FC = () => {
                       return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
                     })()
                   }...). Serviços mais longos (como barba ou combos) são alocados de forma contígua sem colidir com outros agendamentos.
+                </span>
+              </div>
+            </div>
+
+            {/* Antecedência Mínima para Reserva */}
+            <div className="pt-5 border-t border-slate-100 dark:border-white/5 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <label className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary text-lg">bolt</span>
+                    Antecedência Mínima para Reserva
+                  </label>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Define quanto tempo antes o cliente pode reservar um horário pelo link público.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 dark:bg-surface-dark border border-slate-200 dark:border-border-dark rounded-xl">
+                  {[
+                    { value: 0, label: '0 min (Imediato)' },
+                    { value: 5, label: '5 min' },
+                    { value: 10, label: '10 min' },
+                    { value: 15, label: '15 min' },
+                    { value: 30, label: '30 min' },
+                  ].map((option) => {
+                    const isSelected = minBookingNoticeMinutes === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setMinBookingNoticeMinutes(option.value)}
+                        disabled={saving}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-primary text-white shadow-sm'
+                            : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-white/5'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-white/[0.02] p-3 rounded-xl border border-slate-200/60 dark:border-white/5 flex items-start gap-2">
+                <span className="material-symbols-outlined text-amber-500 text-sm mt-0.5 shrink-0">info</span>
+                <span>
+                  {minBookingNoticeMinutes === 0
+                    ? 'No modo imediato (0 min), se o profissional estiver livre antes do próximo ponto da grade fixa, o sistema injeta o próximo horário arredondado de 5 em 5 min mantendo a grade futura intacta.'
+                    : `O cliente só verá horários com pelo menos ${minBookingNoticeMinutes} minutos de antecedência a partir do momento da consulta (com encaixe imediato de 5 em 5 min quando livre antes da grade fixa).`}
                 </span>
               </div>
             </div>

@@ -16,9 +16,23 @@ import {
   Sunrise,
   Sun,
   Moon,
+  MessageCircle,
 } from 'lucide-react';
 import type { PublicSlot, TimePeriodGroup } from '../hooks/types';
 import { groupSlotsByPeriod } from '../hooks/usePublicBooking';
+
+export function buildFitInWhatsAppMessage(params: {
+  services: string;
+  staff: string;
+  date: string;
+  clientName: string;
+}): string {
+  const formattedDate = /^\d{4}-\d{2}-\d{2}$/.test(params.date)
+    ? params.date.split('-').reverse().join('/')
+    : params.date || 'hoje';
+  const cleanClient = params.clientName.trim() || 'Cliente';
+  return `Olá! Gostaria de verificar um encaixe para ${params.services} com ${params.staff} no dia ${formattedDate}. Meu nome é ${cleanClient}.`;
+}
 
 interface DateTimeBookingModalProps {
   isOpen: boolean;
@@ -41,6 +55,7 @@ interface DateTimeBookingModalProps {
   formatPriceBRL: (price: number) => string;
   formatDuration: (minutes: number) => string;
   formatSlotTime: (iso: string) => string;
+  whatsappFitInUrl?: string | null;
 }
 
 export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
@@ -64,6 +79,7 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
   formatPriceBRL,
   formatDuration,
   formatSlotTime,
+  whatsappFitInUrl,
 }) => {
   const periodGroups = useMemo(() => {
     if (groupedSlots && groupedSlots.length > 0) {
@@ -469,6 +485,20 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {selectedDate && !isLoadingSlots && whatsappFitInUrl && (
+              <div className="pt-2">
+                <a
+                  href={whatsappFitInUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 px-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-neutral-300 hover:text-emerald-300 text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
+                >
+                  <MessageCircle size={14} className="text-emerald-400 flex-shrink-0" />
+                  <span>Solicitar encaixe via WhatsApp</span>
+                </a>
               </div>
             )}
           </div>

@@ -97,7 +97,9 @@ export const AboutUsTab: React.FC<AboutUsTabProps> = ({
             <ShieldCheck className="size-4 text-amber-400 flex-shrink-0 mt-0.5" />
             <span>
               <strong className="text-white">Antecedência mínima:</strong>{' '}
-              {tenant.booking_rules?.min_booking_notice_minutes || 30} minutos antes do horário desejado.
+              {(tenant.booking_rules?.min_booking_notice_minutes ?? 30) === 0
+                ? 'Agendamento imediato (sem antecedência mínima).'
+                : `${tenant.booking_rules?.min_booking_notice_minutes ?? 30} minutos antes do horário desejado.`}
             </span>
           </div>
 

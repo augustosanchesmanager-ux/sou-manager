@@ -29,6 +29,7 @@ export interface TenantSettings {
   timezone: string;
   currency: string;
   appointment_interval_minutes: number;
+  min_booking_notice_minutes?: number | null;
   default_appointment_duration_minutes: number;
   booking_horizon_days: number;
   staff_owned_schedule: boolean;
@@ -100,6 +101,7 @@ export interface UpsertOnlineBookingSettingsInput {
   work_start_time?: string;
   work_end_time?: string;
   appointment_interval_minutes?: number | null;
+  min_booking_notice_minutes?: number | null;
 }
 
 export interface ShowcaseProductItem {

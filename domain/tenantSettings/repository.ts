@@ -87,6 +87,8 @@ const toTenantSettings = (row: Record<string, unknown>): TenantSettings => ({
   timezone: (row.timezone as string) ?? 'America/Sao_Paulo',
   currency: (row.currency as string) ?? 'BRL',
   appointment_interval_minutes: (row.appointment_interval_minutes as number) ?? 30,
+  min_booking_notice_minutes:
+    typeof row.min_booking_notice_minutes === 'number' ? row.min_booking_notice_minutes : 30,
   default_appointment_duration_minutes: (row.default_appointment_duration_minutes as number) ?? 60,
   booking_horizon_days: (row.booking_horizon_days as number) ?? 30,
   staff_owned_schedule: (row.staff_owned_schedule as boolean) ?? true,
@@ -262,6 +264,7 @@ class TenantSettingsRepositoryImpl extends SupabaseRepository {
       maps_url?: string | null;
       business_hours?: TenantSettings['business_hours'] | Record<string, unknown>;
       appointment_interval_minutes?: number | null;
+      min_booking_notice_minutes?: number | null;
     }
   ): Promise<TenantSettings> {
     if (!tenantId || !tenantId.trim()) {
@@ -291,6 +294,13 @@ class TenantSettingsRepositoryImpl extends SupabaseRepository {
       }
       if (hours.appointment_interval_minutes !== undefined && hours.appointment_interval_minutes !== null) {
         payload.appointment_interval_minutes = hours.appointment_interval_minutes;
+      }
+      if (
+        hours.min_booking_notice_minutes !== undefined &&
+        hours.min_booking_notice_minutes !== null &&
+        hours.min_booking_notice_minutes >= 0
+      ) {
+        payload.min_booking_notice_minutes = hours.min_booking_notice_minutes;
       }
 
       const result = await this.from()
@@ -406,6 +416,7 @@ class TenantSettingsRepositoryImpl extends SupabaseRepository {
       maps_url: input.google_maps_url ?? null,
       business_hours: businessHoursPayload,
       appointment_interval_minutes: input.appointment_interval_minutes,
+      min_booking_notice_minutes: input.min_booking_notice_minutes,
     });
 
     // 2. Upsert into online_booking_settings
