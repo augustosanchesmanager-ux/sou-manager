@@ -85,8 +85,19 @@ export function computeDaySummary(params: {
     barberSummaries: BarberSummary[];
     reversalEntries: CashClosingEntryExtended[];
     barberClosingRecords?: Array<{ staff_id: string; status?: string }>;
+    barberAdvancesByStaff?: Record<string, number>;
 }): DaySummaryResult {
-    const { filteredEntries, extras, comandas, appointments, filteredComandaDetails, barberSummaries, reversalEntries, barberClosingRecords = [] } = params;
+    const {
+        filteredEntries,
+        extras,
+        comandas,
+        appointments,
+        filteredComandaDetails,
+        barberSummaries,
+        reversalEntries,
+        barberClosingRecords = [],
+        barberAdvancesByStaff = {},
+    } = params;
 
     // ── Totals ──
     const totalEntradas = filteredEntries.filter(e => e.type === 'entrada').reduce((sum, e) => sum + e.value, 0);
@@ -225,27 +236,6 @@ export function computeDaySummary(params: {
         totalTransactions: filteredEntries.length,
     };
 
-    // ── Indicators ──
-    const totalPaid = paidComandasAll.reduce((s: number, c: any) => s + Number(c.total || 0), 0);
-    const ticketMedio = paidComandasAll.length > 0 ? totalPaid / paidComandasAll.length : 0;
-    const uniqueClients = new Set(comandas.filter((c: any) => c.client_id).map((c: any) => c.client_id));
-    const comandaItemsFiltered = filteredComandaDetails.flatMap(c => c.items);
-    const serviceItems = comandaItemsFiltered.filter(i => i.serviceName && !i.serviceName.includes('Produto'));
-    const productItems = comandaItemsFiltered.filter(i => i.serviceName && i.serviceName.includes('Produto'));
-    const totalCommissions = barberSummaries.reduce((s, b) => s + b.totalReceived * b.commissionRate, 0);
-
-    const indicators: IndicatorsData = {
-        ticketMedio,
-        clientesAtendidos: uniqueClients.size,
-        novosClientes: 0,
-        produtosVendidos: productItems.length,
-        servicosVendidos: serviceItems.length,
-        tempoMedioAtendimento: agendaSummary.completed.count > 0 ? 45 : 0,
-        comissaoTotal: totalCommissions,
-        metaDoDia: 0,
-        percentualMeta: 0,
-    };
-
     // ── Barber Closing Details ──
     const barberClosingByStaff = new Map<string, { staff_id: string; status?: string }>();
     barberClosingRecords.forEach(r => barberClosingByStaff.set(r.staff_id, r));
@@ -287,6 +277,9 @@ export function computeDaySummary(params: {
         );
 
         const commissionRate = barber.commissionRate;
+        const productCommissionRate = barber.productCommissionRate !== undefined
+            ? barber.productCommissionRate
+            : commissionRate;
         // Fiado fica fora da base de repasse: so a parcela liquidada gera
         // comissao a pagar agora. A pendencia e exibida em pendingCommission.
         const pendingReceived = barber.pendingTotal || 0;
@@ -297,7 +290,9 @@ export function computeDaySummary(params: {
         // profissional receberia duas vezes pelo balcão.
         const servicesReceived = Math.max(0, barber.totalReceived - productsSoldTotal);
         const commissionServices = servicesReceived * commissionRate;
-        const commissionProducts = productsSoldTotal * commissionRate;
+        const commissionProducts = productsSoldTotal * productCommissionRate;
+        const totalCommissionForBarber = commissionServices + commissionProducts;
+        const advances = barberAdvancesByStaff[barber.staffId] ?? 0;
 
         const barberTimeline: TimelineEvent[] = [];
         if (barberComandas.length > 0) {
@@ -338,12 +333,12 @@ export function computeDaySummary(params: {
             totalProduced: barber.totalReceived + pendingReceived,
             totalReceived: barber.totalReceived,
             pendingReceived,
-            commission: commissionServices + commissionProducts,
+            commission: totalCommissionForBarber,
             pendingCommission,
-            repasse: barber.totalReceived - (commissionServices + commissionProducts),
+            repasse: barber.totalReceived - totalCommissionForBarber,
             discounts: 0,
-            advances: 0,
-            balance: barber.totalReceived - (commissionServices + commissionProducts),
+            advances,
+            balance: barber.totalReceived - totalCommissionForBarber,
             paymentMethods,
             clientsServed,
             productsSold,
@@ -352,7 +347,7 @@ export function computeDaySummary(params: {
                 products: commissionProducts,
                 bonus: 0,
                 discounts: 0,
-                finalValue: commissionServices + commissionProducts,
+                finalValue: totalCommissionForBarber,
             },
             conference: {
                 countedCash: 0,
@@ -371,6 +366,27 @@ export function computeDaySummary(params: {
             timeline: barberTimeline,
         };
     });
+
+    // ── Indicators ──
+    const totalPaid = paidComandasAll.reduce((s: number, c: any) => s + Number(c.total || 0), 0);
+    const ticketMedio = paidComandasAll.length > 0 ? totalPaid / paidComandasAll.length : 0;
+    const uniqueClients = new Set(comandas.filter((c: any) => c.client_id).map((c: any) => c.client_id));
+    const comandaItemsFiltered = filteredComandaDetails.flatMap(c => c.items);
+    const serviceItems = comandaItemsFiltered.filter(i => i.serviceName && !i.serviceName.includes('Produto'));
+    const productItems = comandaItemsFiltered.filter(i => i.serviceName && i.serviceName.includes('Produto'));
+    const totalCommissions = barberClosingDetails.reduce((s, b) => s + b.commission, 0);
+
+    const indicators: IndicatorsData = {
+        ticketMedio,
+        clientesAtendidos: uniqueClients.size,
+        novosClientes: 0,
+        produtosVendidos: productItems.length,
+        servicosVendidos: serviceItems.length,
+        tempoMedioAtendimento: agendaSummary.completed.count > 0 ? 45 : 0,
+        comissaoTotal: totalCommissions,
+        metaDoDia: 0,
+        percentualMeta: 0,
+    };
 
     return {
         totals: {

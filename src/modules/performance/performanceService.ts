@@ -1,5 +1,6 @@
 import { getScopedClient, getSharedClient } from '../../../services/supabaseClient';
-import { getEffectiveCommissionRate } from '../../lib/staff/roles';
+import { getEffectiveCommissionRateForItem } from '../../lib/staff/roles';
+import { calculateCommissionValue } from '../../../domain/commission/calculate';
 import type {
   DateRegime,
   PerformanceFilterState,
@@ -210,7 +211,7 @@ export const fetchPerformanceData = async (
   ] = await Promise.all([
     sharedSupabase
       .from('staff')
-      .select('id, name, role, commission_rate')
+      .select('id, name, role, commission_rate, product_commission_rate')
       .eq('tenant_id', tenantId),
     comandaIds.length > 0
       ? fetchChunks<any>(
@@ -270,7 +271,7 @@ export const fetchPerformanceData = async (
   // Mapeamentos em memória
   const staffById = new Map<
     string,
-    { id: string; name: string; role: string; commission_rate: number | null }
+    { id: string; name: string; role: string; commission_rate: number | null; product_commission_rate: number | null }
   >();
   for (const s of staffRes.data || []) {
     staffById.set(s.id, {
@@ -278,6 +279,7 @@ export const fetchPerformanceData = async (
       name: String(s.name || 'Profissional'),
       role: String(s.role || 'barber'),
       commission_rate: s.commission_rate ?? null,
+      product_commission_rate: s.product_commission_rate ?? null,
     });
   }
 
@@ -484,17 +486,22 @@ export const fetchPerformanceData = async (
             const pid =
               part.professional_id || part.staff_id || item.staff_id || comanda.staff_id;
             const staffObj = pid ? staffById.get(pid) : undefined;
-            const effRate = getEffectiveCommissionRate(staffObj);
-            if (effRate <= 0) continue;
-
-            const payoutVal = Number(part.payout_value ?? 100);
-            const baseVal =
-              part.payout_type === 'fixed'
-                ? Math.min(lineTotal, Math.max(0, payoutVal))
-                : lineTotal * (payoutVal > 1 ? payoutVal / 100 : payoutVal);
-            const comm = baseVal * effRate;
+            const effRate = getEffectiveCommissionRateForItem(staffObj, item);
+            const comm = calculateCommissionValue(
+              lineTotal,
+              {
+                id: part.id,
+                comanda_item_id: item.id,
+                staff_id: pid || null,
+                role: part.role || 'primary',
+                payout_type: part.payout_type || 'percentage',
+                payout_value: Number(part.payout_value ?? 100),
+                affects_commission: part.affects_commission !== false,
+              },
+              effRate,
+            );
             houseTotalCommissions += comm;
-            if (pid) {
+            if (pid && comm > 0) {
               const m = initStaffMetrics(pid);
               m.commission_generated += comm;
             }
@@ -502,7 +509,7 @@ export const fetchPerformanceData = async (
         } else {
           const pid = item.staff_id || comanda.staff_id;
           const staffObj = pid ? staffById.get(pid) : undefined;
-          const effRate = getEffectiveCommissionRate(staffObj);
+          const effRate = getEffectiveCommissionRateForItem(staffObj, item);
           if (effRate > 0) {
             const comm = lineTotal * effRate;
             houseTotalCommissions += comm;

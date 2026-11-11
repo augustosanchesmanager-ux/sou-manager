@@ -91,10 +91,11 @@ var calculateTotalPayouts = (receivedValue, participants) => {
 };
 var calculateCommissionValue = (receivedValue, participant, commissionRate) => {
   if (!participant.affects_commission) return 0;
-  if (participant.payout_type === "fixed") {
-    return Math.min(participant.payout_value, receivedValue);
-  }
   const rate = normalizePercentage(commissionRate);
+  if (participant.payout_type === "fixed") {
+    const participantBase2 = Math.min(participant.payout_value, receivedValue);
+    return participantBase2 * rate;
+  }
   const participantBase = receivedValue * normalizePercentage(participant.payout_value);
   return participantBase * rate;
 };
@@ -107,8 +108,31 @@ var isCommissionEligible = (staff) => {
   }
   return false;
 };
+var isProductComandaItem = (item) => {
+  if (!item) return false;
+  if (item.type === "product" || item.item_type === "product") return true;
+  if (item.type === "service" || item.item_type === "service") return false;
+  if (item.product_id) return true;
+  if (item.service_id) return false;
+  return Boolean(item.product_name && String(item.product_name).trim().length > 0);
+};
+var isEligibleForCommissionItem = (staff, item) => {
+  if (isCommissionEligible(staff)) return true;
+  const role = (staff.role || "").toLowerCase();
+  if (role === "manager" && isProductComandaItem(item)) {
+    return Number(staff.product_commission_rate ?? 0) > 0;
+  }
+  return false;
+};
 var getEffectiveRate = (staff) => {
   if (!isCommissionEligible(staff)) return 0;
+  return normalizePercentage(staff.commission_rate ?? 0);
+};
+var getEffectiveItemRate = (staff, item) => {
+  if (!isEligibleForCommissionItem(staff, item)) return 0;
+  if (isProductComandaItem(item)) {
+    return normalizePercentage(staff.product_commission_rate ?? 0);
+  }
   return normalizePercentage(staff.commission_rate ?? 0);
 };
 var getDefaultRateForRole = (role) => {
@@ -247,10 +271,13 @@ export {
   detectZeroReason,
   getAssistantParticipants,
   getDefaultRateForRole,
+  getEffectiveItemRate,
   getEffectiveRate,
   getPrimaryParticipant,
   hasPartialSavedPayout,
   isCommissionEligible,
+  isEligibleForCommissionItem,
+  isProductComandaItem,
   isSharedExecution,
   isSharedServiceItem,
   normalizeCommissionParticipants,

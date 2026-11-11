@@ -1,9 +1,14 @@
+import { isProductComandaItem } from '../../../domain/commission/calculate';
+import type { CommissionItemLike } from '../../../domain/commission/types';
+
 export type LegacyStaffRole = 'Barber' | 'Manager' | 'Receptionist' | string;
 
 export interface StaffRoleLike {
   role?: LegacyStaffRole | null;
   commission_rate?: number | string | null;
   commissionRate?: number | string | null;
+  product_commission_rate?: number | string | null;
+  productCommissionRate?: number | string | null;
 }
 
 const normalizeRole = (role?: LegacyStaffRole | null) => String(role || '').trim().toLowerCase();
@@ -19,6 +24,10 @@ const normalizeSavedRate = (value?: number | string | null) => {
  */
 const getRawCommissionRate = (staff?: StaffRoleLike | null): number | string | null => {
   return staff?.commission_rate ?? staff?.commissionRate ?? null;
+};
+
+const getRawProductCommissionRate = (staff?: StaffRoleLike | null): number | string | null => {
+  return staff?.product_commission_rate ?? staff?.productCommissionRate ?? null;
 };
 
 /**
@@ -71,6 +80,28 @@ export const getEffectiveCommissionRate = (staff?: StaffRoleLike | null) => {
   if (!receivesCommission(staff)) return 0;
   const rawRate = getRawCommissionRate(staff);
   return normalizeSavedRate(rawRate);
+};
+
+export const receivesCommissionForItem = (
+  staff?: StaffRoleLike | null,
+  item?: CommissionItemLike | null,
+): boolean => {
+  if (receivesCommission(staff)) return true;
+  if (normalizeRole(staff?.role) === 'manager' && isProductComandaItem(item)) {
+    return Number(getRawProductCommissionRate(staff) ?? 0) > 0;
+  }
+  return false;
+};
+
+export const getEffectiveCommissionRateForItem = (
+  staff?: StaffRoleLike | null,
+  item?: CommissionItemLike | null,
+): number => {
+  if (!receivesCommissionForItem(staff, item)) return 0;
+  if (isProductComandaItem(item)) {
+    return normalizeSavedRate(getRawProductCommissionRate(staff));
+  }
+  return normalizeSavedRate(getRawCommissionRate(staff));
 };
 
 export const getDefaultCommissionRateForRole = (role?: LegacyStaffRole | null) => {

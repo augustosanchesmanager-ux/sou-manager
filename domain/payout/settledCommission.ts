@@ -30,6 +30,9 @@ export interface RawCommissionRecord {
 export interface FallbackComandaItem {
     id: string;
     comanda_id: string;
+    service_id?: string | null;
+    product_id?: string | null;
+    product_name?: string | null;
     staff_id: string;
     unit_price: number | string;
     quantity: number | string;
@@ -45,6 +48,9 @@ export interface ReconciledPeriodRow {
     status?: string;
     record_type?: string;
     comanda_item_id?: string | null;
+    service_id?: string | null;
+    product_id?: string | null;
+    product_name?: string | null;
 }
 
 export interface ReconcileSettledCommissionsInput {
@@ -132,6 +138,9 @@ export function reconcileSettledCommissionsToPeriodRows(
             staff_id: item.staff_id,
             amount: roundCents(baseAmount),
             created_at: item.created_at ?? new Date().toISOString(),
+            ...(item.service_id !== undefined ? { service_id: item.service_id } : {}),
+            ...(item.product_id !== undefined ? { product_id: item.product_id } : {}),
+            ...(item.product_name !== undefined ? { product_name: item.product_name } : {}),
         });
     }
 

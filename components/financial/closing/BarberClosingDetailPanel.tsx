@@ -152,7 +152,7 @@ const BarberClosingDetailPanel: React.FC<BarberClosingDetailProps> = ({
                         </div>
                     )}
 
-                    {barber.discounts > 0 && (
+                    {(barber.discounts > 0 || barber.advances > 0) && (
                         <div className="grid grid-cols-2 gap-2">
                             <div className="rounded-lg bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 p-2.5">
                                 <p className="text-[9px] font-black uppercase tracking-[0.14em] text-rose-600">Descontos</p>

@@ -8,17 +8,10 @@
 # Porta da API REST (PostgREST) em desenvolvimento local
 port = 54321
 
-# Porta do banco PostgreSQL local
-db_port = 54322
-
-# Porta do Supabase Studio (UI local)
-studio_port = 54323
-
-# Porta da função de autenticação (GoTrue)
-inbucket_port = 54324
-
-# Habilita o modo de análise de desempenho (explain)
-analyze = false
+# Portas locais padrão (Supabase CLI v2 usa seções próprias: [db], [studio], [inbucket])
+# [db].port = 54322
+# [studio].port = 54323
+# [inbucket].port = 54324
 
 # Timeout em segundos para operações da API
 # api_timeout = 30
@@ -89,9 +82,8 @@ analyze = false
 # rate_limit_anonymous = 10
 # rate_limit_authenticated = 100
 
-[edge_functions]
-# Pasta onde ficam as Edge Functions
-functions_folder = "supabase/functions"
+# As Edge Functions residem no diretório padrão "supabase/functions".
+# Configurações por função na v2 usam seções [functions.<slug>].
 
 # Habilita o servidor local de Edge Functions
 # local = true

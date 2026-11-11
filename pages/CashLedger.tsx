@@ -47,11 +47,18 @@ import type {
 } from '../domain/cashLedger/types';
 import { generateWhatsAppDebtMessage } from '../domain/clientWallet/walletEngine';
 
-const getTodayIso = () => new Date().toISOString().split('T')[0];
+const toLocalIsoDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const getTodayIso = () => toLocalIsoDate(new Date());
 
 const getPeriodDefaults = (preset: 'today' | 'week' | 'month' | 'all') => {
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
+    const today = toLocalIsoDate(now);
 
     if (preset === 'today') {
         return { start: today, end: today };
@@ -62,16 +69,16 @@ const getPeriodDefaults = (preset: 'today' | 'week' | 'month' | 'all') => {
         const end = new Date(start);
         end.setDate(start.getDate() + 6); // Sábado
         return {
-            start: start.toISOString().split('T')[0],
-            end: end.toISOString().split('T')[0],
+            start: toLocalIsoDate(start),
+            end: toLocalIsoDate(end),
         };
     }
     if (preset === 'month') {
         const start = new Date(now.getFullYear(), now.getMonth(), 1);
         const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
         return {
-            start: start.toISOString().split('T')[0],
-            end: end.toISOString().split('T')[0],
+            start: toLocalIsoDate(start),
+            end: toLocalIsoDate(end),
         };
     }
     return { start: '', end: '' };

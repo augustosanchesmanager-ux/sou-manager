@@ -733,4 +733,47 @@ describe('computeDaySummary — fiado não gera repasse', () => {
     expect(detail.pendingReceived).toBe(100);
     expect(detail.pendingCommission).toBe(40);
   });
+
+  it('should_use_productCommissionRate_and_surface_barberAdvancesByStaff_in_day_summary', () => {
+    const result = computeDaySummary({
+      ...baseParams,
+      barberAdvancesByStaff: { 'staff-1': 120 },
+      barberSummaries: [{
+        staffId: 'staff-1',
+        staffName: 'Barbeiro 1',
+        role: 'barber',
+        commissionRate: 0.5,
+        productCommissionRate: 0.1,
+        totalReceived: 140,
+        pendingTotal: 0,
+        comandaCount: 1,
+        comandas: [{
+          comandaId: 'c-mix',
+          staffId: 'staff-1',
+          staffName: 'Barbeiro 1',
+          total: 140,
+          status: 'paid',
+          paymentMethod: 'pix',
+          clientName: 'Cliente',
+          appointmentId: null,
+          paidAmount: 140,
+          pendingAmount: 0,
+          items: [
+            { staffId: 'staff-1', serviceName: 'Corte', quantity: 1, unitPrice: 100, type: 'service' },
+            { staffId: 'staff-1', serviceName: 'Pomada', quantity: 1, unitPrice: 40, type: 'product' },
+          ],
+        }],
+        openComandaCount: 0,
+        openTotal: 0,
+        openComandas: [],
+      }] as any[],
+    });
+
+    const detail = result.barberClosingDetails[0];
+    expect(detail.commissions.services).toBe(50);
+    expect(detail.commissions.products).toBe(4);
+    expect(detail.commission).toBe(54);
+    expect(detail.advances).toBe(120);
+    expect(result.indicators.comissaoTotal).toBe(54);
+  });
 });
