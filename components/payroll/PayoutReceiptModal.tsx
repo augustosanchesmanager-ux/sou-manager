@@ -16,6 +16,7 @@ export interface PayoutReceiptStaff {
     role: string;
     avatar?: string;
     commissionRate: number;
+    productCommissionRate?: number;
 }
 
 export interface PayoutReceiptModalProps {
@@ -119,6 +120,7 @@ export const PayoutReceiptModal: React.FC<PayoutReceiptModalProps> = ({
                 periodStart,
                 periodEnd,
                 commissionRate: staff.commissionRate,
+                productCommissionRate: staff.productCommissionRate ?? 0,
             });
             setItems(list);
         } catch (err) {

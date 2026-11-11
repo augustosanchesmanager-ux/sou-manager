@@ -141,6 +141,15 @@ export interface ParticipantRow {
 export interface StaffRoleLike {
   role: string;
   commission_rate?: number | null;
+  product_commission_rate?: number | null;
+}
+
+export interface CommissionItemLike {
+  product_id?: string | null;
+  service_id?: string | null;
+  product_name?: string | null;
+  type?: string | null;
+  item_type?: string | null;
 }
 
 export interface ServiceItemLike {

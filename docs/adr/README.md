@@ -51,6 +51,7 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | [ADR-044](./ADR-043-enterprise-features-audit-logs-and-data-export.md) | Accepted | Arquitetura de Funcionalidades Enterprise, Auditoria Avançada e Portabilidade LGPD — Subfase 8.10 (2026-11-06) |
 | [ADR-045](./ADR-045-financial-ecosystem-consolidation.md) | Accepted | Consolidação do Ecossistema Financeiro — Fiados, Ponto Único de Estorno e Fluxo de Caixa (2026-11-10) |
 | [ADR-046](./ADR-046-audited-manager-comanda-adjustment.md) | Accepted | Ajuste Gerencial Auditado de Comanda — Status, Data de Abertura e Data de Pagamento (2026-11-10) |
+| [ADR-047](./ADR-047-unified-commission-product-and-vales-rules.md) | Accepted | Unificação E2E das Regras de Comissão (Serviço, Produto, Coexecução), Fiado e Vales (2026-11-11) |
 
 ---
 

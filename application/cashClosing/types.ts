@@ -46,6 +46,7 @@ export interface CashClosingSnapshot {
     openComandasTotal: number;
     clubOverdueCount: number;
     clubOverdueTotal: number;
+    barberAdvancesByStaff?: Record<string, number>;
 }
 
 export interface AppointmentSnapshot {
@@ -71,6 +72,7 @@ export interface ComandaItemSnapshot {
     id: string;
     comanda_id: string;
     service_id: string | null;
+    product_id?: string | null;
     product_name: string | null;
     quantity: number;
     unit_price: number;

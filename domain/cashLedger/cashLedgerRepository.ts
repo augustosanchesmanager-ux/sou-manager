@@ -184,24 +184,30 @@ export class CashLedgerRepository {
             throw error;
         }
 
-        return (data || []).map((row: Record<string, unknown>) => ({
-            id: String(row.id || ''),
-            tenant_id: String(row.tenant_id || tenantId),
-            type: (row.type as 'income' | 'expense') || 'income',
-            category: String(row.category || 'Geral'),
-            description: String(row.description || 'Movimentação'),
-            amount: Number(row.amount || 0),
-            due_date: String(row.date || row.created_at || '').split('T')[0],
-            payment_date: row.status === 'paid' ? String(row.date || '').split('T')[0] : null,
-            status: (row.status as 'pending' | 'paid' | 'cancelled') || 'paid',
-            recipient_or_payer: String(row.customer_name || row.staff_name || row.recipient || ''),
-            payment_method: row.payment_method ? String(row.payment_method) : null,
-            source_type: row.source_type ? String(row.source_type) : null,
-            source_id: row.source_id ? String(row.source_id) : null,
-            notes: row.notes ? String(row.notes) : null,
-            created_at: String(row.created_at || ''),
-            updated_at: String(row.updated_at || ''),
-        }));
+        return (data || []).map((row: Record<string, unknown>) => {
+            const rawStatus = String(row.status || 'paid');
+            const normalizedStatus: 'pending' | 'paid' | 'cancelled' =
+                rawStatus === 'completed' ? 'paid' : (rawStatus as 'pending' | 'paid' | 'cancelled');
+            const rawDate = String(row.date || row.created_at || '').split('T')[0].split(' ')[0];
+            return {
+                id: String(row.id || ''),
+                tenant_id: String(row.tenant_id || tenantId),
+                type: (row.type as 'income' | 'expense') || 'income',
+                category: String(row.category || 'Geral'),
+                description: String(row.description || 'Movimentação'),
+                amount: Number(row.amount || 0),
+                due_date: rawDate,
+                payment_date: normalizedStatus === 'paid' ? rawDate : null,
+                status: normalizedStatus,
+                recipient_or_payer: String(row.customer_name || row.staff_name || row.recipient || ''),
+                payment_method: row.payment_method ? String(row.payment_method) : null,
+                source_type: row.source_type ? String(row.source_type) : null,
+                source_id: row.source_id ? String(row.source_id) : null,
+                notes: row.notes ? String(row.notes) : null,
+                created_at: String(row.created_at || ''),
+                updated_at: String(row.updated_at || ''),
+            };
+        });
     }
 
     /**

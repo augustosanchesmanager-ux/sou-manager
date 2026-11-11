@@ -83,6 +83,7 @@ interface StaffProfileRow {
     role: string | null;
     avatar: string | null;
     commission_rate: number | string | null;
+    product_commission_rate?: number | string | null;
 }
 
 const CONFIG_COLUMNS =
@@ -99,6 +100,8 @@ import {
     type RawCommissionRecord,
     reconcileSettledCommissionsToPeriodRows,
 } from './settledCommission';
+import { isProductComandaItem } from '../commission/calculate';
+import { normalizePercentage } from '../../shared/numbers/normalize';
 
 export interface ComandaPaymentPeriodRow {
     comanda_id: string;
@@ -109,6 +112,9 @@ export interface ComandaPaymentPeriodRow {
     status?: string;
     record_type?: string;
     comanda_item_id?: string | null;
+    service_id?: string | null;
+    product_id?: string | null;
+    product_name?: string | null;
 }
 
 /**
@@ -387,7 +393,7 @@ export class PayoutRepository {
  */
 async listActiveProfessionals(tenantId: string): Promise<StaffProfile[]> {
     const result = await this.db.from('staff')
-        .select('id, name, role, avatar, commission_rate')
+        .select('id, name, role, avatar, commission_rate, product_commission_rate')
         .eq('tenant_id', tenantId)
         .eq('status', 'active')
         .order('name', { ascending: true });
@@ -399,7 +405,9 @@ async listActiveProfessionals(tenantId: string): Promise<StaffProfile[]> {
         role: row.role ?? 'Profissional',
         avatar: row.avatar ?? '',
         commissionRate: Number(row.commission_rate ?? 0),
+        productCommissionRate: normalizePercentage(Number(row.product_commission_rate ?? 0)),
         commission_rate: row.commission_rate,
+        product_commission_rate: row.product_commission_rate ?? 0,
     }));
 }
 
@@ -617,7 +625,7 @@ async createSettlementDraft(
         let fallbackItems: FallbackComandaItem[] = [];
         if (unrecordedComandaIds.length > 0) {
             const itemsRes = await this.db.from('comanda_items')
-                .select('id, comanda_id, staff_id, unit_price, quantity, created_at')
+                .select('id, comanda_id, service_id, product_id, product_name, staff_id, unit_price, quantity, created_at')
                 .eq('tenant_id', tenantId)
                 .eq('staff_id', staffId)
                 .in('comanda_id', unrecordedComandaIds);
@@ -643,6 +651,7 @@ async createSettlementDraft(
         periodStartIso: string,
         periodEndIso: string,
         commissionRate: number,
+        productCommissionRate = 0,
     ): Promise<PayoutReceiptItem[]> {
         // 1. Obter pagamentos liquidados no período (regime de caixa: reversed_at IS NULL)
         const paymentsRes = await this.db.from('comanda_payments')
@@ -680,7 +689,7 @@ async createSettlementDraft(
 
         // 3. Buscar comanda_items para obter nome do produto/serviço, quantidade e preço unitário
         const itemsRes = await this.db.from('comanda_items')
-            .select('id, comanda_id, service_id, product_name, quantity, unit_price, staff_id, created_at, services(name)')
+            .select('id, comanda_id, service_id, product_id, product_name, quantity, unit_price, staff_id, created_at, services(name)')
             .eq('tenant_id', tenantId)
             .in('comanda_id', paidComandaIds);
 
@@ -689,6 +698,7 @@ async createSettlementDraft(
                 id: string;
                 comanda_id: string;
                 service_id?: string | null;
+                product_id?: string | null;
                 product_name?: string | null;
                 quantity: number | string;
                 unit_price: number | string;
@@ -742,6 +752,9 @@ async createSettlementDraft(
             .map((item) => ({
                 id: item.id,
                 comanda_id: item.comanda_id,
+                service_id: item.service_id ?? null,
+                product_id: item.product_id ?? null,
+                product_name: item.product_name ?? null,
                 staff_id: item.staff_id || staffId,
                 unit_price: item.unit_price,
                 quantity: item.quantity,
@@ -754,15 +767,17 @@ async createSettlementDraft(
         });
 
         const rate = Math.min(Math.max(0, commissionRate), 1);
+        const prodRate = Math.min(Math.max(0, productCommissionRate), 1);
 
         return reconciledRows.map((row, index) => {
             const item = row.comanda_item_id ? itemsById.get(row.comanda_item_id) : undefined;
             const quantity = Number(item?.quantity ?? 1) || 1;
             const gross = Number(row.amount);
             const unitPrice = item ? Number(item.unit_price) : (quantity > 0 ? gross / quantity : gross);
+            const itemRate = isProductComandaItem(item ?? row) ? prodRate : rate;
             const commission = row.commission_value !== undefined && row.commission_value !== null
                 ? Number(row.commission_value)
-                : roundCents(gross * rate);
+                : roundCents(gross * itemRate);
 
             const itemName = item?.services?.name || item?.product_name || `Atendimento #${row.comanda_id.slice(0, 8)}`;
             const customerName = comandaClientMap.get(row.comanda_id);
