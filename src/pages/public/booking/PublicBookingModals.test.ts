@@ -8,6 +8,8 @@
 import { describe, it, expect } from 'vitest';
 import type { PublicService, PublicStaff, PublicSlot } from './hooks/types';
 import { groupSlotsByPeriod } from './hooks/usePublicBooking';
+import { buildFitInWhatsAppMessage } from './modals/DateTimeBookingModal';
+import { buildSafeWhatsAppUrl } from './BookingHeader';
 
 describe('PublicBookingModals — Specification & Invariant Tests', () => {
   const mockService: PublicService = {
@@ -207,6 +209,25 @@ describe('PublicBookingModals — Specification & Invariant Tests', () => {
       expect(morning?.slots[0].start_time).toBe('2026-11-11T12:00:00+00:00');
       expect(afternoon?.slots).toHaveLength(1);
       expect(afternoon?.slots[0].start_time).toBe('2026-11-11T17:00:00+00:00');
+    });
+
+    it('should_build_whatsapp_fit_in_message_and_wa_me_url_when_client_requests_slot', () => {
+      // Arrange & Act
+      const message = buildFitInWhatsAppMessage({
+        services: 'Corte clássico + Barba',
+        staff: 'Ygor Yuri',
+        date: '2026-11-11',
+        clientName: 'Augusto',
+      });
+      const url = buildSafeWhatsAppUrl('11964471023', message);
+
+      // Assert
+      expect(message).toBe(
+        'Olá! Gostaria de verificar um encaixe para Corte clássico + Barba com Ygor Yuri no dia 11/11/2026. Meu nome é Augusto.',
+      );
+      expect(url).toContain('https://wa.me/5511964471023?text=');
+      const queryPart = (url ?? '').split('?text=')[1] ?? '';
+      expect(decodeURIComponent(queryPart)).toBe(message);
     });
   });
 });
