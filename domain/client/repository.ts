@@ -164,13 +164,6 @@ class ClientRepositoryImpl extends SupabaseRepository {
     const canonicalPhone = getCanonicalBrPhone(input.phone);
 
     try {
-      if (canonicalPhone) {
-        const existing = await this.findByCanonicalPhone(canonicalPhone, tenantId);
-        if (existing) {
-          return existing;
-        }
-      }
-
       const payload: Record<string, unknown> = {
         name: input.name,
         email: input.email ?? '',
@@ -191,7 +184,7 @@ class ClientRepositoryImpl extends SupabaseRepository {
         .single();
       return toClient(this.extractData(result, 'Erro ao criar cliente') as Record<string, unknown>);
     } catch (err) {
-      if (canonicalPhone) {
+      if (canonicalPhone && (err as { code?: string })?.code === '23505') {
         const existingAfterConflict = await this.findByCanonicalPhone(canonicalPhone, tenantId);
         if (existingAfterConflict) {
           return existingAfterConflict;
