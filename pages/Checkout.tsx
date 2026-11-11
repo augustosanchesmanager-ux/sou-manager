@@ -52,6 +52,7 @@ import {
     isManagerLikeRole,
     type ZeroCloseOrigin,
 } from '../src/lib/finance/zeroClose';
+import { unblockComanda, unblockComandaIfDue } from '../src/lib/finance/unblock';
 import { receivesCommission, canPerformServices } from '../src/lib/staff/roles';
 import {
     DISCOUNT_REASON_LABELS,
@@ -370,6 +371,9 @@ const Checkout: React.FC = () => {
     const [paymentDescription, setPaymentDescription] = useState<string>('');
     // P7: registro de pagamento parcial/antecipado (comanda_payments)
     const [loadedComandaStatus, setLoadedComandaStatus] = useState<string | null>(null);
+    const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
+    const [unlockReason, setUnlockReason] = useState('');
+    const [isUnlockingComanda, setIsUnlockingComanda] = useState(false);
     const [paymentSummary, setPaymentSummary] = useState<ComandaPaymentSummary | null>(null);
     const [paymentSummaryLoading, setPaymentSummaryLoading] = useState(false);
     const [isRegisterPaymentModalOpen, setIsRegisterPaymentModalOpen] = useState(false);
@@ -672,9 +676,34 @@ const Checkout: React.FC = () => {
                     if (selectedClientError) throw selectedClientError;
                     if (itemsError) throw itemsError;
 
+                    let resolvedStatus = comanda.status || null;
+                    if (comanda.status === 'blocked' && comanda.appointment_id) {
+                        try {
+                            const { data: linkedAppointment } = await client
+                                .from('appointments')
+                                .select('start_time')
+                                .eq('id', comanda.appointment_id)
+                                .eq('tenant_id', resolvedTenantId)
+                                .maybeSingle();
+
+                            const unblockResult = await unblockComandaIfDue({
+                                tenantId: resolvedTenantId,
+                                comandaId: comanda.id,
+                                status: comanda.status,
+                                appointmentStartTime: linkedAppointment?.start_time || null,
+                                supabase: client,
+                            });
+                            if (unblockResult.unblocked) {
+                                resolvedStatus = 'open';
+                            }
+                        } catch (unblockError) {
+                            console.warn('[Checkout] Falha ao auto-desbloquear comanda:', unblockError);
+                        }
+                    }
+
                     setSelectedClient(selectedClientData || null);
-                    setPaymentStatus(comanda.status === 'paid' ? 'paid' : 'pending');
-                    setLoadedComandaStatus(comanda.status || null);
+                    setPaymentStatus(resolvedStatus === 'paid' ? 'paid' : 'pending');
+                    setLoadedComandaStatus(resolvedStatus);
                     setPaymentMethod(comanda.payment_method || 'credit');
                     setDiscount(String(comanda.discount || 0));
                     setClosureMode(comanda.closure_mode === 'legacy_membership' ? 'legacy_membership' : 'standard');
@@ -1347,8 +1376,45 @@ const Checkout: React.FC = () => {
         }));
     };
 
+    const handleManualUnlockComanda = async () => {
+        if (!comandaId || !tenantId) return;
+        const trimmedReason = unlockReason.trim();
+        if (!trimmedReason) {
+            setToast({ message: 'Informe o motivo para desbloquear a comanda.', type: 'error' });
+            return;
+        }
+        setIsUnlockingComanda(true);
+        try {
+            await unblockComanda({
+                tenantId,
+                comandaId,
+                mode: 'manual',
+                reason: trimmedReason,
+                operatorId: user?.id || null,
+                supabase: getScopedClient('barber'),
+            });
+            setLoadedComandaStatus('open');
+            setIsUnlockModalOpen(false);
+            setUnlockReason('');
+            setToast({ message: `${checkoutCopy.orderLabel} desbloqueada com sucesso.`, type: 'success' });
+        } catch (err: any) {
+            setToast({ message: err?.message || 'Não foi possível desbloquear a comanda.', type: 'error' });
+        } finally {
+            setIsUnlockingComanda(false);
+        }
+    };
+
     const handleFinish = async () => {
         if (finishLockRef.current) return;
+        if (loadedComandaStatus === 'blocked') {
+            setToast({
+                message: canCloseWithAdministrativeOrigin
+                    ? 'Esta comanda está bloqueada. Desbloqueie-a antes de finalizar.'
+                    : 'Esta comanda pertence a um agendamento futuro e está bloqueada. Solicite o desbloqueio a um gerente.',
+                type: 'error',
+            });
+            return;
+        }
         finishLockRef.current = true;
 
         // Build discount audit draft if needed
@@ -2281,10 +2347,33 @@ const Checkout: React.FC = () => {
                             </div>
                         )}
 
+                        {loadedComandaStatus === 'blocked' && (
+                            <div className="mb-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-900 dark:text-amber-100 space-y-2">
+                                <p className="font-bold flex items-center gap-1.5">
+                                    <span className="material-symbols-outlined text-base">lock</span>
+                                    {checkoutCopy.orderLabel} bloqueada (agendamento futuro)
+                                </p>
+                                <p>
+                                    {canCloseWithAdministrativeOrigin
+                                        ? 'Desbloqueie manualmente com motivo auditado para liberar o salvamento ou fechamento.'
+                                        : 'Somente um gerente ou administrador pode desbloquear comandas de agendamentos futuros.'}
+                                </p>
+                                {canCloseWithAdministrativeOrigin && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsUnlockModalOpen(true)}
+                                        className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold transition-colors"
+                                    >
+                                        Desbloquear com motivo (Gerente)
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
                         <button
                             ref={finishButtonRef}
                             onClick={handleFinish}
-                            disabled={cart.length === 0 || loading || (paymentMethod === 'cash' && paymentStatus === 'paid' && cashTendered > 0 && cashTendered < total)}
+                            disabled={loadedComandaStatus === 'blocked' || cart.length === 0 || loading || (paymentMethod === 'cash' && paymentStatus === 'paid' && cashTendered > 0 && cashTendered < total)}
                             title={paymentMethod === 'cash' && paymentStatus === 'paid' && cashTendered > 0 && cashTendered < total ? `Valor insuficiente. Faltam ${formatBrlCurrency(total - cashTendered)}.` : undefined}
                             className={`w-full py-4 text-white rounded-xl font-bold text-lg shadow-xl transition-all flex items-center justify-center gap-2 group select-none ${
                                 loading ? 'pointer-events-none opacity-80 cursor-wait' : 'disabled:opacity-50 disabled:cursor-not-allowed'
@@ -2855,6 +2944,49 @@ const Checkout: React.FC = () => {
                 </form>
             </Modal>
 
+            <Modal
+                isOpen={isUnlockModalOpen}
+                onClose={() => { if (!isUnlockingComanda) setIsUnlockModalOpen(false); }}
+                title={`Desbloquear ${checkoutCopy.orderLabel}`}
+                maxWidth="md"
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                        Informe o motivo gerencial para liberar esta {checkoutCopy.orderLabelLower} antes da data do agendamento. Essa ação fica registrada na auditoria.
+                    </p>
+                    <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
+                            Motivo obrigatório
+                        </label>
+                        <textarea
+                            rows={3}
+                            value={unlockReason}
+                            onChange={(e) => setUnlockReason(e.target.value)}
+                            placeholder="Ex.: Cliente adiantou atendimento para hoje"
+                            className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1A1A1A] p-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                        <button
+                            type="button"
+                            disabled={isUnlockingComanda}
+                            onClick={() => setIsUnlockModalOpen(false)}
+                            className="px-4 py-2 rounded-xl border border-slate-200 dark:border-white/10 text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="button"
+                            disabled={isUnlockingComanda || !unlockReason.trim()}
+                            onClick={handleManualUnlockComanda}
+                            className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-sm font-bold transition-colors"
+                        >
+                            {isUnlockingComanda ? 'Desbloqueando...' : 'Confirmar desbloqueio'}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
             {/* === DUPLICATE CLIENT WARNING MODAL === */}
@@ -3181,6 +3313,49 @@ const Checkout: React.FC = () => {
                         </div>
                     );
                 })()}
+            </Modal>
+
+            <Modal
+                isOpen={isUnlockModalOpen}
+                onClose={() => { if (!isUnlockingComanda) setIsUnlockModalOpen(false); }}
+                title={`Desbloquear ${checkoutCopy.orderLabel}`}
+                maxWidth="md"
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                        Informe o motivo gerencial para liberar esta {checkoutCopy.orderLabelLower} antes da data do agendamento. Essa ação fica registrada na auditoria.
+                    </p>
+                    <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
+                            Motivo obrigatório
+                        </label>
+                        <textarea
+                            rows={3}
+                            value={unlockReason}
+                            onChange={(e) => setUnlockReason(e.target.value)}
+                            placeholder="Ex.: Cliente adiantou atendimento para hoje"
+                            className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1A1A1A] p-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                        <button
+                            type="button"
+                            disabled={isUnlockingComanda}
+                            onClick={() => setIsUnlockModalOpen(false)}
+                            className="px-4 py-2 rounded-xl border border-slate-200 dark:border-white/10 text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="button"
+                            disabled={isUnlockingComanda || !unlockReason.trim()}
+                            onClick={handleManualUnlockComanda}
+                            className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-sm font-bold transition-colors"
+                        >
+                            {isUnlockingComanda ? 'Desbloqueando...' : 'Confirmar desbloqueio'}
+                        </button>
+                    </div>
+                </div>
             </Modal>
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}

@@ -30,6 +30,7 @@ import type { ComandaStatus } from '../shared/status/comanda';
 import { isSharedServiceItem, calculateParticipantBaseValue } from '../domain/commission';
 import type { ParticipantRow as DomainParticipantRow } from '../domain/commission/types';
 import { isManagerLikeRole } from '../src/lib/finance/zeroClose';
+import { isAppointmentDateDueInTimezone } from '../src/lib/finance/unblock';
 import { markComandaAsFiado } from '../src/lib/finance/settlement';
 import { getQuickPeriodDateRange, calculateComandaKpiSummary } from '../src/utils/comandaFilters';
 import { QuickOpenComandaModal, type QuickOpenComandaPayload } from '@/src/components/comandas/QuickOpenComandaModal';
@@ -794,22 +795,16 @@ const Comandas: React.FC = () => {
 
     useEffect(() => {
         if (comandas.length === 0 || !tenantId) return;
+        if (!isManagerLikeRole(accessRole, canAccessSuperAdmin)) return;
 
         const blockedComandas = comandas.filter((c) => c.status === 'blocked' && c.appointment_id);
         if (blockedComandas.length === 0) return;
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
         const commandsToUnblock: string[] = [];
 
         blockedComandas.forEach((comanda) => {
-            if (comanda.appointment?.start_time) {
-                const appointmentDate = new Date(comanda.appointment.start_time);
-                appointmentDate.setHours(0, 0, 0, 0);
-                if (appointmentDate <= today) {
-                    commandsToUnblock.push(comanda.id);
-                }
+            if (isAppointmentDateDueInTimezone(comanda.appointment?.start_time)) {
+                commandsToUnblock.push(comanda.id);
             }
         });
 
@@ -828,18 +823,26 @@ const Comandas: React.FC = () => {
                     return;
                 }
 
-                const result = (data || {}) as { success?: boolean; unblocked_count?: number };
+                const result = (data || {}) as { success?: boolean; unblocked?: number; unblocked_count?: number; comanda_ids?: string[] };
                 if (result.success !== true) {
-                    logSupabaseError('[Comandas] batch_unblock_comandas retornou resultado invalido', new Error('unblocked_count ausente'), {
+                    logSupabaseError('[Comandas] batch_unblock_comandas retornou resultado invalido', new Error('resultado invalido'), {
                         comandaIds: commandsToUnblock,
                         result,
                     });
                     return;
                 }
 
+                const unblockedIds = Array.isArray(result.comanda_ids) && result.comanda_ids.length > 0
+                    ? result.comanda_ids
+                    : commandsToUnblock;
+                const unblockedCount = Number(result.unblocked_count ?? result.unblocked ?? 0);
+                if (unblockedCount === 0 && Array.isArray(result.comanda_ids) && result.comanda_ids.length === 0) {
+                    return;
+                }
+
                 setComandas((prev) =>
                     prev.map((c) =>
-                        commandsToUnblock.includes(c.id) ? { ...c, status: 'open' as const } : c
+                        unblockedIds.includes(c.id) ? { ...c, status: 'open' as const } : c
                     )
                 );
             } catch (err) {
@@ -848,7 +851,7 @@ const Comandas: React.FC = () => {
         };
 
         unblockComandas();
-    }, [comandas, tenantId]);
+    }, [comandas, tenantId, accessRole, canAccessSuperAdmin]);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
