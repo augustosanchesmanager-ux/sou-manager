@@ -166,6 +166,29 @@ export interface CancelPublicBookingResult {
 }
 
 // ============================================================================
+// RPC 5 & 6: Masked client lookup & promotional lead registration (LGPD-safe)
+// ============================================================================
+
+export interface PublicClientLookupResult {
+  found: boolean;
+  masked_name: string | null;
+}
+
+export interface PromoLeadRegistrationRequest {
+  tenant_identifier: string;
+  client_name: string;
+  client_phone: string;
+  client_email?: string | null;
+  birthday?: string | null;
+}
+
+export interface PromoLeadRegistrationResult {
+  registered: boolean;
+  reconciled: boolean;
+  masked_name: string | null;
+}
+
+// ============================================================================
 // Error codes from SPEC
 // ============================================================================
 
