@@ -48,17 +48,26 @@ const CLIENT_IDS = [
   'demo-client-10',
 ];
 
+/**
+ * `totalSpent` é o LTV acumulado do cliente, não o gasto do dia. No banco é a
+ * coluna `clients.total_spent` (NUMERIC, alimentada por trigger a cada comanda
+ * liquidada) — o front lê direto, sem reduce. Por isso a fixture precisa
+ * declarar o valor: sem ele `(client.total_spent || 0)` renderiza R$ 0,00.
+ *
+ * Invariante: totalSpent >= soma das comandas PAGAS do cliente na fixture
+ * (ver `demo-fixture.test.ts`). Clientes 8 e 9 são novos e ficam em 0.
+ */
 const CLIENTS = [
-  { name: 'Carlos Demo', phone: '(11) 99999-0001', email: 'carlos.demo@exemplo.local' },
-  { name: 'Fernanda Demo', phone: '(11) 99999-0002', email: 'fernanda.demo@exemplo.local' },
-  { name: 'Rafael Andrade', phone: '(11) 98888-1203', email: 'rafael.andrade@exemplo.local' },
-  { name: 'Bruno Tavares', phone: '(11) 98888-4410', email: 'bruno.tavares@exemplo.local' },
-  { name: 'Diego Moreira', phone: '(11) 97777-8821', email: 'diego.moreira@exemplo.local' },
-  { name: 'Lucas Ferreira', phone: '(11) 97777-3390', email: '' },
-  { name: 'Pedro Henrique', phone: '(11) 96666-2214', email: 'pedro.henrique@exemplo.local' },
-  { name: 'Thiago Ramos', phone: '(11) 96666-7788', email: '' },
-  { name: 'Gustavo Lima', phone: '(11) 95555-1020', email: 'gustavo.lima@exemplo.local' },
-  { name: 'Vitor Almeida', phone: '(11) 95555-9070', email: 'vitor.almeida@exemplo.local' },
+  { name: 'Carlos Demo', phone: '(11) 99999-0001', email: 'carlos.demo@exemplo.local', totalSpent: 1842.3 },
+  { name: 'Fernanda Demo', phone: '(11) 99999-0002', email: 'fernanda.demo@exemplo.local', totalSpent: 1175.5 },
+  { name: 'Rafael Andrade', phone: '(11) 98888-1203', email: 'rafael.andrade@exemplo.local', totalSpent: 610 },
+  { name: 'Bruno Tavares', phone: '(11) 98888-4410', email: 'bruno.tavares@exemplo.local', totalSpent: 2310 },
+  { name: 'Diego Moreira', phone: '(11) 97777-8821', email: 'diego.moreira@exemplo.local', totalSpent: 968.5 },
+  { name: 'Lucas Ferreira', phone: '(11) 97777-3390', email: '', totalSpent: 445 },
+  { name: 'Pedro Henrique', phone: '(11) 96666-2214', email: 'pedro.henrique@exemplo.local', totalSpent: 1320 },
+  { name: 'Thiago Ramos', phone: '(11) 96666-7788', email: '', totalSpent: 285 },
+  { name: 'Gustavo Lima', phone: '(11) 95555-1020', email: 'gustavo.lima@exemplo.local', totalSpent: 0 },
+  { name: 'Vitor Almeida', phone: '(11) 95555-9070', email: 'vitor.almeida@exemplo.local', totalSpent: 0 },
 ];
 
 const SERVICES = {
@@ -126,6 +135,7 @@ export const buildDemoFixture = (now: Date = new Date()): DemoFixture => {
     phone: client.phone,
     email: client.email,
     status: 'active',
+    total_spent: client.totalSpent,
     last_visit: spTimestamp(now, 0, Math.max(todayDay - (index + 1), 1), 10, 0),
     created_at: spTimestamp(now, -3, Math.max(index + 2, 1), 10, 0),
   }));

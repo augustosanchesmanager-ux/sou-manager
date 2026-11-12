@@ -825,7 +825,7 @@ const Clients: React.FC = () => {
                                                 );
                                             })()}
                                         </td>
-                                        <td className="px-5 py-4 text-sm font-bold text-slate-900 dark:text-white hidden lg:table-cell">R$ {(client.total_spent || 0).toFixed(2)}</td>
+                                        <td className="px-5 py-4 text-sm font-bold text-slate-900 dark:text-white hidden lg:table-cell">{formatCurrency(client.total_spent)}</td>
                                         <td className="px-5 py-4">
                                             <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${client.status === 'active' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
                                                 {client.status === 'active' ? 'Ativo' : 'Inativo'}

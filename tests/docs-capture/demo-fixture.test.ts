@@ -129,4 +129,56 @@ describe('fixture de captura (Local Demo Mode)', () => {
       }
     }
   });
+
+  it('should_declare_numeric_total_spent_when_client_is_built', () => {
+    // Arrange
+    const clients = rows('clients');
+
+    // Act + Assert — a coluna clients.total_spent é lida direto pelo front
+    // (`(client.total_spent || 0).toFixed(2)`), então valor ausente vira R$ 0,00.
+    expect(clients.length).toBeGreaterThan(0);
+    for (const client of clients) {
+      const totalSpent = client.total_spent;
+      expect(typeof totalSpent, `total_spent não numérico em ${String(client.id)}`).toBe('number');
+      expect(Number.isFinite(totalSpent), `total_spent inválido em ${String(client.id)}`).toBe(true);
+      expect(Number(totalSpent), `total_spent negativo em ${String(client.id)}`).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('should_cover_paid_comandas_when_client_total_spent_is_declared', () => {
+    // Arrange — LTV é acumulado; nunca pode ser menor que o que o cliente já
+    // pagou na própria fixture.
+    const paidByClient = new Map<string, number>();
+    for (const comanda of rows('comandas')) {
+      if (comanda.status !== 'paid') continue;
+      const clientId = String(comanda.client_id);
+      paidByClient.set(clientId, (paidByClient.get(clientId) ?? 0) + Number(comanda.total));
+    }
+
+    // Act + Assert
+    for (const client of rows('clients')) {
+      const clientId = String(client.id);
+      expect(
+        Number(client.total_spent),
+        `total_spent menor que o total pago em ${clientId}`,
+      ).toBeGreaterThanOrEqual(paidByClient.get(clientId) ?? 0);
+    }
+  });
+
+  it('should_have_positive_total_spent_when_client_has_paid_comanda', () => {
+    // Arrange
+    const paidClientIds = new Set(
+      rows('comandas')
+        .filter((comanda) => comanda.status === 'paid')
+        .map((comanda) => String(comanda.client_id)),
+    );
+
+    // Act
+    const zeroSpentForPayingClients = rows('clients').filter(
+      (client) => paidClientIds.has(String(client.id)) && Number(client.total_spent) <= 0,
+    );
+
+    // Assert
+    expect(zeroSpentForPayingClients).toHaveLength(0);
+  });
 });
