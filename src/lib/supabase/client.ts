@@ -41,6 +41,10 @@ const getDemoTenantRecord = () => ({
   app_slug: DEFAULT_APP_SLUG,
   status: 'active',
   plan: 'free',
+  // Marca que o onboarding foi concluído: `onboardingProgressService` usa este
+  // campo como item "Fazer primeiro agendamento" e o checklist do dashboard
+  // desaparece quando os 5 itens estão completos.
+  first_appointment_at: new Date('2026-04-03T14:00:00-03:00').toISOString(),
   created_at: new Date('2026-04-02T10:00:00-03:00').toISOString(),
 });
 
@@ -937,6 +941,21 @@ case 'comanda_items':
       case 'alerts':
       case 'notification_channels':
         return [];
+      case 'tenant_settings':
+        // Paridade mínima: `onboardingProgressService` exige settings não nulo
+        // para o item "Loja criada". Sem esta linha o demoTenant é sempre null e
+        // o checklist do dashboard nunca chega a 100%.
+        return [
+          {
+            id: 'local-demo-tenant-settings',
+            tenant_id: LOCAL_DEMO_TENANT_ID,
+            chair_count: 3,
+            timezone: 'America/Sao_Paulo',
+            currency: 'BRL',
+            created_at: new Date('2026-04-02T10:00:00-03:00').toISOString(),
+            updated_at: new Date('2026-04-02T10:00:00-03:00').toISOString(),
+          },
+        ];
       default:
         return [];
     }
@@ -1076,6 +1095,18 @@ case 'comanda_items':
     },
     in(field: string, values: unknown[]) {
       filters.push((row) => values.includes(row[field]));
+      return builder;
+    },
+    is(field: string, value: unknown) {
+      // PostgREST `IS`: cobre NULL/TRUE/FALSE. Usado por comanda_payments,
+      // payout e loadDayBarberAdvances para filtrar estornados.
+      filters.push((row) => {
+        if (value === null) {
+          return row[field] === null || row[field] === undefined;
+        }
+
+        return row[field] === value;
+      });
       return builder;
     },
     or(expression: string) {

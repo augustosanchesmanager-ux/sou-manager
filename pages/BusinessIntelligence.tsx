@@ -295,7 +295,7 @@ const BusinessIntelligence: React.FC = () => {
                     .eq('tenant_id', tenantId);
 
                 const reconciledCount = (stmtTxs || []).filter((s: any) => s.status === 'reconciled').length;
-                const unreconciledCount = (stmtTxs || []).filter((s: any) => s.status === 'unreconciled').length;
+                const unreconciledCount = (stmtTxs || []).filter((s: any) => s.status === 'pending').length;
 
                 // Estimar taxa de maquininha em ~2.5% do bruto caso ainda não haja taxa lançada
                 const effectiveBankingFees = bankingFees > 0 ? bankingFees : effectiveGross * 0.025;

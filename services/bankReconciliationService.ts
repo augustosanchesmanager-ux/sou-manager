@@ -117,7 +117,7 @@ export const bankReconciliationService = {
   async listStatementTransactions(
     tenantId: string,
     bankAccountId: string,
-    statusFilter?: 'all' | 'unreconciled' | 'reconciled' | 'ignored'
+    statusFilter?: 'all' | 'pending' | 'reconciled' | 'ignored'
   ): Promise<BankStatementTransaction[]> {
     let query = supabase
       .from('bank_statement_transactions')
@@ -295,7 +295,7 @@ export const bankReconciliationService = {
   async setStatus(
     tenantId: string,
     statementTxId: string,
-    status: 'ignored' | 'unreconciled'
+    status: 'ignored' | 'pending'
   ): Promise<void> {
     const { error } = await supabase
       .from('bank_statement_transactions')
@@ -372,7 +372,7 @@ export const bankReconciliationService = {
 
     const transactions = txs || [];
     const reconciled = transactions.filter((t) => t.status === 'reconciled');
-    const unreconciled = transactions.filter((t) => t.status === 'unreconciled');
+    const unreconciled = transactions.filter((t) => t.status === 'pending');
     const ignored = transactions.filter((t) => t.status === 'ignored');
 
     const bankBalance = accountData?.current_balance || 0;
