@@ -114,8 +114,8 @@ jobs:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           set -euo pipefail
-          supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
-          supabase db push --dry-run
+          supabase link --project-ref "$SUPABASE_PROJECT_ID"
+          supabase db push --remote --password "$SUPABASE_DB_PASSWORD" --dry-run
 
   apply-migrations:
     name: apply migrations (requer aprovacao do Environment)
@@ -167,9 +167,9 @@ jobs:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           set -euo pipefail
-          supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
-          supabase db push --dry-run
-          supabase db push
+          supabase link --project-ref "$SUPABASE_PROJECT_ID"
+          supabase db push --remote --password "$SUPABASE_DB_PASSWORD" --dry-run
+          supabase db push --remote --password "$SUPABASE_DB_PASSWORD"
 
       - name: Trilha de auditoria
         if: always()
