@@ -52,6 +52,9 @@ supabase/.temp/
 test-results/
 playwright-report/
 
+# Captura de telas para documentação / material comercial (assets gerenciados fora do repo)
+docs/screenshots/
+
 # Backups & Local Dumps
 .backups/
 *.backup
