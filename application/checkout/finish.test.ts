@@ -184,6 +184,16 @@ describe('CheckoutApplicationService', () => {
           paymentStatus: 'paid', total: 0, zeroCloseOrigin: 'house_courtesy', zeroCloseReason: 'Cortesia',
         }))).toHaveLength(0);
       });
+      it('should_return_error_when_house_courtesy_has_invalid_pin', () => {
+        expect(checkoutApplicationService.validateFinishRequest(makeFinishRequest({
+          paymentStatus: 'paid', total: 0, zeroCloseOrigin: 'house_courtesy', zeroCloseReason: 'Cortesia', zeroClosePin: '123',
+        }))).toContain('Informe a senha/PIN de gerência (6 a 8 dígitos) para autorizar comanda zerada.');
+      });
+      it('should_return_no_errors_when_house_courtesy_has_valid_pin', () => {
+        expect(checkoutApplicationService.validateFinishRequest(makeFinishRequest({
+          paymentStatus: 'paid', total: 0, zeroCloseOrigin: 'house_courtesy', zeroCloseReason: 'Cortesia', zeroClosePin: '123456',
+        }))).toHaveLength(0);
+      });
     });
 
     describe('validateFinishRequest — discount audit', () => {

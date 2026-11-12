@@ -273,6 +273,7 @@ const AccountsReceivable: React.FC = () => {
     const [settlementIdempotencyKey, setSettlementIdempotencyKey] = useState<string | null>(null);
     const [settlementMode, setSettlementMode] = useState<SettlementMode>('payment');
     const [settlementZeroReason, setSettlementZeroReason] = useState('');
+    const [settlementZeroPin, setSettlementZeroPin] = useState('');
     const [settlementClubCredits, setSettlementClubCredits] = useState<ChefClubClientCredits | null>(null);
     const [settlementClubCreditsLoading, setSettlementClubCreditsLoading] = useState(false);
     const settlementLockRef = React.useRef(false);
@@ -685,6 +686,7 @@ const AccountsReceivable: React.FC = () => {
         setSettlementIdempotencyKey(null);
         setSettlementMode('payment');
         setSettlementZeroReason('');
+        setSettlementZeroPin('');
         setSettlementClubCredits(null);
         setSettlementClubCreditsLoading(false);
     };
@@ -711,6 +713,10 @@ const AccountsReceivable: React.FC = () => {
         }
         if ((settlementMode === 'house_courtesy' || settlementMode === 'administrative_adjustment') && !settlementZeroReason.trim()) {
             setToast({ message: 'Informe o motivo obrigatório para fechamento zero.', type: 'error' });
+            return;
+        }
+        if ((settlementMode === 'house_courtesy' || settlementMode === 'administrative_adjustment') && !/^\d{6,8}$/.test(settlementZeroPin.replace(/\D/g, '').trim())) {
+            setToast({ message: 'Informe a senha/PIN de gerência (6 a 8 dígitos) para autorizar o fechamento zero.', type: 'error' });
             return;
         }
 
@@ -750,6 +756,7 @@ const AccountsReceivable: React.FC = () => {
                     reason: settlementMode === 'club_credit'
                         ? `Crédito do Clube consumido pela baixa financeira: ${settlementRequiredClubCredits} crédito(s).`
                         : settlementZeroReason.trim(),
+                    auditPin: settlementMode === 'club_credit' ? null : settlementZeroPin,
                 });
             }
             setToast({ message: settlementMode === 'payment' ? 'Baixa realizada com sucesso.' : 'Comanda fechada sem lançamento financeiro duplicado.', type: 'success' });
@@ -759,6 +766,7 @@ const AccountsReceivable: React.FC = () => {
             setSettlementIdempotencyKey(null);
             setSettlementMode('payment');
             setSettlementZeroReason('');
+            setSettlementZeroPin('');
             setSettlementClubCredits(null);
             await fetchData();
         } catch (error: any) {
@@ -2134,6 +2142,8 @@ const AccountsReceivable: React.FC = () => {
                 onSettlementNotesChange={setSettlementNotes}
                 settlementZeroReason={settlementZeroReason}
                 onSettlementZeroReasonChange={setSettlementZeroReason}
+                settlementZeroPin={settlementZeroPin}
+                onSettlementZeroPinChange={setSettlementZeroPin}
                 settlementClubCredits={settlementClubCredits}
                 settlementClubCreditsLoading={settlementClubCreditsLoading}
                 settlementClubCanCover={settlementClubCanCover}

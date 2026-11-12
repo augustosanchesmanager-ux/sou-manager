@@ -135,6 +135,7 @@ export interface FinishRequest {
     shouldSettleZeroWithAudit: boolean;
     zeroCloseOrigin?: ZeroCloseOrigin;
     zeroCloseReason: string;
+    zeroClosePin?: string | null;
     creditItems: CheckoutCartItem[];
     chefClubInfo?: { id: string } | null;
 
@@ -232,6 +233,13 @@ class CheckoutApplicationServiceImpl {
                 !req.zeroCloseReason.trim()
             ) {
                 errors.push('Informe o motivo obrigatório para finalizar comanda zero.');
+            }
+            if (
+                (req.zeroCloseOrigin === 'house_courtesy' || req.zeroCloseOrigin === 'administrative_adjustment') &&
+                req.zeroClosePin !== undefined &&
+                !/^\d{6,8}$/.test(String(req.zeroClosePin || '').replace(/\D/g, '').trim())
+            ) {
+                errors.push('Informe a senha/PIN de gerência (6 a 8 dígitos) para autorizar comanda zerada.');
             }
         }
 
@@ -749,6 +757,7 @@ class CheckoutApplicationServiceImpl {
             legacyReferenceMonth: req.zeroCloseOrigin === 'administrative_adjustment' && req.legacyReferenceMonth
                 ? `${req.legacyReferenceMonth}-01`
                 : null,
+            auditPin: req.zeroClosePin || null,
         });
     }
 
