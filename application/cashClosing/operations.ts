@@ -14,6 +14,7 @@ import { transactionRepository } from '../../domain/transaction/repository';
 import { appEventBus } from '../../domain/events/app-bus';
 import { createEvent } from '../../domain/events/types';
 import type { CashClosingCompletedEvent } from '../../domain/events/types';
+import { businessDateInTimeZone } from '../../shared/dates/timezone';
 import type {
     OpenCashParams,
     CloseCashParams,
@@ -293,7 +294,9 @@ export async function recordEvent(
             tenant_id: tenantId,
             cash_closing_id: cashClosingId ?? null,
             barber_closing_id: null,
-            business_date: new Date().toISOString().split('T')[0],
+            // event_time é timestamptz (UTC correto); business_date é o dia
+            // comercial do tenant e precisa seguir America/Sao_Paulo.
+            business_date: businessDateInTimeZone(),
             event_type: eventType,
             event_time: new Date().toISOString(),
             label,

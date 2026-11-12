@@ -2,6 +2,7 @@ import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { cashClosingApplicationService, validate } from '@/application/cashClosing';
 import { normalizePercentage } from '@/shared/numbers/normalize';
+import { businessDateInTimeZone } from '@/shared/dates/timezone';
 import { getPaymentMethodLabelFromString } from '@/domain/comanda/labels';
 import {
     type CashCloseFilters,
@@ -132,7 +133,9 @@ export function useCashClosing(
     tenantId: string | undefined | null,
     user: { id: string; email?: string } | undefined | null,
 ): UseCashClosingReturn {
-    const [filterDate, setFilterDate] = useState(() => new Date().toISOString().split('T')[0]);
+    // Dia comercial em America/Sao_Paulo: este valor também é persistido como
+    // cash_closings.business_date, então não pode vir do dia em UTC.
+    const [filterDate, setFilterDate] = useState(() => businessDateInTimeZone());
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [closing, setClosing] = useState(false);

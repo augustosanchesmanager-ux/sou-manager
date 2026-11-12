@@ -1078,6 +1078,18 @@ case 'comanda_items':
       filters.push((row) => values.includes(row[field]));
       return builder;
     },
+    is(field: string, value: unknown) {
+      // PostgREST `IS`: cobre NULL/TRUE/FALSE. Usado por comanda_payments,
+      // payout e loadDayBarberAdvances para filtrar estornados.
+      filters.push((row) => {
+        if (value === null) {
+          return row[field] === null || row[field] === undefined;
+        }
+
+        return row[field] === value;
+      });
+      return builder;
+    },
     or(expression: string) {
       const conditions = expression.split(',');
       const orFilters: Array<(row: Record<string, any>) => boolean> = [];
