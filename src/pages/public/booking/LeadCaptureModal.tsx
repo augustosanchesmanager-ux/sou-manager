@@ -6,7 +6,8 @@
 
 import type React from 'react';
 import { useState, useEffect, useRef } from 'react';
-import { User, Phone, X, ShieldCheck } from 'lucide-react';
+import { User, Phone, X, ShieldCheck, CheckCircle2, Sparkles } from 'lucide-react';
+import type { PublicClientLookupResult } from './hooks/types';
 
 interface LeadCaptureModalProps {
   isOpen: boolean;
@@ -15,6 +16,8 @@ interface LeadCaptureModalProps {
   onSave: (name: string, phoneDisplay: string) => void;
   onClose: () => void;
   pendingServiceName?: string | null;
+  onLookupPhone?: (phoneDigits: string) => Promise<PublicClientLookupResult>;
+  onOpenPromoRegister?: () => void;
 }
 
 export const applyPhoneMask = (value: string): string => {
@@ -41,10 +44,13 @@ export const LeadCaptureModal: React.FC<LeadCaptureModalProps> = ({
   onSave,
   onClose,
   pendingServiceName,
+  onLookupPhone,
+  onOpenPromoRegister,
 }) => {
   const [name, setName] = useState(initialName);
   const [phone, setPhone] = useState(initialPhoneDisplay);
   const [touched, setTouched] = useState({ name: false, phone: false });
+  const [lookupResult, setLookupResult] = useState<PublicClientLookupResult | null>(null);
 
   const nameInputRef = useRef<HTMLInputElement>(null);
   const phoneInputRef = useRef<HTMLInputElement>(null);
@@ -78,12 +84,37 @@ export const LeadCaptureModal: React.FC<LeadCaptureModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
-
   const phoneDigits = phone.replace(/\D/g, '');
   const isNameValid = name.trim().length >= 3;
   const isPhoneValid = phoneDigits.length >= 11;
   const isFormValid = isNameValid && isPhoneValid;
+
+  // Masked client reconciliation lookup when phone is valid
+  useEffect(() => {
+    if (!isOpen || !onLookupPhone || phoneDigits.length < 10) {
+      setLookupResult(null);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await onLookupPhone(phoneDigits);
+        if (!cancelled) {
+          setLookupResult(res.found ? res : null);
+        }
+      } catch {
+        if (!cancelled) setLookupResult(null);
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [isOpen, onLookupPhone, phoneDigits]);
+
+  if (!isOpen) return null;
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const masked = applyPhoneMask(e.target.value);
@@ -214,7 +245,27 @@ export const LeadCaptureModal: React.FC<LeadCaptureModalProps> = ({
                 Você receberá o comprovante e lembretes neste número.
               </p>
             )}
+
+            {lookupResult?.found && lookupResult.masked_name && (
+              <div className="mt-2 flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-300">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>
+                  Cadastro encontrado: <strong className="text-white">{lookupResult.masked_name}</strong> — seu agendamento será vinculado automaticamente.
+                </span>
+              </div>
+            )}
           </div>
+
+          {onOpenPromoRegister && (
+            <button
+              type="button"
+              onClick={onOpenPromoRegister}
+              className="w-full flex items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/15 px-3 py-2.5 text-xs font-semibold text-amber-300 transition-colors cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>Para participar de promoções e descontos, clique e faça seu cadastro</span>
+            </button>
+          )}
 
           {/* Action button */}
           <div className="pt-2">

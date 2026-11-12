@@ -12,6 +12,9 @@ import type {
   CreatePublicBookingRequest,
   PublicBookingError,
   PublicBookingErrorCode,
+  PublicClientLookupResult,
+  PromoLeadRegistrationRequest,
+  PromoLeadRegistrationResult,
 } from './types';
 import {
   mockGetPublicTenantProfile,
@@ -19,6 +22,8 @@ import {
   mockGetPublicAvailableSlots,
   mockCreatePublicBooking,
   mockCancelPublicBooking,
+  mockLookupPublicBookingClient,
+  mockRegisterPublicBookingPromoLead,
 } from './mockService';
 
 // ============================================================================
@@ -31,6 +36,8 @@ const RPC_NAMES = {
   GET_AVAILABLE_SLOTS: 'get_public_available_slots',
   CREATE_BOOKING: 'create_public_booking',
   CANCEL_BOOKING: 'cancel_public_booking',
+  LOOKUP_CLIENT: 'lookup_public_booking_client',
+  REGISTER_PROMO_LEAD: 'register_public_booking_promo_lead',
 } as const;
 
 const isMockEnabled = (): boolean => {
@@ -312,6 +319,70 @@ function mapPostgresError(error: unknown): PublicBookingError {
 // ============================================================================
 // Utility: Check if we're currently using mock mode
 // ============================================================================
+
+export async function lookupPublicBookingClient(
+  tenantIdentifier: string,
+  clientPhone: string
+): Promise<PublicClientLookupResult> {
+  if (isMockEnabled()) {
+    return mockLookupPublicBookingClient(tenantIdentifier, clientPhone);
+  }
+
+  try {
+    const client = getPublicAnonymousClient();
+    const { data, error } = await client.rpc(RPC_NAMES.LOOKUP_CLIENT, {
+      p_tenant_identifier: tenantIdentifier,
+      p_client_phone: clientPhone,
+    });
+
+    if (error) {
+      // Graceful non-blocking fallback if RPC is not deployed yet
+      if (isFunctionNotFoundError(error)) {
+        return { found: false, masked_name: null };
+      }
+      return { found: false, masked_name: null };
+    }
+
+    const parsed = data as Partial<PublicClientLookupResult> | null;
+    return {
+      found: Boolean(parsed?.found),
+      masked_name: parsed?.masked_name ?? null,
+    };
+  } catch {
+    return { found: false, masked_name: null };
+  }
+}
+
+export async function registerPublicBookingPromoLead(
+  request: PromoLeadRegistrationRequest
+): Promise<PromoLeadRegistrationResult> {
+  if (isMockEnabled()) {
+    return mockRegisterPublicBookingPromoLead(request);
+  }
+
+  const client = getPublicAnonymousClient();
+  const { data, error } = await client.rpc(RPC_NAMES.REGISTER_PROMO_LEAD, {
+    p_tenant_identifier: request.tenant_identifier,
+    p_client_name: request.client_name,
+    p_client_phone: request.client_phone,
+    p_client_email: request.client_email || null,
+    p_birthday: request.birthday || null,
+  });
+
+  if (error) {
+    if (isFunctionNotFoundError(error)) {
+      return mockRegisterPublicBookingPromoLead(request);
+    }
+    throw mapPostgresError(error);
+  }
+
+  const parsed = data as Partial<PromoLeadRegistrationResult> | null;
+  return {
+    registered: Boolean(parsed?.registered ?? true),
+    reconciled: Boolean(parsed?.reconciled),
+    masked_name: parsed?.masked_name ?? null,
+  };
+}
 
 export function isUsingMock(): boolean {
   return isMockEnabled();

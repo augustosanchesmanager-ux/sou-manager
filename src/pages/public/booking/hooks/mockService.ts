@@ -12,6 +12,9 @@ import type {
   CreatePublicBookingRequest,
   PublicBookingErrorCode,
   PublicBookingError,
+  PublicClientLookupResult,
+  PromoLeadRegistrationRequest,
+  PromoLeadRegistrationResult,
 } from './types';
 import {
   MOCK_TENANT_PROFILE,
@@ -273,6 +276,30 @@ export async function mockCancelPublicBooking(
   }
 
   throw createBookingError('invalid_token', 'Token inválido ou expirado');
+}
+
+export async function mockLookupPublicBookingClient(
+  _tenantIdentifier: string,
+  clientPhone: string
+): Promise<PublicClientLookupResult> {
+  await simulateLatency();
+  const digits = clientPhone.replace(/\D/g, '');
+  if (digits.endsWith('9999') || digits.endsWith('0000')) {
+    return { found: true, masked_name: 'C****** M***' };
+  }
+  return { found: false, masked_name: null };
+}
+
+export async function mockRegisterPublicBookingPromoLead(
+  request: PromoLeadRegistrationRequest
+): Promise<PromoLeadRegistrationResult> {
+  await simulateLatency();
+  const firstWord = request.client_name.trim().split(/\s+/)[0] || 'C';
+  return {
+    registered: true,
+    reconciled: request.client_phone.replace(/\D/g, '').endsWith('9999'),
+    masked_name: `${firstWord[0]}*****`,
+  };
 }
 
 // ============================================================================

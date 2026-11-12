@@ -4,6 +4,8 @@ import {
   getPublicTenantProfile,
   getPublicShowcaseProducts,
   createPublicBooking,
+  lookupPublicBookingClient,
+  registerPublicBookingPromoLead,
 } from './bookingService';
 import * as clientModule from '../../../../../services/supabaseClient';
 
@@ -144,6 +146,85 @@ describe('BookingService — Front-end to Supabase RPC integration', () => {
       expect(products).toHaveLength(1);
       expect(products[0].name).toBe('Pomada Efeito Matte');
       expect(products[0].price).toBe(65);
+    }
+  });
+
+  it('should_return_masked_client_name_when_lookup_public_booking_client_finds_record', async () => {
+    const mockRpc = vi.fn().mockResolvedValue({
+      data: {
+        found: true,
+        masked_name: 'R***** S******',
+      },
+      error: null,
+    });
+
+    vi.spyOn(clientModule, 'getPublicAnonymousClient').mockReturnValue({
+      rpc: mockRpc,
+    } as any);
+
+    if (!isUsingMock()) {
+      const lookup = await lookupPublicBookingClient('sanchez', '(11) 99999-8888');
+      expect(mockRpc).toHaveBeenCalledWith('lookup_public_booking_client', {
+        p_tenant_identifier: 'sanchez',
+        p_client_phone: '(11) 99999-8888',
+      });
+      expect(lookup.found).toBe(true);
+      expect(lookup.masked_name).toBe('R***** S******');
+    }
+  });
+
+  it('should_return_not_found_without_throwing_when_lookup_rpc_is_unavailable', async () => {
+    const mockRpc = vi.fn().mockResolvedValue({
+      data: null,
+      error: {
+        code: 'PGRST202',
+        message: 'Could not find the function public.lookup_public_booking_client',
+      },
+    });
+
+    vi.spyOn(clientModule, 'getPublicAnonymousClient').mockReturnValue({
+      rpc: mockRpc,
+    } as any);
+
+    if (!isUsingMock()) {
+      const lookup = await lookupPublicBookingClient('sanchez', '11999998888');
+      expect(lookup).toEqual({ found: false, masked_name: null });
+    }
+  });
+
+  it('should_register_and_reconcile_promo_lead_via_anonymous_client', async () => {
+    const mockRpc = vi.fn().mockResolvedValue({
+      data: {
+        registered: true,
+        reconciled: true,
+        masked_name: 'R***** S******',
+      },
+      error: null,
+    });
+
+    vi.spyOn(clientModule, 'getPublicAnonymousClient').mockReturnValue({
+      rpc: mockRpc,
+    } as any);
+
+    if (!isUsingMock()) {
+      const result = await registerPublicBookingPromoLead({
+        tenant_identifier: 'sanchez',
+        client_name: 'Rafael Sanchez',
+        client_phone: '11999998888',
+        client_email: 'rafael@example.com',
+        birthday: '15/08',
+      });
+
+      expect(mockRpc).toHaveBeenCalledWith('register_public_booking_promo_lead', {
+        p_tenant_identifier: 'sanchez',
+        p_client_name: 'Rafael Sanchez',
+        p_client_phone: '11999998888',
+        p_client_email: 'rafael@example.com',
+        p_birthday: '15/08',
+      });
+      expect(result.registered).toBe(true);
+      expect(result.reconciled).toBe(true);
+      expect(result.masked_name).toBe('R***** S******');
     }
   });
 });
