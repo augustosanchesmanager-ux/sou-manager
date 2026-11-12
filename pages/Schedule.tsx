@@ -14,8 +14,10 @@ import {
   ChevronDown,
   ChevronUp,
   Ban,
-  Download
+  Download,
+  QrCode
 } from 'lucide-react';
+import { BookingQrCodePanel } from '../src/components/qrcode/BookingQrCodePanel';
 import { supabase, getClientForTable, getScopedClient, ensureAppSupportsModule } from '../services/supabaseClient';
 import { generateIdempotencyKey } from '@/src/utils/idempotency';
 import Toast from '../components/Toast';
@@ -312,7 +314,8 @@ const toLocalDatetimeInput = (iso: string) => {
 const Schedule: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { appSlug, tenantId, user, accessRole } = useAuth();
+  const { appSlug, tenantId, tenantSlug, tenant, user, accessRole } = useAuth();
+  const [isBookingQrModalOpen, setIsBookingQrModalOpen] = useState(false);
   const businessLabels = getBusinessLabels(appSlug);
   const isEsteticaApp = appSlug === 'estetica';
   const serviceLabel = businessLabels.service;
@@ -2931,6 +2934,17 @@ Podemos confirmar? 😄`;
               )}
             </button>
 
+            {/* Ação: QR Code Agendamento Online */}
+            <button
+              type="button"
+              onClick={() => setIsBookingQrModalOpen(true)}
+              className="px-2.5 py-1.5 text-xs font-semibold bg-zinc-900 border border-zinc-800 text-stone-300 rounded-lg hover:border-[#B88A44] hover:text-[#B88A44] transition-all cursor-pointer flex items-center gap-1.5"
+              title="QR Code de Agendamento Online da Barbearia"
+            >
+              <QrCode size={14} className="text-[#B88A44]" />
+              <span className="hidden sm:inline">QR Code</span>
+            </button>
+
             {/* Botão Principal: Novo Agendamento */}
             <button
               type="button"
@@ -5429,6 +5443,25 @@ Podemos confirmar? 😄`;
         services={servicesList.map((s) => ({ id: s.id, name: s.name }))}
         onWaitlistUpdated={refreshWaitlistCount}
       />
+
+      {isBookingQrModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in"
+          role="dialog"
+          aria-modal="true"
+          aria-label="QR Code de Agendamento Online"
+        >
+          <div className="w-full max-w-2xl bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-2xl p-6 shadow-2xl">
+            <BookingQrCodePanel
+              tenantSlug={tenantSlug || tenant?.slug || 'sua-barbearia'}
+              shopDisplayName={tenant?.name || 'Barbearia'}
+              staffOptions={staffList.map((s) => ({ id: s.id, name: s.name, role: s.role }))}
+              variant="modal"
+              onCloseModal={() => setIsBookingQrModalOpen(false)}
+            />
+          </div>
+        </div>
+      )}
 
       <RecurringConfirmModal
         isOpen={isCativaConfirmModalOpen}
