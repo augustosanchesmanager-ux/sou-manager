@@ -4,6 +4,10 @@ import { clientRepository } from '../../domain/client';
 import CustomerVouchersSection from './CustomerVouchersSection';
 import { formatCurrency } from '../../shared/format/currency';
 import {
+  fetchClientCrmFrictionAlert,
+  type ClientCrmFrictionAlert,
+} from '../../src/lib/reviews/qualityService';
+import {
   calculateNextPreferredDate,
   formatPreferredScheduleSummary,
   WEEKDAY_LABELS,
@@ -124,6 +128,23 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
 
   // Active sub-tab in drawer
   const [activeTab, setActiveTab] = useState<'overview' | 'vouchers'>('overview');
+  const [crmAlert, setCrmAlert] = useState<ClientCrmFrictionAlert | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!isOpen || !client || !tenantId) {
+      setCrmAlert(null);
+      return;
+    }
+    void fetchClientCrmFrictionAlert(tenantId, client.id, Number(client.total_spent || 0)).then(
+      (res) => {
+        if (!cancelled) setCrmAlert(res);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, client, tenantId]);
 
   // Synchronize internal state when client changes
   useEffect(() => {
@@ -301,6 +322,11 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                         Cadeira Cativa ({FREQUENCY_LABELS[client.preferred_frequency]})
                       </span>
                     )}
+                    {crmAlert?.isVip && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#B88A44] text-neutral-950">
+                        VIP · LTV {formatCurrency(crmAlert.lifetimeValue)}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -396,6 +422,38 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {activeTab === 'overview' ? (
               <>
+                {/* Alerta Tático no Check-in (CRM VIP + Atrito Anterior) */}
+                {crmAlert?.hasFriction && (
+                  <div
+                    className={`rounded-2xl border p-4 space-y-2 shadow-sm ${
+                      crmAlert.isVip
+                        ? 'border-red-500/40 bg-red-500/10'
+                        : 'border-amber-500/40 bg-amber-500/10'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-amber-400">
+                        {crmAlert.isVip
+                          ? `⚠️ Alerta Tático VIP (LTV ${formatCurrency(crmAlert.lifetimeValue)}) — Atendimento de Exceção`
+                          : `⚠️ Atenção no Atendimento — Atrito Anterior (${crmAlert.lastLowRating}★)`}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/30 text-amber-300">
+                        {crmAlert.lastReviewStatus === 'resolved' ? 'Tratado pela Gestão' : 'Atenção Redobrada'}
+                      </span>
+                    </div>
+                    {crmAlert.lastComment && (
+                      <p className="text-xs text-slate-700 dark:text-slate-200">
+                        <strong>Relato anterior:</strong> “{crmAlert.lastComment}”
+                      </p>
+                    )}
+                    {crmAlert.lastResolutionNote && (
+                      <p className="text-xs text-emerald-700 dark:text-emerald-300 bg-black/20 p-2.5 rounded-xl border border-emerald-500/20">
+                        <strong>Playbook de Resolução:</strong> {crmAlert.lastResolutionNote}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {/* Alert: Comanda Aberta */}
                 {openComandasLoading && (
                   <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 animate-pulse">

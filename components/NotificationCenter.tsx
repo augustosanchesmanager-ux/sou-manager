@@ -16,6 +16,7 @@ const iconByType: Record<InternalNotificationType, string> = {
   cobranca_clube_chefes: 'workspace_premium',
   proximo_cliente: 'event_upcoming',
   cliente_atrasado: 'alarm',
+  alerta_avaliacao: 'reviews',
 };
 
 const severityMeta: Record<InternalNotificationSeverity, { label: string; className: string; iconClassName: string }> = {

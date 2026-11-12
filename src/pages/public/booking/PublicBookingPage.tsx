@@ -46,6 +46,8 @@ import { DateTimeBookingModal, buildFitInWhatsAppMessage } from './modals/DateTi
 import { PublicBookingCancelModal } from './modals/PublicBookingCancelModal';
 import { ServicesGridSelector } from './components/ServicesGridSelector';
 import { PublicProductsShowcase } from './components/PublicProductsShowcase';
+import { PublicSocialProofSection } from './components/PublicSocialProofSection';
+import { PublicContactFab } from './components/PublicContactFab';
 import { BookingStickyBottomBar } from './components/BookingStickyBottomBar';
 import { BookingUpsellBottomSheet } from './components/BookingUpsellBottomSheet';
 import { getSuggestedUpsellServices } from './utils/upsellRecommendation';
@@ -789,6 +791,12 @@ const PublicBookingPage: React.FC = () => {
                     />
                   )}
 
+                  {/* Prova Social (Google Reviews Cache) */}
+                  <PublicSocialProofSection
+                    tenantId={tenantProfile.tenant_id}
+                    primaryColor={primaryColor}
+                  />
+
                   {/* Reassurance Features */}
                   <div className="mt-4 pt-3 border-t border-neutral-800/80 grid grid-cols-2 gap-2 text-[11px] text-neutral-400">
                     <div className="flex items-center gap-1.5 p-2 rounded-xl bg-neutral-950/40">
@@ -816,6 +824,8 @@ const PublicBookingPage: React.FC = () => {
                 </a>
               </footer>
             </main>
+
+            <PublicContactFab whatsappUrl={whatsappUrl} instagramUrl={instagramUrl} />
 
             {/* Sticky Bottom Summary Bar */}
             {(activeTab === 'agendamento' || activeTab === 'servicos') && (

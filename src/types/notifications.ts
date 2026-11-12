@@ -5,6 +5,7 @@ export const NOTIFICATION_TYPES = [
   'cobranca_clube_chefes',
   'proximo_cliente',
   'cliente_atrasado',
+  'alerta_avaliacao',
 ] as const;
 
 export type InternalNotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -41,4 +42,5 @@ export const NOTIFICATION_TYPE_LABELS: Record<InternalNotificationType, string> 
   cobranca_clube_chefes: 'Clube dos Chefes',
   proximo_cliente: 'Próximo cliente',
   cliente_atrasado: 'Cliente atrasado',
+  alerta_avaliacao: 'Alerta de Avaliação (Churn)',
 };
