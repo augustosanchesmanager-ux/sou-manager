@@ -64,8 +64,9 @@ export const QuickAppointmentCard: React.FC<QuickAppointmentCardProps> = ({
       </div>
 
       <div className="relative">
-        <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Cliente</label>
+        <label htmlFor="quick-appt-client" className="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Cliente</label>
         <input
+          id="quick-appt-client"
           className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-transparent rounded-lg text-sm py-2 px-3 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
           type="text"
           placeholder="Buscar ou cadastrar..."
@@ -124,8 +125,9 @@ export const QuickAppointmentCard: React.FC<QuickAppointmentCardProps> = ({
 
       <div className="grid grid-cols-1 gap-2">
         <div>
-          <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Barbeiro</label>
+          <label htmlFor="quick-appt-barber" className="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Barbeiro</label>
           <select
+            id="quick-appt-barber"
             value={formData.staffId}
             title="Selecionar Barbeiro"
             onChange={(event) => setFormData((current) => ({ ...current, staffId: event.target.value }))}
@@ -140,8 +142,9 @@ export const QuickAppointmentCard: React.FC<QuickAppointmentCardProps> = ({
         </div>
 
         <div>
-          <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Servico</label>
+          <label htmlFor="quick-appt-service" className="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Servico</label>
           <select
+            id="quick-appt-service"
             value={formData.serviceId}
             title="Selecionar Servico"
             onChange={(event) => setFormData((current) => ({ ...current, serviceId: event.target.value }))}

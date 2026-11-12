@@ -158,6 +158,7 @@ export const MetricsPanel: React.FC<{
 
       <div className="flex justify-end">
         <button
+          type="button"
           onClick={() => setIsEditing(!isEditing)}
           className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
             isEditing
@@ -187,6 +188,7 @@ export const MetricsPanel: React.FC<{
                 }`}
               >
                 <button
+                  type="button"
                   onClick={() => toggleVisibility(item.id)}
                   className={`size-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
                     item.visible ? 'bg-primary border-primary' : 'border-slate-300 dark:border-white/20'
@@ -218,7 +220,7 @@ export const MetricsPanel: React.FC<{
                   />
                 )}
                 {item.type === 'custom' && (
-                  <button onClick={() => saveItems(items.filter((current) => current.id !== item.id))} className="text-red-400 hover:text-red-600 shrink-0">
+                  <button type="button" onClick={() => saveItems(items.filter((current) => current.id !== item.id))} className="text-red-400 hover:text-red-600 shrink-0">
                     <span className="material-symbols-outlined text-sm">delete</span>
                   </button>
                 )}
@@ -237,6 +239,7 @@ export const MetricsPanel: React.FC<{
               className="flex-1 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
             />
             <button
+              type="button"
               onClick={addCustomMetric}
               disabled={!customLabel.trim()}
               className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-night rounded-xl font-bold text-sm disabled:opacity-40 flex items-center gap-1.5 transition-all"

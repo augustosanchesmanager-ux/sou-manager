@@ -215,7 +215,9 @@ export const reverseFinancialTransaction = async ({
                 if (staffReadErr) {
                   console.error('[reversal][H2-8] Failed to read staff for event publish:', staffReadErr.message);
                 } else {
-                  (staffRows || []).forEach((s: any) => staffById.set(s.id, s));
+                  for (const s of staffRows || []) {
+                    staffById.set(s.id, s);
+                  }
                 }
               }
 

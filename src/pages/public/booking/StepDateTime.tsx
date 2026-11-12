@@ -124,8 +124,8 @@ const StepDateTime: React.FC<StepDateTimeProps> = ({
         {/* Date carousel skeleton */}
         <div className="h-24 animate-pulse">
           <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar" style={{ scrollbarWidth: 'none' }}>
-            {[...Array(7)].map((_, i) => (
-              <div key={i} className="w-20 h-20 bg-line/50 rounded-xl flex-shrink-0" />
+            {['d0', 'd1', 'd2', 'd3', 'd4', 'd5', 'd6'].map((id) => (
+              <div key={id} className="w-20 h-20 bg-line/50 rounded-xl flex-shrink-0" />
             ))}
           </div>
         </div>
@@ -135,8 +135,8 @@ const StepDateTime: React.FC<StepDateTimeProps> = ({
             <div key={period} className="animate-pulse">
               <div className="h-6 w-24 bg-line/50 rounded mb-3" />
               <div className="flex flex-wrap gap-2">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className="h-12 w-24 bg-line/50 rounded-xl" />
+                {['s0', 's1', 's2', 's3'].map((id) => (
+                  <div key={id} className="h-12 w-24 bg-line/50 rounded-xl" />
                 ))}
               </div>
             </div>
@@ -280,7 +280,7 @@ const StepDateTime: React.FC<StepDateTimeProps> = ({
       </div>
 
       {/* Time slot groups */}
-      <div className="space-y-6" role="list" aria-label="Horários disponíveis">
+      <section className="space-y-6" aria-label="Horários disponíveis">
         {groupedSlots.map((period) => (
           <div key={period.label} className={period.slots.length === 0 ? 'hidden' : ''}>
             <h4 className="flex items-center gap-2 text-sm font-bold text-ink-soft mb-3">
@@ -318,7 +318,7 @@ const StepDateTime: React.FC<StepDateTimeProps> = ({
             )}
           </div>
         ))}
-      </div>
+      </section>
     </div>
   );
 };

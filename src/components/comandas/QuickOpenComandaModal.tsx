@@ -219,9 +219,9 @@ export const QuickOpenComandaModal: React.FC<QuickOpenComandaModalProps> = ({
       <div className="space-y-4">
         {/* 1. SELEÇÃO DE CLIENTE / CONSUMIDOR FINAL */}
         <div>
-          <label className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 block">
+          <p className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 block">
             Cliente ou Balcão
-          </label>
+          </p>
 
           <div className="flex flex-wrap items-center gap-2 mb-2">
             <button
@@ -263,7 +263,6 @@ export const QuickOpenComandaModal: React.FC<QuickOpenComandaModalProps> = ({
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Buscar cliente por nome ou telefone..."
-                autoFocus
                 className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-white/10 rounded-xl pl-9 pr-4 py-2.5 text-xs text-slate-900 dark:text-white outline-none focus:border-teal-500 transition-colors"
               />
 
@@ -328,9 +327,9 @@ export const QuickOpenComandaModal: React.FC<QuickOpenComandaModalProps> = ({
 
         {/* 2. PROFISSIONAL RESPONSÁVEL / ATRIBUIÇÃO */}
         <div>
-          <label className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 block">
+          <p className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 block">
             Atribuição / Profissional
-          </label>
+          </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
             <button
               type="button"
@@ -367,9 +366,9 @@ export const QuickOpenComandaModal: React.FC<QuickOpenComandaModalProps> = ({
         {frequentItems.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              <p className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Mais Vendidos (1 Toque)
-              </label>
+              </p>
               <span className="text-[10px] text-slate-400">Clique para adicionar</span>
             </div>
 

@@ -33,8 +33,8 @@ const PermissionToggle: React.FC<PermissionToggleProps> = ({
   });
 
   return (
-    <div
-      className="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-slate-50 dark:hover:bg-white/[0.03] group transition-colors"
+    <fieldset
+      className="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-slate-50 dark:hover:bg-white/[0.03] group transition-colors border-0 m-0"
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
     >
@@ -80,7 +80,7 @@ const PermissionToggle: React.FC<PermissionToggleProps> = ({
           }`}
         />
       </button>
-    </div>
+    </fieldset>
   );
 };
 

@@ -24,7 +24,7 @@ export const SmartReturnWidget: React.FC<{
           </div>
           <span className="size-2 bg-red-500 rounded-full animate-pulse ml-1" />
         </div>
-        <button onClick={onNavigate} className="text-xs font-bold text-primary hover:text-primary/80 transition-colors uppercase tracking-wider">
+        <button type="button" onClick={onNavigate} className="text-xs font-bold text-primary hover:text-primary/80 transition-colors uppercase tracking-wider">
           Ver todos →
         </button>
       </div>

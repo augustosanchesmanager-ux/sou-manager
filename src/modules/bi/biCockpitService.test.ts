@@ -27,6 +27,7 @@ vi.mock('../../../services/supabaseClient', () => {
             select: vi.fn().mockReturnThis(),
             eq: vi.fn().mockReturnThis(),
             order: vi.fn().mockReturnThis(),
+            // biome-ignore lint/suspicious/noThenProperty: mock Supabase query builder
             then: (resolve: any) =>
               resolve({
                 data: [

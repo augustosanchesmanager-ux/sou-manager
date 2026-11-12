@@ -84,7 +84,7 @@ const StepClientForm: React.FC<StepClientFormProps> = ({
   const phoneValid = !phoneError && clientPhoneDisplay.replace(/\D/g, '').length >= 10;
 
   return (
-    <div className="space-y-5" role="form" aria-label="Dados do cliente">
+    <fieldset className="space-y-5 border-0 p-0 m-0" aria-label="Dados do cliente">
       {/* Nome Completo */}
       <div>
         <label htmlFor="client-name" className="block text-sm font-medium text-ink mb-2">
@@ -223,7 +223,7 @@ const StepClientForm: React.FC<StepClientFormProps> = ({
           Ex: "Prefiro corte com máquina", "Tenho alergia a talco", "Quero deixar barba mais cheia"
         </p>
       </div>
-    </div>
+    </fieldset>
   );
 };
 
