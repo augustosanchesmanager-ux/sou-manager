@@ -84,6 +84,8 @@ const PortalLanding = lazy(() => import('./pages/portal/PortalLanding'));
 const PortalLogin = lazy(() => import('./pages/portal/PortalLogin'));
 const PortalSchedule = lazy(() => import('./pages/portal/PortalSchedule'));
 const PublicBookingPage = lazy(() => import('./src/pages/public/booking/PublicBookingPage'));
+const PublicFeedbackPage = lazy(() => import('./src/pages/public/feedback/PublicFeedbackPage'));
+const QualityDashboard = lazy(() => import('./src/pages/QualityDashboard'));
 
 const RouteFallback: React.FC = () => (
   <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center transition-colors duration-300">
@@ -265,9 +267,12 @@ const AppRoutes: React.FC = () => {
         <Route path="/c/:tenantSlug/app" element={<ModuleRoute moduleName="portal"><PortalAuthProvider><PortalApp /></PortalAuthProvider></ModuleRoute>} />
         <Route path="/c/:tenantSlug/app/schedule" element={<ModuleRoute moduleName="portal"><PortalAuthProvider><PortalSchedule /></PortalAuthProvider></ModuleRoute>} />
 
-        {/* Public Booking Routes (no auth required) */}
+        {/* Public Booking & Feedback Routes (no auth required) */}
         <Route path="/agendar/:tenantSlug" element={<PublicBookingPage />} />
         <Route path="/booking/:tenantSlug" element={<Navigate to="/agendar/:tenantSlug" replace />} />
+        <Route path="/feedback/:tenantSlug" element={<PublicFeedbackPage />} />
+        <Route path="/feedback/:tenantSlug/:token" element={<PublicFeedbackPage />} />
+        <Route path="/r/:tenantSlug" element={<PublicFeedbackPage />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="/onboarding/provision" element={<Provision />} />
@@ -293,6 +298,7 @@ const AppRoutes: React.FC = () => {
             <Route path="/kiosk-admin" element={<ModuleRoute moduleName="kiosk"><ManagerRoute><KioskAdmin /></ManagerRoute></ModuleRoute>} />
             <Route path="/portal-admin" element={<ModuleRoute moduleName="portal"><ManagerRoute><PortalAdmin /></ManagerRoute></ModuleRoute>} />
             <Route path="/booking-settings" element={<ModuleRoute moduleName="portal"><ManagerRoute><OnlineBookingSettings /></ManagerRoute></ModuleRoute>} />
+            <Route path="/quality" element={<ManagerRoute><QualityDashboard /></ManagerRoute>} />
             <Route path="/settings" element={<ManagerRoute><Settings /></ManagerRoute>} />
             <Route path="/automations" element={<ManagerRoute><Automations /></ManagerRoute>} />
             <Route path="/clients" element={<ManagerRoute><Clients /></ManagerRoute>} />

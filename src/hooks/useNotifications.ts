@@ -99,6 +99,19 @@ export const useNotifications = (initialStatus: InternalNotificationStatus | 'al
           void refreshCount();
         },
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tenant_alerts',
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        () => {
+          void refresh();
+          void refreshCount();
+        },
+      )
       .subscribe();
 
     return () => {
