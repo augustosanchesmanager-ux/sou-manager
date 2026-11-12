@@ -1,0 +1,188 @@
+name: CD - Apply Supabase Migrations (Controlado)
+
+# ADR-048 + ADR-026 (MERGE != DEPLOY PROD)
+# Regra: merge em main NAO aplica migrations em producao automaticamente.
+# A aplicacao exige disparo manual (workflow_dispatch), dry_run=false explicito,
+# confirmacao dupla e aprovacao humana no Environment "Production".
+
+on:
+  workflow_dispatch:
+    inputs:
+      authorization_ref:
+        description: "Referencia da autorizacao do PO (ex.: PR #123 / decisao)"
+        required: true
+      dry_run:
+        description: "Dry-run: true = apenas lista/simula migrations pendentes (PADRAO). false = aplica em producao."
+        type: boolean
+        required: true
+        default: true
+      confirm:
+        description: "Digite exatamente 'supabase-prod' para confirmar aplicacao (obrigatorio quando dry_run=false)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+# Serializa execucoes de migration; nunca cancela uma migration em andamento.
+concurrency:
+  group: cd-supabase-migrations-production
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: validate inputs (read-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      apply: ${{ steps.guard.outputs.apply }}
+      dry_run: ${{ inputs.dry_run }}
+      authorization_ref: ${{ inputs.authorization_ref }}
+    steps:
+      - name: Guardrails de entrada
+        id: guard
+        env:
+          AUTH_REF: ${{ inputs.authorization_ref }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          if [ -z "$AUTH_REF" ]; then
+            echo "::error::authorization_ref e obrigatorio (trilha de auditoria)."
+            exit 1
+          fi
+          APPLY=false
+          if [ "$DRY_RUN" != "true" ]; then
+            if [ "$CONFIRM" != "supabase-prod" ]; then
+              echo "::error::dry_run=false exige confirm exatamente igual a 'supabase-prod'. Recusado."
+              exit 1
+            fi
+            APPLY=true
+          fi
+          echo "apply=$APPLY" >> "$GITHUB_OUTPUT"
+          echo "authorization_ref=$AUTH_REF" >> "$GITHUB_OUTPUT"
+          echo "DryRun=$DRY_RUN | Apply=$APPLY | Auth=$AUTH_REF"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Listar migrations versionadas (auditoria)
+        run: |
+          set -euo pipefail
+          {
+            echo "### Migrations em \`supabase/migrations/\` (ultimas 10)"
+            echo ""
+            echo '```text'
+            ls -1 supabase/migrations | sort | tail -n 10
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  dry-run:
+    name: dry-run supabase db push
+    needs: validate
+    if: needs.validate.outputs.apply == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: Production
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verificar secrets do Supabase
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for var in SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_ID SUPABASE_DB_PASSWORD; do
+            if [ -z "${!var:-}" ]; then
+              echo "::error::Secret $var ausente. Configure em Settings > Secrets and variables > Actions."
+              exit 1
+            fi
+          done
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link and Dry-Run Migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
+          supabase db push --dry-run
+
+  apply-migrations:
+    name: apply migrations (requer aprovacao do Environment)
+    needs: validate
+    if: needs.validate.outputs.apply == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: Production
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verificar secrets do Supabase
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for var in SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_ID SUPABASE_DB_PASSWORD; do
+            if [ -z "${!var:-}" ]; then
+              echo "::error::Secret $var ausente. Configure em Settings > Secrets and variables > Actions."
+              exit 1
+            fi
+          done
+
+      - name: Guard anti-regressao (run deve estar no HEAD atual da main)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          MAIN_SHA=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')
+          echo "main HEAD    = $MAIN_SHA"
+          echo "workflow SHA = $GITHUB_SHA"
+          if [ "$MAIN_SHA" != "$GITHUB_SHA" ]; then
+            echo "Regressao evitada: o commit deste run nao e o HEAD atual da main."
+            exit 1
+          fi
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link, Dry-Run and Push Migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
+          supabase db push --dry-run
+          supabase db push
+
+      - name: Trilha de auditoria
+        if: always()
+        env:
+          AUTH_REF: ${{ needs.validate.outputs.authorization_ref }}
+        run: |
+          {
+            echo "## ADR-048 — Trilha de Auditoria (Migrations Producao)"
+            echo ""
+            echo "| Campo | Valor |"
+            echo "|-------|-------|"
+            echo "| Commit | $GITHUB_SHA |"
+            echo "| Authorization ref | $AUTH_REF |"
+            echo "| Executor | $GITHUB_ACTOR |"
+            echo "| Timestamp | $(date -u +%Y-%m-%dT%H:%M:%SZ) |"
+          } >> "$GITHUB_STEP_SUMMARY"

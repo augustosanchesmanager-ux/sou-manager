@@ -52,6 +52,7 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | [ADR-045](./ADR-045-financial-ecosystem-consolidation.md) | Accepted | Consolidação do Ecossistema Financeiro — Fiados, Ponto Único de Estorno e Fluxo de Caixa (2026-11-10) |
 | [ADR-046](./ADR-046-audited-manager-comanda-adjustment.md) | Accepted | Ajuste Gerencial Auditado de Comanda — Status, Data de Abertura e Data de Pagamento (2026-11-10) |
 | [ADR-047](./ADR-047-unified-commission-product-and-vales-rules.md) | Accepted | Unificação E2E das Regras de Comissão (Serviço, Produto, Coexecução), Fiado e Vales (2026-11-11) |
+| [ADR-048](./ADR-048-cd-supabase-migrations-gate.md) | Accepted | Gate Controlado para Aplicação de Migrations Supabase em Produção (2026-11-12) |
 
 ---
 

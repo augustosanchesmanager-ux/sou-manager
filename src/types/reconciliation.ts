@@ -32,7 +32,7 @@ export interface BankStatement {
   created_at: string;
 }
 
-export type StatementTransactionStatus = 'unreconciled' | 'reconciled' | 'ignored';
+export type StatementTransactionStatus = 'pending' | 'reconciled' | 'ignored';
 
 export interface BankStatementTransaction {
   id: string;

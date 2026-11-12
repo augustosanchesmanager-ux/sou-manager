@@ -55,7 +55,7 @@ export default function BankReconciliation() {
   const [transactions, setTransactions] = useState<BankStatementTransaction[]>([]);
   const [summary, setSummary] = useState<ReconciliationSummary | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'unreconciled' | 'reconciled' | 'ignored'>('unreconciled');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'reconciled' | 'ignored'>('pending');
   const [searchTerm, setSearchTerm] = useState<string>('');
 
   // Notificações
@@ -270,7 +270,7 @@ export default function BankReconciliation() {
   // Ignorar / Reativar
   const handleToggleIgnore = async (tx: BankStatementTransaction) => {
     if (!tenantId) return;
-    const newStatus = tx.status === 'ignored' ? 'unreconciled' : 'ignored';
+    const newStatus = tx.status === 'ignored' ? 'pending' : 'ignored';
     try {
       await bankReconciliationService.setStatus(tenantId, tx.id, newStatus);
       setToast({
@@ -582,7 +582,7 @@ export default function BankReconciliation() {
         <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg w-full md:w-auto">
           {(
             [
-              { key: 'unreconciled', label: 'Pendentes' },
+              { key: 'pending', label: 'Pendentes' },
               { key: 'reconciled', label: 'Conciliados' },
               { key: 'ignored', label: 'Ignorados' },
               { key: 'all', label: 'Todos' },
@@ -723,7 +723,7 @@ export default function BankReconciliation() {
                             Ignorado
                           </span>
                         )}
-                        {tx.status === 'unreconciled' && (
+                        {tx.status === 'pending' && (
                           <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
                             Pendente
                           </span>
@@ -805,7 +805,7 @@ export default function BankReconciliation() {
               )}
 
               {/* Correspondências Inteligentes Encontradas */}
-              {activeTxForMatching.status === 'unreconciled' && (
+              {activeTxForMatching.status === 'pending' && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
