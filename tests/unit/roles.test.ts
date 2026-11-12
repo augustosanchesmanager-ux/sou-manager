@@ -14,11 +14,11 @@ describe('src/lib/staff/roles - canPerformServices & shouldAppearOnSchedule', ()
     expect(shouldAppearOnSchedule({ role: 'manager', commission_rate: 30 })).toBe(true);
   });
 
-  it('should block manager with commission_rate 0 or null from performing services', () => {
-    expect(canPerformServices({ role: 'manager', commission_rate: 0 })).toBe(false);
-    expect(canPerformServices({ role: 'manager', commission_rate: null })).toBe(false);
-    expect(canPerformServices({ role: 'manager' })).toBe(false);
-    expect(shouldAppearOnSchedule({ role: 'manager' })).toBe(false);
+  it('should allow manager (operational manager) regardless of commission_rate', () => {
+    expect(canPerformServices({ role: 'manager', commission_rate: 0 })).toBe(true);
+    expect(canPerformServices({ role: 'manager', commission_rate: null })).toBe(true);
+    expect(canPerformServices({ role: 'manager' })).toBe(true);
+    expect(shouldAppearOnSchedule({ role: 'manager' })).toBe(true);
   });
 
   it('should block receptionist and admin without service capability from schedule', () => {
@@ -31,7 +31,7 @@ describe('src/lib/staff/roles - canPerformServices & shouldAppearOnSchedule', ()
   it('should handle string roles gracefully', () => {
     expect(canPerformServices('barber')).toBe(true);
     expect(canPerformServices('receptionist')).toBe(false);
-    expect(canPerformServices('manager')).toBe(false);
+    expect(canPerformServices('manager')).toBe(true);
   });
 
   it('should return false for null or undefined', () => {
