@@ -9,6 +9,7 @@ interface ZeroCloseAuditInput {
   authorizedBy?: string | null;
   reason?: string | null;
   userId?: string | null;
+  pinVerified?: boolean;
 }
 
 interface ZeroCloseInput extends ZeroCloseAuditInput {
@@ -16,6 +17,7 @@ interface ZeroCloseInput extends ZeroCloseAuditInput {
   tenantId: string;
   comandaId: string;
   legacyReferenceMonth?: string | null;
+  auditPin?: string | null;
 }
 
 export interface ZeroCloseResult {
@@ -76,12 +78,14 @@ export const buildZeroCloseAuditNote = ({
   authorizedBy,
   reason,
   userId,
+  pinVerified,
 }: ZeroCloseAuditInput) => JSON.stringify({
   zero_close_reason: reason || ZERO_CLOSE_ORIGIN_LABELS[origin],
   zero_close_origin: origin,
   authorized_by: authorizedBy || userId || null,
   reason: reason || null,
   user_id: userId || null,
+  pin_verified: Boolean(pinVerified),
   created_at: new Date().toISOString(),
   source,
 });
@@ -96,12 +100,20 @@ export const closeZeroAmountComanda = async ({
   reason,
   userId,
   legacyReferenceMonth,
+  auditPin,
 }: ZeroCloseInput): Promise<ZeroCloseResult> => {
   if (!tenantId) throw new Error('tenant_id obrigatório para fechamento zero.');
   if (!comandaId) throw new Error('comanda_id obrigatório para fechamento zero.');
   if (!origin) throw new Error(ZERO_CLOSE_ERROR_MESSAGE);
   if (requiresReason(origin) && !String(reason || '').trim()) {
     throw new Error('Informe o motivo obrigatório para fechamento zero auditado.');
+  }
+
+  const normalizedPin = String(auditPin || '').replace(/\D/g, '').trim();
+  if (requiresReason(origin)) {
+    if (!/^\d{6,8}$/.test(normalizedPin)) {
+      throw new Error('Informe a senha/PIN de gerência (6 a 8 dígitos) para autorizar comanda zerada (cortesia ou baixa administrativa).');
+    }
   }
 
   await assertComandaOpenForZeroClose({ supabase, tenantId, comandaId });
@@ -112,6 +124,7 @@ export const closeZeroAmountComanda = async ({
     authorizedBy,
     reason: reason?.trim() || null,
     userId,
+    pinVerified: requiresReason(origin) && normalizedPin.length >= 6,
   });
 
   const rpcName = origin === 'club_credit'
@@ -130,6 +143,7 @@ export const closeZeroAmountComanda = async ({
         p_tenant_id: tenantId,
         p_closure_note: auditNote,
         p_legacy_reference_month: legacyReferenceMonth || null,
+        p_audit_pin: normalizedPin || null,
       };
 
   const { data, error } = await supabase.rpc(rpcName, rpcParams);

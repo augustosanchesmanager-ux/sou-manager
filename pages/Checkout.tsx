@@ -403,6 +403,7 @@ const Checkout: React.FC = () => {
     const [legacyReferenceMonth, setLegacyReferenceMonth] = useState('');
     const [zeroCloseOrigin, setZeroCloseOrigin] = useState<ZeroCloseOrigin>('club_credit');
     const [zeroCloseReason, setZeroCloseReason] = useState('');
+    const [zeroClosePin, setZeroClosePin] = useState('');
     const [discount, setDiscount] = useState<string>('0');
     const [appliedVoucher, setAppliedVoucher] = useState<CustomerVoucher | null>(null);
     const [discountType, setDiscountType] = useState<DiscountAuditType>('barber_discount');
@@ -577,6 +578,7 @@ const Checkout: React.FC = () => {
         setLegacyReferenceMonth('');
         setZeroCloseOrigin('club_credit');
         setZeroCloseReason('');
+        setZeroClosePin('');
         setCheckoutBenefits(null);
         setDuplicateComanda(null);
         setPendingClient(null);
@@ -1488,6 +1490,7 @@ const Checkout: React.FC = () => {
             shouldSettleZeroWithAudit,
             zeroCloseOrigin: zeroCloseOrigin as any,
             zeroCloseReason,
+            zeroClosePin,
             creditItems: creditItems as any,
             chefClubInfo: checkoutBenefits ? { id: checkoutBenefits.subscriptionId } : null,
             shouldCollectDiscountAudit,
@@ -2264,16 +2267,36 @@ const Checkout: React.FC = () => {
                                     </button>
                                 </div>
                                 {(zeroCloseOrigin === 'house_courtesy' || zeroCloseOrigin === 'administrative_adjustment') && (
-                                    <label className="mt-3 block">
-                                        <span className="text-[10px] font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">Motivo obrigatório</span>
-                                        <textarea
-                                            value={zeroCloseReason}
-                                            onChange={(event) => setZeroCloseReason(event.target.value)}
-                                            rows={3}
-                                            placeholder={`Explique quem autorizou e por que ${isEsteticaApp ? `o ${orderLabelLower} será finalizado` : 'a comanda será fechada'} sem pagamento.`}
-                                            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
-                                        />
-                                    </label>
+                                    <div className="mt-3 space-y-3">
+                                        <label className="block">
+                                            <span className="text-[10px] font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">Motivo obrigatório</span>
+                                            <textarea
+                                                value={zeroCloseReason}
+                                                onChange={(event) => setZeroCloseReason(event.target.value)}
+                                                rows={3}
+                                                placeholder={`Explique quem autorizou e por que ${isEsteticaApp ? `o ${orderLabelLower} será finalizado` : 'a comanda será fechada'} sem pagamento.`}
+                                                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
+                                            />
+                                        </label>
+                                        <label className="block">
+                                            <span className="text-[10px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                                                Senha / PIN de Gerência (6 a 8 dígitos)
+                                            </span>
+                                            <input
+                                                type="password"
+                                                inputMode="numeric"
+                                                autoComplete="off"
+                                                maxLength={8}
+                                                value={zeroClosePin}
+                                                onChange={(event) => setZeroClosePin(event.target.value.replace(/\D/g, '').slice(0, 8))}
+                                                placeholder="Digite o PIN gerencial para autorizar"
+                                                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm tracking-widest outline-none focus:border-amber-400 dark:border-white/10 dark:bg-[#0f172a]"
+                                            />
+                                            <span className="mt-1 block text-[11px] text-slate-500 dark:text-slate-400">
+                                                Obrigatório para qualquer comanda zerada fora do Club dos Chefes.
+                                            </span>
+                                        </label>
+                                    </div>
                                 )}
                             </div>
                         )}

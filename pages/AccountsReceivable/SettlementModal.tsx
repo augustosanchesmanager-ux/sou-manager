@@ -34,6 +34,8 @@ export interface SettlementModalProps {
     onSettlementNotesChange: (notes: string) => void;
     settlementZeroReason: string;
     onSettlementZeroReasonChange: (reason: string) => void;
+    settlementZeroPin?: string;
+    onSettlementZeroPinChange?: (pin: string) => void;
     settlementClubCredits: ChefClubClientCredits | null;
     settlementClubCreditsLoading: boolean;
     settlementClubCanCover: boolean;
@@ -63,6 +65,8 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
     onSettlementNotesChange,
     settlementZeroReason,
     onSettlementZeroReasonChange,
+    settlementZeroPin = '',
+    onSettlementZeroPinChange,
     settlementClubCredits,
     settlementClubCreditsLoading,
     settlementClubCanCover,
@@ -298,16 +302,36 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                     )}
 
                     {(settlementMode === 'house_courtesy' || settlementMode === 'administrative_adjustment') && (
-                        <label className="grid gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
-                            Motivo obrigatório
-                            <textarea
-                                value={settlementZeroReason}
-                                onChange={(event) => onSettlementZeroReasonChange(event.target.value)}
-                                rows={3}
-                                className="rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-background-dark px-3 py-2.5 text-sm outline-none focus:border-primary"
-                                placeholder="Explique a autorização e o motivo da baixa sem pagamento."
-                            />
-                        </label>
+                        <>
+                            <label className="grid gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
+                                Motivo obrigatório
+                                <textarea
+                                    value={settlementZeroReason}
+                                    onChange={(event) => onSettlementZeroReasonChange(event.target.value)}
+                                    rows={3}
+                                    className="rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-background-dark px-3 py-2.5 text-sm outline-none focus:border-primary"
+                                    placeholder="Explique a autorização e o motivo da baixa sem pagamento."
+                                />
+                            </label>
+                            {onSettlementZeroPinChange && (
+                                <label className="grid gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
+                                    Senha / PIN de Gerência (6 a 8 dígitos)
+                                    <input
+                                        type="password"
+                                        inputMode="numeric"
+                                        autoComplete="off"
+                                        maxLength={8}
+                                        value={settlementZeroPin}
+                                        onChange={(event) => onSettlementZeroPinChange(event.target.value.replace(/\D/g, '').slice(0, 8))}
+                                        className="rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-background-dark px-3 py-2.5 text-sm tracking-widest outline-none focus:border-primary"
+                                        placeholder="Digite o PIN gerencial para autorizar"
+                                    />
+                                    <span className="text-xs font-medium text-slate-500">
+                                        Obrigatório para qualquer comanda zerada fora do Club dos Chefes.
+                                    </span>
+                                </label>
+                            )}
+                        </>
                     )}
 
                     <label className="grid gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
