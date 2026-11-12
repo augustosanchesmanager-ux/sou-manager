@@ -32,21 +32,14 @@ const getRawProductCommissionRate = (staff?: StaffRoleLike | null): number | str
 
 /**
  * Determines if a staff member can perform services on chair/schedule.
- * Returns true for role === 'barber' and for role === 'manager' with commission_rate > 0.
+ * Returns true for role === 'barber' and role === 'manager' (Gerente Operacional).
  * Defensively supports both staff object and raw role string.
  */
 export const canPerformServices = (staff?: StaffRoleLike | string | null): boolean => {
   if (!staff) return false;
   const roleStr = typeof staff === 'string' ? staff : staff.role;
   const role = normalizeRole(roleStr);
-  if (role === 'barber') return true;
-  if (role === 'manager') {
-    if (typeof staff === 'string') return false;
-    const rawRate = getRawCommissionRate(staff);
-    const rate = Number(rawRate ?? 0);
-    return rate > 0;
-  }
-  return false;
+  return role === 'barber' || role === 'manager';
 };
 
 export const shouldAppearOnSchedule = (staff?: StaffRoleLike | string | null): boolean => {

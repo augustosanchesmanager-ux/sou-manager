@@ -66,20 +66,24 @@ describe('Staff Roles & Commission Rate Normalization', () => {
   });
 
   describe('canPerformServices & shouldAppearOnSchedule', () => {
-    it('should include barber and manager with commission_rate > 0', () => {
+    it('should include barber and manager (operational manager) regardless of commission rate', () => {
       expect(canPerformServices({ role: 'barber' })).toBe(true);
+      expect(canPerformServices({ role: 'manager' })).toBe(true);
+      expect(canPerformServices({ role: 'manager', commission_rate: 0 })).toBe(true);
       expect(canPerformServices({ role: 'manager', commission_rate: 30 })).toBe(true);
       expect(canPerformServices({ role: 'manager', commissionRate: 0.5 })).toBe(true);
+      expect(canPerformServices('manager')).toBe(true);
       expect(shouldAppearOnSchedule({ role: 'barber' })).toBe(true);
+      expect(shouldAppearOnSchedule({ role: 'manager' })).toBe(true);
+      expect(shouldAppearOnSchedule({ role: 'manager', commission_rate: 0 })).toBe(true);
       expect(shouldAppearOnSchedule({ role: 'manager', commission_rate: 30 })).toBe(true);
     });
 
-    it('should exclude managers without commission, sellers and receptionists', () => {
-      expect(canPerformServices({ role: 'manager' })).toBe(false);
-      expect(canPerformServices({ role: 'manager', commission_rate: 0 })).toBe(false);
+    it('should exclude admin, sellers and receptionists', () => {
+      expect(canPerformServices({ role: 'admin' })).toBe(false);
       expect(canPerformServices({ role: 'seller' })).toBe(false);
       expect(canPerformServices({ role: 'receptionist' })).toBe(false);
-      expect(shouldAppearOnSchedule({ role: 'manager' })).toBe(false);
+      expect(shouldAppearOnSchedule({ role: 'admin' })).toBe(false);
       expect(shouldAppearOnSchedule({ role: 'seller' })).toBe(false);
       expect(shouldAppearOnSchedule({ role: 'receptionist' })).toBe(false);
     });
