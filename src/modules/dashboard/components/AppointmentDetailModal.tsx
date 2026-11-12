@@ -82,6 +82,7 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
 
           <div className="pt-4 flex flex-col sm:flex-row justify-center gap-3 border-t border-slate-100 dark:border-white/5 mt-2">
             <button
+              type="button"
               onClick={() => {
                 const { digits, isValid } = normalizePhone(appointment.client_phone);
                 if (isValid) {
@@ -101,6 +102,7 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
             </button>
 
             <button
+              type="button"
               onClick={onOpenSchedule}
               className="flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-sm font-bold bg-primary text-night hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
             >

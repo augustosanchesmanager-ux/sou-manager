@@ -113,7 +113,7 @@ export const ServicesGridSelector: React.FC<ServicesGridSelectorProps> = ({
   };
 
   return (
-    <div className="space-y-4" role="group" aria-label="Seleção de serviços">
+    <fieldset className="space-y-4 border-0 p-0 m-0" aria-label="Seleção de serviços">
       {/* 1. Destaque dos Mais Pedidos (se houver catálogo com 3+ itens) */}
       {popularServices.length > 0 && (
         <div className="space-y-2">
@@ -145,7 +145,7 @@ export const ServicesGridSelector: React.FC<ServicesGridSelectorProps> = ({
       <div className="grid grid-cols-2 gap-2.5">
         {services.map((service) => renderServiceCard(service, false))}
       </div>
-    </div>
+    </fieldset>
   );
 };
 

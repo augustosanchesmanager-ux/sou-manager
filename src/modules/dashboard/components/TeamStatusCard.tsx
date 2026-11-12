@@ -7,7 +7,7 @@ export const TeamStatusCard: React.FC<{
   <div className="card-boutique p-6 flex flex-col justify-center items-center">
     <p className="text-slate-500 text-[10px] font-bold uppercase mb-4 self-start tracking-widest">Equipe Ativa</p>
     <div className="relative size-24">
-      <svg className="size-full -rotate-90" viewBox="0 0 36 36">
+      <svg className="size-full -rotate-90" viewBox="0 0 36 36" aria-hidden="true">
         <path
           className="text-slate-200 dark:text-slate-800"
           d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"

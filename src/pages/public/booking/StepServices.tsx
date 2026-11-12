@@ -23,8 +23,8 @@ const StepServices: React.FC<StepServicesProps> = ({
   if (isLoading) {
     return (
       <div className="space-y-3" role="status" aria-label="Carregando serviços">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="animate-pulse">
+        {['s0', 's1', 's2', 's3'].map((id) => (
+          <div key={id} className="animate-pulse">
             <div className="h-16 bg-line/50 rounded-xl" />
           </div>
         ))}
@@ -42,7 +42,7 @@ const StepServices: React.FC<StepServicesProps> = ({
   }
 
   return (
-    <div className="grid gap-3 md:grid-cols-2" role="list" aria-label="Serviços disponíveis">
+    <section className="grid gap-3 md:grid-cols-2" aria-label="Serviços disponíveis">
       {services.map((service) => {
         const isSelected = selectedIds.includes(service.id);
 
@@ -97,7 +97,7 @@ const StepServices: React.FC<StepServicesProps> = ({
           </button>
         );
       })}
-    </div>
+    </section>
   );
 };
 

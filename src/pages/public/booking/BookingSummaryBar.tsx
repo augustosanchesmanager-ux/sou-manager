@@ -32,10 +32,9 @@ const BookingSummaryBar: React.FC<BookingSummaryBarProps> = ({
   formatPriceBRL,
 }) => {
   return (
-    <div
+    <section
       className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-card-dark/95 backdrop-blur-xl border-t border-line px-4"
       style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
-      role="region"
       aria-label="Resumo do agendamento"
     >
       <div className="max-w-2xl mx-auto">
@@ -92,7 +91,7 @@ const BookingSummaryBar: React.FC<BookingSummaryBarProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </section>
   );
 };
 

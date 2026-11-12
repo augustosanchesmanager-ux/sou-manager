@@ -26,10 +26,9 @@ export const BookingStickyBottomBar: React.FC<BookingStickyBottomBarProps> = ({
   const hasSelected = selectedCount > 0;
 
   return (
-    <div
+    <section
       className="fixed bottom-0 left-0 right-0 max-w-sm sm:max-w-md mx-auto p-3.5 bg-neutral-950/95 backdrop-blur-md border-t border-neutral-800 z-30 shadow-2xl transition-all"
       style={{ paddingBottom: 'calc(0.875rem + env(safe-area-inset-bottom, 0px))' }}
-      role="region"
       aria-label="Resumo dos serviços selecionados"
     >
       <div className="flex items-center justify-between gap-3">
@@ -70,7 +69,7 @@ export const BookingStickyBottomBar: React.FC<BookingStickyBottomBarProps> = ({
           <ArrowRight size={14} className={hasSelected ? 'translate-x-0.5 transition-transform' : ''} />
         </button>
       </div>
-    </div>
+    </section>
   );
 };
 

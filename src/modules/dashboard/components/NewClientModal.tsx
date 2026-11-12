@@ -22,8 +22,9 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
   <Modal isOpen={isOpen} onClose={onClose} title="Cadastrar Novo Cliente" maxWidth="md">
     <form onSubmit={onSubmit} className="space-y-4">
       <div>
-        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Nome Completo</label>
+        <label htmlFor="new-client-name" className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Nome Completo</label>
         <input
+          id="new-client-name"
           type="text"
           required
           placeholder="Ex: Carlos Oliveira"
@@ -34,8 +35,9 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
       </div>
 
       <div>
-        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Telefone / WhatsApp</label>
+        <label htmlFor="new-client-phone" className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Telefone / WhatsApp</label>
         <input
+          id="new-client-phone"
           type="tel"
           required
           placeholder="(11) 99999-9999"
@@ -46,8 +48,9 @@ export const NewClientModal: React.FC<NewClientModalProps> = ({
       </div>
 
       <div>
-        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">E-mail (Opcional)</label>
+        <label htmlFor="new-client-email" className="block text-xs font-bold uppercase text-slate-500 mb-1.5">E-mail (Opcional)</label>
         <input
+          id="new-client-email"
           type="email"
           placeholder="exemplo@email.com"
           value={form.email}

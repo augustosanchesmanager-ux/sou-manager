@@ -13,12 +13,12 @@ export const useResolvedClient = (): SupabaseClient<any> => {
 
 export const useResolvedClientOrNull = (): SupabaseClient<any> | null => {
   const appContext = useAppOptional();
-
-  if (!appContext?.appSlug) {
-    return null;
-  }
+  const appSlug = appContext?.appSlug;
 
   return useMemo(() => {
-    return getScopedClient(appContext.appSlug);
-  }, [appContext.appSlug]);
+    if (!appSlug) {
+      return null;
+    }
+    return getScopedClient(appSlug);
+  }, [appSlug]);
 };

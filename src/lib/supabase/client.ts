@@ -1376,6 +1376,7 @@ case 'comanda_items':
       const rows = resolveRows();
       return Promise.resolve({ data: rows[0] ?? null, error: null, count: rows.length });
     },
+    // biome-ignore lint/suspicious/noThenProperty: Supabase query builder is intentionally PromiseLike
     then(
       onFulfilled: (value: { data: unknown[] | null; error: null; count: number | null }) => unknown,
       onRejected?: (reason: unknown) => unknown,
@@ -1393,6 +1394,7 @@ const createLocalDemoClient = (): SupabaseClient => {
     error,
     single: async () => ({ data, error }),
     maybeSingle: async () => ({ data, error }),
+    // biome-ignore lint/suspicious/noThenProperty: Supabase RPC builder is intentionally PromiseLike
     then: (
       onFulfilled: (value: { data: unknown; error: Error | null }) => unknown,
       onRejected?: (reason: unknown) => unknown,

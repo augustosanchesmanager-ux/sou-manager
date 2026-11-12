@@ -11,7 +11,7 @@ export const UpcomingBirthdaysCard: React.FC<{
         <span className="material-symbols-outlined text-pink-500">cake</span>
         <h3 className="font-bold text-slate-900 dark:text-white">Aniversariantes Próximos</h3>
       </div>
-      <button onClick={onNavigateClients} className="text-pink-500 text-xs font-bold uppercase tracking-wider hover:text-pink-600 dark:hover:text-pink-400 transition-colors">
+      <button type="button" onClick={onNavigateClients} className="text-pink-500 text-xs font-bold uppercase tracking-wider hover:text-pink-600 dark:hover:text-pink-400 transition-colors">
         Ver Mês
       </button>
     </div>
@@ -20,8 +20,8 @@ export const UpcomingBirthdaysCard: React.FC<{
       {upcomingBirthdays.length === 0 ? (
         <p className="text-sm text-slate-500 text-center py-4">Nenhum aniversariante próximo.</p>
       ) : (
-        upcomingBirthdays.map((person, index) => (
-          <div key={`${person.id}-${index}`} className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+        upcomingBirthdays.map((person) => (
+          <div key={person.id || `${person.name}-${person.displayDate}`} className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
             {person.avatar ? (
               <img src={person.avatar} alt={person.name} className="size-10 rounded-full border border-slate-200 dark:border-white/5 object-cover shrink-0" />
             ) : (
@@ -43,6 +43,7 @@ export const UpcomingBirthdaysCard: React.FC<{
             </div>
             {(person.status === 'overdue' || person.daysUntil === 0) && (
               <button
+                type="button"
                 onClick={() => window.open(`https://wa.me/55${person.phone.replace(/\D/g, '')}`, '_blank')}
                 title="Enviar Oferta no WhatsApp"
                 className="size-8 rounded-full bg-green-500/10 text-green-500 flex items-center justify-center hover:bg-green-500 hover:text-white transition-colors"

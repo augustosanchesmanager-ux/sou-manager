@@ -31,8 +31,8 @@ const StepStaff: React.FC<StepStaffProps> = ({
         <div className="animate-pulse">
           <div className="h-20 bg-line/50 rounded-xl" />
         </div>
-        {[...Array(3)].map((_, i) => (
-          <div key={i} className="animate-pulse">
+        {['st0', 'st1', 'st2'].map((id) => (
+          <div key={id} className="animate-pulse">
             <div className="h-16 bg-line/50 rounded-xl" />
           </div>
         ))}
@@ -56,7 +56,7 @@ const StepStaff: React.FC<StepStaffProps> = ({
   };
 
   return (
-    <div className="space-y-4" role="list" aria-label="Profissionais disponíveis">
+    <section className="space-y-4" aria-label="Profissionais disponíveis">
       {/* "Qualquer Profissional Disponível" option */}
       <button
         type="button"
@@ -91,7 +91,7 @@ const StepStaff: React.FC<StepStaffProps> = ({
       </button>
 
       {/* Individual professionals */}
-      <div className="space-y-3" role="list" aria-label="Barbeiros">
+      <section className="space-y-3" aria-label="Barbeiros">
         {activeStaff.map((professional) => {
           const isSelected = selectedId === professional.id;
 
@@ -142,8 +142,8 @@ const StepStaff: React.FC<StepStaffProps> = ({
             </button>
           );
         })}
-      </div>
-    </div>
+      </section>
+    </section>
   );
 };
 

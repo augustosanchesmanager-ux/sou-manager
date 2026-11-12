@@ -102,7 +102,9 @@ export const useMembershipOverview = (filters: MembershipFilters) => {
           .in('id', clientIds);
 
         if (clientsRes.data) {
-          clientsRes.data.forEach(c => clientPhoneMap.set(c.id, { id: c.id, name: c.name, phone: c.phone }));
+          for (const c of clientsRes.data) {
+            clientPhoneMap.set(c.id, { id: c.id, name: c.name, phone: c.phone });
+          }
         }
       }
 

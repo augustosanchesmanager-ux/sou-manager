@@ -54,12 +54,12 @@ export const UpcomingAppointmentsCard: React.FC<UpcomingAppointmentsCardProps> =
             <div className="w-12 h-12 rounded-lg bg-white dark:bg-white/5 flex flex-col items-center justify-center border border-slate-200 dark:border-transparent text-primary group-hover:bg-primary/20 group-hover:text-primary transition-colors shrink-0">
               <span className="text-xs font-bold">{formatAppointmentTime(appointment.start_time)}</span>
             </div>
-            <div className="flex-1 min-w-0" onClick={() => onSelectAppointment(appointment)}>
+            <button type="button" className="flex-1 min-w-0 text-left" onClick={() => onSelectAppointment(appointment)}>
               <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{appointment.client_name || 'Cliente'}</p>
               <p className="text-[10px] text-slate-500 truncate">
                 {appointment.service_name || 'Servico'} • {appointment.staff_name || 'Profissional'}
               </p>
-            </div>
+            </button>
             <div className="relative">
               <button
                 type="button"

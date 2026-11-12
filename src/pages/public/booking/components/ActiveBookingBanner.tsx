@@ -114,13 +114,15 @@ export const ActiveBookingBanner: React.FC<ActiveBookingBannerProps> = ({
   }
 
   return (
-    <div
-      onClick={() => onOpenManage(activeBooking)}
-      className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/15 via-neutral-900 to-neutral-900 border border-amber-500/40 text-xs shadow-md transition-all hover:border-amber-500/60 cursor-pointer flex items-center justify-between gap-2.5 active:scale-[0.99]"
-      role="region"
+    <section
+      className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/15 via-neutral-900 to-neutral-900 border border-amber-500/40 text-xs shadow-md transition-all hover:border-amber-500/60 flex items-center justify-between gap-2.5"
       aria-label="Lembrete de agendamento ativo"
     >
-      <div className="flex items-center gap-2.5 min-w-0">
+      <button
+        type="button"
+        onClick={() => onOpenManage(activeBooking)}
+        className="flex items-center gap-2.5 min-w-0 flex-1 text-left cursor-pointer active:scale-[0.99]"
+      >
         <div className="size-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 flex-shrink-0">
           <Calendar size={15} />
         </div>
@@ -138,13 +140,17 @@ export const ActiveBookingBanner: React.FC<ActiveBookingBannerProps> = ({
             </span>
           </div>
         </div>
-      </div>
+      </button>
 
       <div className="flex items-center gap-1.5 flex-shrink-0">
-        <span className="px-2.5 py-1 rounded-lg bg-neutral-800 text-[11px] font-bold text-amber-400 border border-neutral-700/60 flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => onOpenManage(activeBooking)}
+          className="px-2.5 py-1 rounded-lg bg-neutral-800 text-[11px] font-bold text-amber-400 border border-neutral-700/60 flex items-center gap-1 cursor-pointer"
+        >
           <span>Ver / Cancelar</span>
           <ChevronRight size={12} />
-        </span>
+        </button>
 
         <button
           type="button"
@@ -155,7 +161,7 @@ export const ActiveBookingBanner: React.FC<ActiveBookingBannerProps> = ({
           <X size={12} />
         </button>
       </div>
-    </div>
+    </section>
   );
 };
 

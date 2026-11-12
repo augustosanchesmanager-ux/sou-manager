@@ -28,6 +28,7 @@ describe('SmartReturnService', () => {
             data: tableName === 'tenant_settings' ? { booking_enabled: true } : null,
             error: null,
           }),
+          // biome-ignore lint/suspicious/noThenProperty: mock Supabase query builder
           then: vi.fn((resolve: (val: any) => any) =>
             Promise.resolve({ data, error: null }).then(resolve)
           ),
@@ -275,6 +276,7 @@ describe('SmartReturnService', () => {
               in: vi.fn().mockReturnThis(),
               gte: vi.fn().mockReturnThis(),
               order: vi.fn().mockReturnThis(),
+              // biome-ignore lint/suspicious/noThenProperty: mock Supabase query builder
               then: vi.fn((resolve: (val: any) => any) => Promise.resolve({ data, error: null }).then(resolve)),
             };
           }),
@@ -288,6 +290,7 @@ describe('SmartReturnService', () => {
           gte: vi.fn().mockReturnThis(),
           order: vi.fn().mockReturnThis(),
           maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          // biome-ignore lint/suspicious/noThenProperty: mock Supabase query builder
           then: vi.fn((resolve: (val: any) => any) =>
             Promise.resolve({
               data: tableName === 'clients' ? [{ id: 'c-7', name: 'Diego Costa', phone: '11944443333' }] : [],

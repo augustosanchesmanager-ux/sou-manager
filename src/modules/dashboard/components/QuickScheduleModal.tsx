@@ -92,7 +92,7 @@ export const QuickScheduleModal: React.FC<QuickScheduleModalProps> = ({
       {!showNewClientForm ? (
         <form onSubmit={onSubmit} className="space-y-5">
           <div className="relative">
-            <label className="text-[10px] uppercase font-black tracking-widest text-slate-400 block mb-2">
+            <label htmlFor="qs-client-search" className="text-[10px] uppercase font-black tracking-widest text-slate-400 block mb-2">
               Cliente
             </label>
             <div className="relative">
@@ -100,6 +100,7 @@ export const QuickScheduleModal: React.FC<QuickScheduleModalProps> = ({
                 search
               </span>
               <input
+                id="qs-client-search"
                 ref={clientInputRef}
                 type="text"
                 value={formData.clientSearch}
@@ -152,9 +153,9 @@ export const QuickScheduleModal: React.FC<QuickScheduleModalProps> = ({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="relative" ref={serviceRef}>
-              <label className="text-[10px] uppercase font-black tracking-widest text-slate-400 block mb-2">
+              <span className="text-[10px] uppercase font-black tracking-widest text-slate-400 block mb-2">
                 Serviço
-              </label>
+              </span>
               <button
                 type="button"
                 onClick={() => setShowServiceDropdown(!showServiceDropdown)}
@@ -183,9 +184,9 @@ export const QuickScheduleModal: React.FC<QuickScheduleModalProps> = ({
             </div>
 
             <div className="relative" ref={staffRef}>
-              <label className="text-[10px] uppercase font-black tracking-widest text-slate-400 block mb-2">
+              <span className="text-[10px] uppercase font-black tracking-widest text-slate-400 block mb-2">
                 Profissional
-              </label>
+              </span>
               <button
                 type="button"
                 onClick={() => setShowStaffDropdown(!showStaffDropdown)}
@@ -216,10 +217,11 @@ export const QuickScheduleModal: React.FC<QuickScheduleModalProps> = ({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] uppercase font-black tracking-widest text-slate-400 block mb-2">
+              <label htmlFor="qs-date" className="text-[10px] uppercase font-black tracking-widest text-slate-400 block mb-2">
                 Data
               </label>
               <input
+                id="qs-date"
                 type="date"
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
@@ -227,10 +229,11 @@ export const QuickScheduleModal: React.FC<QuickScheduleModalProps> = ({
               />
             </div>
             <div>
-              <label className="text-[10px] uppercase font-black tracking-widest text-slate-400 block mb-2">
+              <label htmlFor="qs-time" className="text-[10px] uppercase font-black tracking-widest text-slate-400 block mb-2">
                 Horário
               </label>
               <input
+                id="qs-time"
                 type="time"
                 value={formData.time}
                 onChange={(e) => setFormData({ ...formData, time: e.target.value })}
@@ -264,10 +267,11 @@ export const QuickScheduleModal: React.FC<QuickScheduleModalProps> = ({
       ) : (
         <form onSubmit={onCreateClient} className="space-y-4">
           <div>
-            <label className="text-[10px] uppercase font-black tracking-widest text-slate-400 block mb-2">
+            <label htmlFor="qs-new-client-name" className="text-[10px] uppercase font-black tracking-widest text-slate-400 block mb-2">
               Nome
             </label>
             <input
+              id="qs-new-client-name"
               type="text"
               value={newClientForm.name}
               onChange={(e) => setNewClientForm({ ...newClientForm, name: e.target.value })}
@@ -277,10 +281,11 @@ export const QuickScheduleModal: React.FC<QuickScheduleModalProps> = ({
             />
           </div>
           <div>
-            <label className="text-[10px] uppercase font-black tracking-widest text-slate-400 block mb-2">
+            <label htmlFor="qs-new-client-phone" className="text-[10px] uppercase font-black tracking-widest text-slate-400 block mb-2">
               Telefone
             </label>
             <input
+              id="qs-new-client-phone"
               type="tel"
               value={newClientForm.phone}
               onChange={(e) => setNewClientForm({ ...newClientForm, phone: e.target.value })}
@@ -290,10 +295,11 @@ export const QuickScheduleModal: React.FC<QuickScheduleModalProps> = ({
             />
           </div>
           <div>
-            <label className="text-[10px] uppercase font-black tracking-widest text-slate-400 block mb-2">
+            <label htmlFor="qs-new-client-email" className="text-[10px] uppercase font-black tracking-widest text-slate-400 block mb-2">
               Email (opcional)
             </label>
             <input
+              id="qs-new-client-email"
               type="email"
               value={newClientForm.email}
               onChange={(e) => setNewClientForm({ ...newClientForm, email: e.target.value })}
