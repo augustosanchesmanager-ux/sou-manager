@@ -11,6 +11,12 @@ import type {
   BookingThemeMode,
   ShowcaseProductItem,
 } from '../../domain/tenantSettings/types';
+import { staffRepository } from '../../domain/staff/repository';
+import { shouldAppearOnSchedule } from '../../src/lib/staff/roles';
+import {
+  BookingQrCodePanel,
+  type BookingQrStaffOption,
+} from '../../src/components/qrcode/BookingQrCodePanel';
 import { ProductShowcaseSelector } from './ProductShowcaseSelector';
 
 const BRAND_COLOR_PRESETS = [
@@ -164,6 +170,7 @@ const OnlineBookingSettings: React.FC = () => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(
     null,
   );
+  const [qrStaffOptions, setQrStaffOptions] = useState<BookingQrStaffOption[]>([]);
 
   const effectiveSlug = customSlug || tenantSlug || 'sua-barbearia';
   const baseUrl =
@@ -188,10 +195,21 @@ const OnlineBookingSettings: React.FC = () => {
 
     setLoading(true);
     try {
-      const [legacyData, onlineData] = await Promise.all([
+      const [legacyData, onlineData, staffMembers] = await Promise.all([
         tenantSettingsRepository.getByTenantId(tenantId),
         tenantSettingsRepository.getOnlineBookingSettings(tenantId),
+        staffRepository.list(tenantId).catch(() => []),
       ]);
+
+      setQrStaffOptions(
+        staffMembers
+          .filter((member) => shouldAppearOnSchedule(member))
+          .map((member) => ({
+            id: member.id,
+            name: member.name,
+            role: member.role,
+          })),
+      );
 
       if (legacyData) {
         if (legacyData.work_start_time) {
@@ -549,6 +567,17 @@ const OnlineBookingSettings: React.FC = () => {
             </a>
           </div>
         </div>
+
+        {/* Painel Automático de QR Code do Tenant */}
+        <BookingQrCodePanel
+          tenantSlug={effectiveSlug}
+          shopDisplayName={displayName || tenant?.name || 'Barbearia'}
+          primaryColor={primaryColor}
+          slogan={slogan}
+          address={displayAddress}
+          staffOptions={qrStaffOptions}
+          variant="section"
+        />
       </section>
 
       {loading ? (

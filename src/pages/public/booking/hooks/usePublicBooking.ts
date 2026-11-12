@@ -241,6 +241,7 @@ export function usePublicBooking() {
     searchParams.get('tenantSlug') ||
     searchParams.get('tenant_id') ||
     searchParams.get('b');
+  const queryStaffId = searchParams.get('staff')?.trim() || null;
   const tenantSlug = (routeSlug || querySlug || '').trim();
 
   const [state, setState] = useState<ExtendedBookingState>({
@@ -311,9 +312,17 @@ export function usePublicBooking() {
               showcase_products: resolvedShowcaseProducts,
             };
 
+            const matchedStaff =
+              queryStaffId &&
+              Array.isArray(enrichedProfile.staff) &&
+              enrichedProfile.staff.some((s) => s.id === queryStaffId)
+                ? queryStaffId
+                : null;
+
             setState((prev) => ({
               ...prev,
               tenantProfile: enrichedProfile,
+              selectedStaffId: matchedStaff ?? prev.selectedStaffId,
               isLoading: false,
             }));
             // Set document title
@@ -346,7 +355,7 @@ export function usePublicBooking() {
     return () => {
       cancelled = true;
     };
-  }, [tenantSlug]);
+  }, [tenantSlug, queryStaffId]);
 
   // ============================================================================
   // Step 3: Load Slots when date/staff/services change
