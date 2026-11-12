@@ -31,6 +31,19 @@ import { DEMO_DB_KEY, DEMO_SESSION_KEY, buildDemoFixture } from './demo-fixture'
  * 4. GUARDA — se o alvo local subir com `.env.local` (Supabase real), o demo
  *    mode não ativa e a captura exibiria dados de inquilino. O teste ABORTA
  *    em vez de gerar material com dado real.
+ *
+ * 5. ONBOARDING — o dashboard esconde o bloco "Comece por aqui"
+ *    (`components/onboarding/OnboardingChecklist.tsx`) por ESTADO, não por
+ *    localStorage: `progress.completed === true` → early return `null` (linha
+ *    69). A chave `smg:onboarding:dismissed:<tenantId>` apenas *dispensa* o
+ *    checklist e deixa uma pílula "Guia inicial (N%)" visível — ou seja, NÃO
+ *    limpa a tela. Por isso a captura simula um usuário que já concluiu os 5
+ *    itens, e a conclusão vem do Local Demo Mode:
+ *      - "Loja criada"      → `tenant_settings` existe (case no emulador)
+ *      - "Primeiro agendamento" → `tenants.first_appointment_at` preenchido
+ *    Os outros 3 itens já vêm do seed (staff Barber, serviços, clientes).
+ *    A assertiva abaixo quebra a captura se o bloco voltar a aparecer, então
+ *    uma regressão no emulador não passa silenciosamente para o material.
  */
 
 const BASE_URL = process.env.DOCS_BASE_URL || 'http://localhost:3000';
@@ -38,6 +51,8 @@ const OUTPUT_DIR = path.resolve(process.cwd(), process.env.DOCS_SCREENSHOTS_DIR 
 
 const ROUTES = [
   { name: 'dashboard', path: '/#/dashboard' },
+  // ⚠️ O bloco "Comece por aqui" NÃO é escondido aqui: ele desaparece quando o
+  // onboarding está concluído no Estado (ver comentário "ONBOARDING" abaixo).
   { name: 'agenda', path: '/#/schedule' },
   { name: 'financeiro', path: '/#/cashflow' },
   { name: 'clientes', path: '/#/clients' },
@@ -176,6 +191,17 @@ test.describe('SMG — captura automatizada de telas', () => {
 
         await dismissReleaseNotes(page);
 
+        // O checklist de onboarding é derivado de 5 leituras assíncronas
+        // (settings, tenant, staff, services, clients). Espera o settle antes de
+        // afirmar ausência - senão o teste passa por ainda não ter renderizado.
+        if (route.name === 'dashboard') {
+          await page.waitForTimeout(1_500);
+          await expect(
+            page.getByText('Comece por aqui'),
+            'o onboarding deveria estar concluído (primeiro agendamento + loja criada) e o bloco ausente do dashboard',
+          ).toHaveCount(0);
+        }
+
         // Esconde (não remove!) elementos flutuantes e congela animações.
         // Remover nós gerenciados pelo React quebra a reconciliação na próxima
         // rota e derruba a tela no error boundary ("Algo deu errado").
@@ -188,10 +214,14 @@ test.describe('SMG — captura automatizada de telas', () => {
             '  caret-color: transparent !important;',
             '}',
             '::-webkit-scrollbar { display: none !important; }',
-            // FAB do SupportWidget (components/SupportWidget.tsx): fixed + z-50 + rounded-full
+            // FAB do SupportWidget (components/SupportWidget.tsx:132-137):
+            // fixed + z-50 + rounded-full + size-14.
             'button.fixed.z-50.rounded-full { display: none !important; }',
+            // Toast global (components/Toast.tsx:92-99): <aside role="status"
+            // aria-live="polite">. Não existe wrapper ".toast-container" no
+            // produto — o seletor antigo não escondia nada.
+            'aside[role="status"][aria-live="polite"] { display: none !important; }',
             '#intercom-container { display: none !important; }',
-            '.toast-container { display: none !important; }',
           ].join('\n'),
         });
 
