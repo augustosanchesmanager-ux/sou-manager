@@ -33,6 +33,8 @@ import BookingHeader, {
   buildSafeHttpsUrl,
 } from './BookingHeader';
 import { LeadCaptureModal } from './LeadCaptureModal';
+import { PromoLeadModal } from './PromoLeadModal';
+import { lookupPublicBookingClient } from './hooks/bookingService';
 import { ServicesCatalogTab } from './ServicesCatalogTab';
 import { AboutUsTab } from './AboutUsTab';
 import BookingSuccessVoucher, {
@@ -122,6 +124,7 @@ const PublicBookingPage: React.FC = () => {
 
   // Standalone Lead Capture Modal state (for editing identity directly from bar)
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
+  const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
   const pendingAdvanceToStaffRef = useRef(false);
 
@@ -756,6 +759,27 @@ const PublicBookingPage: React.FC = () => {
                     formatPriceBRL={formatPriceBRL}
                   />
 
+                  {/* Promotional Registration Callout */}
+                  {tenantProfile && (
+                    <button
+                      type="button"
+                      onClick={() => setIsPromoModalOpen(true)}
+                      className="w-full flex items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/15 px-4 py-3 text-left transition-colors cursor-pointer"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-amber-300">
+                          Quer participar de promoções e descontos?
+                        </p>
+                        <p className="text-[11px] text-neutral-300 mt-0.5">
+                          Clique aqui e faça seu cadastro rápido no clube de ofertas.
+                        </p>
+                      </div>
+                      <span className="shrink-0 rounded-lg bg-amber-500 text-neutral-950 px-2.5 py-1 text-[11px] font-extrabold">
+                        Cadastrar
+                      </span>
+                    </button>
+                  )}
+
                   {/* Vitrine de Produtos Recomendados (Home Care) */}
                   {Boolean(tenantProfile.show_products) && showcaseProducts.length > 0 && (
                     <PublicProductsShowcase
@@ -874,7 +898,28 @@ const PublicBookingPage: React.FC = () => {
         onSave={handleLeadSaved}
         onClose={() => setIsLeadModalOpen(false)}
         pendingServiceName={selectedServiceForModal?.name}
+        onLookupPhone={
+          tenantProfile?.slug
+            ? (phoneDigits) => lookupPublicBookingClient(tenantProfile.slug, phoneDigits)
+            : undefined
+        }
+        onOpenPromoRegister={() => {
+          setIsLeadModalOpen(false);
+          setIsPromoModalOpen(true);
+        }}
       />
+
+      {/* Promotional Registration Modal */}
+      {tenantProfile && (
+        <PromoLeadModal
+          isOpen={isPromoModalOpen}
+          tenantIdentifier={tenantProfile.slug}
+          initialName={clientName}
+          initialPhoneDisplay={clientPhoneDisplay}
+          onClose={() => setIsPromoModalOpen(false)}
+          onRegistered={handleLeadSaved}
+        />
+      )}
 
       {/* Cancellation & Management Modal */}
       {tenantProfile && (
