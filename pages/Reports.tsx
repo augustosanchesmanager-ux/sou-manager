@@ -19,6 +19,7 @@ import {
   type PaymentBadgeInfo,
   type SaleRecord,
 } from '../src/modules/reports/salesReportService';
+import { requestAsyncExcelExport } from '../src/lib/export/excelExportService';
 
 const fmt = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
@@ -176,6 +177,80 @@ const Reports: React.FC = () => {
   }, [filteredSales]);
 
   // Exportação oficial em CSV (UTF-8 BOM para Excel brasileiro)
+  const [exportingExcel, setExportingExcel] = useState(false);
+
+  const exportToExcel = useCallback(async () => {
+    if (filteredSales.length === 0) {
+      setToast({ msg: 'Nenhum registro para exportar com os filtros atuais.', type: 'error' });
+      return;
+    }
+
+    setExportingExcel(true);
+    try {
+      const fromStr = filters.dateFrom || 'inicio';
+      const toStr = filters.dateTo || 'fim';
+      const result = await requestAsyncExcelExport({
+        tenantId: tenantId || undefined,
+        reportType: 'sales',
+        title: 'Relatório de Vendas e Faturamento',
+        subtitle: `Período: ${fmtDate(fromStr)} até ${fmtDate(toStr)}`,
+        sheetName: 'Vendas e Faturamento',
+        fileName: `relatorio_vendas_${fromStr}_a_${toStr}.xlsx`,
+        columns: [
+          { key: 'short_id', header: 'Comanda', width: 14, type: 'string' },
+          { key: 'attendance_date', header: 'Data Atendimento', width: 20, type: 'string' },
+          { key: 'payment_date', header: 'Data Pagamento', width: 20, type: 'string' },
+          { key: 'channel', header: 'Canal', width: 14, type: 'string' },
+          { key: 'client_name', header: 'Cliente', width: 28, type: 'string' },
+          { key: 'is_club_member', header: 'Assinante Clube', width: 16, type: 'string' },
+          { key: 'staff_names', header: 'Profissionais', width: 26, type: 'string' },
+          { key: 'items_summary', header: 'Itens', width: 34, type: 'string' },
+          { key: 'payment_methods', header: 'Forma de Pagamento', width: 28, type: 'string' },
+          { key: 'total', header: 'Valor Total (R$)', width: 18, type: 'currency' },
+          { key: 'cash_revenue', header: 'Receita Caixa (R$)', width: 18, type: 'currency' },
+          { key: 'club_credit_volume', header: 'Volume Clube (R$)', width: 18, type: 'currency' },
+          { key: 'commission_generated', header: 'Comissão Gerada (R$)', width: 20, type: 'currency' },
+          { key: 'status', header: 'Status', width: 14, type: 'string' },
+        ],
+        rows: filteredSales.map((s) => ({
+          short_id: s.short_id,
+          attendance_date: fmtDateTime(s.attendance_date),
+          payment_date: fmtDateTime(s.payment_date),
+          channel: s.channel === 'online' ? 'Online' : 'Balcão',
+          client_name: s.client_name,
+          is_club_member: s.is_club_member ? 'Sim' : 'Não',
+          staff_names: s.staff_names.join(', '),
+          items_summary: s.items_summary,
+          payment_methods: s.payment_badges.map((b) => `${b.label} (${fmt(b.amount)})`).join(' + '),
+          total: s.total,
+          cash_revenue: s.cash_revenue,
+          club_credit_volume: s.club_credit_volume,
+          commission_generated: s.commission_generated,
+          status: s.status,
+        })),
+        summaryRows: [
+          { label: 'Total Receita Caixa (R$)', value: periodTotals.cashRevenue, type: 'currency' },
+          { label: 'Total Volume Clube (R$)', value: periodTotals.clubCreditVolume, type: 'currency' },
+          { label: 'Total Comissões Geradas (R$)', value: periodTotals.totalCommissions, type: 'currency' },
+          { label: 'Total de Atendimentos', value: periodTotals.totalAttendances, type: 'number' },
+        ],
+      });
+
+      if (result.ok) {
+        setToast({
+          msg: result.fallbackUsed
+            ? `Planilha exportada em modo local (${result.rowCount} registros).`
+            : `Excel (.xlsx) gerado no servidor e baixado via Presigned URL (${result.rowCount} registros).`,
+          type: 'success',
+        });
+      } else {
+        setToast({ msg: result.error || 'Erro ao exportar Excel.', type: 'error' });
+      }
+    } finally {
+      setExportingExcel(false);
+    }
+  }, [filteredSales, filters.dateFrom, filters.dateTo, periodTotals, tenantId]);
+
   const exportToCsv = useCallback(() => {
     if (filteredSales.length === 0) {
       setToast({ msg: 'Nenhum registro para exportar com os filtros atuais.', type: 'error' });
@@ -579,16 +654,32 @@ const Reports: React.FC = () => {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={exportToExcel}
+                disabled={loading || exportingExcel || filteredSales.length === 0}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-night bg-primary hover:bg-primary-dark shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed font-display"
+                title="Gerar arquivo Excel (.xlsx) assíncrono via Edge Function + Presigned URL"
+              >
+                <span className="material-symbols-outlined text-base">
+                  {exportingExcel ? 'progress_activity' : 'table_view'}
+                </span>
+                <span>
+                  {exportingExcel
+                    ? 'Gerando Excel...'
+                    : `Exportar Excel (${filteredSales.length})`}
+                </span>
+              </button>
               <button
                 type="button"
                 onClick={exportToCsv}
                 disabled={loading || filteredSales.length === 0}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-night bg-primary hover:bg-primary-dark shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed font-display"
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-display"
                 title="Exportar registros filtrados para planilha CSV (formato Excel com acentos)"
               >
                 <span className="material-symbols-outlined text-base">download</span>
-                <span>Exportar CSV ({filteredSales.length})</span>
+                <span>CSV</span>
               </button>
             </div>
           </div>
