@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { CheckCircle2, Mail, Phone, Sparkles, User, X } from 'lucide-react';
 import { applyPhoneMask } from './LeadCaptureModal';
 import { registerPublicBookingPromoLead } from './hooks/bookingService';
+import { applyCpfMask, getCanonicalBrPhone, isValidBrCpf, normalizeCpf } from '../../../lib/utils/phone';
 
 interface PromoLeadModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ export const PromoLeadModal: React.FC<PromoLeadModalProps> = ({
 }) => {
   const [name, setName] = useState(initialName);
   const [phone, setPhone] = useState(initialPhoneDisplay);
+  const [cpf, setCpf] = useState('');
   const [email, setEmail] = useState('');
   const [birthday, setBirthday] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -33,6 +35,7 @@ export const PromoLeadModal: React.FC<PromoLeadModalProps> = ({
     if (isOpen) {
       setName(initialName);
       setPhone(initialPhoneDisplay);
+      setCpf('');
       setError(null);
       setResult(null);
     }
@@ -42,8 +45,9 @@ export const PromoLeadModal: React.FC<PromoLeadModalProps> = ({
 
   const phoneDigits = phone.replace(/\D/g, '');
   const isNameValid = name.trim().length >= 3;
-  const isPhoneValid = phoneDigits.length >= 10;
-  const canSubmit = isNameValid && isPhoneValid && !isSubmitting;
+  const isPhoneValid = phoneDigits.length >= 11 && getCanonicalBrPhone(phone) !== null;
+  const isCpfValid = isValidBrCpf(cpf);
+  const canSubmit = isNameValid && isPhoneValid && isCpfValid && !isSubmitting;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,9 +62,10 @@ export const PromoLeadModal: React.FC<PromoLeadModalProps> = ({
         client_phone: phoneDigits,
         client_email: email.trim() || null,
         birthday: birthday || null,
+        client_cpf: normalizeCpf(cpf),
       });
       setResult({ reconciled: response.reconciled, maskedName: response.masked_name });
-      onRegistered?.(name.trim(), phone);
+      onRegistered?.(response.client_name?.trim() || name.trim(), phone);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível concluir seu cadastro agora.');
     } finally {
@@ -162,6 +167,25 @@ export const PromoLeadModal: React.FC<PromoLeadModalProps> = ({
                   className="w-full pl-10 pr-4 py-3 bg-neutral-950 border border-neutral-800 rounded-xl text-sm text-white tabular-nums placeholder:text-neutral-500 focus:outline-none focus:border-amber-500"
                 />
               </div>
+            </div>
+
+            <div>
+              <label htmlFor="promo-cpf" className="block text-xs font-bold text-neutral-300 uppercase tracking-wider mb-1.5">
+                CPF <span className="text-amber-400">*</span>
+              </label>
+              <input
+                id="promo-cpf"
+                type="text"
+                inputMode="numeric"
+                value={cpf}
+                onChange={(e) => setCpf(applyCpfMask(e.target.value))}
+                placeholder="000.000.000-00"
+                required
+                className="w-full px-3 py-3 bg-neutral-950 border border-neutral-800 rounded-xl text-sm text-white tabular-nums placeholder:text-neutral-500 focus:outline-none focus:border-amber-500"
+              />
+              {cpf.length > 0 && !isCpfValid && (
+                <p className="text-[11px] text-red-400 mt-1 pl-1">Informe um CPF válido.</p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

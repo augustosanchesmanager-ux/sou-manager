@@ -347,6 +347,7 @@ export async function lookupPublicBookingClient(
     return {
       found: Boolean(parsed?.found),
       masked_name: parsed?.masked_name ?? null,
+      ...(parsed?.client_name ? { client_name: parsed.client_name } : {}),
     };
   } catch {
     return { found: false, masked_name: null };
@@ -361,13 +362,17 @@ export async function registerPublicBookingPromoLead(
   }
 
   const client = getPublicAnonymousClient();
-  const { data, error } = await client.rpc(RPC_NAMES.REGISTER_PROMO_LEAD, {
+  const rpcArgs: Record<string, unknown> = {
     p_tenant_identifier: request.tenant_identifier,
     p_client_name: request.client_name,
     p_client_phone: request.client_phone,
     p_client_email: request.client_email || null,
     p_birthday: request.birthday || null,
-  });
+  };
+  if (request.client_cpf !== undefined) {
+    rpcArgs.p_client_cpf = request.client_cpf || null;
+  }
+  const { data, error } = await client.rpc(RPC_NAMES.REGISTER_PROMO_LEAD, rpcArgs);
 
   if (error) {
     if (isFunctionNotFoundError(error)) {
@@ -381,6 +386,7 @@ export async function registerPublicBookingPromoLead(
     registered: Boolean(parsed?.registered ?? true),
     reconciled: Boolean(parsed?.reconciled),
     masked_name: parsed?.masked_name ?? null,
+    ...(parsed?.client_name ? { client_name: parsed.client_name } : {}),
   };
 }
 

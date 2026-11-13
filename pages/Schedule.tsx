@@ -1833,10 +1833,12 @@ const Schedule: React.FC = () => {
     const selectedServicesTotalPrice = selectedServices.reduce((sum, service) => sum + Number(service.price || 0), 0);
 
     let clientId: string | null = null;
+    let canonicalClientName = formData.client;
     if (isNewClientMode) {
       const localMatch = findClientByCanonicalPhone<DBClient>(clientsList, formData.clientPhone);
       if (localMatch) {
         clientId = localMatch.id;
+        canonicalClientName = localMatch.name || formData.client;
       } else {
         try {
           const resolvedClient = await clientRepository.create(
@@ -2043,7 +2045,7 @@ const Schedule: React.FC = () => {
         schema: 'barber',
         userId: user?.id || '',
         clientId: clientId || undefined,
-        clientName: formData.client,
+        clientName: canonicalClientName,
         clientPhone: formData.clientPhone || undefined,
         staffId: formData.staffId || '',
         serviceIds: selectedServices.map(s => s.id),

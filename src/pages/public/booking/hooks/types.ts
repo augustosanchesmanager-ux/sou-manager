@@ -172,6 +172,7 @@ export interface CancelPublicBookingResult {
 export interface PublicClientLookupResult {
   found: boolean;
   masked_name: string | null;
+  client_name?: string | null;
 }
 
 export interface PromoLeadRegistrationRequest {
@@ -180,12 +181,14 @@ export interface PromoLeadRegistrationRequest {
   client_phone: string;
   client_email?: string | null;
   birthday?: string | null;
+  client_cpf?: string | null;
 }
 
 export interface PromoLeadRegistrationResult {
   registered: boolean;
   reconciled: boolean;
   masked_name: string | null;
+  client_name?: string | null;
 }
 
 // ============================================================================

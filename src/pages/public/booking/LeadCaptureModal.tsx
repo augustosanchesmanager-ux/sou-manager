@@ -1,4 +1,4 @@
-/**
+﻿/**
  * LeadCaptureModal - Bottom Sheet modal for early lead identification on first click.
  * Collects Full Name and WhatsApp (with strict validation and mask).
  * Matches SMG Barber dark luxury / mobile-first design tokens.
@@ -8,6 +8,7 @@ import type React from 'react';
 import { useState, useEffect, useRef } from 'react';
 import { User, Phone, X, ShieldCheck, CheckCircle2, Sparkles } from 'lucide-react';
 import type { PublicClientLookupResult } from './hooks/types';
+import { getCanonicalBrPhone } from '../../../lib/utils/phone';
 
 interface LeadCaptureModalProps {
   isOpen: boolean;
@@ -63,7 +64,7 @@ export const LeadCaptureModal: React.FC<LeadCaptureModalProps> = ({
 
       // Focus management
       const timer = setTimeout(() => {
-        if (!initialName.trim()) {
+        if (getCanonicalBrPhone(initialPhoneDisplay)) {
           nameInputRef.current?.focus();
         } else {
           phoneInputRef.current?.focus();
@@ -86,8 +87,16 @@ export const LeadCaptureModal: React.FC<LeadCaptureModalProps> = ({
 
   const phoneDigits = phone.replace(/\D/g, '');
   const isNameValid = name.trim().length >= 3;
-  const isPhoneValid = phoneDigits.length >= 11;
+  const isPhoneValid = phoneDigits.length >= 11 && getCanonicalBrPhone(phone) !== null;
   const isFormValid = isNameValid && isPhoneValid;
+  const isNameLocked = Boolean(lookupResult?.found && lookupResult.client_name);
+
+  // Autopreenchimento do nome oficial quando o WhatsApp já possui cadastro
+  useEffect(() => {
+    if (lookupResult?.found && lookupResult.client_name) {
+      setName(lookupResult.client_name);
+    }
+  }, [lookupResult]);
 
   // Masked client reconciliation lookup when phone is valid
   useEffect(() => {
@@ -178,38 +187,6 @@ export const LeadCaptureModal: React.FC<LeadCaptureModalProps> = ({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Nome Completo */}
-          <div>
-            <label htmlFor="lead-name" className="block text-xs font-bold text-neutral-300 uppercase tracking-wider mb-1.5">
-              Nome Completo <span className="text-amber-400">*</span>
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
-                <User className="w-4 h-4" />
-              </div>
-              <input
-                ref={nameInputRef}
-                id="lead-name"
-                type="text"
-                autoComplete="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                onBlur={() => setTouched((prev) => ({ ...prev, name: true }))}
-                placeholder="Como prefere ser chamado?"
-                className={`w-full pl-10 pr-4 py-3 bg-neutral-950 border rounded-xl text-sm text-white placeholder:text-neutral-500 transition-colors focus:outline-none focus:ring-1 ${
-                  touched.name && !isNameValid
-                    ? 'border-red-500/80 focus:border-red-500 focus:ring-red-500/20'
-                    : 'border-neutral-800 focus:border-amber-500 focus:ring-amber-500/20'
-                }`}
-              />
-            </div>
-            {touched.name && !isNameValid && (
-              <p className="text-[11px] text-red-400 mt-1 pl-1">
-                Por favor, informe seu nome completo (mínimo 3 letras).
-              </p>
-            )}
-          </div>
-
           {/* WhatsApp */}
           <div>
             <label htmlFor="lead-phone" className="block text-xs font-bold text-neutral-300 uppercase tracking-wider mb-1.5">
@@ -238,7 +215,7 @@ export const LeadCaptureModal: React.FC<LeadCaptureModalProps> = ({
             </div>
             {touched.phone && !isPhoneValid ? (
               <p className="text-[11px] text-red-400 mt-1 pl-1">
-                Informe o DDD + número com 9 dígitos (ex: 11 99999-9999).
+                Informe um WhatsApp válido com DDD (ex: 11 99999-9999).
               </p>
             ) : (
               <p className="text-[10px] text-neutral-400 mt-1 pl-1">
@@ -246,15 +223,49 @@ export const LeadCaptureModal: React.FC<LeadCaptureModalProps> = ({
               </p>
             )}
 
-            {lookupResult?.found && lookupResult.masked_name && (
+            {lookupResult?.found && (lookupResult.client_name || lookupResult.masked_name) && (
               <div className="mt-2 flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-300">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                 <span>
-                  Cadastro encontrado: <strong className="text-white">{lookupResult.masked_name}</strong> — seu agendamento será vinculado automaticamente.
+                  Cadastro encontrado: <strong className="text-white">{lookupResult.client_name || lookupResult.masked_name}</strong> — dados preenchidos e unificados automaticamente.
                 </span>
               </div>
             )}
           </div>
+
+          {/* Nome Completo */}
+          <div>
+            <label htmlFor="lead-name" className="block text-xs font-bold text-neutral-300 uppercase tracking-wider mb-1.5">
+              Nome Completo <span className="text-amber-400">*</span>
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
+                <User className="w-4 h-4" />
+              </div>
+              <input
+                ref={nameInputRef}
+                id="lead-name"
+                type="text"
+                autoComplete="name"
+                value={name}
+                readOnly={isNameLocked}
+                onChange={(e) => setName(e.target.value)}
+                onBlur={() => setTouched((prev) => ({ ...prev, name: true }))}
+                placeholder="Como prefere ser chamado?"
+                className={`w-full pl-10 pr-4 py-3 bg-neutral-950 border rounded-xl text-sm text-white placeholder:text-neutral-500 transition-colors focus:outline-none focus:ring-1 ${
+                  touched.name && !isNameValid
+                    ? 'border-red-500/80 focus:border-red-500 focus:ring-red-500/20'
+                    : 'border-neutral-800 focus:border-amber-500 focus:ring-amber-500/20'
+                }`}
+              />
+            </div>
+            {touched.name && !isNameValid && (
+              <p className="text-[11px] text-red-400 mt-1 pl-1">
+                Por favor, informe seu nome completo (mínimo 3 letras).
+              </p>
+            )}
+          </div>
+
 
           {onOpenPromoRegister && (
             <button

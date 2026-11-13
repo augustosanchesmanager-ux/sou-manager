@@ -284,8 +284,8 @@ export async function mockLookupPublicBookingClient(
 ): Promise<PublicClientLookupResult> {
   await simulateLatency();
   const digits = clientPhone.replace(/\D/g, '');
-  if (digits.endsWith('9999') || digits.endsWith('0000')) {
-    return { found: true, masked_name: 'C****** M***' };
+  if (digits.endsWith('9999')) {
+    return { found: true, masked_name: 'C****** M***', client_name: 'Cliente Mock' };
   }
   return { found: false, masked_name: null };
 }
