@@ -280,14 +280,20 @@ export async function mockCancelPublicBooking(
 
 export async function mockLookupPublicBookingClient(
   _tenantIdentifier: string,
-  clientPhone: string
+  clientPhone: string,
+  _targetDate?: string | null
 ): Promise<PublicClientLookupResult> {
   await simulateLatency();
   const digits = clientPhone.replace(/\D/g, '');
   if (digits.endsWith('9999')) {
-    return { found: true, masked_name: 'C****** M***', client_name: 'Cliente Mock' };
+    return {
+      found: true,
+      masked_name: 'C****** M***',
+      client_name: 'Cliente Mock',
+      has_same_day_booking: false,
+    };
   }
-  return { found: false, masked_name: null };
+  return { found: false, masked_name: null, has_same_day_booking: false };
 }
 
 export async function mockRegisterPublicBookingPromoLead(

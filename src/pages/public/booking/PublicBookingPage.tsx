@@ -430,7 +430,7 @@ const PublicBookingPage: React.FC = () => {
   }, []);
 
   // Final booking submission with automatic WhatsApp dispatch
-  const handleConfirmBooking = useCallback(async () => {
+  const handleConfirmBooking = useCallback(async (isForOther?: boolean, beneficiaryName?: string) => {
     if (!tenantProfile || !selectedSlot || selectedServiceIds.length === 0 || !selectedStaffId) {
       return;
     }
@@ -438,7 +438,10 @@ const PublicBookingPage: React.FC = () => {
     setIsSubmittingBooking(true);
 
     try {
-      const result = await submitBooking();
+      const result = await submitBooking({
+        is_for_other: isForOther,
+        beneficiary_name: beneficiaryName,
+      });
 
       if (result) {
         // Close Phase 3 modal
@@ -903,6 +906,13 @@ const PublicBookingPage: React.FC = () => {
         formatDuration={formatDuration}
         formatSlotTime={formatSlotTime}
         whatsappFitInUrl={whatsappFitInUrl}
+        clientName={clientName}
+        clientPhone={clientPhoneDisplay}
+        onLookupPhone={
+          tenantProfile?.slug
+            ? (phoneDigits, targetDate) => lookupPublicBookingClient(tenantProfile.slug, phoneDigits, targetDate)
+            : undefined
+        }
       />
 
       {/* Direct Lead Edit Modal */}
