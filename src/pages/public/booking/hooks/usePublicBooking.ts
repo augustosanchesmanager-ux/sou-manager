@@ -492,7 +492,10 @@ export function usePublicBooking() {
     });
   }, []);
 
-  const submitBooking = useCallback(async (): Promise<CreatePublicBookingResult | null> => {
+  const submitBooking = useCallback(async (extraParams?: {
+    is_for_other?: boolean;
+    beneficiary_name?: string | null;
+  }): Promise<CreatePublicBookingResult | null> => {
     const { tenantProfile, selectedServiceIds, selectedStaffId, selectedSlot, clientName, clientPhone, clientNotes, idempotencyKey } = state;
 
     if (!tenantProfile || !selectedSlot || selectedServiceIds.length === 0 || !selectedStaffId) {
@@ -529,6 +532,8 @@ export function usePublicBooking() {
         client_phone: clientPhone,
         client_notes: clientNotes.trim() || null,
         idempotency_key: idempotencyKey,
+        is_for_other: extraParams?.is_for_other ?? false,
+        beneficiary_name: extraParams?.beneficiary_name ?? null,
       };
 
       const result = await createPublicBooking(request);

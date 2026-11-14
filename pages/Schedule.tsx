@@ -467,6 +467,8 @@ const Schedule: React.FC = () => {
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isBeneficiaryMode, setIsBeneficiaryMode] = useState(false);
+  const [beneficiaryName, setBeneficiaryName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
@@ -567,6 +569,31 @@ const Schedule: React.FC = () => {
     () => servicesList.filter((service) => formData.serviceIds.includes(service.id)),
     [formData.serviceIds, servicesList],
   );
+
+  const sameDayAppointmentForClient = React.useMemo(() => {
+    if (!isModalOpen || editingAppointmentId || !formData.date || (!formData.client && !formData.clientPhone)) {
+      return null;
+    }
+    const cleanPhone = (formData.clientPhone || '').replace(/\D/g, '');
+    const cleanName = (formData.client || '').trim().toLowerCase();
+
+    return appointments.find((apt) => {
+      if (apt.status === 'cancelled' || apt.status === 'no_show') return false;
+      const aptDate = apt.date ? apt.date.split('T')[0] : '';
+      if (aptDate !== formData.date) return false;
+
+      const aptPhone = (apt.clientPhone || '').replace(/\D/g, '');
+      const aptName = (apt.client || '').trim().toLowerCase();
+
+      const phoneMatches =
+        cleanPhone.length >= 10 &&
+        aptPhone.length >= 10 &&
+        (cleanPhone === aptPhone || cleanPhone.endsWith(aptPhone) || aptPhone.endsWith(cleanPhone));
+      const nameMatches = cleanName.length >= 3 && aptName === cleanName;
+
+      return phoneMatches || nameMatches;
+    });
+  }, [isModalOpen, editingAppointmentId, formData.date, formData.client, formData.clientPhone, appointments]);
   const filteredServicesForModal = React.useMemo(() => {
     const normalizedSearch = serviceSearchTerm.trim().toLowerCase();
     if (!normalizedSearch) return servicesList;
@@ -2039,13 +2066,21 @@ const Schedule: React.FC = () => {
         });
       }
 
+      const effectiveClientName = isBeneficiaryMode && beneficiaryName.trim()
+        ? beneficiaryName.trim()
+        : canonicalClientName;
+
+      const effectiveNotes = isBeneficiaryMode && beneficiaryName.trim()
+        ? [formData.notes.trim(), `Agendado por ${canonicalClientName} para ${beneficiaryName.trim()}`].filter(Boolean).join(' | ')
+        : formData.notes.trim() || undefined;
+
       const result = await appointmentApplicationService.createAppointment({
         tenantId,
         appSlug: scheduleAppSlug,
         schema: 'barber',
         userId: user?.id || '',
         clientId: clientId || undefined,
-        clientName: canonicalClientName,
+        clientName: effectiveClientName,
         clientPhone: formData.clientPhone || undefined,
         staffId: formData.staffId || '',
         serviceIds: selectedServices.map(s => s.id),
@@ -2054,7 +2089,7 @@ const Schedule: React.FC = () => {
         duration: Number(formData.duration),
         startTime: startTimeLine.toISOString(),
         endTime: new Date(startTimeLine.getTime() + Number(formData.duration) * 60 * 60 * 1000).toISOString(),
-        notes: formData.notes.trim() || undefined,
+        notes: effectiveNotes,
         idempotencyKey: scheduleIdempotencyKeyRef.current,
         isOverbooked: forceOverbook || undefined,
       });
@@ -2156,6 +2191,8 @@ const Schedule: React.FC = () => {
 
     setIsModalOpen(false);
     setIsNewClientMode(false);
+    setIsBeneficiaryMode(false);
+    setBeneficiaryName('');
     setEditingAppointmentId(null);
     setEditingComandaStatus(null);
     setServiceSearchTerm('');
@@ -3837,6 +3874,8 @@ Podemos confirmar? 😄`;
         onClose={() => {
           setIsModalOpen(false);
           setIsNewClientMode(false);
+          setIsBeneficiaryMode(false);
+          setBeneficiaryName('');
           setEditingAppointmentId(null);
           setEditingComandaStatus(null);
           setChefClubInfo(null);
@@ -3871,6 +3910,8 @@ Podemos confirmar? 😄`;
                 onClick={() => {
                   setIsModalOpen(false);
                   setIsNewClientMode(false);
+                  setIsBeneficiaryMode(false);
+                  setBeneficiaryName('');
                   setEditingAppointmentId(null);
                   setEditingComandaStatus(null);
                   setChefClubInfo(null);
@@ -4006,6 +4047,66 @@ Podemos confirmar? 😄`;
                       <p className="text-[10px] font-black text-amber-600 uppercase">Créditos</p>
                       <p className="text-base font-black text-amber-600">{chefClubInfo.credits}</p>
                     </div>
+                  </div>
+                )}
+
+                {/* Alerta de agendamento duplicado no mesmo dia / Agendamento para terceiro */}
+                {sameDayAppointmentForClient && !editingAppointmentId && (
+                  <div className="mt-2.5 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 space-y-2 animate-fade-in">
+                    <div className="flex items-start gap-2">
+                      <span className="material-symbols-outlined text-amber-500 text-sm mt-0.5 shrink-0">warning</span>
+                      <div className="text-xs space-y-0.5">
+                        <p className="font-bold text-amber-900 dark:text-amber-200">
+                          Este cliente já possui agendamento nesta data ({sameDayAppointmentForClient.startTime ? new Date(sameDayAppointmentForClient.startTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''} com {sameDayAppointmentForClient.staffName}).
+                        </p>
+                        <p className="text-[11px] text-slate-600 dark:text-zinc-400">
+                          Este novo agendamento é para outra pessoa (filho, parente ou amigo)?
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setIsBeneficiaryMode(true)}
+                        className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                          isBeneficiaryMode
+                            ? 'bg-[#B88A44] text-zinc-950 shadow-sm'
+                            : 'bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-zinc-300 hover:bg-slate-300'
+                        }`}
+                      >
+                        Sim, é para dependente/amigo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsBeneficiaryMode(false);
+                          setBeneficiaryName('');
+                        }}
+                        className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                          !isBeneficiaryMode
+                            ? 'bg-slate-300 dark:bg-white/20 text-slate-900 dark:text-white font-extrabold'
+                            : 'bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-zinc-300 hover:bg-slate-300'
+                        }`}
+                      >
+                        Não, é 2º horário do cliente
+                      </button>
+                    </div>
+
+                    {isBeneficiaryMode && (
+                      <div className="pt-1.5 space-y-1">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-[#B88A44]">
+                          Nome de quem será atendido (ex: Enzo - Filho)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Informe o nome da pessoa atendida"
+                          value={beneficiaryName}
+                          onChange={(e) => setBeneficiaryName(e.target.value)}
+                          className="w-full bg-white dark:bg-[#1A1A1E] border border-slate-200 dark:border-white/10 rounded-lg p-2 text-xs text-slate-900 dark:text-zinc-100 focus:ring-1 focus:ring-[#B88A44] outline-none"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

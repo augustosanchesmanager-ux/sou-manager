@@ -210,6 +210,8 @@ export async function createPublicBooking(
       p_client_phone: request.client_phone,
       p_notes: request.client_notes ?? null,
       p_idempotency_key: request.idempotency_key ?? null,
+      p_is_for_other: request.is_for_other ?? false,
+      p_beneficiary_name: request.beneficiary_name ?? null,
     });
 
     if (error) {
@@ -306,6 +308,12 @@ function mapPostgresError(error: unknown): PublicBookingError {
   } else if (message.includes('cancellation_window_closed') || details.includes('cancellation_window_closed')) {
     errorCode = 'cancellation_window_closed';
     userMessage = 'Janela de cancelamento encerrada. Não é mais possível cancelar.';
+  } else if (message.includes('same_day_booking_limit') || details.includes('same_day_booking_limit')) {
+    errorCode = 'same_day_booking_limit';
+    userMessage = 'Você já possui um agendamento neste dia. Se deseja agendar para um dependente ou amigo, informe o nome dele.';
+  } else if (message.includes('same_day_beneficiary_required') || details.includes('same_day_beneficiary_required')) {
+    errorCode = 'same_day_beneficiary_required';
+    userMessage = 'Por favor, informe o nome de quem será atendido (filho, amigo ou parente).';
   } else if (code === 'ERR_SLOT_UNAVAILABLE' || message.includes('ERR_SLOT_UNAVAILABLE')) {
     errorCode = 'ERR_SLOT_UNAVAILABLE';
     userMessage = 'Esse horário não está mais disponível.';
@@ -322,18 +330,24 @@ function mapPostgresError(error: unknown): PublicBookingError {
 
 export async function lookupPublicBookingClient(
   tenantIdentifier: string,
-  clientPhone: string
+  clientPhone: string,
+  targetDate?: string | null
 ): Promise<PublicClientLookupResult> {
   if (isMockEnabled()) {
-    return mockLookupPublicBookingClient(tenantIdentifier, clientPhone);
+    return mockLookupPublicBookingClient(tenantIdentifier, clientPhone, targetDate);
   }
 
   try {
     const client = getPublicAnonymousClient();
-    const { data, error } = await client.rpc(RPC_NAMES.LOOKUP_CLIENT, {
+    const rpcPayload: Record<string, unknown> = {
       p_tenant_identifier: tenantIdentifier,
       p_client_phone: clientPhone,
-    });
+    };
+    if (targetDate !== undefined) {
+      rpcPayload.p_target_date = targetDate ?? null;
+    }
+
+    const { data, error } = await client.rpc(RPC_NAMES.LOOKUP_CLIENT, rpcPayload);
 
     if (error) {
       // Graceful non-blocking fallback if RPC is not deployed yet
@@ -348,6 +362,10 @@ export async function lookupPublicBookingClient(
       found: Boolean(parsed?.found),
       masked_name: parsed?.masked_name ?? null,
       ...(parsed?.client_name ? { client_name: parsed.client_name } : {}),
+      has_same_day_booking: Boolean(parsed?.has_same_day_booking),
+      existing_booking_time: parsed?.existing_booking_time ?? null,
+      existing_staff_name: parsed?.existing_staff_name ?? null,
+      existing_appointment_id: parsed?.existing_appointment_id ?? null,
     };
   } catch {
     return { found: false, masked_name: null };
