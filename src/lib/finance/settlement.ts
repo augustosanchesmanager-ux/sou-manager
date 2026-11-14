@@ -100,24 +100,54 @@ export const settleCheckoutComandaAndEnqueue = async ({
   }
 
   const key = idempotencyKey || createSettlementKey(comandaId);
-  const { data, error } = await withSettlementTimeout<any>(
+  const baseParams: Record<string, unknown> = {
+    p_tenant_id: tenantId,
+    p_comanda_id: comandaId,
+    p_payment_method: paymentMethod,
+    p_paid_amount: paidAmount,
+    p_payment_date_real: paymentDateReal || new Date().toISOString(),
+    p_source: source,
+    p_notes: notes || null,
+    p_idempotency_key: key,
+    p_outbox_event_id: outbox.eventId,
+    p_outbox_event_type: outbox.eventType,
+    p_outbox_payload: outbox.payload,
+    p_outbox_metadata: outbox.metadata,
+    p_outbox_targets: outbox.targets || null,
+  };
+
+  let rpcResult = await withSettlementTimeout<any>(
     supabase.rpc('finance_settle_comanda_and_enqueue', {
-      p_tenant_id: tenantId,
-      p_comanda_id: comandaId,
-      p_payment_method: paymentMethod,
-      p_paid_amount: paidAmount,
-      p_payment_date_real: paymentDateReal || new Date().toISOString(),
-      p_source: source,
-      p_notes: notes || null,
-      p_idempotency_key: key,
-      p_outbox_event_id: outbox.eventId,
-      p_outbox_event_type: outbox.eventType,
-      p_outbox_payload: outbox.payload,
-      p_outbox_metadata: outbox.metadata,
-      p_outbox_targets: outbox.targets || null,
+      ...baseParams,
       p_record_comanda_payment: recordComandaPayment === true,
     }),
   );
+
+  // Fallback 1: se o backend tiver a assinatura de 13 parâmetros (sem p_record_comanda_payment)
+  if (rpcResult.error && (rpcResult.error.code === 'PGRST202' || String(rpcResult.error.message || '').includes('p_record_comanda_payment'))) {
+    rpcResult = await withSettlementTimeout<any>(
+      supabase.rpc('finance_settle_comanda_and_enqueue', baseParams),
+    );
+  }
+
+  // Fallback 2: se finance_settle_comanda_and_enqueue não existir no backend, degrada para settleCheckoutComanda
+  if (rpcResult.error && (rpcResult.error.code === 'PGRST202' || String(rpcResult.error.message || '').includes('does not exist'))) {
+    console.warn('[settlement] finance_settle_comanda_and_enqueue indisponível, executando fallback via finance_settle_comanda');
+    return settleCheckoutComanda({
+      comandaId,
+      tenantId,
+      supabase,
+      paymentMethod,
+      paidAmount,
+      paymentDateReal,
+      source,
+      notes,
+      idempotencyKey: key,
+      recordComandaPayment,
+    });
+  }
+
+  const { data, error } = rpcResult;
 
   if (error) {
     logSupabaseError('[settlement] finance_settle_comanda_and_enqueue failed', error, {

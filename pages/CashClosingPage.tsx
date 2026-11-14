@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Building2, Users } from 'lucide-react';
+import { AlertTriangle, Building2, Users, Info } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import Toast from '../components/Toast';
@@ -511,25 +511,38 @@ const CashClosingPage: React.FC = () => {
                 </div>
             )}
 
-            {/* Conferência de Caixa Individual por Barbeiro */}
+            {/* Apuração de Produção da Equipe (Informativo do Dia) */}
             {!closing.loading && eligibleBarberClosings.length > 0 && (
-                <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                        <Users size={16} className="text-slate-400" />
-                        <h3 className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                            Conferência de Caixa do Barbeiro
-                        </h3>
-                        {pendingBarberCount > 0 && (
-                            <span className="inline-flex items-center rounded-full bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 px-2 py-0.5 text-[9px] font-black uppercase text-amber-700 dark:text-amber-300">
-                                {pendingBarberCount} pendente{pendingBarberCount > 1 ? 's' : ''}
+                <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                            <Users size={16} className="text-slate-400" />
+                            <h3 className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                                Apuração de Produção da Equipe (Informativo do Dia)
+                            </h3>
+                            <span className="inline-flex items-center rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[9px] font-black uppercase text-primary">
+                                Repasse por Ciclo
                             </span>
-                        )}
-                        {allBarbersConferido && eligibleBarberClosings.length > 0 && (
-                            <span className="inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-700 dark:text-emerald-300">
-                                Todos conferidos
-                            </span>
-                        )}
+                            {pendingBarberCount > 0 && (
+                                <span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-border-dark px-2 py-0.5 text-[9px] font-bold text-slate-600 dark:text-slate-400">
+                                    {pendingBarberCount} em aberto hoje
+                                </span>
+                            )}
+                            {allBarbersConferido && eligibleBarberClosings.length > 0 && (
+                                <span className="inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-700 dark:text-emerald-300">
+                                    Todos conferidos
+                                </span>
+                            )}
+                        </div>
                     </div>
+
+                    <div className="flex items-start gap-2.5 rounded-xl border border-blue-200/80 bg-blue-50/60 p-3 dark:border-blue-500/20 dark:bg-blue-500/10">
+                        <Info size={16} className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                        <p className="text-xs text-blue-900/80 dark:text-blue-200/90 leading-relaxed">
+                            <span className="font-bold text-blue-900 dark:text-blue-200">Acompanhamento diário:</span> Os valores abaixo são informativos para auditar o atendimento e a comissão apurada no dia. O fechamento diário é focado na gaveta central e maquininhas; o repasse financeiro de comissões e descontos de vales é liquidado no ciclo (quinzenal/mensal) na tela de <span className="font-semibold underline cursor-pointer" onClick={() => navigate('/commissions')}>Comissões</span>.
+                        </p>
+                    </div>
+
                     <div className="space-y-2">
                         {eligibleBarberClosings.map(barber => (
                             <BarberClosingCard

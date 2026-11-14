@@ -380,7 +380,7 @@ const BarberClosingDetailPanel: React.FC<BarberClosingDetailProps> = ({
                     disabled={!onCloseBarberCash || !isCountedCashInformed(countedCash) || countedValue < 0}
                     className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
                 >
-                    Fechar Caixa do Barbeiro
+                    Conferir Caixa do Barbeiro
                 </button>
                 <button
                     onClick={() => onExportBarberPDF?.(barber)}

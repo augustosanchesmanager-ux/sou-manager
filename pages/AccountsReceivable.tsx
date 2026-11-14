@@ -10,7 +10,11 @@ import { useAuth } from '../context/AuthContext';
 import { useTenantOptional } from '../src/context/TenantContext';
 import { supabase, getScopedClient } from '../services/supabaseClient';
 import { formatCurrency } from '../shared/format/currency';
-import { settleCheckoutComanda } from '../src/lib/finance/settlement';
+import {
+    settleCheckoutComanda,
+    settleCheckoutComandaAndEnqueue,
+    type OutboxEnqueueData,
+} from '../src/lib/finance/settlement';
 import { clientWalletRepository } from '../domain/clientWallet/walletRepository';
 import type { ClientWallet } from '../domain/clientWallet/types';
 import {
@@ -25,6 +29,8 @@ import {
     AccountsReceivableFilters,
     SettlementModal,
     CancelComandaModal,
+    DepositWalletModal,
+    LimitWalletModal,
     type ARFilters,
     type AREntry,
     type ARSource,
@@ -180,6 +186,42 @@ const toDateTimeInputValue = (date: Date) => {
 const createSettlementKey = (comandaId: string) => {
     const randomId = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     return `finance-settle-${comandaId}-${randomId}`;
+};
+
+const createFiadoOutboxData = (
+    tenantId: string,
+    comandaId: string,
+    clientId: string | null | undefined,
+    staffId: string | null | undefined,
+    paidAmount: number,
+    paymentMethod: string,
+    origin: string,
+): OutboxEnqueueData => {
+    const eventId = `evt_fiado_settle_${comandaId}_${Date.now()}`;
+    return {
+        eventId,
+        eventType: 'CheckoutCompleted',
+        payload: {
+            operationType: 'create_commission_record',
+            operationData: {
+                tenantId,
+                comandaId,
+                clientId: clientId || null,
+                staffId: staffId || null,
+                receivedValue: paidAmount,
+                paymentMethod,
+                hasClubCredit: false,
+            },
+            sourceEvent: 'CheckoutCompleted',
+            idempotencyKey: `${eventId}_create_commission_record`,
+        },
+        metadata: {
+            tenantId,
+            source: 'accounts_receivable',
+            origin,
+        },
+        targets: [{ provider: 'finance', config: {} }],
+    };
 };
 
 const normalizePaymentMethod = (value?: string | null): PaymentMethod => {
@@ -733,7 +775,16 @@ const AccountsReceivable: React.FC = () => {
                 settlementNotes.trim() ? `Observação: ${settlementNotes.trim()}` : null,
             ].filter(Boolean);
             if (settlementMode === 'payment') {
-                await settleCheckoutComanda({
+                const outbox = createFiadoOutboxData(
+                    tenantId,
+                    settlementEntry.id,
+                    settlementEntry.clientId,
+                    detail?.items?.[0]?.participants?.[0]?.id || null,
+                    paidAmount,
+                    settlementPaymentMethod,
+                    'fiado_single_settlement',
+                );
+                await settleCheckoutComandaAndEnqueue({
                     comandaId: settlementEntry.id,
                     tenantId,
                     supabase: barberSupabase,
@@ -743,6 +794,8 @@ const AccountsReceivable: React.FC = () => {
                     source: 'accounts_receivable',
                     notes: noteParts.join('\n') || null,
                     idempotencyKey: settlementIdempotencyKey || createSettlementKey(settlementEntry.id),
+                    recordComandaPayment: true,
+                    outbox,
                 });
             } else {
                 await closeZeroAmountComanda({
@@ -1335,16 +1388,28 @@ const AccountsReceivable: React.FC = () => {
             let settledCount = 0;
             const paymentIso = parsedDate.toISOString();
             for (const entry of openComandasToSettle) {
-                await settleCheckoutComanda({
+                const entryAmount = Number(entry.amount || 0);
+                const outbox = createFiadoOutboxData(
+                    tenantId,
+                    entry.id,
+                    consolidatedModalGroup.clientId || entry.clientId,
+                    null,
+                    entryAmount,
+                    consolidatedMethod,
+                    'fiado_consolidated_settlement',
+                );
+                await settleCheckoutComandaAndEnqueue({
                     comandaId: entry.id,
                     tenantId,
                     supabase,
                     paymentMethod: consolidatedMethod,
-                    paidAmount: Number(entry.amount || 0),
+                    paidAmount: entryAmount,
                     paymentDateReal: paymentIso,
-                    source: 'checkout',
+                    source: 'accounts_receivable',
                     notes: `Liquidação consolidada fiado · Cliente: ${consolidatedModalGroup.clientName}${consolidatedNotes ? ` · ${consolidatedNotes}` : ''}`,
                     idempotencyKey: createSettlementKey(entry.id),
+                    recordComandaPayment: true,
+                    outbox,
                 });
                 settledCount++;
             }
@@ -2259,72 +2324,25 @@ const AccountsReceivable: React.FC = () => {
                 </Modal>
             )}
 
-            {depositWallet && (
-                <Modal
-                    isOpen={Boolean(depositWallet)}
-                    onClose={() => !savingWalletAction && setDepositWallet(null)}
-                    title={`Adicionar Crédito Pré-Pago — ${depositWallet.client_name || 'Cliente'}`}
-                    maxWidth="sm"
-                >
-                    <div className="space-y-4">
-                        <p className="text-xs text-slate-500">
-                            Saldo atual em créditos: <strong className="text-emerald-600">{formatCurrency(depositWallet.balance)}</strong>
-                        </p>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Valor da Recarga (R$)</label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                min="0.01"
-                                value={depositAmount}
-                                onChange={(e) => setDepositAmount(e.target.value)}
-                                placeholder="Ex: 100.00"
-                                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark text-sm text-slate-900 dark:text-white"
-                            />
-                        </div>
-                        <div className="flex gap-2 pt-2">
-                            <Button type="button" variant="secondary" className="flex-1" disabled={savingWalletAction} onClick={() => setDepositWallet(null)}>
-                                Cancelar
-                            </Button>
-                            <Button type="button" variant="primary" className="flex-1" disabled={savingWalletAction} onClick={handleSaveDepositCredit}>
-                                {savingWalletAction ? 'Salvando...' : 'Confirmar Crédito'}
-                            </Button>
-                        </div>
-                    </div>
-                </Modal>
-            )}
+            <DepositWalletModal
+                isOpen={Boolean(depositWallet)}
+                onClose={() => setDepositWallet(null)}
+                wallet={depositWallet}
+                depositAmount={depositAmount}
+                onDepositAmountChange={setDepositAmount}
+                isSaving={savingWalletAction}
+                onConfirm={handleSaveDepositCredit}
+            />
 
-            {limitWallet && (
-                <Modal
-                    isOpen={Boolean(limitWallet)}
-                    onClose={() => !savingWalletAction && setLimitWallet(null)}
-                    title={`Ajustar Limite de Fiado — ${limitWallet.client_name || 'Cliente'}`}
-                    maxWidth="sm"
-                >
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Limite Liberado (R$)</label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={limitInput}
-                                onChange={(e) => setLimitInput(e.target.value)}
-                                placeholder="Ex: 250.00"
-                                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark text-sm text-slate-900 dark:text-white"
-                            />
-                        </div>
-                        <div className="flex gap-2 pt-2">
-                            <Button type="button" variant="secondary" className="flex-1" disabled={savingWalletAction} onClick={() => setLimitWallet(null)}>
-                                Cancelar
-                            </Button>
-                            <Button type="button" variant="primary" className="flex-1" disabled={savingWalletAction} onClick={handleSaveWalletLimit}>
-                                {savingWalletAction ? 'Salvando...' : 'Salvar Limite'}
-                            </Button>
-                        </div>
-                    </div>
-                </Modal>
-            )}
+            <LimitWalletModal
+                isOpen={Boolean(limitWallet)}
+                onClose={() => setLimitWallet(null)}
+                wallet={limitWallet}
+                limitInput={limitInput}
+                onLimitInputChange={setLimitInput}
+                isSaving={savingWalletAction}
+                onConfirm={handleSaveWalletLimit}
+            />
         </div>
     );
 };

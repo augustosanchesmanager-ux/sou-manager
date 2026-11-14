@@ -1,10 +1,26 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import Modal from '../components/ui/Modal';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import DateRangeFilter from '../components/ui/DateRangeFilter';
 import { AuditAdjustmentButton } from '../components/audit';
-import BarberCommissionStatementModal from '../components/commissions/BarberCommissionStatementModal';
+import {
+    BarberCommissionStatementModal,
+    CommissionSummaryCards,
+    CommissionFiltersBar,
+    CommissionDetailModal,
+    type StaffMember,
+    type ComandaStatus,
+    type ComandaRow,
+    type AppointmentRow,
+    type ParticipantRow,
+    type CommissionBaseChoice,
+    type CommissionAuditLine,
+    type ProductionDateSource,
+    type CommissionTypeFilter,
+    type ViewMode,
+    type CommissionLine,
+    type CommissionRow,
+} from '../components/commissions';
 import { useAuth } from '../context/AuthContext';
 import { getScopedClient } from '../services/supabaseClient';
 import { getEffectiveCommissionRateForItem, receivesCommissionForItem } from '../src/lib/staff/roles';
@@ -17,7 +33,7 @@ import {
   resolveFinancialBase,
 } from '../domain/commission/calculate';
 import { formatParticipantPayout } from '../domain/commission/format';
-import type { ParticipantRow as DomainParticipantRow, CommissionBaseChoice as DomainCommissionBaseChoice, ZeroCommissionReason } from '../domain/commission/types';
+import type { ZeroCommissionReason } from '../domain/commission/types';
 import {
   commissionStatusLabels,
   getCommissionStatus,
@@ -26,148 +42,6 @@ import {
 } from '../shared/status/commission';
 import type { CommissionStatusFilter } from '../shared/status/commission';
 import type { SupabaseClient } from '@supabase/supabase-js';
-
-interface StaffMember {
-    id: string;
-    name: string;
-    role: string;
-    avatar: string;
-    commission_rate: number | null;
-    product_commission_rate?: number | null;
-}
-
-type ComandaStatus = 'open' | 'paid' | 'blocked' | 'cancelled';
-
-interface ComandaRow {
-    id: string;
-    created_at: string;
-    closed_at?: string | null;
-    status: ComandaStatus;
-    appointment_id?: string | null;
-    staff_id?: string | null;
-    client_id?: string | null;
-    payment_method?: string | null;
-    total?: number | null;
-    discount?: number | null;
-    paid_amount?: number | null;
-    amount_paid?: number | null;
-    closure_mode?: string | null;
-    financial_effect?: boolean | null;
-    membership_credit_effect?: boolean | null;
-}
-
-interface AppointmentRow {
-    id: string;
-    start_time?: string | null;
-}
-
-// ParticipantRow from domain/commission/types.ts
-// Local alias for backward compatibility with existing code
-type ParticipantRow = DomainParticipantRow;
-type CommissionBaseChoice = DomainCommissionBaseChoice;
-
-interface CommissionAuditLine {
-    comanda_id: string;
-    client_name: string;
-    comanda_status: string;
-    payment_status: string;
-    payment_method: string;
-    comanda_total: number;
-    comanda_paid_amount: number | '';
-    comanda_item_id: string;
-    service_id: string;
-    service_name: string;
-    item_type: string;
-    staff_id: string;
-    staff_name: string;
-    commission_rate_raw: number | '';
-    commission_rate_normalized: number;
-    quantity: number;
-    unit_price: number | '';
-    price: number | '';
-    amount: number | '';
-    total: number | '';
-    total_price: number | '';
-    line_total: number | '';
-    subtotal: number | '';
-    discount: number | '';
-    final_price: number | '';
-    base_value_escolhido: number;
-    campo_usado_como_base: string;
-    motivo_da_escolha: string;
-    credit_applied_detected: string;
-    payout_type: string;
-    payout_value: number | '';
-    payout_value_normalizado: number | '';
-    valor_servico: number;
-    valor_compartilhado: number;
-    base_participante: number;
-    commission_rate: number | '';
-    commission_rate_normalizado: number;
-    participants_count: number;
-    participants_staff_ids: string;
-    is_shared_real: string;
-    commission_value: number;
-}
-
-type ProductionDateSource = 'appointment_start' | 'comanda_closed_at' | 'comanda_created_at';
-type CommissionTypeFilter = 'all' | 'solo' | 'shared';
-
-interface CommissionLine {
-    id: string;
-    comandaId: string;
-    comandaItemId: string;
-    createdAt: string;
-    clientName: string;
-    serviceName: string;
-    quantity: number;
-    unitPrice: number;
-    itemValue: number;
-    professionalId: string;
-    professionalName: string;
-    professionalRole: string;
-    professionalAvatar: string;
-    participationRole: string;
-    payoutType: string;
-    payoutValue: number | null;
-    payoutValueNormalized: number | null;
-    participationRate: number | null;
-    commissionBase: number;
-    commissionRate: number;
-    commissionValue: number;
-    sharedValue: number;
-    divisionLaunched: string;
-    baseByParticipant: string;
-    isShared: boolean;
-    participantNames: string;
-    comandaStatus: ComandaStatus;
-    paymentStatus: string;
-    commissionStatus: string;
-    paymentMethod: string;
-    audit: CommissionAuditLine;
-    dateSource: ProductionDateSource;
-    discountAmount: number;
-    zeroReason: ZeroCommissionReason | null;
-}
-
-interface CommissionRow {
-    id: string;
-    professionalName: string;
-    role: string;
-    avatar: string;
-    commissionRate: number;
-    servicesCount: number;
-    grossSales: number;
-    commissionValue: number;
-    confirmedSales: number;
-    pendingSales: number;
-    cancelledSales: number;
-    confirmedCommission: number;
-    pendingCommission: number;
-    cancelledCommission: number;
-    lastServiceDate: string | null;
-    items: CommissionLine[];
-}
 
 const normalizeRate = normalizePercentage;
 
@@ -496,11 +370,14 @@ const normalizeCommissionParticipants = (
 };
 
 const getLineStatusBucket = (line: CommissionLine) => {
-    return getCommissionStatus(line.comandaStatus);
+    return getCommissionStatus(line.comandaStatus, line.isFiado);
 };
+
+export type CommissionViewMode = 'production' | 'settlement';
 
 const Commissions: React.FC = () => {
     const { tenantId, user, accessRole } = useAuth();
+    const [viewMode, setViewMode] = useState<CommissionViewMode>('production');
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -700,6 +577,9 @@ const Commissions: React.FC = () => {
                     );
                     const sharedValue = isShared ? commissionBase : 0;
 
+                    const isFiado = Boolean(comanda.is_fiado);
+                    const availableForPayout = comanda.status === 'paid';
+
                     return [{
                         id: `${item.id}:${staffId}:${participant.role || 'primary'}`,
                         comandaId: comanda.id,
@@ -728,8 +608,11 @@ const Commissions: React.FC = () => {
                         isShared,
                         participantNames,
                         comandaStatus: comanda.status,
-                        paymentStatus: getCommissionPaymentLabel(comanda.status),
-                        commissionStatus: commissionStatusLabels[getCommissionStatus(comanda.status)],
+                        paymentStatus: getCommissionPaymentLabel(comanda.status, isFiado),
+                        commissionStatus: commissionStatusLabels[getCommissionStatus(comanda.status, isFiado) as CommissionStatusFilter] || 'Pendente',
+                        isFiado,
+                        paymentDateReal: comanda.payment_date_real || null,
+                        availableForPayout,
                         paymentMethod: getPaymentMethodLabel(comanda),
                         dateSource,
                         discountAmount,
@@ -814,7 +697,7 @@ const Commissions: React.FC = () => {
             if (bucket === 'confirmed') {
                 row.confirmedSales += line.commissionBase;
                 row.confirmedCommission += line.commissionValue;
-            } else if (bucket === 'pending') {
+            } else if (bucket === 'pending' || bucket === 'fiado') {
                 row.pendingSales += line.commissionBase;
                 row.pendingCommission += line.commissionValue;
             } else {
@@ -822,7 +705,8 @@ const Commissions: React.FC = () => {
                 row.cancelledCommission += line.commissionValue;
             }
             row.grossSales = row.confirmedSales + row.pendingSales;
-            row.commissionValue = row.confirmedCommission + row.pendingCommission;
+            // Saldo efetivo liberado para repasse considera comissões confirmadas no caixa
+            row.commissionValue = row.confirmedCommission;
             if (!row.lastServiceDate || line.createdAt > row.lastServiceDate) row.lastServiceDate = line.createdAt;
             return acc;
         }, {} as Record<string, CommissionRow>);
@@ -860,6 +744,7 @@ const Commissions: React.FC = () => {
     const filteredLines = useMemo(() => {
         const normalizedSearch = normalizeSearchText(searchTerm);
         return commissionLines.filter((line) => {
+            if (viewMode === 'settlement' && !line.availableForPayout) return false;
             if (professionalFilter !== 'all' && line.professionalId !== professionalFilter) return false;
             if (commissionTypeFilter === 'solo' && line.isShared) return false;
             if (commissionTypeFilter === 'shared' && !line.isShared) return false;
@@ -879,7 +764,7 @@ const Commissions: React.FC = () => {
             ].map(normalizeSearchText).join(' ');
             return searchable.includes(normalizedSearch);
         });
-    }, [commissionLines, commissionTypeFilter, professionalFilter, searchTerm, statusFilter]);
+    }, [commissionLines, commissionTypeFilter, professionalFilter, searchTerm, statusFilter, viewMode]);
     const filteredRows = useMemo(() => groupCommissionRows(filteredLines), [filteredLines, groupCommissionRows]);
 
     const confirmedCommission = filteredRows.reduce((sum, row) => sum + row.confirmedCommission, 0);
@@ -1108,6 +993,42 @@ const Commissions: React.FC = () => {
                 </div>
             </div>
 
+            {/* Seletor de Visão Dupla (ADR-001 & ADR-045: Produção vs Repasse Real) */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 dark:border-border-dark pb-3">
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => setViewMode('production')}
+                        className={`flex items-center gap-2 pb-2 px-3 text-sm font-black border-b-2 transition-all ${
+                            viewMode === 'production'
+                                ? 'border-primary text-primary'
+                                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                    >
+                        <span className="material-symbols-outlined text-lg">content_cut</span>
+                        Visão de Produção (Atendimentos)
+                    </button>
+                    <button
+                        onClick={() => setViewMode('settlement')}
+                        className={`flex items-center gap-2 pb-2 px-3 text-sm font-black border-b-2 transition-all ${
+                            viewMode === 'settlement'
+                                ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                    >
+                        <span className="material-symbols-outlined text-lg">payments</span>
+                        Visão de Repasse (Caixa Real & Ciclo)
+                        <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200">
+                            Regime de Caixa
+                        </span>
+                    </button>
+                </div>
+                <div className="text-xs text-slate-500 font-medium">
+                    {viewMode === 'production'
+                        ? 'Exibindo todos os serviços prestados (à vista e fiados).'
+                        : 'Exibindo apenas comissões com quitação comprovada no caixa.'}
+                </div>
+            </div>
+
             {loadError && (
                 <div className="rounded-xl border border-rose-200 bg-rose-50 dark:bg-rose-500/10 dark:border-rose-500/30 p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
                     <div>
@@ -1123,36 +1044,17 @@ const Commissions: React.FC = () => {
             <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/30 p-4">
                 <p className="text-sm font-black text-amber-800 dark:text-amber-200">Regra auditada nesta fase</p>
                 <p className="text-sm text-amber-700 dark:text-amber-100/80 mt-1">
-                    Barber pode receber comissão. Manager e Receptionist não recebem comissão. Descontos aparecem apenas como informação visual e não reduzem a comissão automaticamente nesta fase.
+                    Barber pode receber comissão. Manager e Receptionist não recebem comissão. Comandas fiado em aberto não geram liberação de repasse até a liquidação no Contas a Receber.
                 </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Comissão confirmada</p>
-                    <h3 className="text-2xl font-black text-emerald-500">
-                        {confirmedCommission.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </h3>
-                </div>
-                <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Comissão pendente</p>
-                    <h3 className="text-2xl font-black text-amber-500">
-                        {pendingCommission.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </h3>
-                </div>
-                <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Comissão cancelada</p>
-                    <h3 className="text-2xl font-black text-rose-500">
-                        {cancelledCommission.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </h3>
-                </div>
-                <div className="bg-white dark:bg-card-dark p-5 rounded-xl border border-slate-200 dark:border-border-dark shadow-sm">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Vendas válidas</p>
-                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">
-                        {totalSales.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </h3>
-                </div>
-            </div>
+            <CommissionSummaryCards
+                viewMode={viewMode}
+                confirmedCommission={confirmedCommission}
+                pendingCommission={pendingCommission}
+                cancelledCommission={cancelledCommission}
+                totalSales={totalSales}
+            />
 
             <div className="bg-white dark:bg-card-dark p-4 rounded-xl border border-slate-200 dark:border-border-dark flex flex-wrap gap-4 items-end">
                 <DateRangeFilter
@@ -1208,8 +1110,9 @@ const Commissions: React.FC = () => {
                         className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl py-2 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
                     >
                         <option value="all">Todos</option>
-                        <option value="confirmed">Confirmada</option>
-                        <option value="pending">Pendente</option>
+                        <option value="confirmed">Confirmada / Liberada</option>
+                        <option value="fiado">Aguardando Pagamento (Fiado)</option>
+                        <option value="pending">Pendente (Aberta)</option>
                         <option value="cancelled">Cancelada</option>
                     </select>
                 </div>
@@ -1356,121 +1259,11 @@ const Commissions: React.FC = () => {
                 </div>
             </div>
 
-            <Modal
-                isOpen={!!selectedRow}
+            <CommissionDetailModal
+                isOpen={Boolean(selectedRow)}
                 onClose={() => setSelectedRow(null)}
-                title={selectedRow ? `Detalhes de comissão - ${selectedRow.professionalName}` : 'Detalhes de comissão'}
-                maxWidth="xl"
-            >
-                {selectedRow && (
-                    <div className="space-y-4">
-                        <div className="rounded-xl border border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 p-4">
-                            <p className="text-sm font-black text-slate-900 dark:text-white">Auditoria visual</p>
-                            <p className="text-sm text-slate-500 mt-1">
-                                Este detalhe mostra a base já calculada pela regra atual. Descontos e datas legadas são informativos nesta fase.
-                            </p>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <div className="rounded-xl border border-slate-200 dark:border-border-dark p-4">
-                                <p className="text-xs font-bold uppercase text-slate-500">Taxa aplicada</p>
-                                <p className="text-xl font-black text-primary mt-1">{selectedRow.commissionRate.toFixed(1)}%</p>
-                            </div>
-                            <div className="rounded-xl border border-slate-200 dark:border-border-dark p-4">
-                                <p className="text-xs font-bold uppercase text-slate-500">Vendas válidas</p>
-                                <p className="text-xl font-black text-slate-900 dark:text-white mt-1">
-                                    {selectedRow.grossSales.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                </p>
-                            </div>
-                            <div className="rounded-xl border border-slate-200 dark:border-border-dark p-4">
-                                <p className="text-xs font-bold uppercase text-slate-500">Comissão prevista</p>
-                                <p className="text-xl font-black text-emerald-500 mt-1">
-                                    {selectedRow.commissionValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="rounded-2xl border border-slate-200 dark:border-border-dark overflow-hidden">
-                            <div className="overflow-x-auto max-h-[420px]">
-                                <table className="w-full min-w-[1180px]">
-                                    <thead className="bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-border-dark">
-                                        <tr>
-                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Data</th>
-                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Cliente</th>
-                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Serviço</th>
-                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Qtd</th>
-                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Valor vendido</th>
-                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Divisão/Regra</th>
-                                            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-widest text-slate-500">Comissão</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-border-dark">
-                                        {selectedRow.items.map((item) => (
-                                            <tr key={item.id}>
-                                                <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
-                                                    <div>{new Date(item.createdAt).toLocaleDateString('pt-BR')}</div>
-                                                    <span className={`inline-flex mt-1 px-2 py-0.5 rounded-full text-[10px] font-black ${
-                                                        item.dateSource === 'appointment_start'
-                                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200'
-                                                            : 'bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-200'
-                                                    }`}>
-                                                        {getProductionDateSourceLabel(item.dateSource)}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white">{normalizeClientName(item.clientName)}</td>
-                                                <td className="px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white">
-                                                    <div>{item.serviceName}</div>
-                                                    <div className="flex flex-wrap gap-1 mt-1">
-                                                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-black ${
-                                                            item.isShared
-                                                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-200'
-                                                                : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200'
-                                                        }`}>
-                                                            {item.isShared ? 'Compartilhado' : 'Solo'}
-                                                        </span>
-                                                        {item.discountAmount > 0 && (
-                                                            <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-100 text-orange-700 dark:bg-orange-500/10 dark:text-orange-200">
-                                                                Desconto informativo
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    {item.isShared && item.participantNames && (
-                                                        <div className="text-xs text-amber-600 dark:text-amber-300 mt-1">Participantes: {item.participantNames}</div>
-                                                    )}
-                                                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">Comanda {getShortComandaRef(item.comandaId)}</div>
-                                                </td>
-                                                <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{item.quantity}</td>
-                                                <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
-                                                    {item.itemValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                </td>
-                                                <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
-                                                    <div>{item.isShared ? item.divisionLaunched : 'Solo 100%'}</div>
-                                                    {item.isShared && (
-                                                        <div className="text-xs text-slate-500 dark:text-slate-400">
-                                                            Compartilhado: {item.sharedValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                        </div>
-                                                    )}
-                                                    {item.discountAmount > 0 && (
-                                                        <div className="text-xs text-orange-600 dark:text-orange-300">
-                                                            Desconto da comanda: {item.discountAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (não altera comissão aqui)
-                                                        </div>
-                                                    )}
-                                                    <div className="text-xs text-slate-500 dark:text-slate-400">
-                                                        Base: {item.commissionBase.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                    </div>
-                                                    <div className="text-xs text-slate-500 dark:text-slate-400">Status: {item.commissionStatus}</div>
-                                                </td>
-                                                <td className="px-4 py-3 text-sm font-bold text-emerald-500">
-                                                    {item.commissionValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </Modal>
+                selectedRow={selectedRow}
+            />
 
             <BarberCommissionStatementModal
                 isOpen={showStatementModal}
