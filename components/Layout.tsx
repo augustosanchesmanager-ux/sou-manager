@@ -363,7 +363,7 @@ const Layout: React.FC = () => {
           <Outlet />
         </div>
 
-        <MobileBottomNav />
+        <MobileBottomNav onOpenMenu={() => setIsSidebarOpen(true)} />
 
         {/* Notificações Modal */}
         <Modal

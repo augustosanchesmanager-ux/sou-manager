@@ -21,35 +21,42 @@ interface NavItem {
   key: string;
   label: string;
   icon: string;
-  path: string;
+  path?: string;
+  onClick?: () => void;
   module?: AppModuleSlug;
 }
 
-export const isMobileBottomNavRoute = (pathname: string, appSlug?: string | null): boolean => {
+interface MobileBottomNavProps {
+  onOpenMenu?: () => void;
+}
+
+export const isMobileBottomNavRoute = (pathname: string, _appSlug?: string | null): boolean => {
   const normalized = pathname.toLowerCase();
 
-  if (appSlug === 'estetica') {
-    return (
-      normalized === '/dashboard' ||
-      normalized === '/schedule' ||
-      normalized === '/clients' ||
-      normalized === '/comandas' ||
-      normalized === '/services' ||
-      normalized === '/financial-overview' ||
-      normalized === '/settings'
-    );
+  // Rotas públicas / isoladas onde o menu inferior não deve aparecer
+  if (
+    normalized === '/' ||
+    normalized.startsWith('/login') ||
+    normalized.startsWith('/register') ||
+    normalized.startsWith('/reset-password') ||
+    normalized.startsWith('/accept-invite') ||
+    normalized.startsWith('/pending-approval') ||
+    normalized.startsWith('/kiosk') ||
+    normalized.startsWith('/c/') ||
+    normalized.startsWith('/agendar') ||
+    normalized.startsWith('/booking') ||
+    normalized.startsWith('/feedback') ||
+    normalized.startsWith('/r/') ||
+    normalized.startsWith('/onboarding')
+  ) {
+    return false;
   }
 
-  return (
-    normalized === '/dashboard' ||
-    normalized === '/schedule' ||
-    normalized === '/comandas' ||
-    normalized.startsWith('/checkout') ||
-    normalized === '/settings'
-  );
+  // Todas as telas internas renderizadas pelo Layout devem exibir o menu inferior
+  return true;
 };
 
-const MobileBottomNav: React.FC = () => {
+const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenMenu }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { accessRole, canAccessSuperAdmin, appSlug } = useAuth();
@@ -81,24 +88,18 @@ const MobileBottomNav: React.FC = () => {
   }, [appSlug, isEsteticaApp, isManager, isOperational, labels.client, labels.order, labels.professional, labels.service]);
 
   const navItems = useMemo<NavItem[]>(() => {
-    const items: NavItem[] = isEsteticaApp
-      ? [
-          { key: 'agenda', label: 'Agenda', icon: 'calendar_month', path: '/schedule', module: 'schedule' },
-          { key: 'clients', label: labels.clientPlural, icon: 'group', path: '/clients', module: 'clients' },
-          { key: 'orders', label: labels.orderPlural, icon: 'receipt', path: '/comandas', module: 'comandas' },
-          { key: 'services', label: labels.servicePlural, icon: 'content_cut', path: '/services', module: 'services' },
-        ]
-      : [
-          { key: 'home', label: 'Início', icon: 'home', path: '/dashboard', module: 'dashboard' },
-          { key: 'agenda', label: 'Agenda', icon: 'calendar_month', path: '/schedule', module: 'schedule' },
-          { key: 'checkout', label: labels.checkout, icon: 'point_of_sale', path: '/checkout?mode=pdv', module: 'checkout' },
-          { key: 'profile', label: 'Perfil', icon: 'person', path: '/settings', module: 'settings' },
-        ];
+    const items: NavItem[] = [
+      { key: 'home', label: 'Início', icon: 'home', path: '/dashboard', module: 'dashboard' },
+      { key: 'agenda', label: 'Agenda', icon: 'calendar_month', path: '/schedule', module: 'schedule' },
+      { key: 'orders', label: labels.orderPlural, icon: 'receipt_long', path: '/comandas', module: 'comandas' },
+      { key: 'menu', label: 'Menu', icon: 'menu', onClick: onOpenMenu },
+    ];
 
-    return items.filter((item) => !item.module || isAppModuleEnabled(appSlug, item.module));
-  }, [appSlug, isEsteticaApp, labels.checkout, labels.clientPlural, labels.orderPlural, labels.servicePlural]);
+    return items;
+  }, [labels.orderPlural, onOpenMenu]);
 
-  const isActive = (path: string): boolean => {
+  const isActive = (path?: string): boolean => {
+    if (!path) return false;
     if (path.startsWith('/checkout')) return location.pathname.startsWith('/checkout');
     return location.pathname === path;
   };
@@ -138,7 +139,10 @@ const MobileBottomNav: React.FC = () => {
             {navItems.slice(0, 2).map((item) => (
               <button
                 key={item.key}
-                onClick={() => handleNavigate(item.path)}
+                onClick={() => {
+                  if (item.onClick) item.onClick();
+                  else if (item.path) handleNavigate(item.path);
+                }}
                 aria-label={item.label}
                 className={`mx-auto flex flex-col items-center justify-center size-11 transition-colors ${
                   isActive(item.path)
@@ -153,7 +157,7 @@ const MobileBottomNav: React.FC = () => {
 
             <button
               onClick={() => setIsQuickMenuOpen((prev) => !prev)}
-              className="mx-auto -mt-8 flex size-14 items-center justify-center rounded-full border-4 border-white bg-gradient-to-br from-primary to-primary-dark text-night shadow-smg-glow transition-transform active:scale-95"
+              className="mx-auto -mt-8 flex size-14 items-center justify-center rounded-full border-4 border-white bg-gradient-to-br from-primary to-primary-dark text-night shadow-smg-glow transition-transform active:scale-95 cursor-pointer"
               aria-label={isQuickMenuOpen ? 'Fechar ações rápidas' : 'Abrir ações rápidas'}
             >
               <span className="material-symbols-outlined text-xl">add</span>
@@ -162,9 +166,12 @@ const MobileBottomNav: React.FC = () => {
             {navItems.slice(2).map((item) => (
               <button
                 key={item.key}
-                onClick={() => handleNavigate(item.path)}
+                onClick={() => {
+                  if (item.onClick) item.onClick();
+                  else if (item.path) handleNavigate(item.path);
+                }}
                 aria-label={item.label}
-                className={`mx-auto flex flex-col items-center justify-center size-11 transition-colors ${
+                className={`mx-auto flex flex-col items-center justify-center size-11 transition-colors cursor-pointer ${
                   isActive(item.path)
                     ? 'bg-gold-soft text-primary-dark shadow-smg-glow rounded-full'
                     : 'text-ink-soft hover:bg-gold-pale hover:text-ink rounded-full'
