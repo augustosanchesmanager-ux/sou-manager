@@ -227,4 +227,106 @@ describe('BookingService — Front-end to Supabase RPC integration', () => {
       expect(result.masked_name).toBe('R***** S******');
     }
   });
+
+  it('should_propagate_same_day_booking_limit_error_with_user_friendly_message', async () => {
+    const mockRpc = vi.fn().mockResolvedValue({
+      data: null,
+      error: {
+        code: 'P0001',
+        message: 'same_day_booking_limit',
+        details: 'same_day_booking_limit',
+      },
+    });
+
+    vi.spyOn(clientModule, 'getPublicAnonymousClient').mockReturnValue({
+      rpc: mockRpc,
+    } as any);
+
+    if (!isUsingMock()) {
+      await expect(
+        createPublicBooking({
+          tenant_identifier: 'sanchez',
+          staff_id: 'staff-1',
+          service_ids: ['svc-1'],
+          start_time: '2026-10-20T10:00:00Z',
+          client_name: 'Cliente Teste',
+          client_phone: '11999999999',
+        })
+      ).rejects.toThrow('Você já possui um agendamento neste dia');
+    }
+  });
+
+  it('should_pass_is_for_other_and_beneficiary_name_to_create_booking_rpc', async () => {
+    const mockRpc = vi.fn().mockResolvedValue({
+      data: {
+        appointment_id: 'apt-beneficiary-123',
+        client_id: 'cli-titular-123',
+        status: 'confirmed',
+        public_token: 'token-123',
+        public_token_id: 'tokid-123',
+        expires_at: '2026-12-31T23:59:59Z',
+        services: [],
+        staff: { id: 'staff-1', name: 'Barbeiro' },
+        start_time: '2026-10-20T14:00:00Z',
+        end_time: '2026-10-20T14:45:00Z',
+        idempotent: false,
+      },
+      error: null,
+    });
+
+    vi.spyOn(clientModule, 'getPublicAnonymousClient').mockReturnValue({
+      rpc: mockRpc,
+    } as any);
+
+    if (!isUsingMock()) {
+      const result = await createPublicBooking({
+        tenant_identifier: 'sanchez',
+        staff_id: 'staff-1',
+        service_ids: ['svc-1'],
+        start_time: '2026-10-20T14:00:00Z',
+        client_name: 'Nicolas Titular',
+        client_phone: '11999999999',
+        is_for_other: true,
+        beneficiary_name: 'Enzo (Filho)',
+      });
+
+      expect(mockRpc).toHaveBeenCalledWith('create_public_booking', expect.objectContaining({
+        p_is_for_other: true,
+        p_beneficiary_name: 'Enzo (Filho)',
+      }));
+      expect(result.appointment_id).toBe('apt-beneficiary-123');
+    }
+  });
+
+  it('should_pass_target_date_and_return_same_day_booking_status_in_lookup', async () => {
+    const mockRpc = vi.fn().mockResolvedValue({
+      data: {
+        found: true,
+        client_name: 'Nicolas Titular',
+        masked_name: 'Nic***',
+        has_same_day_booking: true,
+        existing_booking_time: '14:00',
+        existing_staff_name: 'Marcos',
+        existing_appointment_id: 'apt-1',
+      },
+      error: null,
+    });
+
+    vi.spyOn(clientModule, 'getPublicAnonymousClient').mockReturnValue({
+      rpc: mockRpc,
+    } as any);
+
+    if (!isUsingMock()) {
+      const lookup = await lookupPublicBookingClient('sanchez', '11999999999', '2026-11-14');
+
+      expect(mockRpc).toHaveBeenCalledWith('lookup_public_booking_client', {
+        p_tenant_identifier: 'sanchez',
+        p_client_phone: '11999999999',
+        p_target_date: '2026-11-14',
+      });
+      expect(lookup.has_same_day_booking).toBe(true);
+      expect(lookup.existing_booking_time).toBe('14:00');
+      expect(lookup.existing_staff_name).toBe('Marcos');
+    }
+  });
 });

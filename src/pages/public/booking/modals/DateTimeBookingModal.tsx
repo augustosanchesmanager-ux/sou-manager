@@ -17,8 +17,10 @@ import {
   Sun,
   Moon,
   MessageCircle,
+  AlertCircle,
+  Users,
 } from 'lucide-react';
-import type { PublicSlot, TimePeriodGroup } from '../hooks/types';
+import type { PublicSlot, TimePeriodGroup, PublicClientLookupResult } from '../hooks/types';
 import { groupSlotsByPeriod } from '../hooks/usePublicBooking';
 
 export function buildFitInWhatsAppMessage(params: {
@@ -49,13 +51,16 @@ interface DateTimeBookingModalProps {
   totalPrice: number;
   totalDuration: number;
   isSubmitting: boolean;
-  onConfirmBooking: () => void;
+  onConfirmBooking: (isForOther?: boolean, beneficiaryName?: string) => void;
   onBack: () => void;
   onClose: () => void;
   formatPriceBRL: (price: number) => string;
   formatDuration: (minutes: number) => string;
   formatSlotTime: (iso: string) => string;
   whatsappFitInUrl?: string | null;
+  clientName?: string;
+  clientPhone?: string;
+  onLookupPhone?: (phoneDigits: string, targetDate?: string | null) => Promise<PublicClientLookupResult>;
 }
 
 export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
@@ -80,7 +85,49 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
   formatDuration,
   formatSlotTime,
   whatsappFitInUrl,
+  clientName,
+  clientPhone,
+  onLookupPhone,
 }) => {
+  const [isForOther, setIsForOther] = useState(false);
+  const [beneficiaryName, setBeneficiaryName] = useState('');
+  const [sameDayBookingInfo, setSameDayBookingInfo] = useState<PublicClientLookupResult | null>(null);
+
+  // Reconciliação / verificação de agendamento existente no mesmo dia
+  useEffect(() => {
+    if (!isOpen || !selectedDate || !clientPhone || !onLookupPhone) {
+      setSameDayBookingInfo(null);
+      setIsForOther(false);
+      setBeneficiaryName('');
+      return;
+    }
+
+    const phoneDigits = clientPhone.replace(/\D/g, '');
+    if (phoneDigits.length < 10) return;
+
+    let cancelled = false;
+    const checkSameDay = async () => {
+      try {
+        const res = await onLookupPhone(phoneDigits, selectedDate);
+        if (!cancelled) {
+          if (res?.has_same_day_booking) {
+            setSameDayBookingInfo(res);
+          } else {
+            setSameDayBookingInfo(null);
+            setIsForOther(false);
+          }
+        }
+      } catch {
+        if (!cancelled) setSameDayBookingInfo(null);
+      }
+    };
+
+    checkSameDay();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, selectedDate, clientPhone, onLookupPhone]);
   const periodGroups = useMemo(() => {
     if (groupedSlots && groupedSlots.length > 0) {
       return groupedSlots.filter((group) => group.slots.length > 0);
@@ -505,29 +552,107 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
         </div>
 
         {/* Modal Action Footer */}
-        <div className="p-4 bg-neutral-950 border-t border-neutral-800 flex-shrink-0 space-y-2">
-          <button
-            type="button"
-            onClick={onConfirmBooking}
-            disabled={!selectedSlot || isSubmitting}
-            className={`w-full py-3.5 px-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 active:scale-[0.99] shadow-lg ${
-              selectedSlot && !isSubmitting
-                ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-neutral-950 shadow-amber-500/25 cursor-pointer'
-                : 'bg-neutral-800 text-neutral-500 border border-neutral-700 cursor-not-allowed'
-            }`}
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                <span>Garantindo seu horário...</span>
-              </>
-            ) : (
-              <>
-                <span>Confirmar Agendamento</span>
-                <ChevronRight size={16} />
-              </>
-            )}
-          </button>
+        <div className="p-4 bg-neutral-950 border-t border-neutral-800 flex-shrink-0 space-y-3">
+          {/* Alerta interativo: Mesmo cliente com agendamento no mesmo dia */}
+          {sameDayBookingInfo?.has_same_day_booking && (
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 space-y-2.5 animate-in fade-in duration-200">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                <div className="text-xs space-y-1">
+                  <p className="font-bold text-amber-300">
+                    Você já possui um agendamento nesta data
+                    {sameDayBookingInfo.existing_booking_time ? ` às ${sameDayBookingInfo.existing_booking_time}` : ''}
+                    {sameDayBookingInfo.existing_staff_name ? ` com ${sameDayBookingInfo.existing_staff_name}` : ''}.
+                  </p>
+                  <p className="text-[11px] text-neutral-300">
+                    Deseja agendar este novo horário para outra pessoa (filho, amigo ou parente)?
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => setIsForOther(true)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    isForOther
+                      ? 'bg-amber-400 text-neutral-950 shadow-md shadow-amber-400/20'
+                      : 'bg-neutral-800 text-neutral-200 hover:bg-neutral-700'
+                  }`}
+                >
+                  Sim, é para outra pessoa
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsForOther(false)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    !isForOther
+                      ? 'bg-neutral-800 text-neutral-300 border border-neutral-700'
+                      : 'bg-neutral-900 text-neutral-400 hover:bg-neutral-800'
+                  }`}
+                >
+                  Não, era para mim
+                </button>
+              </div>
+
+              {isForOther ? (
+                <div className="pt-1.5 space-y-1">
+                  <label className="block text-[11px] font-bold text-neutral-200 flex items-center gap-1.5">
+                    <Users size={12} className="text-amber-400" />
+                    <span>Nome de quem será atendido: <strong className="text-amber-400">*</strong></span>
+                  </label>
+                  <input
+                    type="text"
+                    value={beneficiaryName}
+                    onChange={(e) => setBeneficiaryName(e.target.value)}
+                    placeholder="Ex: Enzo (filho) ou Pedro"
+                    className="w-full px-3 py-2 bg-neutral-900 border border-neutral-700 focus:border-amber-400 rounded-xl text-xs text-white placeholder:text-neutral-500 outline-none"
+                  />
+                  {beneficiaryName.trim().length > 0 && beneficiaryName.trim().length < 3 && (
+                    <p className="text-[10px] text-red-400">Informe pelo menos 3 letras para o nome.</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-[11px] text-amber-400/90 font-medium">
+                  Só é permitido 1 horário por dia para a mesma pessoa. Escolha outro dia ou fale com a barbearia.
+                </p>
+              )}
+            </div>
+          )}
+
+          {(() => {
+            const isSameDayBlocked = Boolean(
+              sameDayBookingInfo?.has_same_day_booking && (!isForOther || beneficiaryName.trim().length < 3)
+            );
+
+            return (
+              <button
+                type="button"
+                onClick={() => {
+                  if (isSameDayBlocked || !selectedSlot || isSubmitting) return;
+                  onConfirmBooking(isForOther, isForOther ? beneficiaryName.trim() : undefined);
+                }}
+                disabled={!selectedSlot || isSubmitting || isSameDayBlocked}
+                className={`w-full py-3.5 px-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 active:scale-[0.99] shadow-lg ${
+                  selectedSlot && !isSubmitting && !isSameDayBlocked
+                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-neutral-950 shadow-amber-500/25 cursor-pointer'
+                    : 'bg-neutral-800 text-neutral-500 border border-neutral-700 cursor-not-allowed'
+                }`}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    <span>Garantindo seu horário...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>{isForOther ? `Confirmar para ${beneficiaryName.trim() || 'Outra Pessoa'}` : 'Confirmar Agendamento'}</span>
+                    <ChevronRight size={16} />
+                  </>
+                )}
+              </button>
+            );
+          })()}
           <p className="text-center text-[10px] text-neutral-400">
             Ao confirmar, sua reserva será gravada e abriremos o WhatsApp com seu comprovante.
           </p>

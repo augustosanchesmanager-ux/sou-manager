@@ -120,6 +120,8 @@ export interface CreatePublicBookingRequest {
   client_phone: string;
   client_notes?: string | null;
   idempotency_key?: string | null;
+  is_for_other?: boolean;
+  beneficiary_name?: string | null;
 }
 
 export interface CreatePublicBookingResult {
@@ -173,6 +175,10 @@ export interface PublicClientLookupResult {
   found: boolean;
   masked_name: string | null;
   client_name?: string | null;
+  has_same_day_booking?: boolean;
+  existing_booking_time?: string | null;
+  existing_staff_name?: string | null;
+  existing_appointment_id?: string | null;
 }
 
 export interface PromoLeadRegistrationRequest {
@@ -203,6 +209,8 @@ export type PublicBookingErrorCode =
   | 'token_expired'
   | 'token_revoked'
   | 'cancellation_window_closed'
+  | 'same_day_booking_limit'
+  | 'same_day_beneficiary_required'
   | 'ERR_SLOT_UNAVAILABLE'; // Legacy alias for slot_occupied
 
 export interface PublicBookingError extends Error {
