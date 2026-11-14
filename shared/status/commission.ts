@@ -5,33 +5,36 @@
  * Substitui definições em Commissions.tsx.
  */
 
-export type CommissionStatusFilter = 'all' | 'confirmed' | 'pending' | 'cancelled';
+export type CommissionStatusFilter = 'all' | 'confirmed' | 'pending' | 'fiado' | 'cancelled';
 
 /**
  * Labels de filtro de comissão.
  */
 export const commissionStatusLabels: Record<CommissionStatusFilter, string> = {
   all: 'Todos',
-  confirmed: 'Confirmada',
+  confirmed: 'Confirmada / Liberada',
   pending: 'Pendente',
+  fiado: 'Aguardando Pagamento (Fiado)',
   cancelled: 'Cancelada',
 };
 
 /**
- * Deriva o status de comissão a partir do status da comanda.
+ * Deriva o status de comissão a partir do status da comanda e flag de fiado.
  */
-export const getCommissionStatus = (comandaStatus: string): string => {
+export const getCommissionStatus = (comandaStatus: string, isFiado?: boolean): string => {
   if (comandaStatus === 'paid') return 'confirmed';
   if (comandaStatus === 'cancelled') return 'cancelled';
+  if (isFiado) return 'fiado';
   return 'pending';
 };
 
 /**
- * Deriva o label de pagamento a partir do status da comanda.
+ * Deriva o label de pagamento a partir do status da comanda e flag de fiado.
  */
-export const getCommissionPaymentLabel = (comandaStatus: string): string => {
+export const getCommissionPaymentLabel = (comandaStatus: string, isFiado?: boolean): string => {
   if (comandaStatus === 'paid') return 'Pago';
   if (comandaStatus === 'cancelled') return 'Cancelado';
+  if (isFiado) return 'Fiado Pendente';
   return 'Pendente';
 };
 

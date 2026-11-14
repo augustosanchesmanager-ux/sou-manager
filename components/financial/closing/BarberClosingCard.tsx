@@ -60,8 +60,8 @@ const BarberClosingCard: React.FC<BarberClosingCardProps> = ({
                                 </span>
                             )}
                             {!allChecklistPassed && (
-                                <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400">
-                                    Pendencias
+                                <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400">
+                                    Não conferido
                                 </span>
                             )}
                         </div>
@@ -71,10 +71,10 @@ const BarberClosingCard: React.FC<BarberClosingCardProps> = ({
                 <div className="flex items-center gap-2 shrink-0">
                     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${
                         barber.status === 'open'
-                            ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/20'
+                            ? 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-border-dark'
                             : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/20'
                     }`}>
-                        {barber.status === 'open' ? 'ABERTO' : 'FECHADO'}
+                        {barber.status === 'open' ? 'ACUMULA NO CICLO' : 'CONFERIDO HOJE'}
                     </span>
                     {expanded ? <ChevronDown size={16} className="text-slate-400" /> : <ChevronRight size={16} className="text-slate-400" />}
                 </div>
