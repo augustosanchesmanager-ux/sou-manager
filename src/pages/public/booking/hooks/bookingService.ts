@@ -201,7 +201,7 @@ export async function createPublicBooking(
 
   try {
     const client = getPublicAnonymousClient();
-    const { data, error } = await client.rpc(RPC_NAMES.CREATE_BOOKING, {
+    const rpcPayload: Record<string, unknown> = {
       p_tenant_identifier: request.tenant_identifier,
       p_staff_id: request.staff_id,
       p_service_ids: request.service_ids,
@@ -210,9 +210,15 @@ export async function createPublicBooking(
       p_client_phone: request.client_phone,
       p_notes: request.client_notes ?? null,
       p_idempotency_key: request.idempotency_key ?? null,
-      p_is_for_other: request.is_for_other ?? false,
-      p_beneficiary_name: request.beneficiary_name ?? null,
-    });
+    };
+    if (request.is_for_other !== undefined) {
+      rpcPayload.p_is_for_other = request.is_for_other;
+    }
+    if (request.beneficiary_name !== undefined) {
+      rpcPayload.p_beneficiary_name = request.beneficiary_name;
+    }
+
+    const { data, error } = await client.rpc(RPC_NAMES.CREATE_BOOKING, rpcPayload);
 
     if (error) {
       if (isFunctionNotFoundError(error)) {
