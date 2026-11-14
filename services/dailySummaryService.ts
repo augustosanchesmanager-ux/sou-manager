@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { shouldAppearOnSchedule } from '../src/lib/staff/roles';
 import type {
   DailySummaryPayload,
   AutomationSettings,
@@ -102,7 +103,8 @@ export const dailySummaryService = {
 
     const appointments = (aptsRes.data || []) as any[];
     const comandas = (cmdasRes.data || []) as any[];
-    const staffList = (staffRes.data || []) as any[];
+    const rawStaffList = (staffRes.data || []) as any[];
+    const staffList = rawStaffList.filter((st) => shouldAppearOnSchedule(st));
     const expenses = (expensesRes.data || []) as any[];
 
     // 3. Métricas operacionais reais
@@ -155,7 +157,7 @@ export const dailySummaryService = {
         staffId: st.id,
         name: st.name,
         initials,
-        roleBadge: st.role === 'manager' ? 'Gestor' : `Comissão ${st.commission_rate || 50}%`,
+        roleBadge: st.role === 'manager' ? 'Gestor' : `Comissão ${Number(st.commission_rate) || 0}%`,
         isManager: st.role === 'manager',
         scheduledCount: stCount,
         projectedRevenue: stRevenue,
@@ -196,7 +198,7 @@ export const dailySummaryService = {
       return {
         staffId: st.id,
         name: st.name,
-        roleDescription: st.role === 'manager' ? 'Gestão da Unidade' : `Comissão ${st.commission_rate}%`,
+        roleDescription: st.role === 'manager' ? 'Gestão da Unidade' : `Comissão ${Number(st.commission_rate) || 0}%`,
         completedCount: stClosedCmds.length,
         cashRevenue,
         clubCredits: 0,
@@ -206,7 +208,7 @@ export const dailySummaryService = {
 
     // 8. Lista real de comandas em aberto
     const openComandasFormatted = openComandas.map((c) => {
-      const st = staffList.find((s) => s.id === c.staff_id);
+      const st = rawStaffList.find((s) => s.id === c.staff_id);
       return {
         id: c.id,
         comandaNumber: `#${c.id.slice(0, 6).toUpperCase()}`,

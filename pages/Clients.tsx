@@ -28,6 +28,7 @@ import {
     type InactivityTier,
 } from '../src/utils/clientReengagement';
 import { buildImportPreview, clientImportDefinition, phoneDuplicateKey, toPersistableRow, type ImportPreview } from '../src/modules/import-engine';
+import { requestAsyncExcelExport } from '../src/lib/export/excelExportService';
 
 type SortKey = 'name' | 'last_visit' | 'total_spent';
 type SortDir = 'asc' | 'desc';
@@ -504,31 +505,57 @@ const Clients: React.FC = () => {
         return new Date(d).toLocaleDateString('pt-BR');
     };
 
-    const handleExportCSV = () => {
+    const [exportingExcel, setExportingExcel] = useState(false);
+
+    const handleExportCSV = async () => {
         if (processed.length === 0) {
             setToast({ message: 'Nenhum cliente para exportar.', type: 'info' });
             return;
         }
 
-        const dataToExport = processed.map(c => ({
-            Nome: c.name,
-            Telefone: c.phone || '',
-            Email: c.email || '',
-            Aniversário: c.birthday ? formatDate(c.birthday) : '',
-            Última_Visita: c.last_visit ? formatDate(c.last_visit) : '',
-            Total_Gasto: c.total_spent ? c.total_spent.toFixed(2).replace('.', ',') : '0,00',
-            Status: c.status === 'active' ? 'Ativo' : 'Inativo'
-        }));
+        setExportingExcel(true);
+        try {
+            const todayIso = new Date().toISOString().split('T')[0];
+            const result = await requestAsyncExcelExport({
+                tenantId: tenantId || undefined,
+                reportType: 'clients',
+                title: 'Base de Clientes (CRM & LTV)',
+                subtitle: `Total listado: ${processed.length} cliente(s)`,
+                sheetName: 'Clientes',
+                fileName: `base_clientes_${todayIso}.xlsx`,
+                columns: [
+                    { key: 'name', header: 'Nome', width: 32, type: 'string' },
+                    { key: 'phone', header: 'Telefone', width: 20, type: 'string' },
+                    { key: 'email', header: 'E-mail', width: 28, type: 'string' },
+                    { key: 'birthday', header: 'Aniversário', width: 16, type: 'string' },
+                    { key: 'last_visit', header: 'Última Visita', width: 16, type: 'string' },
+                    { key: 'total_spent', header: 'Total Gasto / LTV (R$)', width: 22, type: 'currency' },
+                    { key: 'status', header: 'Status', width: 14, type: 'string' },
+                ],
+                rows: processed.map((c) => ({
+                    name: c.name,
+                    phone: c.phone || '—',
+                    email: c.email || '—',
+                    birthday: c.birthday ? formatDate(c.birthday) : '—',
+                    last_visit: c.last_visit ? formatDate(c.last_visit) : '—',
+                    total_spent: Number(c.total_spent) || 0,
+                    status: c.status === 'active' ? 'Ativo' : 'Inativo',
+                })),
+            });
 
-        const csvString = Papa.unparse(dataToExport);
-        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `base_clientes_${new Date().toISOString().split('T')[0]}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+            if (result.ok) {
+                setToast({
+                    message: result.fallbackUsed
+                        ? `Base exportada em CSV (${result.rowCount} clientes).`
+                        : `Excel (.xlsx) gerado via Edge Function + Presigned URL (${result.rowCount} clientes).`,
+                    type: 'success',
+                });
+            } else {
+                setToast({ message: result.error || 'Erro ao exportar base de clientes.', type: 'error' });
+            }
+        } finally {
+            setExportingExcel(false);
+        }
     };
 
     const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -606,9 +633,15 @@ const Clients: React.FC = () => {
                         Importar CSV
                     </button>
                     <input type="file" ref={fileInputRef} accept=".csv" className="hidden" title="Arquivo CSV" onChange={handleFileUpload} />
-                    <button onClick={handleExportCSV} className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-200 rounded-xl text-sm font-bold hover:bg-slate-200 dark:hover:bg-white/10 transition-all">
-                        <span className="material-symbols-outlined text-sm">download</span>
-                        Exportar Base
+                    <button
+                        onClick={handleExportCSV}
+                        disabled={exportingExcel || processed.length === 0}
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-200 rounded-xl text-sm font-bold hover:bg-slate-200 dark:hover:bg-white/10 transition-all disabled:opacity-50"
+                    >
+                        <span className="material-symbols-outlined text-sm">
+                            {exportingExcel ? 'progress_activity' : 'download'}
+                        </span>
+                        {exportingExcel ? 'Gerando Excel...' : 'Exportar Base (.xlsx)'}
                     </button>
                     <button
                         onClick={() => setShowModal(true)}
