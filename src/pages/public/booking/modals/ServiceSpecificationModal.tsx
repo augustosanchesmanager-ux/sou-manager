@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ServiceSpecificationModal - Modal / Bottom Sheet for Phase 1 of Booking:
  * Service Specification, details, highlights and lead identification trigger.
  */
@@ -6,8 +6,9 @@
 import type React from 'react';
 import { useState, useEffect } from 'react';
 import { Clock, Tag, X, User, Phone, CheckCircle2, ChevronRight, Sparkles } from 'lucide-react';
-import type { PublicService } from '../hooks/types';
+import type { PublicService, PublicClientLookupResult } from '../hooks/types';
 import { applyPhoneMask } from '../LeadCaptureModal';
+import { getCanonicalBrPhone } from '../../../../lib/utils/phone';
 
 interface ServiceSpecificationModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ interface ServiceSpecificationModalProps {
   onProceedToStaff: () => void;
   onClose: () => void;
   formatPriceBRL: (price: number) => string;
+  onLookupPhone?: (phoneDigits: string) => Promise<PublicClientLookupResult>;
 }
 
 export const ServiceSpecificationModal: React.FC<ServiceSpecificationModalProps> = ({
@@ -29,11 +31,13 @@ export const ServiceSpecificationModal: React.FC<ServiceSpecificationModalProps>
   onProceedToStaff,
   onClose,
   formatPriceBRL,
+  onLookupPhone,
 }) => {
   const [name, setName] = useState(clientName);
   const [phone, setPhone] = useState(clientPhoneDisplay);
   const [isEditingLead, setIsEditingLead] = useState(false);
   const [touched, setTouched] = useState({ name: false, phone: false });
+  const [lookupResult, setLookupResult] = useState<PublicClientLookupResult | null>(null);
 
   const phoneDigits = clientPhoneDisplay.replace(/\D/g, '');
   const isAlreadyIdentified = clientName.trim().length >= 3 && phoneDigits.length >= 11;
@@ -47,11 +51,39 @@ export const ServiceSpecificationModal: React.FC<ServiceSpecificationModalProps>
     }
   }, [isOpen, clientName, clientPhoneDisplay, isAlreadyIdentified]);
 
+  const currentPhoneDigits = phone.replace(/\D/g, '');
+
+  useEffect(() => {
+    if (!isOpen || !isEditingLead || !onLookupPhone || currentPhoneDigits.length < 10) {
+      setLookupResult(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await onLookupPhone(currentPhoneDigits);
+        if (!cancelled) setLookupResult(res.found ? res : null);
+      } catch {
+        if (!cancelled) setLookupResult(null);
+      }
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [isOpen, isEditingLead, onLookupPhone, currentPhoneDigits]);
+
+  useEffect(() => {
+    if (lookupResult?.found && lookupResult.client_name) {
+      setName(lookupResult.client_name);
+    }
+  }, [lookupResult]);
+
   if (!isOpen || !service) return null;
 
-  const currentPhoneDigits = phone.replace(/\D/g, '');
+  const isNameLocked = Boolean(lookupResult?.found && lookupResult.client_name);
   const isCurrentNameValid = name.trim().length >= 3;
-  const isCurrentPhoneValid = currentPhoneDigits.length >= 11;
+  const isCurrentPhoneValid = currentPhoneDigits.length >= 11 && getCanonicalBrPhone(phone) !== null;
   const isLeadValid = isAlreadyIdentified && !isEditingLead
     ? true
     : isCurrentNameValid && isCurrentPhoneValid;
@@ -218,30 +250,6 @@ export const ServiceSpecificationModal: React.FC<ServiceSpecificationModalProps>
                   </p>
                 </div>
 
-                {/* Name */}
-                <div>
-                  <label htmlFor="spec-lead-name" className="block text-[11px] font-semibold text-neutral-300 mb-1">
-                    Nome Completo <span className="text-amber-400">*</span>
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-neutral-500">
-                      <User size={14} />
-                    </div>
-                    <input
-                      id="spec-lead-name"
-                      type="text"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      onBlur={() => setTouched((p) => ({ ...p, name: true }))}
-                      placeholder="Seu nome"
-                      className="w-full pl-9 pr-3 py-2 bg-neutral-900 border border-neutral-700 rounded-xl text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-amber-500 transition-colors"
-                    />
-                  </div>
-                  {touched.name && !isCurrentNameValid && (
-                    <p className="text-[10px] text-red-400 mt-1">Informe pelo menos 3 caracteres.</p>
-                  )}
-                </div>
-
                 {/* WhatsApp */}
                 <div>
                   <label htmlFor="spec-lead-phone" className="block text-[11px] font-semibold text-neutral-300 mb-1">
@@ -263,9 +271,39 @@ export const ServiceSpecificationModal: React.FC<ServiceSpecificationModalProps>
                     />
                   </div>
                   {touched.phone && !isCurrentPhoneValid && (
-                    <p className="text-[10px] text-red-400 mt-1">Informe DDD + número (11 dígitos).</p>
+                    <p className="text-[10px] text-red-400 mt-1">Informe um WhatsApp válido com DDD.</p>
+                  )}
+                  {lookupResult?.found && (lookupResult.client_name || lookupResult.masked_name) && (
+                    <p className="text-[10px] text-emerald-300 mt-1">
+                      Cadastro encontrado: {lookupResult.client_name || lookupResult.masked_name} — dados preenchidos automaticamente.
+                    </p>
                   )}
                 </div>
+                {/* Name */}
+                <div>
+                  <label htmlFor="spec-lead-name" className="block text-[11px] font-semibold text-neutral-300 mb-1">
+                    Nome Completo <span className="text-amber-400">*</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-neutral-500">
+                      <User size={14} />
+                    </div>
+                    <input
+                      id="spec-lead-name"
+                      type="text"
+                      value={name}
+                      readOnly={isNameLocked}
+                      onChange={(e) => setName(e.target.value)}
+                      onBlur={() => setTouched((p) => ({ ...p, name: true }))}
+                      placeholder="Seu nome"
+                      className="w-full pl-9 pr-3 py-2 bg-neutral-900 border border-neutral-700 rounded-xl text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-amber-500 transition-colors"
+                    />
+                  </div>
+                  {touched.name && !isCurrentNameValid && (
+                    <p className="text-[10px] text-red-400 mt-1">Informe pelo menos 3 caracteres.</p>
+                  )}
+                </div>
+
               </div>
             )}
           </div>

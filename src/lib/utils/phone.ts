@@ -25,7 +25,42 @@ export function getCanonicalBrPhone(phone: string | null | undefined): string | 
   const { digits, isValid } = normalizePhone(phone);
   if (!isValid) return null;
   if (/^(\d)\1+$/.test(digits)) return null;
+  if (digits.startsWith('0')) return null;
+  if (/^\d{2}9?0{8}$/.test(digits)) return null;
   return digits;
+}
+
+export function applyCpfMask(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  const p1 = digits.slice(0, 3);
+  const p2 = digits.slice(3, 6);
+  const p3 = digits.slice(6, 9);
+  const p4 = digits.slice(9, 11);
+  let out = p1;
+  if (p2) out += `.${p2}`;
+  if (p3) out += `.${p3}`;
+  if (p4) out += `-${p4}`;
+  return out;
+}
+
+export function normalizeCpf(cpf: string | null | undefined): string | null {
+  if (!cpf) return null;
+  const digits = cpf.replace(/\D/g, '');
+  if (digits.length !== 11) return null;
+  if (/^(\d)\1+$/.test(digits)) return null;
+  return digits;
+}
+
+export function isValidBrCpf(cpf: string | null | undefined): boolean {
+  const digits = normalizeCpf(cpf);
+  if (!digits) return false;
+  const calc = (len: number): number => {
+    let sum = 0;
+    for (let i = 0; i < len; i++) sum += Number(digits[i]) * (len + 1 - i);
+    const rest = (sum * 10) % 11;
+    return rest === 10 ? 0 : rest;
+  };
+  return calc(9) === Number(digits[9]) && calc(10) === Number(digits[10]);
 }
 
 /**

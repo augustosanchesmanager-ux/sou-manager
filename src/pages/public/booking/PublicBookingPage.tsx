@@ -849,6 +849,11 @@ const PublicBookingPage: React.FC = () => {
         clientName={clientName}
         clientPhoneDisplay={clientPhoneDisplay}
         onSaveLead={handleLeadSaved}
+        onLookupPhone={
+          tenantProfile?.slug
+            ? (phoneDigits) => lookupPublicBookingClient(tenantProfile.slug, phoneDigits)
+            : undefined
+        }
         onProceedToStaff={handleProceedToStaff}
         onClose={() => setIsSpecModalOpen(false)}
         formatPriceBRL={formatPriceBRL}
