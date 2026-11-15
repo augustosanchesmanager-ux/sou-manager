@@ -32,3 +32,5 @@ Para entender melhor o sistema, consulte os guias específicos:
 ---
 
 *Desenvolvido com foco em alta performance e escalabilidade.*
+
+> Este projeto é governado pelo SMG Change Control Protocol v2.0 (Risk-Routed)
