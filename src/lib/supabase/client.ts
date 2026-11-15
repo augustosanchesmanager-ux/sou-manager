@@ -2745,6 +2745,7 @@ export const getPublicAnonymousClient = (): SupabaseClient => {
   if (hasSupabaseEnv) {
     publicAnonymousClient = createClient(supabaseUrl!, supabaseAnonKey!, {
       auth: {
+        storageKey: 'sb-public-anon-auth-token',
         persistSession: false,
         autoRefreshToken: false,
         detectSessionInUrl: false,
