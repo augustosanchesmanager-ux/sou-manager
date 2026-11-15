@@ -794,9 +794,10 @@ const PublicBookingPage: React.FC = () => {
                     />
                   )}
 
-                  {/* Prova Social (Google Reviews Cache) */}
+                  {/* Prova Social (Google Reviews Cache ou Convite para Avaliar) */}
                   <PublicSocialProofSection
                     tenantId={tenantProfile.tenant_id}
+                    tenantSlug={tenantProfile.slug}
                     primaryColor={primaryColor}
                   />
 

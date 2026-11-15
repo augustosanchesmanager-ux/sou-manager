@@ -44,6 +44,7 @@ import {
   Eye,
   GitBranch,
   Building2,
+  Star,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -197,6 +198,7 @@ export const buildRawSidebarMenu = ({
     items: [
       { name: 'Vendas e Faturamento', icon: BarChart3, path: '/reports', module: 'reports', hideFromEsteticaMenu: true },
       { name: 'Performance da Equipe', icon: TrendingUp, path: '/performance', module: 'reports', hideFromEsteticaMenu: true },
+      { name: 'Avaliações e Satisfação', icon: Star, path: '/quality', hideFromEsteticaMenu: true },
       { name: 'Resumo Diário', icon: FileSpreadsheet, path: '/daily-summary', module: 'reports', hideFromEsteticaMenu: true },
       { name: 'Inteligência (BI)', icon: PieChart, path: '/bi', module: 'reports', hideFromEsteticaMenu: true },
       { name: 'Visão Estratégica', icon: Activity, path: '/strategic-dashboard', module: 'reports', hideFromEsteticaMenu: true },

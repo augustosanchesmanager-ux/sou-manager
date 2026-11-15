@@ -71,6 +71,7 @@ describe('Sidebar Navigation Architecture', () => {
       'Configurações',
       'Sistema',
     ]);
+    expect(paths).toContain('/quality');
     expect(new Set(paths).size).toBe(paths.length);
   });
 

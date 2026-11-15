@@ -25,6 +25,7 @@ import {
   Command,
   X,
   Crown,
+  Star,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -136,6 +137,15 @@ export const buildCommandPaletteItems = (tenantSlug?: string): CommandItem[] => 
       path: '/reports',
       icon: BarChart3,
       keywords: ['relatorio', 'financeiro', 'faturamento', 'dre', 'grafico', 'vendas'],
+    },
+    {
+      id: 'page-quality',
+      title: 'Avaliações e Satisfação',
+      description: 'NPS, promotores, detratores e recuperação de clientes',
+      category: 'Páginas',
+      path: '/quality',
+      icon: Star,
+      keywords: ['avaliacao', 'feedback', 'nps', 'satisfacao', 'reputacao', 'google', 'reviews'],
     },
     {
       id: 'page-settings',

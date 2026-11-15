@@ -100,6 +100,7 @@ describe('CommandPalette Logic & Search Filtering', () => {
     expect(paths).toContain('/chef-club-subscriptions');
     expect(paths).toContain('/chef-club-receivables');
     expect(paths).toContain('/chef-club-plans');
+    expect(paths).toContain('/quality');
     expect(paths).toContain('/agendar/barbearia-modelo');
     expect(paths).not.toContain('/agenda');
     expect(paths).not.toContain('/chef-club');
