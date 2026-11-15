@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { getScopedClient } from '../../services/supabaseClient';
+import { formatCurrency } from '../../shared/format/currency';
 
 interface ChefClubStats {
   activeSubscriptions: number;
@@ -28,7 +29,10 @@ const ChefClubSummaryWidget: React.FC = () => {
     const fetchStats = async () => {
       setLoading(true);
       try {
-        const [subsRes, creditsRes, plansRes] = await Promise.all([
+        const now = new Date();
+        const currentMonthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+        const [subsRes, creditsRes, plansRes, receivablesRes] = await Promise.all([
           barberSupabase
             .from('customer_subscriptions')
             .select('id, status, plan_id')
@@ -42,6 +46,11 @@ const ChefClubSummaryWidget: React.FC = () => {
             .from('customer_plans')
             .select('id, name')
             .eq('tenant_id', tenantId),
+          barberSupabase
+            .from('customer_subscription_receivables')
+            .select('amount, paid_at')
+            .eq('tenant_id', tenantId)
+            .eq('status', 'paid'),
         ]);
 
         const activeCount = (subsRes.data || []).length;
@@ -70,11 +79,18 @@ const ChefClubSummaryWidget: React.FC = () => {
           totalUsed += Number(c.used_credits || 0);
         });
 
+        const monthRevenue = (receivablesRes.data || []).reduce((acc: number, rec: any) => {
+          if (!rec.paid_at || String(rec.paid_at).slice(0, 7) !== currentMonthPrefix) {
+            return acc;
+          }
+          return acc + (Number(rec.amount) || 0);
+        }, 0);
+
         setStats({
           activeSubscriptions: activeCount,
           totalCreditsAvailable: totalAvailable,
           totalCreditsUsed: totalUsed,
-          revenue: 0,
+          revenue: monthRevenue,
           popularPlan,
         });
       } catch (error) {
@@ -124,16 +140,20 @@ const ChefClubSummaryWidget: React.FC = () => {
             {stats.totalCreditsUsed} <span className="text-xs font-normal">/ {stats.totalCreditsAvailable}</span>
           </p>
         </div>
-        <div className="bg-white/50 dark:bg-black/20 rounded-lg p-3 col-span-2">
+        <div className="bg-white/50 dark:bg-black/20 rounded-lg p-3">
           <p className="text-[10px] uppercase text-slate-500 font-bold">Plano Mais Popular</p>
-          <p className="text-lg font-black text-amber-600">{stats.popularPlan || 'N/A'}</p>
+          <p className="text-lg font-black text-amber-600 truncate">{stats.popularPlan || 'N/A'}</p>
+        </div>
+        <div className="bg-white/50 dark:bg-black/20 rounded-lg p-3">
+          <p className="text-[10px] uppercase text-slate-500 font-bold">Receita no Mês</p>
+          <p className="text-lg font-black text-emerald-600">{formatCurrency(stats.revenue)}</p>
         </div>
       </div>
 
       {stats.activeSubscriptions > 0 && (
         <div className="mt-3 pt-3 border-t border-amber-500/20">
-          <a 
-            href="/chef-club-subscriptions" 
+          <a
+            href="#/chef-club-subscriptions"
             className="text-xs font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1"
           >
             Ver todos os assinantes

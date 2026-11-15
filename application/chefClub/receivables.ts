@@ -10,18 +10,28 @@
 import { receivableRepository } from '../../domain/receivable/repository';
 import { clientRepository } from '../../domain/client/repository';
 import { chefClubPlanRepository } from '../../domain/chefClub/plan-repository';
+import { chefClubSubscriptionRepository } from '../../domain/chefClub/subscription-repository';
 import { createSupabaseClient } from '../../domain/shared/supabase-client-factory';
 import type { DatabaseClient } from '../../domain/shared/database-client';
 import type { ReceivableStatus } from '../../domain/chefClub';
+import { appEventBus } from '../../domain/events/app-bus';
+import { createEvent } from '../../domain/events/types';
+import type { SubscriptionCancelledEvent } from '../../domain/events/types';
 import { ChefClubError } from './types';
 import type { PayReceivableParams } from './types';
 
 // ─── Types ───────────────────────────────────────────────────────
 
+export interface SubscriptionSummaryRecord {
+    id: string;
+    status: string;
+}
+
 export interface ReceivablePageData {
     receivables: ReceivableRecord[];
     clients: Record<string, ClientRecord>;
     plans: Record<string, PlanRecord>;
+    subscriptions?: Record<string, SubscriptionSummaryRecord>;
 }
 
 export interface ReceivableRecord {
@@ -39,6 +49,9 @@ export interface ReceivableRecord {
     paid_at: string | null;
     transaction_id: string | null;
     notes: string | null;
+    cancel_reason?: string | null;
+    cancel_observation?: string | null;
+    cancelled_at?: string | null;
     created_at: string;
 }
 
@@ -59,6 +72,7 @@ export interface ReceivableTotals {
     paid: number;
     pending: number;
     overdue: number;
+    cancelled: number;
     count: number;
     statusCounts: Record<ReceivableStatus | 'all', number>;
 }
@@ -83,6 +97,11 @@ export const getDisplayStatus = (receivable: ReceivableRecord): ReceivableStatus
 };
 
 export const canPayReceivable = (receivable: ReceivableRecord): boolean => {
+    const status = getDisplayStatus(receivable);
+    return status === 'pending' || status === 'overdue';
+};
+
+export const canCancelReceivable = (receivable: ReceivableRecord): boolean => {
     const status = getDisplayStatus(receivable);
     return status === 'pending' || status === 'overdue';
 };
@@ -113,9 +132,16 @@ export const computeReceivableTotals = (receivables: ReceivableRecord[]): Receiv
         (acc, receivable) => {
             const amount = Number(receivable.amount || 0);
             const displayStatus = getDisplayStatus(receivable);
+            acc.statusCounts[displayStatus] += 1;
+            acc.statusCounts.all += 1;
+
+            if (displayStatus === 'cancelled' || displayStatus === 'refunded') {
+                acc.cancelled += amount;
+                return acc;
+            }
+
             acc.total += amount;
             acc.count += 1;
-            acc.statusCounts[displayStatus] += 1;
             if (receivable.status === 'paid') acc.paid += amount;
             if (displayStatus === 'pending') acc.pending += amount;
             if (displayStatus === 'overdue') acc.overdue += amount;
@@ -126,6 +152,7 @@ export const computeReceivableTotals = (receivables: ReceivableRecord[]): Receiv
             paid: 0,
             pending: 0,
             overdue: 0,
+            cancelled: 0,
             count: 0,
             statusCounts: { all: 0, pending: 0, paid: 0, overdue: 0, cancelled: 0, refunded: 0 } as Record<ReceivableStatus | 'all', number>,
         },
@@ -148,23 +175,40 @@ export const loadReceivablePage = async (
         dateTo: options?.dateTo,
     });
 
-    // 3. Load reference data (clients + plans)
+    // 3. Load reference data (clients + plans + subscriptions)
     const customerIds = Array.from(new Set(receivables.map((r) => r.customer_id).filter(Boolean)));
     const planIds = Array.from(new Set(receivables.map((r) => r.plan_id).filter(Boolean)));
 
-    const [clientsMap, plansMap] = await Promise.all([
+    const [clientsMap, plansMap, subscriptionsMap] = await Promise.all([
         loadClientsMap(tenantId, customerIds),
         loadPlansMap(tenantId, planIds),
+        loadSubscriptionsMap(tenantId),
     ]);
 
     return {
         receivables: receivables as unknown as ReceivableRecord[],
         clients: clientsMap,
         plans: plansMap,
+        subscriptions: subscriptionsMap,
     };
 };
 
 // ─── Reference Data Loaders ──────────────────────────────────────
+
+const loadSubscriptionsMap = async (
+    tenantId: string,
+): Promise<Record<string, SubscriptionSummaryRecord>> => {
+    try {
+        const rows = await chefClubSubscriptionRepository.list(tenantId);
+        if (!Array.isArray(rows)) return {};
+        return rows.reduce<Record<string, SubscriptionSummaryRecord>>((acc, row) => {
+            acc[row.id] = { id: row.id, status: row.status };
+            return acc;
+        }, {});
+    } catch {
+        return {};
+    }
+};
 
 const loadClientsMap = async (
     tenantId: string,
@@ -305,4 +349,81 @@ export const cancelReceivablesBySubscription = async (
     }
 
     return Number(data ?? 0);
+};
+
+export interface CancelSingleReceivableParams {
+    receivableId: string;
+    tenantId: string;
+    cancelReason: string;
+    cancelObservation?: string | null;
+    cancelSubscription?: boolean;
+}
+
+export interface CancelSingleReceivableResult {
+    receivableCancelled: boolean;
+    subscriptionCancelled: boolean;
+    subscriptionId: string;
+    receivablesCancelled: number;
+}
+
+export const cancelSingleReceivable = async (
+    params: CancelSingleReceivableParams,
+): Promise<CancelSingleReceivableResult> => {
+    const {
+        receivableId,
+        tenantId,
+        cancelReason,
+        cancelObservation,
+        cancelSubscription = false,
+    } = params;
+
+    const { data, error } = await getRpcClient().rpc('cancel_single_club_receivable', {
+        p_receivable_id: receivableId,
+        p_tenant_id: tenantId,
+        p_cancel_reason: cancelReason,
+        p_cancel_observation: cancelObservation?.trim() || null,
+        p_cancel_subscription: cancelSubscription,
+    });
+
+    if (error) {
+        console.error('[SMG][CHEF_CLUB] Erro ao cancelar recebível avulso:', error);
+        throw new ChefClubError(
+            `Falha ao cancelar recebível: ${error.message}`,
+            'CANCEL_RECEIVABLE_ERROR',
+            error,
+        );
+    }
+
+    const raw = (data || {}) as {
+        receivable_cancelled?: boolean;
+        subscription_cancelled?: boolean;
+        subscription_id?: string;
+        receivables_cancelled?: number;
+    };
+
+    const subscriptionCancelled = Boolean(raw.subscription_cancelled);
+    const subscriptionId = raw.subscription_id || '';
+
+    if (subscriptionCancelled && subscriptionId) {
+        await appEventBus.publish(createEvent<SubscriptionCancelledEvent>({
+            eventType: 'SubscriptionCancelled',
+            aggregateId: subscriptionId,
+            aggregateType: 'subscription',
+            payload: {
+                subscriptionId,
+                reason: cancelReason || 'user_cancelled',
+            },
+            metadata: {
+                tenantId,
+                source: 'ChefClubApplicationService',
+            },
+        }));
+    }
+
+    return {
+        receivableCancelled: Boolean(raw.receivable_cancelled ?? true),
+        subscriptionCancelled,
+        subscriptionId,
+        receivablesCancelled: Number(raw.receivables_cancelled ?? 1),
+    };
 };

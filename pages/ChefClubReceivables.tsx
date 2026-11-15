@@ -1,16 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarRange, CheckCircle2, CreditCard, Search, WalletCards } from 'lucide-react';
+import { Ban, CalendarRange, CheckCircle2, CreditCard, Search, WalletCards } from 'lucide-react';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency } from '../shared/format/currency';
-import type { ReceivableStatus } from '../domain/chefClub';
-import { receivableStatusLabels, receivableStatusMeta } from '../domain/chefClub';
+import type { CancelReason, ReceivableStatus } from '../domain/chefClub';
+import { cancelReasonLabels, isCancelReason, receivableStatusLabels, receivableStatusMeta } from '../domain/chefClub';
 import {
     loadReceivablePage,
     settleReceivableWithDetails,
+    cancelSingleReceivable,
     canPayReceivable,
+    canCancelReceivable,
     getDisplayStatus,
     filterReceivables,
     computeReceivableTotals,
@@ -19,6 +21,7 @@ import type {
     ReceivableRecord,
     ClientRecord,
     PlanRecord,
+    SubscriptionSummaryRecord,
 } from '../application/chefClub';
 
 const paymentMethods = ['Pix', 'Dinheiro', 'Crédito', 'Débito', 'Outros'];
@@ -51,6 +54,7 @@ const ChefClubReceivables: React.FC = () => {
     const [receivables, setReceivables] = useState<ReceivableRecord[]>([]);
     const [clients, setClients] = useState<Record<string, ClientRecord>>({});
     const [plans, setPlans] = useState<Record<string, PlanRecord>>({});
+    const [subscriptions, setSubscriptions] = useState<Record<string, SubscriptionSummaryRecord>>({});
     const [statusFilter, setStatusFilter] = useState<ReceivableStatus | 'all'>('all');
     const [search, setSearch] = useState('');
     const [periodStart, setPeriodStart] = useState(monthRange.start);
@@ -61,12 +65,19 @@ const ChefClubReceivables: React.FC = () => {
     const [paymentMethod, setPaymentMethod] = useState('Pix');
     const [paidAt, setPaidAt] = useState(toDateInput(new Date()));
     const [notes, setNotes] = useState('');
+    const [selectedCancel, setSelectedCancel] = useState<ReceivableRecord | null>(null);
+    const [cancelling, setCancelling] = useState(false);
+    const [cancelReason, setCancelReason] = useState<CancelReason | ''>('');
+    const [cancelObservation, setCancelObservation] = useState('');
+    const [cancelSubscriptionToo, setCancelSubscriptionToo] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     const paymentInFlightRef = useRef(false);
+    const cancelInFlightRef = useRef(false);
 
     const fetchReceivables = useCallback(async () => {
         if (!tenantId) {
             setReceivables([]);
+            setSubscriptions({});
             setLoading(false);
             return;
         }
@@ -81,6 +92,7 @@ const ChefClubReceivables: React.FC = () => {
             setReceivables(data.receivables);
             setClients(data.clients);
             setPlans(data.plans);
+            setSubscriptions(data.subscriptions ?? {});
         } catch (error: any) {
             console.error('Erro ao carregar recebimentos do Clube:', error);
             setToast({ message: error?.message || 'Erro ao carregar recebimentos do Clube.', type: 'error' });
@@ -100,13 +112,12 @@ const ChefClubReceivables: React.FC = () => {
     );
 
     const totals = useMemo(() => computeReceivableTotals(filteredReceivables), [filteredReceivables]);
-    totals.statusCounts.all = filteredReceivables.length;
 
     const metricCards = [
         {
             label: 'Total no período',
             value: formatCurrency(totals.total),
-            helper: `${totals.count} mensalidades no filtro`,
+            helper: `${totals.count} mensalidades vigentes`,
             icon: 'account_balance_wallet',
             tone: 'text-slate-900 dark:text-white',
         },
@@ -130,6 +141,13 @@ const ChefClubReceivables: React.FC = () => {
             helper: `${totals.statusCounts.overdue} clientes para priorizar`,
             icon: 'priority_high',
             tone: 'text-red-700 dark:text-red-300',
+        },
+        {
+            label: 'Canceladas / Anuladas',
+            value: formatCurrency(totals.cancelled),
+            helper: `${totals.statusCounts.cancelled + totals.statusCounts.refunded} cobranças anuladas`,
+            icon: 'block',
+            tone: 'text-slate-600 dark:text-slate-300',
         },
     ];
 
@@ -171,8 +189,63 @@ const ChefClubReceivables: React.FC = () => {
         }
     };
 
+    const openCancelModal = (receivable: ReceivableRecord) => {
+        if (!canCancelReceivable(receivable)) {
+            setToast({ message: 'Somente recebimentos pendentes ou atrasados podem ser cancelados.', type: 'info' });
+            return;
+        }
+
+        setSelectedCancel(receivable);
+        setCancelReason('');
+        setCancelObservation('');
+        setCancelSubscriptionToo(false);
+    };
+
+    const confirmCancel = async (event: React.FormEvent) => {
+        event.preventDefault();
+        if (!selectedCancel || !tenantId || cancelInFlightRef.current) return;
+
+        if (!cancelReason) {
+            setToast({ message: 'Selecione o motivo do cancelamento.', type: 'error' });
+            return;
+        }
+
+        const linkedSubscriptionStatus = subscriptions[selectedCancel.subscription_id]?.status;
+        const shouldCancelSubscription = linkedSubscriptionStatus !== 'canceled' && cancelSubscriptionToo;
+
+        cancelInFlightRef.current = true;
+        setCancelling(true);
+        try {
+            const result = await cancelSingleReceivable({
+                receivableId: selectedCancel.id,
+                tenantId,
+                cancelReason,
+                cancelObservation: cancelObservation || null,
+                cancelSubscription: shouldCancelSubscription,
+            });
+
+            const feedback = result.subscriptionCancelled
+                ? 'Fatura anulada e assinatura encerrada com sucesso.'
+                : 'Fatura cancelada com sucesso.';
+
+            setToast({ message: feedback, type: 'success' });
+            setSelectedCancel(null);
+            await fetchReceivables();
+        } catch (error: any) {
+            console.error('Erro ao cancelar fatura:', error);
+            setToast({ message: error?.message || 'Erro ao cancelar fatura.', type: 'error' });
+        } finally {
+            cancelInFlightRef.current = false;
+            setCancelling(false);
+        }
+    };
+
     const selectedClient = selected ? clients[selected.customer_id] : null;
     const selectedPlan = selected ? plans[selected.plan_id] : null;
+    const selectedCancelClient = selectedCancel ? clients[selectedCancel.customer_id] : null;
+    const selectedCancelPlan = selectedCancel ? plans[selectedCancel.plan_id] : null;
+    const selectedCancelSubStatus = selectedCancel ? subscriptions[selectedCancel.subscription_id]?.status : undefined;
+    const isCancelSubscriptionSelectable = selectedCancel ? selectedCancelSubStatus !== 'canceled' : false;
 
     return (
         <div className="mx-auto w-full max-w-7xl space-y-6 p-4 pb-20 md:p-6">
@@ -211,7 +284,7 @@ const ChefClubReceivables: React.FC = () => {
                 </div>
             </section>
 
-            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                 {metricCards.map((metric) => (
                     <div
                         key={metric.label}
@@ -342,6 +415,11 @@ const ChefClubReceivables: React.FC = () => {
                                     const displayStatus = getDisplayStatus(receivable);
                                     const status = receivableStatusMeta[displayStatus];
                                     const canPay = canPayReceivable(receivable);
+                                    const canCancel = canCancelReceivable(receivable);
+                                    const cancelReasonLabel =
+                                        receivable.cancel_reason && isCancelReason(receivable.cancel_reason)
+                                            ? cancelReasonLabels[receivable.cancel_reason]
+                                            : null;
 
                                     return (
                                         <tr key={receivable.id} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-white/5">
@@ -379,20 +457,42 @@ const ChefClubReceivables: React.FC = () => {
                                                         <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{receivable.payment_method || 'Não informado'}</span>
                                                         <span className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">{formatDate(receivable.paid_at)}</span>
                                                     </div>
+                                                ) : displayStatus === 'cancelled' ? (
+                                                    <div className="flex flex-col">
+                                                        <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{cancelReasonLabel || 'Fatura cancelada'}</span>
+                                                        {receivable.cancelled_at && (
+                                                            <span className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">{formatDate(receivable.cancelled_at)}</span>
+                                                        )}
+                                                    </div>
+                                                ) : displayStatus === 'refunded' ? (
+                                                    <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Estornada</span>
                                                 ) : (
                                                     <span className="text-sm font-medium text-slate-400">Aguardando baixa</span>
                                                 )}
                                             </td>
                                             <td className="px-5 py-4 align-top">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => openPaymentModal(receivable)}
-                                                    disabled={!canPay}
-                                                    className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition-colors hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/15 dark:disabled:border-white/10 dark:disabled:bg-white/5 dark:disabled:text-slate-500"
-                                                >
-                                                    <CheckCircle2 className="h-4 w-4" />
-                                                    Dar baixa
-                                                </button>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openPaymentModal(receivable)}
+                                                        disabled={!canPay}
+                                                        className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition-colors hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/15 dark:disabled:border-white/10 dark:disabled:bg-white/5 dark:disabled:text-slate-500"
+                                                    >
+                                                        <CheckCircle2 className="h-4 w-4" />
+                                                        Dar baixa
+                                                    </button>
+                                                    {canCancel && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openCancelModal(receivable)}
+                                                            className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-700 transition-colors hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500/20 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/15"
+                                                            title="Cancelar ou anular esta cobrança"
+                                                        >
+                                                            <Ban className="h-4 w-4" />
+                                                            Cancelar
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     );
@@ -495,6 +595,131 @@ const ChefClubReceivables: React.FC = () => {
                                 className="flex-1 rounded-xl bg-gradient-to-r from-primary to-primary-dark px-4 py-3 text-sm font-black text-night transition-all hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
                             >
                                 {paying ? 'Baixando...' : 'Confirmar baixa'}
+                            </button>
+                        </div>
+                    </form>
+                )}
+            </Modal>
+
+            <Modal
+                isOpen={!!selectedCancel}
+                onClose={() => (cancelling ? undefined : setSelectedCancel(null))}
+                title="Cancelar fatura do Clube"
+                maxWidth="lg"
+            >
+                {selectedCancel && (
+                    <form onSubmit={confirmCancel} className="space-y-5">
+                        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-500/20 dark:bg-red-500/10">
+                            <p className="text-xs font-bold text-red-700 dark:text-red-300">Anulação de cobrança em aberto</p>
+                            <p className="mt-1 text-sm font-medium leading-6 text-slate-600 dark:text-slate-300">
+                                Faturas canceladas saem dos totais a receber vigentes e permanecem registradas apenas para auditoria.
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                                <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Cliente</p>
+                                <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{selectedCancelClient?.name || 'Cliente não encontrado'}</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                                <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Plano</p>
+                                <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{selectedCancelPlan?.name || 'Plano não encontrado'}</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                                <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Valor da cobrança</p>
+                                <p className="mt-1 text-xl font-black text-red-600 dark:text-red-400">{formatCurrency(selectedCancel.amount)}</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                                <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Vencimento / Ciclo</p>
+                                <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">
+                                    {formatDate(selectedCancel.due_date)} ({formatDate(selectedCancel.billing_cycle_start)} – {formatDate(selectedCancel.billing_cycle_end)})
+                                </p>
+                            </div>
+                        </div>
+
+                        {isCancelSubscriptionSelectable ? (
+                            <div className="space-y-2">
+                                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400">
+                                    O que deseja fazer com a assinatura vinculada?
+                                </label>
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setCancelSubscriptionToo(false)}
+                                        className={`rounded-xl border p-3 text-left transition-colors ${
+                                            !cancelSubscriptionToo
+                                                ? 'border-primary bg-primary/10 dark:border-primary'
+                                                : 'border-slate-200 bg-slate-50 hover:border-primary/40 dark:border-white/10 dark:bg-white/5'
+                                        }`}
+                                    >
+                                        <p className="text-xs font-black text-slate-900 dark:text-white">Apenas anular esta fatura</p>
+                                        <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                                            Mantém a assinatura ativa (ex.: cortesia, isenção ou ajuste do mês).
+                                        </p>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setCancelSubscriptionToo(true)}
+                                        className={`rounded-xl border p-3 text-left transition-colors ${
+                                            cancelSubscriptionToo
+                                                ? 'border-red-500 bg-red-50 dark:border-red-500/60 dark:bg-red-500/10'
+                                                : 'border-slate-200 bg-slate-50 hover:border-red-300 dark:border-white/10 dark:bg-white/5'
+                                        }`}
+                                    >
+                                        <p className="text-xs font-black text-red-700 dark:text-red-300">Anular fatura e encerrar assinatura</p>
+                                        <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                                            Anula cobranças abertas e encerra a assinatura do cliente definitivamente.
+                                        </p>
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-medium text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                                Assinatura já cancelada — esta ação anula apenas esta cobrança órfã em aberto.
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="mb-2 block text-xs font-bold text-slate-500 dark:text-slate-400">Motivo do cancelamento *</label>
+                            <select
+                                required
+                                value={cancelReason}
+                                onChange={(event) => setCancelReason(event.target.value as CancelReason | '')}
+                                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 dark:border-white/10 dark:bg-[#0F172A] dark:text-white"
+                            >
+                                <option value="">Selecione o motivo</option>
+                                {Object.entries(cancelReasonLabels).map(([key, label]) => (
+                                    <option key={key} value={key}>{label}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="mb-2 block text-xs font-bold text-slate-500 dark:text-slate-400">Observação (opcional)</label>
+                            <textarea
+                                value={cancelObservation}
+                                onChange={(event) => setCancelObservation(event.target.value)}
+                                rows={3}
+                                placeholder="Detalhes adicionais do cancelamento..."
+                                className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary/10 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                            />
+                        </div>
+
+                        <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+                            <button
+                                type="button"
+                                disabled={cancelling}
+                                onClick={() => setSelectedCancel(null)}
+                                className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+                            >
+                                Voltar
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={cancelling || !cancelReason}
+                                className="flex-1 rounded-xl bg-red-500 px-4 py-3 text-sm font-black text-white transition-colors hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500/30 disabled:opacity-50"
+                            >
+                                {cancelling ? 'Cancelando...' : 'Confirmar cancelamento'}
                             </button>
                         </div>
                     </form>

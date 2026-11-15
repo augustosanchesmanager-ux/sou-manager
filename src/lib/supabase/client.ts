@@ -186,6 +186,11 @@ interface LocalDemoReceivableRecord {
   paid_by: string | null;
   transaction_id: string | null;
   notes: string | null;
+  previous_status?: string | null;
+  cancel_reason?: string | null;
+  cancel_observation?: string | null;
+  cancelled_by?: string | null;
+  cancelled_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1979,6 +1984,9 @@ const client = {
         const db = readDemoDatabase();
         const tenantId = p?.p_tenant_id || LOCAL_DEMO_TENANT_ID;
         const today = new Date().toISOString().slice(0, 10);
+        const renewalCutoffDate = new Date();
+        renewalCutoffDate.setDate(renewalCutoffDate.getDate() + 5);
+        const renewalCutoff = renewalCutoffDate.toISOString().slice(0, 10);
         let generated = 0;
         let updated = 0;
 
@@ -1989,14 +1997,14 @@ const client = {
               const plan = db.customer_plans.find((item) => item.id === subscription.plan_id && item.tenant_id === tenantId);
               if (!plan) return;
 
-              const exists = db.customer_subscription_receivables.some(
+              const currentCycleReceivable = db.customer_subscription_receivables.find(
                 (item) =>
                   item.subscription_id === subscription.id &&
                   item.billing_cycle_start === subscription.cycle_start &&
                   item.billing_cycle_end === subscription.cycle_end,
               );
 
-              if (!exists) {
+              if (!currentCycleReceivable) {
                 const now = new Date().toISOString();
                 db.customer_subscription_receivables.push({
                   id: createDemoId('customer_subscription_receivables'),
@@ -2019,12 +2027,61 @@ const client = {
                 });
               }
 
+              // Gera renovação apenas dentro da janela de 5 dias antes do vencimento se ciclo atual estiver pago
+              if (
+                subscription.status === 'active' &&
+                subscription.cycle_end &&
+                subscription.cycle_end.slice(0, 10) <= renewalCutoff &&
+                currentCycleReceivable?.status === 'paid'
+              ) {
+                const nextCycleStart = subscription.cycle_end;
+                const nextCycleEndDate = new Date(nextCycleStart);
+                nextCycleEndDate.setMonth(nextCycleEndDate.getMonth() + 1);
+                const nextCycleEnd = nextCycleEndDate.toISOString();
+
+                const nextExists = db.customer_subscription_receivables.some(
+                  (item) =>
+                    item.subscription_id === subscription.id &&
+                    item.billing_cycle_start === nextCycleStart &&
+                    item.billing_cycle_end === nextCycleEnd,
+                );
+
+                if (!nextExists) {
+                  const now = new Date().toISOString();
+                  db.customer_subscription_receivables.push({
+                    id: createDemoId('customer_subscription_receivables'),
+                    tenant_id: tenantId,
+                    customer_id: subscription.client_id,
+                    subscription_id: subscription.id,
+                    plan_id: subscription.plan_id,
+                    billing_cycle_start: nextCycleStart,
+                    billing_cycle_end: nextCycleEnd,
+                    due_date: nextCycleStart.slice(0, 10),
+                    amount: Number(plan.monthly_price || 0),
+                    status: nextCycleStart.slice(0, 10) < today ? 'overdue' : 'pending',
+                    payment_method: null,
+                    paid_at: null,
+                    paid_by: null,
+                    transaction_id: null,
+                    notes: null,
+                    created_at: now,
+                    updated_at: now,
+                  });
+                }
+              }
+
               generated += 1;
             });
         }
 
+        const subStatusById = new Map(db.customer_subscriptions.map((sub) => [sub.id, sub.status]));
         db.customer_subscription_receivables = db.customer_subscription_receivables.map((receivable) => {
-          if (receivable.tenant_id === tenantId && receivable.status === 'pending' && receivable.due_date < today) {
+          if (
+            receivable.tenant_id === tenantId &&
+            receivable.status === 'pending' &&
+            receivable.due_date < today &&
+            subStatusById.get(receivable.subscription_id) !== 'canceled'
+          ) {
             updated += 1;
             return { ...receivable, status: 'overdue', updated_at: new Date().toISOString() };
           }
@@ -2131,24 +2188,35 @@ const client = {
         nextCycleEndDate.setMonth(nextCycleEndDate.getMonth() + 1);
         const nextCycleEnd = nextCycleEndDate.toISOString();
 
+        const isAlreadyCanceled = subscription.status === 'canceled';
+        const renewalCutoffDate = new Date();
+        renewalCutoffDate.setDate(renewalCutoffDate.getDate() + 5);
+        const renewalCutoff = renewalCutoffDate.toISOString().slice(0, 10);
+
         db.customer_subscriptions = db.customer_subscriptions.map((item) =>
           item.id === subscription.id
-            ? {
-                ...item,
-                status: 'active',
-                cycle_start: receivable.billing_cycle_start,
-                cycle_end: receivable.billing_cycle_end,
-                next_billing_date: receivable.billing_cycle_end.slice(0, 10),
-                updated_at: now,
-              }
+            ? isAlreadyCanceled
+              ? { ...item, updated_at: now }
+              : {
+                  ...item,
+                  status: 'active',
+                  cycle_start: receivable.billing_cycle_start,
+                  cycle_end: receivable.billing_cycle_end,
+                  next_billing_date: receivable.billing_cycle_end.slice(0, 10),
+                  updated_at: now,
+                }
             : item,
         );
 
-        if (!db.customer_subscription_receivables.some((item) =>
-          item.subscription_id === subscription.id &&
-          item.billing_cycle_start === nextCycleStart &&
-          item.billing_cycle_end === nextCycleEnd
-        )) {
+        if (
+          !isAlreadyCanceled &&
+          nextCycleStart.slice(0, 10) <= renewalCutoff &&
+          !db.customer_subscription_receivables.some((item) =>
+            item.subscription_id === subscription.id &&
+            item.billing_cycle_start === nextCycleStart &&
+            item.billing_cycle_end === nextCycleEnd
+          )
+        ) {
           db.customer_subscription_receivables.push({
             id: createDemoId('customer_subscription_receivables'),
             tenant_id: receivable.tenant_id,
@@ -2423,6 +2491,187 @@ const client = {
           closure_mode: fn === 'bulk_close_comandas_admin' ? 'legacy_membership' : 'standard',
           financial_effect: fn === 'bulk_close_comandas_with_credits',
           membership_credit_effect: fn === 'bulk_close_comandas_with_credits' && p.p_apply_credits !== false,
+        }, null);
+      }
+
+      const markDemoReceivableCancelled = (
+        rec: LocalDemoReceivableRecord,
+        reason: string | null,
+        observation: string | null,
+        now: string,
+      ): LocalDemoReceivableRecord => ({
+        ...rec,
+        previous_status: rec.status,
+        status: 'cancelled',
+        cancel_reason: reason,
+        cancel_observation: observation,
+        cancelled_by: LOCAL_DEMO_USER_ID,
+        cancelled_at: now,
+        updated_at: now,
+      });
+
+      if (fn === 'cancel_club_receivables' && isLocalDemoEnabled()) {
+        const p = params as {
+          p_subscription_id?: string;
+          p_tenant_id?: string;
+          p_cancel_reason?: string;
+          p_cancel_observation?: string | null;
+        };
+        const cleanReason = p?.p_cancel_reason?.trim();
+        if (!p?.p_subscription_id || !p?.p_tenant_id) {
+          return createRpcResult(null, new Error('Assinatura e tenant obrigatórios'));
+        }
+        if (!cleanReason) {
+          return createRpcResult(null, new Error('Motivo do cancelamento é obrigatório'));
+        }
+
+        const db = readDemoDatabase();
+        const now = new Date().toISOString();
+        const cleanObs = p.p_cancel_observation?.trim() || null;
+        let cancelledCount = 0;
+
+        db.customer_subscription_receivables = db.customer_subscription_receivables.map((rec) => {
+          if (
+            rec.subscription_id === p.p_subscription_id &&
+            rec.tenant_id === p.p_tenant_id &&
+            (rec.status === 'pending' || rec.status === 'overdue')
+          ) {
+            cancelledCount += 1;
+            return markDemoReceivableCancelled(rec, cleanReason, cleanObs, now);
+          }
+          return rec;
+        });
+
+        writeDemoDatabase(db);
+        return createRpcResult(cancelledCount, null);
+      }
+
+      if (fn === 'cancel_subscription_with_receivables' && isLocalDemoEnabled()) {
+        const p = params as {
+          p_subscription_id?: string;
+          p_tenant_id?: string;
+          p_cancel_receivables?: boolean;
+          p_cancel_reason?: string | null;
+          p_cancel_observation?: string | null;
+        };
+        if (!p?.p_subscription_id || !p?.p_tenant_id) {
+          return createRpcResult(null, new Error('Assinatura e tenant obrigatórios'));
+        }
+        const cleanReason = p.p_cancel_reason?.trim() || null;
+        if (p.p_cancel_receivables && !cleanReason) {
+          return createRpcResult(null, new Error('Motivo do cancelamento é obrigatório ao cancelar cobranças'));
+        }
+
+        const db = readDemoDatabase();
+        const subscription = db.customer_subscriptions.find(
+          (item) => item.id === p.p_subscription_id && item.tenant_id === p.p_tenant_id,
+        );
+        if (!subscription) {
+          return createRpcResult(null, new Error('Assinatura não encontrada'));
+        }
+
+        const now = new Date().toISOString();
+        const alreadyCanceled = subscription.status === 'canceled';
+
+        if (!alreadyCanceled) {
+          db.customer_subscriptions = db.customer_subscriptions.map((item) =>
+            item.id === subscription.id
+              ? { ...item, status: 'canceled', canceled_at: now, updated_at: now }
+              : item,
+          );
+        }
+
+        let receivablesCancelled = 0;
+        if (p.p_cancel_receivables) {
+          const cleanObs = p.p_cancel_observation?.trim() || null;
+          db.customer_subscription_receivables = db.customer_subscription_receivables.map((rec) => {
+            if (
+              rec.subscription_id === subscription.id &&
+              rec.tenant_id === p.p_tenant_id &&
+              (rec.status === 'pending' || rec.status === 'overdue')
+            ) {
+              receivablesCancelled += 1;
+              return markDemoReceivableCancelled(rec, cleanReason, cleanObs, now);
+            }
+            return rec;
+          });
+        }
+
+        writeDemoDatabase(db);
+        return createRpcResult({
+          subscription_cancelled: !alreadyCanceled,
+          receivables_cancelled: receivablesCancelled,
+        }, null);
+      }
+
+      if (fn === 'cancel_single_club_receivable' && isLocalDemoEnabled()) {
+        const p = params as {
+          p_receivable_id?: string;
+          p_tenant_id?: string;
+          p_cancel_reason?: string;
+          p_cancel_observation?: string | null;
+          p_cancel_subscription?: boolean;
+        };
+        const cleanReason = p?.p_cancel_reason?.trim();
+        if (!p?.p_receivable_id || !p?.p_tenant_id) {
+          return createRpcResult(null, new Error('Recebimento e tenant obrigatórios'));
+        }
+        if (!cleanReason) {
+          return createRpcResult(null, new Error('Motivo do cancelamento é obrigatório'));
+        }
+
+        const db = readDemoDatabase();
+        const target = db.customer_subscription_receivables.find(
+          (item) => item.id === p.p_receivable_id && item.tenant_id === p.p_tenant_id,
+        );
+        if (!target) {
+          return createRpcResult(null, new Error('Recebimento não encontrado'));
+        }
+        if (target.status !== 'pending' && target.status !== 'overdue') {
+          return createRpcResult(null, new Error('Somente recebimentos pendentes ou atrasados podem ser cancelados'));
+        }
+
+        const now = new Date().toISOString();
+        const cleanObs = p.p_cancel_observation?.trim() || null;
+        let receivablesCancelled = 0;
+
+        db.customer_subscription_receivables = db.customer_subscription_receivables.map((rec) => {
+          const isTarget = rec.id === target.id;
+          const isExtraSibling =
+            Boolean(p.p_cancel_subscription) &&
+            rec.id !== target.id &&
+            rec.subscription_id === target.subscription_id &&
+            rec.tenant_id === p.p_tenant_id &&
+            (rec.status === 'pending' || rec.status === 'overdue');
+
+          if (isTarget || isExtraSibling) {
+            receivablesCancelled += 1;
+            return markDemoReceivableCancelled(rec, cleanReason, cleanObs, now);
+          }
+          return rec;
+        });
+
+        let subscriptionCancelled = false;
+        if (p.p_cancel_subscription) {
+          const sub = db.customer_subscriptions.find(
+            (item) => item.id === target.subscription_id && item.tenant_id === p.p_tenant_id,
+          );
+          if (sub && sub.status !== 'canceled') {
+            subscriptionCancelled = true;
+            db.customer_subscriptions = db.customer_subscriptions.map((item) =>
+              item.id === sub.id
+                ? { ...item, status: 'canceled', canceled_at: now, updated_at: now }
+                : item,
+            );
+          }
+        }
+
+        writeDemoDatabase(db);
+        return createRpcResult({
+          receivable_cancelled: true,
+          subscription_cancelled: subscriptionCancelled,
+          subscription_id: target.subscription_id,
+          receivables_cancelled: receivablesCancelled,
         }, null);
       }
 

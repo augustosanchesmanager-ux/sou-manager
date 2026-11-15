@@ -27,7 +27,7 @@ export class ReceivableRepository extends SupabaseRepository {
   ): Promise<CustomerSubscriptionReceivable[]> {
     try {
       let query = this.from()
-        .select('id, tenant_id, customer_id, subscription_id, plan_id, billing_cycle_start, billing_cycle_end, due_date, amount, status, payment_method, paid_at, transaction_id, notes, created_at')
+        .select('id, tenant_id, customer_id, subscription_id, plan_id, billing_cycle_start, billing_cycle_end, due_date, amount, status, payment_method, paid_at, transaction_id, notes, cancel_reason, cancel_observation, cancelled_at, created_at')
         .eq('tenant_id', tenantId)
         .order('due_date', { ascending: true })
         .order('created_at', { ascending: true });

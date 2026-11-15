@@ -171,6 +171,7 @@ import {
     canPayReceivable,
     filterReceivables,
     computeReceivableTotals,
+    cancelSingleReceivable,
     type ReceivableRecord,
 } from './receivables';
 import {
@@ -750,6 +751,24 @@ describe('ChefClubApplicationService', () => {
             expect(totals.pending).toBe(0);
             expect(totals.overdue).toBe(0);
         });
+
+        it('should_exclude_cancelled_and_refunded_from_total_in_computeReceivableTotals', () => {
+            const receivables = [
+                buildReceivable({ id: 'r1', amount: 120, status: 'paid' }),
+                buildReceivable({ id: 'r2', amount: 80, status: 'pending', due_date: new Date(Date.now() + 86400000 * 10).toISOString() }),
+                buildReceivable({ id: 'r3', amount: 50, status: 'cancelled' }),
+                buildReceivable({ id: 'r4', amount: 40, status: 'refunded' }),
+            ] as unknown as ReceivableRecord[];
+
+            const totals = computeReceivableTotals(receivables);
+
+            expect(totals.total).toBe(200);
+            expect(totals.paid).toBe(120);
+            expect(totals.pending).toBe(80);
+            expect(totals.overdue).toBe(0);
+            expect(totals.cancelled).toBe(90);
+            expect(totals.count).toBe(2);
+        });
     });
 
     // ════════════════════════════════════════════════════════════════
@@ -1103,6 +1122,97 @@ describe('ChefClubApplicationService', () => {
             }
 
             expect(events.filter((e) => e.eventType === 'SubscriptionCancelled')).toHaveLength(0);
+        });
+
+        it('should_cancel_single_receivable_only_when_cancel_subscription_is_false', async () => {
+            const client = makeClient({
+                data: {
+                    receivable_cancelled: true,
+                    subscription_cancelled: false,
+                    subscription_id: 'sub-1',
+                    receivables_cancelled: 1,
+                },
+                error: null,
+            });
+            mockScopedClient.mockReturnValue(client);
+
+            const { events, stop } = await captureEvents();
+            try {
+                const result = await cancelSingleReceivable({
+                    receivableId: 'rec-1',
+                    tenantId: 'tenant-1',
+                    cancelReason: 'duplicate_charge',
+                    cancelObservation: 'Cobrada 2x',
+                    cancelSubscription: false,
+                });
+
+                expect(result).toEqual({
+                    receivableCancelled: true,
+                    subscriptionCancelled: false,
+                    subscriptionId: 'sub-1',
+                    receivablesCancelled: 1,
+                });
+                expect(client.rpc).toHaveBeenCalledWith('cancel_single_club_receivable', {
+                    p_receivable_id: 'rec-1',
+                    p_tenant_id: 'tenant-1',
+                    p_cancel_reason: 'duplicate_charge',
+                    p_cancel_observation: 'Cobrada 2x',
+                    p_cancel_subscription: false,
+                });
+            } finally {
+                stop();
+            }
+
+            expect(events.filter((e) => e.eventType === 'SubscriptionCancelled')).toHaveLength(0);
+        });
+
+        it('should_cancel_single_receivable_and_publish_event_when_cancel_subscription_is_true', async () => {
+            const client = makeClient({
+                data: {
+                    receivable_cancelled: true,
+                    subscription_cancelled: true,
+                    subscription_id: 'sub-1',
+                    receivables_cancelled: 2,
+                },
+                error: null,
+            });
+            mockScopedClient.mockReturnValue(client);
+
+            const { events, stop } = await captureEvents();
+            try {
+                const result = await cancelSingleReceivable({
+                    receivableId: 'rec-1',
+                    tenantId: 'tenant-1',
+                    cancelReason: 'client_request',
+                    cancelObservation: '  Encerramento definitivo  ',
+                    cancelSubscription: true,
+                });
+
+                expect(result).toEqual({
+                    receivableCancelled: true,
+                    subscriptionCancelled: true,
+                    subscriptionId: 'sub-1',
+                    receivablesCancelled: 2,
+                });
+                expect(client.rpc).toHaveBeenCalledWith('cancel_single_club_receivable', {
+                    p_receivable_id: 'rec-1',
+                    p_tenant_id: 'tenant-1',
+                    p_cancel_reason: 'client_request',
+                    p_cancel_observation: 'Encerramento definitivo',
+                    p_cancel_subscription: true,
+                });
+            } finally {
+                stop();
+            }
+
+            const cancelled = events.filter((e) => e.eventType === 'SubscriptionCancelled');
+            expect(cancelled).toHaveLength(1);
+            expect(cancelled[0].aggregateId).toBe('sub-1');
+            expect(cancelled[0].payload).toEqual({
+                subscriptionId: 'sub-1',
+                reason: 'client_request',
+            });
+            expect(cancelled[0].metadata.tenantId).toBe('tenant-1');
         });
 
         it('should_legacy_cancel_subscription_still_publish_event', async () => {
