@@ -24,6 +24,7 @@ import {
   PlusCircle,
   Command,
   X,
+  Crown,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -43,6 +44,189 @@ interface CommandPaletteProps {
   onClose: () => void;
 }
 
+export const buildCommandPaletteItems = (tenantSlug?: string): CommandItem[] => {
+  const list: CommandItem[] = [
+    // Páginas
+    {
+      id: 'page-agenda',
+      title: 'Agenda',
+      description: 'Visualização de horários, barbeiros e agendamentos',
+      category: 'Páginas',
+      path: '/schedule',
+      icon: Calendar,
+      keywords: ['agenda', 'horario', 'agendamento', 'marcar', 'calendario'],
+    },
+    {
+      id: 'page-comandas',
+      title: 'Comandas',
+      description: 'Atendimentos em aberto, fechados e consumo',
+      category: 'Páginas',
+      path: '/comandas',
+      icon: FileText,
+      keywords: ['comanda', 'atendimento', 'ordem', 'consumo', 'servico'],
+    },
+    {
+      id: 'page-checkout',
+      title: 'Frente de Caixa (PDV)',
+      description: 'Cobrança rápida, pagamentos e recebimentos',
+      category: 'Páginas',
+      path: '/checkout?mode=pdv',
+      icon: CreditCard,
+      keywords: ['caixa', 'pdv', 'checkout', 'pagamento', 'pagar', 'cobrar'],
+    },
+    {
+      id: 'page-cash-closing',
+      title: 'Fechamento de Caixa',
+      description: 'Conferência de turno, sangria e rateio',
+      category: 'Páginas',
+      path: '/cash-closing',
+      icon: Receipt,
+      keywords: ['fechamento', 'caixa', 'turno', 'conferencia', 'sangria'],
+    },
+    {
+      id: 'page-payroll',
+      title: 'Repasse de Comissões',
+      description: 'Apuração periódica, vales e liquidação de comissões',
+      category: 'Páginas',
+      path: '/payroll',
+      icon: CircleDollarSign,
+      keywords: ['payroll', 'comissao', 'repasse', 'vale', 'pagamento', 'salario', 'barbeiro'],
+    },
+    {
+      id: 'page-services',
+      title: 'Serviços',
+      description: 'Catálogo de cortes, barbas, combos e valores',
+      category: 'Páginas',
+      path: '/services',
+      icon: Scissors,
+      keywords: ['servico', 'corte', 'barba', 'preco', 'catalogo', 'duracao'],
+    },
+    {
+      id: 'page-clients',
+      title: 'Clientes',
+      description: 'Base de contatos, histórico e fidelidade',
+      category: 'Páginas',
+      path: '/clients',
+      icon: Users,
+      keywords: ['cliente', 'contato', 'telefone', 'historico', 'fidelidade'],
+    },
+    {
+      id: 'page-team',
+      title: 'Equipe & Profissionais',
+      description: 'Cadastro de barbeiros, gerentes e permissões',
+      category: 'Páginas',
+      path: '/team',
+      icon: Users,
+      keywords: ['equipe', 'time', 'barbeiro', 'profissional', 'gerente', 'staff'],
+    },
+    {
+      id: 'page-products',
+      title: 'Produtos e Estoque',
+      description: 'Pomadas, óleos, controle de estoque e revenda',
+      category: 'Páginas',
+      path: '/products',
+      icon: Package,
+      keywords: ['produto', 'estoque', 'pomada', 'oleo', 'venda', 'item'],
+    },
+    {
+      id: 'page-reports',
+      title: 'Relatórios Financeiros',
+      description: 'DRE, faturamento diário e métricas financeiras',
+      category: 'Páginas',
+      path: '/reports',
+      icon: BarChart3,
+      keywords: ['relatorio', 'financeiro', 'faturamento', 'dre', 'grafico', 'vendas'],
+    },
+    {
+      id: 'page-settings',
+      title: 'Dados da Unidade',
+      description: 'Preferências da barbearia, horário e dados gerais',
+      category: 'Páginas',
+      path: '/settings',
+      icon: Settings,
+      keywords: ['configuracao', 'ajuste', 'empresa', 'logo', 'horario', 'unidade'],
+    },
+    {
+      id: 'page-chef-club',
+      title: 'Assinaturas — Club dos Chefes',
+      description: 'Assinantes recorrentes e ciclo de renovação do clube',
+      category: 'Páginas',
+      path: '/chef-club-subscriptions',
+      icon: Crown,
+      keywords: ['clube', 'chef', 'assinatura', 'recorrente', 'socio', 'membro'],
+    },
+    {
+      id: 'page-chef-club-receivables',
+      title: 'Cobranças do Clube',
+      description: 'Faturas pendentes, liquidação manual e fila de renovação',
+      category: 'Páginas',
+      path: '/chef-club-receivables',
+      icon: Receipt,
+      keywords: ['clube', 'cobranca', 'fatura', 'recebivel', 'inadimplencia', 'renovacao'],
+    },
+    {
+      id: 'page-chef-club-plans',
+      title: 'Planos do Clube',
+      description: 'Benefícios, créditos e mensalidades dos planos',
+      category: 'Páginas',
+      path: '/chef-club-plans',
+      icon: Sparkles,
+      keywords: ['clube', 'plano', 'beneficio', 'mensalidade', 'creditos'],
+    },
+    // Ações Rápidas
+    {
+      id: 'action-new-comanda',
+      title: 'Nova Comanda',
+      description: 'Abrir atendimento imediato para cliente',
+      category: 'Ações Rápidas',
+      path: '/comandas',
+      icon: PlusCircle,
+      keywords: ['nova', 'comanda', 'abrir', 'iniciar', 'cliente'],
+    },
+    {
+      id: 'action-new-booking',
+      title: 'Novo Agendamento',
+      description: 'Reservar horário na agenda da equipe',
+      category: 'Ações Rápidas',
+      path: '/schedule',
+      icon: PlusCircle,
+      keywords: ['novo', 'agendamento', 'marcar', 'horario', 'reserva'],
+    },
+    {
+      id: 'action-new-service',
+      title: 'Cadastrar Novo Serviço',
+      description: 'Adicionar opção de corte ou procedimento',
+      category: 'Ações Rápidas',
+      path: '/services',
+      icon: PlusCircle,
+      keywords: ['cadastrar', 'novo', 'servico', 'criar'],
+    },
+    {
+      id: 'action-new-client',
+      title: 'Cadastrar Novo Cliente',
+      description: 'Registrar novo cliente na base',
+      category: 'Ações Rápidas',
+      path: '/clients',
+      icon: PlusCircle,
+      keywords: ['cadastrar', 'novo', 'cliente', 'adicionar'],
+    },
+  ];
+
+  if (tenantSlug) {
+    list.push({
+      id: 'page-public-booking',
+      title: 'Ver Agendamento Online Público',
+      description: `Página pública de agendamento (/#/agendar/${tenantSlug})`,
+      category: 'Páginas',
+      path: `/agendar/${tenantSlug}`,
+      icon: Globe,
+      keywords: ['publico', 'online', 'link', 'agendar', 'vitrine', 'whatsapp'],
+    });
+  }
+
+  return list;
+};
+
 export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const { tenant } = useAuth();
@@ -53,170 +237,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
 
   const tenantSlug = tenant?.slug;
 
-  const commands: CommandItem[] = useMemo(() => {
-    const list: CommandItem[] = [
-      // Páginas
-      {
-        id: 'page-agenda',
-        title: 'Agenda',
-        description: 'Visualização de horários, barbeiros e agendamentos',
-        category: 'Páginas',
-        path: '/agenda',
-        icon: Calendar,
-        keywords: ['agenda', 'horario', 'agendamento', 'marcar', 'calendario'],
-      },
-      {
-        id: 'page-comandas',
-        title: 'Comandas',
-        description: 'Atendimentos em aberto, fechados e consumo',
-        category: 'Páginas',
-        path: '/comandas',
-        icon: FileText,
-        keywords: ['comanda', 'atendimento', 'ordem', 'consumo', 'servico'],
-      },
-      {
-        id: 'page-checkout',
-        title: 'Frente de Caixa (PDV)',
-        description: 'Cobrança rápida, pagamentos e recebimentos',
-        category: 'Páginas',
-        path: '/checkout',
-        icon: CreditCard,
-        keywords: ['caixa', 'pdv', 'checkout', 'pagamento', 'pagar', 'cobrar'],
-      },
-      {
-        id: 'page-cash-closing',
-        title: 'Fechamento de Caixa',
-        description: 'Conferência de turno, sangria e rateio',
-        category: 'Páginas',
-        path: '/cash-closing',
-        icon: Receipt,
-        keywords: ['fechamento', 'caixa', 'turno', 'conferencia', 'sangria'],
-      },
-      {
-        id: 'page-payroll',
-        title: 'Repasse de Comissões',
-        description: 'Apuração periódica, vales e liquidação de comissões',
-        category: 'Páginas',
-        path: '/payroll',
-        icon: CircleDollarSign,
-        keywords: ['payroll', 'comissao', 'repasse', 'vale', 'pagamento', 'salario', 'barbeiro'],
-      },
-      {
-        id: 'page-services',
-        title: 'Serviços',
-        description: 'Catálogo de cortes, barbas, combos e valores',
-        category: 'Páginas',
-        path: '/services',
-        icon: Scissors,
-        keywords: ['servico', 'corte', 'barba', 'preco', 'catalogo', 'duracao'],
-      },
-      {
-        id: 'page-clients',
-        title: 'Clientes',
-        description: 'Base de contatos, histórico e fidelidade',
-        category: 'Páginas',
-        path: '/clients',
-        icon: Users,
-        keywords: ['cliente', 'contato', 'telefone', 'historico', 'fidelidade'],
-      },
-      {
-        id: 'page-team',
-        title: 'Equipe & Profissionais',
-        description: 'Cadastro de barbeiros, gerentes e permissões',
-        category: 'Páginas',
-        path: '/team',
-        icon: Users,
-        keywords: ['equipe', 'time', 'barbeiro', 'profissional', 'gerente', 'staff'],
-      },
-      {
-        id: 'page-products',
-        title: 'Produtos & Estoque',
-        description: 'Pomadas, óleos, controle de estoque e revenda',
-        category: 'Páginas',
-        path: '/products',
-        icon: Package,
-        keywords: ['produto', 'estoque', 'pomada', 'oleo', 'venda', 'item'],
-      },
-      {
-        id: 'page-reports',
-        title: 'Relatórios Financeiros',
-        description: 'DRE, faturamento diário e métricas financeiras',
-        category: 'Páginas',
-        path: '/reports',
-        icon: BarChart3,
-        keywords: ['relatorio', 'financeiro', 'faturamento', 'dre', 'grafico', 'vendas'],
-      },
-      {
-        id: 'page-settings',
-        title: 'Configurações',
-        description: 'Preferências da barbearia, horário e dados gerais',
-        category: 'Páginas',
-        path: '/settings',
-        icon: Settings,
-        keywords: ['configuracao', 'ajuste', 'empresa', 'logo', 'horario'],
-      },
-      {
-        id: 'page-chef-club',
-        title: 'Club dos Chefes',
-        description: 'Planos de assinatura e membros recorrentes',
-        category: 'Páginas',
-        path: '/chef-club',
-        icon: Sparkles,
-        keywords: ['clube', 'chef', 'assinatura', 'recorrente', 'plano', 'socio'],
-      },
-      // Ações Rápidas
-      {
-        id: 'action-new-comanda',
-        title: 'Nova Comanda',
-        description: 'Abrir atendimento imediato para cliente',
-        category: 'Ações Rápidas',
-        path: '/comandas',
-        icon: PlusCircle,
-        keywords: ['nova', 'comanda', 'abrir', 'iniciar', 'cliente'],
-      },
-      {
-        id: 'action-new-booking',
-        title: 'Novo Agendamento',
-        description: 'Reservar horário na agenda da equipe',
-        category: 'Ações Rápidas',
-        path: '/agenda',
-        icon: PlusCircle,
-        keywords: ['novo', 'agendamento', 'marcar', 'horario', 'reserva'],
-      },
-      {
-        id: 'action-new-service',
-        title: 'Cadastrar Novo Serviço',
-        description: 'Adicionar opção de corte ou procedimento',
-        category: 'Ações Rápidas',
-        path: '/services',
-        icon: PlusCircle,
-        keywords: ['cadastrar', 'novo', 'servico', 'criar'],
-      },
-      {
-        id: 'action-new-client',
-        title: 'Cadastrar Novo Cliente',
-        description: 'Registrar novo cliente na base',
-        category: 'Ações Rápidas',
-        path: '/clients',
-        icon: PlusCircle,
-        keywords: ['cadastrar', 'novo', 'cliente', 'adicionar'],
-      },
-    ];
-
-    if (tenantSlug) {
-      list.push({
-        id: 'page-public-booking',
-        title: 'Ver Agendamento Online Público',
-        description: `Página pública de agendamento (/#/agendar/${tenantSlug})`,
-        category: 'Páginas',
-        path: `/agendar/${tenantSlug}`,
-        icon: Globe,
-        keywords: ['publico', 'online', 'link', 'agendar', 'vitrine', 'whatsapp'],
-      });
-    }
-
-    return list;
-  }, [tenantSlug]);
+  const commands: CommandItem[] = useMemo(() => buildCommandPaletteItems(tenantSlug), [tenantSlug]);
 
   // Filter commands by search query
   const filteredCommands = useMemo(() => {
