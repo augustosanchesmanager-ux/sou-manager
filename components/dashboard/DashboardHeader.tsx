@@ -433,9 +433,9 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           </div>
         </div>
 
-        {/* Métricas de Operação do Período — Integradas no Lado Direito da Hero */}
+        {/* Métricas de Operação do Período — Ocultadas no Mobile para evitar duplicação com o Resumo Executivo */}
         {displayedKpis ? (
-          <div className="grid grid-cols-3 gap-2 sm:gap-2.5 w-full lg:w-auto shrink-0">
+          <div className="hidden lg:grid grid-cols-3 gap-2 sm:gap-2.5 w-full lg:w-auto shrink-0">
             {displayedKpis.map((kpi) => (
               <button
                 key={kpi.key}
@@ -462,7 +462,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           </div>
         ) : (
           /* Fallback caso KPIs ainda estejam carregando */
-          <div className="grid grid-cols-3 gap-2.5 sm:gap-3 w-full lg:w-auto shrink-0">
+          <div className="hidden lg:grid grid-cols-3 gap-2.5 sm:gap-3 w-full lg:w-auto shrink-0">
             {focusMetrics.map((item) => (
               <button
                 key={item.label}

@@ -113,22 +113,22 @@ const Login: React.FC = () => {
             <div className="relative w-full max-w-5xl rounded-3xl border border-white/10 bg-[#0B0D14]/85 backdrop-blur-2xl shadow-[0_25px_80px_rgba(0,0,0,0.85),0_0_80px_rgba(245,158,11,0.06)] overflow-hidden grid grid-cols-1 lg:grid-cols-12 z-10 transition-all duration-500">
 
                 {/* Left Column (Col 1 to 7): The Modern Form */}
-                <div className="lg:col-span-7 p-6 sm:p-10 lg:p-12 flex flex-col justify-between relative z-10">
+                <div className="lg:col-span-7 p-5 sm:p-10 lg:p-12 flex flex-col justify-between relative z-10">
                     <div>
                         {/* Top Branding Bar — Centered & Highly Legible */}
-                        <div className="flex flex-col items-center justify-center mb-6 w-full text-center">
-                            <div className="flex items-center justify-center w-full py-2">
+                        <div className="flex flex-col items-center justify-center mb-4 sm:mb-6 w-full text-center">
+                            <div className="flex items-center justify-center w-full py-1 sm:py-2">
                                 <img
                                     src="/branding/smg-barber-intelligence-logo.png"
                                     alt="SMG Barber Intelligence"
-                                    className="h-16 sm:h-20 md:h-24 w-auto max-w-[280px] sm:max-w-[340px] object-contain filter drop-shadow-[0_0_25px_rgba(245,158,11,0.35)] hover:scale-[1.02] transition-transform"
+                                    className="h-12 sm:h-20 md:h-24 w-auto max-w-[220px] sm:max-w-[340px] object-contain filter drop-shadow-[0_0_25px_rgba(245,158,11,0.35)] hover:scale-[1.02] transition-transform"
                                 />
                             </div>
                         </div>
 
                         {/* Localhost Tabs (Usuário / Elite) */}
                         {isLocalhost && !showReset && (
-                            <div className="flex justify-center w-full mb-6">
+                            <div className="flex justify-center w-full mb-4 sm:mb-6">
                                 <div className="inline-flex p-1 bg-white/[0.04] border border-white/10 rounded-xl">
                                     <button
                                         type="button"
@@ -161,34 +161,14 @@ const Login: React.FC = () => {
                         {!showReset ? (
                             <>
                                 {/* Header Title */}
-                                <div className="mb-7">
-                                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+                                <div className="mb-5 sm:mb-7">
+                                    <h1 className="text-xl sm:text-3xl font-bold tracking-tight text-white">
                                         {isElite ? 'Acesso Restrito Elite' : 'Entrar'}
                                     </h1>
-                                    <p className="text-xs sm:text-sm text-slate-400 mt-1.5 leading-relaxed">
+                                    <p className="text-xs sm:text-sm text-slate-400 mt-1 sm:mt-1.5 leading-relaxed">
                                         {subtitle}
                                     </p>
                                 </div>
-
-                                {/* Local Demo Mode Quick Helper */}
-                                {isLocalDemoMode && !isElite && (
-                                    <div className="mb-6 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3.5 flex items-center justify-between text-xs animate-fade-in">
-                                        <div>
-                                            <p className="font-mono font-bold text-[10px] tracking-wider uppercase text-emerald-400">Acesso Local de Demonstração</p>
-                                            <p className="text-slate-300 font-mono text-[11px] mt-0.5">teste@soumanager.local • 12345678</p>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setEmail('teste@soumanager.local');
-                                                setPassword('12345678');
-                                            }}
-                                            className="px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded-md bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 transition-colors"
-                                        >
-                                            Preencher
-                                        </button>
-                                    </div>
-                                )}
 
                                 <form onSubmit={handleLogin} className="space-y-4 sm:space-y-5">
                                     {error && (
@@ -269,7 +249,7 @@ const Login: React.FC = () => {
                                         <button
                                             type="submit"
                                             disabled={loading}
-                                            className={`w-full py-3.5 px-4 rounded-xl font-bold text-sm tracking-wide transition-all flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-50 ${
+                                            className={`w-full py-3.5 px-4 rounded-xl font-bold text-sm tracking-wide transition-all flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-50 cursor-pointer ${
                                                 isElite
                                                     ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600 text-night hover:brightness-110 shadow-[0_0_30px_rgba(245,158,11,0.3)]'
                                                     : 'bg-white hover:bg-slate-100 text-night shadow-[0_0_20px_rgba(255,255,255,0.12)]'
@@ -410,7 +390,7 @@ const Login: React.FC = () => {
             </div>
 
             {/* Bottom Security Protocol Notice */}
-            <footer className="mt-6 text-center z-10">
+            <footer className="mt-4 sm:mt-6 text-center z-10">
                 <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-slate-500">
                     {isElite ? 'Protocolo de segurança nível 5 ativado' : 'SMG PLATFORM // ENCRYPTED AUTH PROTOCOL'}
                 </p>

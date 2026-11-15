@@ -126,11 +126,11 @@ export const DailySummaryExecutiveCard: React.FC<DailySummaryExecutiveCardProps>
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-line dark:border-border-dark bg-card dark:bg-card-dark p-6 animate-pulse">
-        <div className="h-6 w-1/3 bg-line dark:bg-border-dark rounded mb-4" />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="rounded-2xl border border-line dark:border-border-dark bg-card dark:bg-card-dark p-4 animate-pulse">
+        <div className="h-5 w-1/4 bg-line dark:bg-border-dark rounded mb-3" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-20 bg-line dark:bg-border-dark rounded-xl" />
+            <div key={i} className="h-16 bg-line dark:bg-border-dark rounded-xl" />
           ))}
         </div>
       </div>
@@ -138,33 +138,28 @@ export const DailySummaryExecutiveCard: React.FC<DailySummaryExecutiveCardProps>
   }
 
   return (
-    <div className="rounded-2xl border border-line dark:border-border-dark bg-card dark:bg-card-dark p-6 shadow-sm">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <Sparkles className="w-5 h-5" />
-            </span>
-            <h2 className="text-lg font-bold text-night dark:text-white">
-              Resumo Executivo do Dia
-            </h2>
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium border border-emerald-500/20">
-              Ao vivo
-            </span>
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Consolidação em tempo real do faturamento e atendimentos de hoje.
-          </p>
+    <div className="rounded-2xl border border-line dark:border-border-dark bg-card dark:bg-card-dark p-4 sm:p-5 shadow-sm transition-colors">
+      {/* Header Compacto com Ações Rápidas */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          <span className="p-1 rounded-lg bg-primary/10 text-primary">
+            <Sparkles className="w-4 h-4" />
+          </span>
+          <h2 className="text-sm sm:text-base font-bold text-ink dark:text-white">
+            Resumo Operacional do Dia
+          </h2>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold border border-primary/20">
+            Tempo real
+          </span>
         </div>
 
-        {/* Ações de envio */}
+        {/* Ações de Envio e Fechamento */}
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
             onClick={handleShareWhatsApp}
-            title="Compartilhar resumo via WhatsApp sem custo"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer shadow-xs"
+            title="Compartilhar resumo via WhatsApp"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-primary hover:bg-primary-dark text-night transition-colors cursor-pointer"
           >
             <Share2 className="w-3.5 h-3.5" />
             WhatsApp
@@ -174,7 +169,7 @@ export const DailySummaryExecutiveCard: React.FC<DailySummaryExecutiveCardProps>
             type="button"
             onClick={handleSendEmail}
             title="Enviar resumo por e-mail"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border border-line dark:border-border-dark hover:bg-neutral-100 dark:hover:bg-white/5 text-night dark:text-white transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border border-line dark:border-border-dark hover:bg-gold-pale dark:hover:bg-white/5 text-ink dark:text-white transition-colors cursor-pointer"
           >
             <Mail className="w-3.5 h-3.5" />
             E-mail
@@ -184,70 +179,70 @@ export const DailySummaryExecutiveCard: React.FC<DailySummaryExecutiveCardProps>
             type="button"
             onClick={() => navigate('/cash-closing')}
             title="Acessar fechamento de caixa detalhado"
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-primary hover:text-primary-dark transition-colors cursor-pointer"
           >
-            Fechamento
+            Fechamento de Caixa
             <ArrowUpRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* Grid de KPIs Executivos */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Grid de KPIs Harmonizado com Atelier Tech */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {/* KPI 1: Faturamento */}
-        <div className="rounded-xl border border-line/60 dark:border-border-dark/60 bg-neutral-50/50 dark:bg-white/[0.02] p-4">
-          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
-            <span className="text-xs font-medium">Faturamento Hoje</span>
-            <TrendingUp className="w-4 h-4 text-emerald-500" />
+        <div className="rounded-xl border border-line dark:border-border-dark bg-gold-pale/40 dark:bg-surface-dark/60 p-3 sm:p-3.5">
+          <div className="flex items-center justify-between text-ink-soft mb-1">
+            <span className="text-[11px] font-medium">Faturamento</span>
+            <TrendingUp className="w-3.5 h-3.5 text-primary" />
           </div>
-          <div className="text-xl font-bold text-night dark:text-white tabular-nums">
+          <div className="text-base sm:text-lg font-bold text-ink dark:text-white tabular-nums tracking-tight">
             {formatCurrency(metrics.revenue)}
           </div>
-          <div className="text-[11px] text-muted-foreground mt-1">
-            Recebido em comandas
+          <div className="text-[10px] text-ink-soft mt-0.5">
+            Total em comandas
           </div>
         </div>
 
         {/* KPI 2: Atendimentos */}
-        <div className="rounded-xl border border-line/60 dark:border-border-dark/60 bg-neutral-50/50 dark:bg-white/[0.02] p-4">
-          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
-            <span className="text-xs font-medium">Atendimentos</span>
-            <CalendarCheck2 className="w-4 h-4 text-emerald-500" />
+        <div className="rounded-xl border border-line dark:border-border-dark bg-gold-pale/40 dark:bg-surface-dark/60 p-3 sm:p-3.5">
+          <div className="flex items-center justify-between text-ink-soft mb-1">
+            <span className="text-[11px] font-medium">Atendimentos</span>
+            <CalendarCheck2 className="w-3.5 h-3.5 text-primary" />
           </div>
-          <div className="text-xl font-bold text-night dark:text-white tabular-nums">
-            {metrics.completedCount} <span className="text-xs font-normal text-muted-foreground">/ {metrics.totalAppointments}</span>
+          <div className="text-base sm:text-lg font-bold text-ink dark:text-white tabular-nums tracking-tight">
+            {metrics.completedCount} <span className="text-xs font-normal text-ink-soft">/ {metrics.totalAppointments}</span>
           </div>
-          <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
+          <div className="text-[10px] text-ink-soft mt-0.5 flex items-center gap-1">
             <Clock className="w-3 h-3 text-amber-500" />
             <span>{metrics.inProgressCount + metrics.pendingCount} restantes</span>
           </div>
         </div>
 
         {/* KPI 3: Ticket Médio */}
-        <div className="rounded-xl border border-line/60 dark:border-border-dark/60 bg-neutral-50/50 dark:bg-white/[0.02] p-4">
-          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
-            <span className="text-xs font-medium">Ticket Médio</span>
-            <Users className="w-4 h-4 text-emerald-500" />
+        <div className="rounded-xl border border-line dark:border-border-dark bg-gold-pale/40 dark:bg-surface-dark/60 p-3 sm:p-3.5">
+          <div className="flex items-center justify-between text-ink-soft mb-1">
+            <span className="text-[11px] font-medium">Ticket Médio</span>
+            <Users className="w-3.5 h-3.5 text-primary" />
           </div>
-          <div className="text-xl font-bold text-night dark:text-white tabular-nums">
+          <div className="text-base sm:text-lg font-bold text-ink dark:text-white tabular-nums tracking-tight">
             {formatCurrency(metrics.ticketMedio)}
           </div>
-          <div className="text-[11px] text-muted-foreground mt-1">
-            Por atendimento
+          <div className="text-[10px] text-ink-soft mt-0.5">
+            Por cliente
           </div>
         </div>
 
-        {/* KPI 4: Ocupação & Destaque */}
-        <div className="rounded-xl border border-line/60 dark:border-border-dark/60 bg-neutral-50/50 dark:bg-white/[0.02] p-4">
-          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
-            <span className="text-xs font-medium">Destaque do Dia</span>
-            <Percent className="w-4 h-4 text-emerald-500" />
+        {/* KPI 4: Destaque da Equipe */}
+        <div className="rounded-xl border border-line dark:border-border-dark bg-gold-pale/40 dark:bg-surface-dark/60 p-3 sm:p-3.5">
+          <div className="flex items-center justify-between text-ink-soft mb-1">
+            <span className="text-[11px] font-medium">Destaque</span>
+            <Percent className="w-3.5 h-3.5 text-primary" />
           </div>
-          <div className="text-base font-bold text-night dark:text-white truncate" title={metrics.topStaffName}>
+          <div className="text-sm sm:text-base font-bold text-ink dark:text-white truncate" title={metrics.topStaffName}>
             {metrics.topStaffName}
           </div>
-          <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1 font-medium">
-            {metrics.occupancyRate}% da agenda ativa
+          <div className="text-[10px] text-primary font-medium mt-0.5">
+            {metrics.occupancyRate}% da agenda
           </div>
         </div>
       </div>
