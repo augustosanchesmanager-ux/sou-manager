@@ -24,7 +24,7 @@ import { createSupabaseClient } from '../shared/supabase-client-factory';
 import { supabase as sharedSupabase } from '../../services/supabaseClient';
 import type { DatabaseClient } from '../shared/database-client';
 import type { IRepository } from '../shared/repository';
-import type { Comanda, UpdateComandaInput, ComandaListOptions } from './types';
+import type { Comanda, UpdateComandaInput, ComandaListOptions, AppointmentComandaSummary } from './types';
 import type { AppSlug } from '../shared/app';
 
 export { RepositoryError } from '../shared/errors';
@@ -220,6 +220,41 @@ class ComandaRepositoryImpl extends SupabaseRepository {
     }
   }
 
+  async getComandaStatusesByAppointmentIds(
+    appointmentIds: string[],
+    tenantId: string,
+    appSlug?: AppSlug,
+  ): Promise<Record<string, AppointmentComandaSummary>> {
+    try {
+      if (appointmentIds.length === 0) return {};
+
+      const result = await this.scopeClient(appSlug).from(this.tableName)
+        .select('id, appointment_id, status, total')
+        .eq('tenant_id', tenantId)
+        .in('appointment_id', appointmentIds)
+        .order('created_at', { ascending: true });
+
+      const data = this.extractData<Record<string, unknown>[]>(result, 'Erro ao listar status de comandas por agendamento');
+      const map: Record<string, AppointmentComandaSummary> = {};
+      (data || []).forEach((row: any) => {
+        if (row.appointment_id && row.id) {
+          const existing = map[row.appointment_id];
+          const incomingStatus = (row.status as string) || 'open';
+          if (!existing || existing.status === 'cancelled' || incomingStatus !== 'cancelled') {
+            map[row.appointment_id] = {
+              id: row.id as string,
+              status: incomingStatus,
+              total: Number(row.total) || 0,
+            };
+          }
+        }
+      });
+      return map;
+    } catch (err) {
+      this.throwOnError(err, 'Erro ao listar status de comandas por agendamento');
+    }
+  }
+
   async exists(id: string, tenantId: string, appSlug?: AppSlug): Promise<boolean> {
     try {
       const result = await this.scopeClient(appSlug).from(this.tableName)
@@ -354,6 +389,7 @@ export interface ComandaRepository extends IRepository<Comanda> {
   findLatestByAppointment(appointmentId: string, tenantId: string, appSlug?: AppSlug): Promise<Comanda | null>;
   getByClient(clientId: string, tenantId: string, options?: { status?: string; limit?: number }, appSlug?: AppSlug): Promise<Comanda[]>;
   listOpenByAppointmentIds(appointmentIds: string[], tenantId: string, appSlug?: AppSlug): Promise<Record<string, string>>;
+  getComandaStatusesByAppointmentIds(appointmentIds: string[], tenantId: string, appSlug?: AppSlug): Promise<Record<string, AppointmentComandaSummary>>;
   update(id: string, input: UpdateComandaInput, tenantId: string, appSlug?: AppSlug): Promise<void>;
   delete(id: string, tenantId: string, appSlug?: AppSlug): Promise<void>;
   getStatus(id: string, tenantId: string, appSlug?: AppSlug): Promise<string | null>;
