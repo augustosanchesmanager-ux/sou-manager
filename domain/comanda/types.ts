@@ -65,3 +65,9 @@ export interface ComandaListOptions {
   dateTo?: string;
   ids?: string[];
 }
+
+export interface AppointmentComandaSummary {
+  id: string;
+  status: string;
+  total: number;
+}

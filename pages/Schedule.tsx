@@ -27,7 +27,7 @@ import { useAuth } from '../context/AuthContext';
 import { getTotalAvailableCredits, normalizeCreditBalances } from '../src/utils/chefClubCredits';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 import { appointmentApplicationService, AppointmentError } from '../application/appointment';
-import { comandaRepository } from '../domain/comanda';
+import { comandaRepository, type AppointmentComandaSummary } from '../domain/comanda';
 import { getCatalogDisplayName, getEsteticaDemoServiceName } from '../src/lib/catalog/display';
 import { shouldAppearOnSchedule } from '../src/lib/staff/roles';
 import {
@@ -63,6 +63,7 @@ import { unblockComandaIfDue } from '../src/lib/finance/unblock';
 import { BarberChairQueue } from '../components/schedule/BarberChairQueue';
 import { QuickWalkInModal, type QuickWalkInPayload } from '../components/schedule/QuickWalkInModal';
 import { AppointmentActionMenu } from '../components/schedule/AppointmentActionMenu';
+import { DailyReconciliationBar } from '../components/schedule/DailyReconciliationBar';
 import { type QueueAppointment } from '../src/utils/barberQueue';
 import { triggerHapticFeedback } from '../src/utils/feedbackSensory';
 import { comandaScheduleSyncService } from '../services/comandaScheduleSyncService';
@@ -174,6 +175,10 @@ interface EnrichedAppointment extends CalendarAppointment {
   shortNotes: string;
   searchIndex: string;
   hasOpenComanda: boolean;
+  comandaId: string | null;
+  comandaStatus: string | null;
+  comandaTotal: number | null;
+  isAwaitingCheckout: boolean;
 }
 
 interface NewAppointmentForm {
@@ -217,8 +222,36 @@ const roleLabels: Record<string, string> = { Manager: 'Gerente', Barber: 'Barbei
 
 const statusColors: Record<string, string> = appointmentDotColors;
 
-const getAtelierAppointmentStyle = (status: string) => {
-  switch (status) {
+const getAtelierAppointmentStyle = (status: string, comandaStatus?: string | null) => {
+  const normalizedStatus = normalizeAppointmentStatus(status);
+  if (normalizedStatus === 'completed') {
+    if (comandaStatus === 'open') {
+      return {
+        card: 'bg-amber-500/15 border-l-4 border-l-amber-500 border-t border-r border-b border-amber-500/40 ring-1 ring-amber-500/30',
+        clientText: 'text-amber-100 font-black',
+        serviceText: 'text-amber-300 font-semibold',
+        timeBadge: 'bg-amber-500 text-slate-950 font-black',
+      };
+    }
+
+    if (comandaStatus === 'paid' || !comandaStatus) {
+      return {
+        card: 'bg-emerald-950/40 border-l-4 border-l-emerald-500 border-t border-r border-b border-emerald-500/30 opacity-85',
+        clientText: 'text-emerald-100 font-bold',
+        serviceText: 'text-emerald-300/80',
+        timeBadge: 'bg-emerald-600 text-white font-bold',
+      };
+    }
+
+    return {
+      card: 'bg-zinc-950/90 border-l-2 border-l-stone-700 border-t border-r border-b border-zinc-900 opacity-50',
+      clientText: 'text-stone-400 font-medium',
+      serviceText: 'text-stone-500',
+      timeBadge: 'bg-zinc-900 text-stone-500',
+    };
+  }
+
+  switch (normalizedStatus) {
     case 'in_progress':
       return {
         card: 'bg-[#B88A44]/15 border-l-4 border-l-[#B88A44] border-t border-r border-b border-[#B88A44]/30',
@@ -233,13 +266,6 @@ const getAtelierAppointmentStyle = (status: string) => {
         serviceText: 'text-stone-400',
         timeBadge: 'bg-red-950/80 text-red-300 border border-red-800/40',
       };
-    case 'completed':
-      return {
-        card: 'bg-zinc-950/90 border-l-2 border-l-stone-700 border-t border-r border-b border-zinc-900 opacity-50',
-        clientText: 'text-stone-400 font-medium',
-        serviceText: 'text-stone-500',
-        timeBadge: 'bg-zinc-900 text-stone-500',
-      };
     case 'confirmed':
     default:
       return {
@@ -247,6 +273,39 @@ const getAtelierAppointmentStyle = (status: string) => {
         clientText: 'text-stone-300 font-bold',
         serviceText: 'text-stone-400',
         timeBadge: 'bg-zinc-950 text-stone-300 border border-[#B88A44]/30',
+      };
+  }
+};
+
+const getComandaStatusDisplay = (
+  comandaStatus: string | null | undefined,
+  isEsteticaApp = false,
+): { label: string; toneClassName: string } => {
+  switch (comandaStatus) {
+    case 'open':
+      return {
+        label: isEsteticaApp ? 'Aberto' : 'Aberta',
+        toneClassName: 'text-amber-600 dark:text-amber-400',
+      };
+    case 'paid':
+      return {
+        label: isEsteticaApp ? 'Finalizado' : 'Paga',
+        toneClassName: 'text-emerald-600 dark:text-emerald-400',
+      };
+    case 'blocked':
+      return {
+        label: isEsteticaApp ? 'Bloqueado' : 'Bloqueada',
+        toneClassName: 'text-teal-600 dark:text-teal-400',
+      };
+    case 'cancelled':
+      return {
+        label: isEsteticaApp ? 'Cancelado' : 'Cancelada',
+        toneClassName: 'text-slate-500 dark:text-slate-400',
+      };
+    default:
+      return {
+        label: 'Sem comanda',
+        toneClassName: 'text-slate-500 dark:text-slate-400',
       };
   }
 };
@@ -369,7 +428,7 @@ const Schedule: React.FC = () => {
   const [scheduleBlocks, setScheduleBlocks] = useState<ScheduleBlock[]>([]);
   const [scheduleBlockHistory, setScheduleBlockHistory] = useState<ScheduleBlock[]>([]);
   const [activePromotions, setActivePromotions] = useState<any[]>([]);
-  const [openComandasByAppointment, setOpenComandasByAppointment] = useState<Record<string, string>>({});
+  const [comandasByAppointment, setComandasByAppointment] = useState<Record<string, AppointmentComandaSummary>>({});
   const [loading, setLoading] = useState(true);
   const [blockSaving, setBlockSaving] = useState(false);
   const [deletingBlockId, setDeletingBlockId] = useState<string | null>(null);
@@ -778,7 +837,7 @@ const Schedule: React.FC = () => {
   const fetchAppointments = useCallback(async () => {
     if (!tenantId) {
       setAppointments([]);
-      setOpenComandasByAppointment({});
+      setComandasByAppointment({});
       setLoading(false);
       return;
     }
@@ -921,14 +980,14 @@ const Schedule: React.FC = () => {
 
       const appointmentIds = mapped.map((apt) => apt.id);
       if (appointmentIds.length > 0) {
-        const nextOpenComandasByAppointment = await comandaRepository.listOpenByAppointmentIds(appointmentIds, tenantId);
-        setOpenComandasByAppointment(nextOpenComandasByAppointment);
+        const nextComandasByAppointment = await comandaRepository.getComandaStatusesByAppointmentIds(appointmentIds, tenantId, scheduleAppSlug);
+        setComandasByAppointment(nextComandasByAppointment);
       } else {
-        setOpenComandasByAppointment({});
+        setComandasByAppointment({});
       }
     } else {
       setAppointments([]);
-      setOpenComandasByAppointment({});
+      setComandasByAppointment({});
     }
     setLoading(false);
   }, [appSlug, displayMode, getListRange, selectedDate, serviceLabel, tenantId, viewMode]);
@@ -1026,13 +1085,27 @@ const Schedule: React.FC = () => {
               supabase: getScopedClient('barber'),
             });
             if (unblockResult.unblocked) {
-              setOpenComandasByAppointment((prev) => ({ ...prev, [apt.id]: existingComanda.id }));
+              setComandasByAppointment((prev) => ({
+                ...prev,
+                [apt.id]: {
+                  id: existingComanda.id,
+                  status: 'open',
+                  total: prev[apt.id]?.total ?? Number(apt.price || 0),
+                },
+              }));
             }
           } catch (unblockError) {
             console.warn('[Schedule] Falha ao auto-desbloquear comanda ao abrir:', unblockError);
           }
         } else {
-          setOpenComandasByAppointment((prev) => ({ ...prev, [apt.id]: existingComanda.id }));
+          setComandasByAppointment((prev) => ({
+            ...prev,
+            [apt.id]: {
+              id: existingComanda.id,
+              status: existingComanda.status,
+              total: prev[apt.id]?.total ?? Number(apt.price || 0),
+            },
+          }));
         }
         navigate(`/checkout/${existingComanda.id}`);
         return;
@@ -2013,9 +2086,13 @@ const Schedule: React.FC = () => {
           ));
 
           if (syncResult.comandaUpdated && syncResult.comandaId) {
-            setOpenComandasByAppointment((prev) => ({
+            setComandasByAppointment((prev) => ({
               ...prev,
-              [editingAppointmentId]: syncResult.comandaId!,
+              [editingAppointmentId]: {
+                id: syncResult.comandaId!,
+                status: prev[editingAppointmentId]?.status || 'open',
+                total: selectedServicesTotalPrice,
+              },
             }));
           }
 
@@ -2163,7 +2240,14 @@ const Schedule: React.FC = () => {
       }]);
 
       if (newComandaId) {
-        setOpenComandasByAppointment(prev => ({ ...prev, [newAptId]: newComandaId }));
+        setComandasByAppointment(prev => ({
+          ...prev,
+          [newAptId]: {
+            id: newComandaId,
+            status: 'open',
+            total: createdTotalPrice,
+          },
+        }));
       }
 
       setToast({ message: 'Agendamento criado com sucesso!', type: 'success' });
@@ -2230,7 +2314,19 @@ const Schedule: React.FC = () => {
     return appointments.filter((appointment) => toDateKey(appointment.date || appointment.startTime) === selectedDateKey);
   }, [appointments, selectedDateKey, viewMode, weekDays]);
 
-  const visibleOpenComandasCount = React.useMemo(() => visibleAppointments.filter((appointment) => openComandasByAppointment[appointment.id]).length, [visibleAppointments, openComandasByAppointment]);
+  const reconciliationAppointments = React.useMemo(() => {
+    return appointments.filter((appointment) => {
+      const matchesDate = toDateKey(appointment.date || appointment.startTime) === selectedDateKey;
+      const matchesProfessional =
+        listFilters.professional === 'all' || appointment.staffId === listFilters.professional;
+      return matchesDate && matchesProfessional;
+    });
+  }, [appointments, selectedDateKey, listFilters.professional]);
+
+  const visibleOpenComandasCount = React.useMemo(
+    () => visibleAppointments.filter((appointment) => comandasByAppointment[appointment.id]?.status === 'open').length,
+    [visibleAppointments, comandasByAppointment],
+  );
   const visibleExpectedRevenue = React.useMemo(() => visibleAppointments
     .filter((appointment) => !['cancelled', 'no_show'].includes(normalizeAppointmentStatus(appointment.status)))
     .reduce((sum, appointment) => sum + Number(appointment.price || 0), 0), [visibleAppointments]);
@@ -2477,20 +2573,43 @@ const Schedule: React.FC = () => {
       const originLabel = getOriginLabel(apt.source, apt.channel, isEsteticaApp);
       const shortNotes = getShortNotes(apt.notes || '');
       const isOverdue = isAppointmentOverdue(apt);
+      const linkedComanda = comandasByAppointment[apt.id] || null;
+      const comandaStatus = linkedComanda?.status || null;
+      const isAwaitingCheckout = statusMeta.normalized === 'completed' && comandaStatus === 'open';
+      const isCompletedAndSettled =
+        statusMeta.normalized === 'completed' &&
+        (comandaStatus === 'paid' || !comandaStatus);
+
+      let effectiveStatusLabel = statusMeta.label;
+      let effectiveStatusIcon = statusMeta.icon;
+      let effectiveStatusBadgeClassName = statusMeta.badge;
+
+      if (isAwaitingCheckout) {
+        effectiveStatusLabel = 'Aguardando Caixa';
+        effectiveStatusIcon = 'point_of_sale';
+        effectiveStatusBadgeClassName = 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40';
+      } else if (statusMeta.normalized === 'completed' && !isCompletedAndSettled) {
+        effectiveStatusBadgeClassName = 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
+      }
+
       return {
         ...apt,
         normalizedStatus: statusMeta.normalized,
-        statusLabel: statusMeta.label,
-        statusIcon: statusMeta.icon,
-        statusBadgeClassName: statusMeta.badge,
+        statusLabel: effectiveStatusLabel,
+        statusIcon: effectiveStatusIcon,
+        statusBadgeClassName: effectiveStatusBadgeClassName,
         originLabel,
         isOverdue,
         shortNotes,
         searchIndex: `${apt.client} ${apt.clientPhone} ${apt.service} ${apt.staffName} ${shortNotes}`.toLowerCase(),
-        hasOpenComanda: Boolean(openComandasByAppointment[apt.id]),
+        hasOpenComanda: comandaStatus === 'open',
+        comandaId: linkedComanda?.id || null,
+        comandaStatus,
+        comandaTotal: linkedComanda?.total ?? null,
+        isAwaitingCheckout,
       };
     });
-  }, [appointments, openComandasByAppointment, isEsteticaApp]);
+  }, [appointments, comandasByAppointment, isEsteticaApp]);
 
   const appointmentsForSummary = React.useMemo(() => {
     return enrichedAppointments.filter((apt) => {
@@ -2507,7 +2626,7 @@ const Schedule: React.FC = () => {
         (listFilters.quickChip === 'confirmed' && apt.normalizedStatus === 'confirmed') ||
         (listFilters.quickChip === 'in_progress' && apt.normalizedStatus === 'in_progress') ||
         (listFilters.quickChip === 'overdue' && apt.isOverdue) ||
-        (listFilters.quickChip === 'without_comanda' && !apt.hasOpenComanda);
+        (listFilters.quickChip === 'without_comanda' && (!apt.comandaId || apt.comandaStatus === 'cancelled'));
       return matchesDate && matchesProfessional && matchesStatus && matchesService && matchesOrigin && matchesQuickChip;
     });
   }, [enrichedAppointments, listFilters]);
@@ -2572,7 +2691,9 @@ const Schedule: React.FC = () => {
         setAppointments((prev) => prev.map((apt) => apt.id === appointment.id ? { ...apt, status: finalStatus, color: statusColors[finalStatus] || apt.color, attendedAt, attendedAtSource: null } : apt));
         setSelectedAppointment((prev) => prev && prev.id === appointment.id ? { ...prev, status: finalStatus, color: statusColors[finalStatus] || prev.color, attendedAt, attendedAtSource: null } : prev);
 
-        const openComandaId = openComandasByAppointment[appointment.id];
+        const openComandaId = comandasByAppointment[appointment.id]?.status === 'open'
+          ? comandasByAppointment[appointment.id].id
+          : undefined;
         setToast({
           message: 'Atendimento finalizado! Comanda enviada ao caixa.',
           type: 'success',
@@ -2657,9 +2778,9 @@ const Schedule: React.FC = () => {
   };
 
   const handleOpenComanda = async (appointment: CalendarAppointment) => {
-    const openComandaId = openComandasByAppointment[appointment.id];
-    if (openComandaId) {
-      navigate(`/checkout/${openComandaId}`);
+    const linkedComanda = comandasByAppointment[appointment.id];
+    if (linkedComanda?.id && linkedComanda.status !== 'cancelled' && linkedComanda.status !== 'blocked') {
+      navigate(`/checkout/${linkedComanda.id}`);
       return;
     }
 
@@ -2798,7 +2919,14 @@ Podemos confirmar? 😄`;
 
       setAppointments((prev) => [...prev, createdApt]);
       if (newComandaId) {
-        setOpenComandasByAppointment((prev) => ({ ...prev, [newAptId]: newComandaId }));
+        setComandasByAppointment((prev) => ({
+          ...prev,
+          [newAptId]: {
+            id: newComandaId,
+            status: 'open',
+            total: Number(payload.price || 0),
+          },
+        }));
       }
 
       setToast({
@@ -3083,6 +3211,16 @@ Podemos confirmar? 😄`;
         )}
       </header>
 
+      <DailyReconciliationBar
+        appointments={reconciliationAppointments}
+        comandasByAppointment={comandasByAppointment}
+        selectedDate={selectedDate}
+        onOpenDetails={handleOpenAppointmentDetails}
+        onOpenComanda={handleOpenComanda}
+        onStartAppointment={(apt) => handleAppointmentStatusChange(apt, 'in_progress', 'Atendimento iniciado')}
+        orderLabel={orderLabel}
+      />
+
       {displayMode === 'chair' ? (
         <BarberChairQueue
           appointments={appointments}
@@ -3214,7 +3352,11 @@ Podemos confirmar? 😄`;
                               const startOffset = getTimelinePercent(apt.start);
                               const rawHeight = getTimelinePercent(apt.start + apt.duration) - getTimelinePercent(apt.start);
                               const height = Math.max(rawHeight, 4);
-                              const atelier = getAtelierAppointmentStyle(apt.status);
+                              const comandaStatus = comandasByAppointment[apt.id]?.status || null;
+                              const normalizedAptStatus = normalizeAppointmentStatus(apt.status);
+                              const isAwaitingCheckout = normalizedAptStatus === 'completed' && comandaStatus === 'open';
+                              const isCompletedAndSettled = normalizedAptStatus === 'completed' && (comandaStatus === 'paid' || !comandaStatus);
+                              const atelier = getAtelierAppointmentStyle(apt.status, comandaStatus);
                               const resolvedInterval = getResolvedAppointmentInterval(
                                 {
                                   serviceId: apt.serviceId,
@@ -3231,7 +3373,7 @@ Podemos confirmar? 😄`;
                                   onClick={() => handleOpenAppointmentDetails(apt)}
                                   className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-1 ${atelier.card} z-10 overflow-hidden shadow-xs hover:brightness-110 cursor-pointer transition-all hover:shadow-md active:scale-95 active:opacity-80 ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
                                   style={{ top: `${startOffset}%`, height: `${Math.max(height, 4)}%` }}
-                                  title={`${getDecimalTimeLabel(apt.start)} - ${getDecimalTimeLabel(apt.start + apt.duration)} | ${apt.client} — ${apt.service} | ${apt.staffName}${apt.isOverbooked ? ' (ENCAIXE)' : ''}`}
+                                  title={`${getDecimalTimeLabel(apt.start)} - ${getDecimalTimeLabel(apt.start + apt.duration)} | ${apt.client} — ${apt.service} | ${apt.staffName}${apt.isOverbooked ? ' (ENCAIXE)' : ''}${isAwaitingCheckout ? ' (AGUARDANDO CAIXA)' : ''}`}
                                 >
                                   <div className="flex min-w-0 items-center justify-between gap-1">
                                     <div className="flex items-center gap-1 min-w-0">
@@ -3251,10 +3393,23 @@ Podemos confirmar? 😄`;
                                       )}
                                     </div>
                                     <div className="flex shrink-0 items-center gap-0.5">
-                                      {apt.status === 'confirmed' && <span className="material-symbols-outlined text-[10px] text-[#B88A44]">check_circle</span>}
-                                      {apt.status === 'in_progress' && <span className="w-1.5 h-1.5 rounded-full bg-[#B88A44] animate-pulse"></span>}
-                                      {apt.status === 'pending' && <span className="text-[9px] font-black text-red-400">✕</span>}
-                                      {apt.status === 'completed' && <span className="material-symbols-outlined text-[10px] text-stone-500">task_alt</span>}
+                                      {normalizedAptStatus === 'confirmed' && <span className="material-symbols-outlined text-[10px] text-[#B88A44]">check_circle</span>}
+                                      {normalizedAptStatus === 'in_progress' && <span className="w-1.5 h-1.5 rounded-full bg-[#B88A44] animate-pulse"></span>}
+                                      {normalizedAptStatus === 'pending' && <span className="text-[9px] font-black text-red-400">✕</span>}
+                                      {isAwaitingCheckout && (
+                                        <span
+                                          className="rounded bg-amber-500 text-slate-950 px-1 py-0.5 text-[8px] font-black uppercase leading-none whitespace-nowrap"
+                                          title="Atendimento finalizado, mas a comanda ainda está aberta no caixa"
+                                        >
+                                          Aguardando Caixa
+                                        </span>
+                                      )}
+                                      {isCompletedAndSettled && (
+                                        <span className="material-symbols-outlined text-[10px] text-emerald-400" title="Concluído / Pago">task_alt</span>
+                                      )}
+                                      {normalizedAptStatus === 'completed' && !isAwaitingCheckout && !isCompletedAndSettled && (
+                                        <span className="material-symbols-outlined text-[10px] text-stone-500" title="Finalizado">task_alt</span>
+                                      )}
                                     </div>
                                   </div>
                                   <p className={`mt-0.5 truncate text-[10px] leading-tight ${atelier.clientText}`}>
@@ -3435,7 +3590,11 @@ Podemos confirmar? 😄`;
                               const startOffset = getTimelinePercent(apt.start);
                               const rawHeight = getTimelinePercent(apt.start + apt.duration) - getTimelinePercent(apt.start);
                               const height = Math.max(rawHeight, 4);
-                              const atelier = getAtelierAppointmentStyle(apt.status);
+                              const comandaStatus = comandasByAppointment[apt.id]?.status || null;
+                              const normalizedAptStatus = normalizeAppointmentStatus(apt.status);
+                              const isAwaitingCheckout = normalizedAptStatus === 'completed' && comandaStatus === 'open';
+                              const isCompletedAndSettled = normalizedAptStatus === 'completed' && (comandaStatus === 'paid' || !comandaStatus);
+                              const atelier = getAtelierAppointmentStyle(apt.status, comandaStatus);
                               const resolvedInterval = getResolvedAppointmentInterval(
                                 {
                                   serviceId: apt.serviceId,
@@ -3453,7 +3612,7 @@ Podemos confirmar? 😄`;
                                   onClick={() => handleOpenAppointmentDetails(apt)}
                                   className={`absolute left-1 right-1 rounded-xl px-2.5 py-1.5 ${atelier.card} hover:brightness-110 cursor-pointer transition-all shadow-md hover:shadow-lg flex flex-col justify-start z-20 overflow-hidden active:scale-[0.98] ${apt.isOverbooked ? 'ring-2 ring-amber-400 ring-offset-1' : ''}`}
                                   style={{ top: `${startOffset}%`, height: `${height}%` }}
-                                  title={`${getDecimalTimeLabel(apt.start)} - ${getDecimalTimeLabel(apt.start + apt.duration)} | ${apt.client} — ${apt.service} | ${apt.staffName}${apt.isOverbooked ? ' (ENCAIXE)' : ''}`}
+                                  title={`${getDecimalTimeLabel(apt.start)} - ${getDecimalTimeLabel(apt.start + apt.duration)} | ${apt.client} — ${apt.service} | ${apt.staffName}${apt.isOverbooked ? ' (ENCAIXE)' : ''}${isAwaitingCheckout ? ' (AGUARDANDO CAIXA)' : ''}`}
                                 >
                                   <div className="mb-0.5 flex min-w-0 items-center justify-between gap-1 shrink-0">
                                     <span className={`text-[9px] font-black font-mono px-1.5 py-0.5 rounded ${atelier.timeBadge} uppercase leading-none tabular-nums tracking-[-0.02em]`}>
@@ -3501,22 +3660,34 @@ Podemos confirmar? 😄`;
                                       </button>
                                     )}
                                     <div className="flex shrink-0 items-center gap-1">
-                                      {apt.status === 'confirmed' && (
+                                      {normalizedAptStatus === 'confirmed' && (
                                         <span className="material-symbols-outlined text-[12px] text-[#B88A44]" title="Confirmado">check_circle</span>
                                       )}
-                                      {apt.status === 'in_progress' && (
+                                      {normalizedAptStatus === 'in_progress' && (
                                         <span className="text-[9px] font-bold text-[#F3D9A4] flex items-center gap-1 bg-[#B88A44]/20 px-1 py-0.5 rounded border border-[#B88A44]/40">
                                           <span className="w-1.5 h-1.5 rounded-full bg-[#B88A44] animate-pulse"></span>
                                           AO VIVO
                                         </span>
                                       )}
-                                      {apt.status === 'pending' && (
+                                      {normalizedAptStatus === 'pending' && (
                                         <span className="text-[10px] font-black text-red-400 bg-red-950/60 px-1 py-0.5 rounded border border-red-800/40" title="Pagamento / Confirmação Pendente">
                                           ✕
                                         </span>
                                       )}
-                                      {apt.status === 'completed' && (
-                                        <span className="material-symbols-outlined text-[12px] text-stone-500" title="Concluído / Pago">task_alt</span>
+                                      {isAwaitingCheckout && (
+                                        <span
+                                          className="text-[9px] font-black text-amber-300 flex items-center gap-1 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/50 uppercase whitespace-nowrap"
+                                          title="Atendimento finalizado, mas a comanda ainda está aberta no caixa"
+                                        >
+                                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                                          Aguardando Caixa
+                                        </span>
+                                      )}
+                                      {isCompletedAndSettled && (
+                                        <span className="material-symbols-outlined text-[12px] text-emerald-400" title="Concluído / Pago">task_alt</span>
+                                      )}
+                                      {normalizedAptStatus === 'completed' && !isAwaitingCheckout && !isCompletedAndSettled && (
+                                        <span className="material-symbols-outlined text-[12px] text-stone-500" title="Finalizado">task_alt</span>
                                       )}
                                     </div>
                                   </div>
@@ -5114,9 +5285,15 @@ Podemos confirmar? 😄`;
               </div>
               <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 border border-slate-100 dark:border-border-dark">
                 <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">Status da Comanda</p>
-                <p className="text-sm font-black text-slate-900 dark:text-white">
-                  {selectedAppointmentDetails.hasOpenComanda ? 'Aberta' : 'Pendente'}
-                </p>
+                {(() => {
+                  const comandaDisplay = getComandaStatusDisplay(selectedAppointmentDetails.comandaStatus, isEsteticaApp);
+                  return (
+                    <p className={`text-sm font-black ${comandaDisplay.toneClassName}`}>
+                      {comandaDisplay.label}
+                      {selectedAppointmentDetails.isAwaitingCheckout ? ' — Aguardando Caixa' : ''}
+                    </p>
+                  );
+                })()}
               </div>
             </div>
 

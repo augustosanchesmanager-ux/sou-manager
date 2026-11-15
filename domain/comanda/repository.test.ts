@@ -225,4 +225,35 @@ describe('ComandaRepository — EB-2 regression guard', () => {
 
     await expect(comandaRepository.list('t1')).rejects.toThrow(/column client_name/);
   });
+
+  it('should_return_comanda_statuses_map_for_all_statuses_when_getComandaStatusesByAppointmentIds_is_called', async () => {
+    state.rows.push(
+      { id: 'c-open', appointment_id: 'a1', status: 'open', total: 80 },
+      { id: 'c-paid', appointment_id: 'a2', status: 'paid', total: 120 },
+      { id: 'c-blocked', appointment_id: 'a3', status: 'blocked', total: 95 },
+    );
+
+    const result = await comandaRepository.getComandaStatusesByAppointmentIds(['a1', 'a2', 'a3'], 't1');
+
+    const select = state.selectedColumns[0];
+    expect(select).toBe('id, appointment_id, status, total');
+    expect(select).not.toContain('client_name');
+    expect(select).not.toContain('paid_amount');
+    expect(select).not.toContain('notes');
+
+    expect(result).toEqual({
+      a1: { id: 'c-open', status: 'open', total: 80 },
+      a2: { id: 'c-paid', status: 'paid', total: 120 },
+      a3: { id: 'c-blocked', status: 'blocked', total: 95 },
+    });
+  });
+
+  it('should_return_empty_map_when_appointmentIds_is_empty', async () => {
+    state.rows.push({ id: 'c-open', appointment_id: 'a1', status: 'open', total: 80 });
+
+    const result = await comandaRepository.getComandaStatusesByAppointmentIds([], 't1');
+
+    expect(result).toEqual({});
+    expect(state.selectedColumns).toHaveLength(0);
+  });
 });
