@@ -248,21 +248,23 @@ export async function cancelPublicBooking(
   tenantIdentifier: string,
   publicToken: string
 ): Promise<{ appointment_id: string; status: 'cancelled'; cancelled_at: string; cancelled: true; idempotent: boolean }> {
+  const normalizedToken = publicToken.trim().replace(/ /g, '+');
+
   if (isMockEnabled()) {
-    return mockCancelPublicBooking(tenantIdentifier, publicToken);
+    return mockCancelPublicBooking(tenantIdentifier, normalizedToken);
   }
 
   try {
     const client = getPublicAnonymousClient();
     const { data, error } = await client.rpc(RPC_NAMES.CANCEL_BOOKING, {
       p_tenant_identifier: tenantIdentifier,
-      p_public_token: publicToken,
+      p_public_token: normalizedToken,
     });
 
     if (error) {
       if (isFunctionNotFoundError(error)) {
         console.warn('[BookingService] RPC not found, falling back to mock:', error.message);
-        return mockCancelPublicBooking(tenantIdentifier, publicToken);
+        return mockCancelPublicBooking(tenantIdentifier, normalizedToken);
       }
       const bookingError = mapPostgresError(error);
       throw bookingError;
@@ -272,7 +274,7 @@ export async function cancelPublicBooking(
   } catch (err) {
     if (allowMockFallback() && isFunctionNotFoundError(err)) {
       console.warn('[BookingService] RPC error, falling back to mock:', err);
-      return mockCancelPublicBooking(tenantIdentifier, publicToken);
+      return mockCancelPublicBooking(tenantIdentifier, normalizedToken);
     }
     throw err;
   }

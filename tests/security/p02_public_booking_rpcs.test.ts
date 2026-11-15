@@ -153,4 +153,25 @@ describe('P.02-BOOKING-PUBLIC — Contrato e Segurança das RPCs Públicas (ADR-
     expect(filterSql).toContain("FUNCTION public.create_public_booking");
     expect(filterSql).toContain("lower(st.role) IN ('barber', 'manager')");
   });
+
+  it('should_resolve_custom_slug_and_normalize_base64_tokens_in_cancel_public_booking', () => {
+    const cancelFixMigrationPath = resolve(
+      process.cwd(),
+      'supabase/migrations/20261115103000_fix_cancel_public_booking_slug_and_token_normalization.sql',
+    );
+    const cancelFixSql = readFileSync(cancelFixMigrationPath, 'utf-8');
+
+    expect(cancelFixSql).toContain('CREATE OR REPLACE FUNCTION public.cancel_public_booking(');
+    expect(cancelFixSql).toContain('SECURITY DEFINER');
+    expect(cancelFixSql).toContain("SET search_path = 'public', 'extensions'");
+    expect(cancelFixSql).toContain('public.resolve_public_booking_tenant_id(p_tenant_identifier)');
+    expect(cancelFixSql).toContain("replace(btrim(p_public_token), ' ', '+')");
+    expect(cancelFixSql).toContain("extensions.digest(v_normalized_token, 'sha256')");
+    expect(cancelFixSql).toContain("lower(coalesce(v_token.status, '')) = 'cancelled'");
+    expect(cancelFixSql).toContain('pg_advisory_xact_lock(');
+    expect(cancelFixSql).toContain('AND tenant_id = v_tenant_id');
+    expect(cancelFixSql).toContain('REVOKE EXECUTE ON FUNCTION public.cancel_public_booking(TEXT, TEXT) FROM PUBLIC;');
+    expect(cancelFixSql).toContain('REVOKE EXECUTE ON FUNCTION public.cancel_public_booking(TEXT, TEXT) FROM anon;');
+    expect(cancelFixSql).toContain('GRANT EXECUTE ON FUNCTION public.cancel_public_booking(TEXT, TEXT) TO anon, authenticated, service_role;');
+  });
 });

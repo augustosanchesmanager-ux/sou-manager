@@ -235,11 +235,12 @@ export async function mockCancelPublicBooking(
   publicToken: string
 ): Promise<{ appointment_id: string; status: 'cancelled'; cancelled_at: string; cancelled: true; idempotent: boolean }> {
   await simulateLatency();
+  const normalizedToken = publicToken.trim().replace(/ /g, '+');
 
   // Find booking by token (in real implementation, token is hashed)
   // For mock, we'll search through stored bookings
   for (const [, booking] of bookingStore) {
-    if (booking.public_token === publicToken) {
+    if (booking.public_token === normalizedToken) {
       const now = new Date();
       const formatISO = (d: Date) => d.toISOString();
 

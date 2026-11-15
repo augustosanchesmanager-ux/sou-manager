@@ -19,6 +19,7 @@ import {
   RotateCw,
 } from 'lucide-react';
 import { cancelPublicBooking } from '../hooks/bookingService';
+import { clearActiveBooking } from '../components/ActiveBookingBanner';
 
 export interface PublicBookingCancelModalProps {
   isOpen: boolean;
@@ -68,12 +69,8 @@ export const PublicBookingCancelModal: React.FC<PublicBookingCancelModalProps> =
       const result = await cancelPublicBooking(tenantSlug, publicToken);
       setIsCancelled(true);
 
-      // Clean local storage if it was saved
-      try {
-        localStorage.removeItem('smg_client_last_booking');
-      } catch {
-        // Ignore storage errors
-      }
+      // Clean local storage and notify ActiveBookingBanner
+      clearActiveBooking();
 
       onSuccess({
         appointment_id: result.appointment_id,
@@ -81,6 +78,10 @@ export const PublicBookingCancelModal: React.FC<PublicBookingCancelModalProps> =
       });
     } catch (err: unknown) {
       const error = err as { code?: string; message?: string };
+      if (error.code && ['invalid_token', 'token_revoked', 'token_expired'].includes(error.code)) {
+        clearActiveBooking();
+      }
+
       if (error.code === 'cancellation_window_closed') {
         setErrorMessage(
           `A janela de cancelamento online encerrou (limite de ${cancelWindowText} de antecedência). Entre em contato diretamente com a barbearia pelo WhatsApp para solicitar o cancelamento.`

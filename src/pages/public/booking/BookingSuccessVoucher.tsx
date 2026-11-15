@@ -49,7 +49,8 @@ export const buildStructuredWhatsAppConfirmationUrl = (
   ];
 
   if (result.public_token) {
-    lines.push(`Gerenciar/Cancelar: https://barber.soumanager.com/#/agendar/${tenant.slug}?token=${result.public_token}`);
+    const encodedToken = encodeURIComponent(result.public_token);
+    lines.push(`Gerenciar/Cancelar: https://barber.soumanager.com/#/agendar/${tenant.slug}?token=${encodedToken}`);
   }
 
   return `https://wa.me/${targetNumber}?text=${encodeURIComponent(lines.join('\n'))}`;
