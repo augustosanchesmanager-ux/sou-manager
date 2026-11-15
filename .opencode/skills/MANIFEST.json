@@ -1,0 +1,88 @@
+{
+  "schema_version": "2.0.0",
+  "governance_model": "risk-based",
+  "orchestrator": "smg-change-control",
+  "risk_tracks": {
+    "GREEN": {
+      "label": "Trilha Verde",
+      "description": "Alterações de UI (React/CSS/Tailwind), textos, refatorações isoladas no front-end sem impacto em estado global ou banco de dados.",
+      "gates": ["PR Review"]
+    },
+    "YELLOW": {
+      "label": "Trilha Amarela",
+      "description": "Novas features de front-end consumindo APIs/Edge Functions já existentes, lógicas de negócios não críticas.",
+      "gates": ["Sync Auth", "PR Review"]
+    },
+    "RED": {
+      "label": "Trilha Vermelha",
+      "description": "Migrations PostgreSQL, alterações em Supabase RPCs/RLS, autenticação, infraestrutura Vercel, ou mudanças na arquitetura multi-tenant.",
+      "gates": ["Plan Auth", "Sync Auth", "Merge Auth"]
+    }
+  },
+  "skills": [
+    {
+      "name": "smg-change-control",
+      "path": "smg-change-control/SKILL.md",
+      "role": "orchestrator",
+      "description": "O orquestrador central."
+    },
+    {
+      "name": "smg-discovery",
+      "path": "smg-discovery/SKILL.md",
+      "role": "discovery",
+      "replaces": ["smg-audit", "smg-classify"],
+      "description": "Substitui audit + classify."
+    },
+    {
+      "name": "smg-builder",
+      "path": "smg-builder/SKILL.md",
+      "role": "builder",
+      "replaces": ["smg-isolate", "smg-implement", "smg-validate", "smg-evidence"],
+      "description": "Substitui isolate + implement + validate + evidence."
+    },
+    {
+      "name": "smg-sync",
+      "path": "smg-sync/SKILL.md",
+      "role": "sync",
+      "replaces": ["smg-commit", "smg-push", "smg-pr"],
+      "description": "Substitui commit + push + pr."
+    },
+    {
+      "name": "smg-gate",
+      "path": "smg-gate/SKILL.md",
+      "role": "gate",
+      "replaces": ["smg-stop-gate"],
+      "description": "Skill de barreira inteligente."
+    },
+    {
+      "name": "smg-release",
+      "path": "smg-release/SKILL.md",
+      "role": "release",
+      "replaces": ["smg-merge", "smg-deploy", "smg-postdeploy", "smg-e2e"],
+      "description": "Substitui merge + deploy."
+    },
+    {
+      "name": "smg-documentation",
+      "path": "smg-documentation/SKILL.md",
+      "role": "documentation",
+      "replaces": [],
+      "description": "Governança documental do SMG (AUDIT, CLASSIFY, RECONCILE, ORGANIZE, UPDATE)."
+    }
+  ],
+  "removed_legacy_skills": [
+    "smg-audit",
+    "smg-classify",
+    "smg-isolate",
+    "smg-implement",
+    "smg-validate",
+    "smg-evidence",
+    "smg-commit",
+    "smg-push",
+    "smg-pr",
+    "smg-merge",
+    "smg-deploy",
+    "smg-postdeploy",
+    "smg-stop-gate",
+    "smg-e2e"
+  ]
+}
