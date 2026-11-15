@@ -3,6 +3,8 @@ import {
   getSaoPauloDateParts,
   getQuickPeriodDateRange,
   parseDateInputToUtcBoundary,
+  deriveComandaDateRange,
+  isRelativeComandaRange,
   filterComandas,
   calculateComandaKpiSummary,
   ComandaFilterTarget,
@@ -59,6 +61,46 @@ describe('comandaFilters utility suite', () => {
 
       const end = parseDateInputToUtcBoundary('2026-10-24', true);
       expect(end?.toISOString()).toBe('2026-10-24T23:59:59.999Z');
+    });
+
+    it('should_derive_today_range_from_clock_when_preset_is_today', () => {
+      // Referência fixa: 2026-11-15 12:00 em SP (15:00 UTC).
+      const now = new Date(Date.UTC(2026, 10, 15, 15, 0, 0));
+      expect(deriveComandaDateRange('today', now)).toEqual({
+        startDate: '2026-11-15',
+        endDate: '2026-11-15',
+      });
+    });
+
+    it('should_derive_relative_window_ending_today_when_preset_is_7d_or_30d', () => {
+      const now = new Date(Date.UTC(2026, 10, 15, 15, 0, 0));
+
+      expect(deriveComandaDateRange('7d', now)).toEqual({
+        startDate: '2026-11-09',
+        endDate: '2026-11-15',
+      });
+      expect(deriveComandaDateRange('30d', now)).toEqual({
+        startDate: '2026-10-17',
+        endDate: '2026-11-15',
+      });
+    });
+
+    it('should_not_derive_range_when_preset_is_custom_or_all', () => {
+      // Datas absolutas do usuário ('custom') e ausência de filtro ('all') nunca são derivadas.
+      expect(deriveComandaDateRange('custom')).toEqual({ startDate: '', endDate: '' });
+      expect(deriveComandaDateRange('all')).toEqual({ startDate: '', endDate: '' });
+      expect(isRelativeComandaRange('custom')).toBe(false);
+      expect(isRelativeComandaRange('all')).toBe(false);
+      expect(isRelativeComandaRange('today')).toBe(true);
+    });
+
+    it('should_use_sao_paulo_calendar_day_when_utc_is_already_next_day', () => {
+      // 2026-11-16 01:00 UTC = 2026-11-15 22:00 em SP: o período "hoje" ainda é 15/11.
+      const now = new Date(Date.UTC(2026, 10, 16, 1, 0, 0));
+      expect(deriveComandaDateRange('today', now)).toEqual({
+        startDate: '2026-11-15',
+        endDate: '2026-11-15',
+      });
     });
   });
 

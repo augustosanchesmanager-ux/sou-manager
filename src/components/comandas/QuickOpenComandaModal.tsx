@@ -63,6 +63,10 @@ export const QuickOpenComandaModal: React.FC<QuickOpenComandaModalProps> = ({
   onRedirectToExistingComanda,
   orderLabel = 'Comanda',
 }) => {
+  // Título alinhado ao botão que abre este modal ("Nova Comanda").
+  // 'Atendimento' é masculino; 'Comanda' e 'Ordem' são femininos.
+  const newOrderTitle = orderLabel === 'Atendimento' ? `Novo ${orderLabel}` : `Nova ${orderLabel}`;
+
   // Estado de seleção do cliente
   const [selectedClient, setSelectedClient] = useState<QuickOpenClient | null>(null);
   const [isFinalConsumer, setIsFinalConsumer] = useState<boolean>(false);
@@ -213,7 +217,7 @@ export const QuickOpenComandaModal: React.FC<QuickOpenComandaModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Abertura Rápida de ${orderLabel}`}
+      title={newOrderTitle}
       maxWidth="lg"
     >
       <div className="space-y-4">

@@ -150,6 +150,44 @@ export function getQuickPeriodDateRange(preset: QuickPeriodPreset, now: Date = n
 }
 
 /**
+ * Presets de período usados pela tela de Comandas. Estende `QuickPeriodPreset`
+ * com as janelas móveis de 7 e 30 dias.
+ */
+export type ComandaQuickRange = QuickPeriodPreset | '7d' | '30d';
+
+/**
+ * `custom` guarda datas absolutas escolhidas pelo usuário; `all` não filtra.
+ * Todo o resto é derivado do relógio.
+ */
+export function isRelativeComandaRange(range: ComandaQuickRange): boolean {
+  return range !== 'custom' && range !== 'all';
+}
+
+/**
+ * Deriva o intervalo absoluto 'YYYY-MM-DD' de um preset.
+ *
+ * Fonte da verdade é o relógio (fuso America/Sao_Paulo), nunca cache do usuário:
+ * um preset relativo carregado de um dia anterior precisa assumir o dia atual.
+ */
+export function deriveComandaDateRange(range: ComandaQuickRange, now: Date = new Date()): DateRange {
+  if (!isRelativeComandaRange(range)) return { startDate: '', endDate: '' };
+
+  if (range === '7d' || range === '30d') {
+    const spNow = getSaoPauloDateParts(now);
+    const todayDate = new Date(Date.UTC(spNow.year, spNow.month - 1, spNow.day));
+    const start = new Date(todayDate);
+    start.setUTCDate(start.getUTCDate() - (range === '7d' ? 6 : 29));
+
+    return {
+      startDate: formatYmd(start.getUTCFullYear(), start.getUTCMonth() + 1, start.getUTCDate()),
+      endDate: formatYmd(spNow.year, spNow.month, spNow.day),
+    };
+  }
+
+  return getQuickPeriodDateRange(range, now);
+}
+
+/**
  * Converte data 'YYYY-MM-DD' para objeto Date ajustado para 00:00:00 ou 23:59:59 em UTC.
  */
 export function parseDateInputToUtcBoundary(dateStr: string, isEndOfDay: boolean = false): Date | null {
