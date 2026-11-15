@@ -6,7 +6,7 @@
 
 import type React from 'react';
 import { useCallback } from 'react';
-import { Calendar, MessageCircle, CheckCircle, Clock, MapPin, User, Scissors, RotateCw, XCircle } from 'lucide-react';
+import { Calendar, MessageCircle, CheckCircle, Clock, MapPin, User, Scissors, RotateCw, XCircle, Star } from 'lucide-react';
 import type { CreatePublicBookingResult, PublicTenantProfile } from './hooks/types';
 
 interface BookingSuccessVoucherProps {
@@ -261,6 +261,19 @@ const BookingSuccessVoucher: React.FC<BookingSuccessVoucherProps> = ({
           <MessageCircle className="w-4 h-4" />
           Reenviar confirmação no WhatsApp
         </a>
+
+        {/* Avaliação de Atendimento */}
+        {tenant.slug && (
+          <a
+            href={`/#/feedback/${tenant.slug}${result.staff?.id ? `?staff=${result.staff.id}` : ''}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-3 px-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 transition-all text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+            Avaliar meu atendimento
+          </a>
+        )}
 
         {/* Secondary: Google Calendar */}
         <a

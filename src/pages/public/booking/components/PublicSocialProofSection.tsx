@@ -8,11 +8,13 @@ import {
 
 interface PublicSocialProofSectionProps {
   tenantId: string;
+  tenantSlug?: string;
   primaryColor?: string;
 }
 
 export const PublicSocialProofSection: React.FC<PublicSocialProofSectionProps> = ({
   tenantId,
+  tenantSlug,
   primaryColor = '#B88A44',
 }) => {
   const [reviews, setReviews] = useState<PublicCachedReview[]>([]);
@@ -31,7 +33,43 @@ export const PublicSocialProofSection: React.FC<PublicSocialProofSectionProps> =
     };
   }, [tenantId]);
 
-  if (reviews.length === 0) return null;
+  const feedbackHref = tenantSlug ? `/#/feedback/${tenantSlug}` : undefined;
+
+  // Estado vazio: convite direto para o cliente avaliar
+  if (reviews.length === 0) {
+    if (!feedbackHref) return null;
+
+    return (
+      <section
+        className="mt-6 pt-5 border-t border-neutral-800/80 space-y-3"
+        aria-label="Avalie sua experiência"
+      >
+        <div className="p-4 rounded-2xl bg-neutral-950/80 border border-neutral-800/90 text-center space-y-2.5">
+          <div className="flex items-center justify-center gap-1 text-amber-400">
+            <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+            <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+            <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+            <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+            <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+          </div>
+          <div>
+            <h3 className="text-sm font-extrabold text-white">Sua opinião vale muito</h3>
+            <p className="text-xs text-neutral-400 mt-0.5">
+              Já foi atendido conosco? Conte como foi sua experiência!
+            </p>
+          </div>
+          <a
+            href={feedbackHref}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95"
+            style={{ backgroundColor: primaryColor, color: '#15130F' }}
+          >
+            <Star className="w-3.5 h-3.5 fill-current" />
+            Deixar uma avaliação
+          </a>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section
