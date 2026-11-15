@@ -3,7 +3,6 @@ import { useLocation, Link, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   CalendarDays,
-  FileText,
   Users,
   Package,
   CircleDollarSign,
@@ -32,7 +31,6 @@ import {
   Truck,
   ShoppingCart,
   Wallet,
-  ArrowDownUp,
   ArrowRightLeft,
   Lock,
   FileSpreadsheet,
@@ -66,7 +64,7 @@ interface SidebarProps {
   onOpenNotifications?: () => void;
 }
 
-interface SubMenuItem {
+export interface SubMenuItem {
   name: string;
   icon: LucideIcon;
   path?: string;
@@ -76,9 +74,10 @@ interface SubMenuItem {
   module?: AppModuleSlug;
   hideFromEsteticaMenu?: boolean;
   operationalAllowed?: boolean;
+  superAdminOnly?: boolean;
 }
 
-interface MenuEntry {
+export interface MenuEntry {
   name: string;
   icon: LucideIcon;
   type: 'item' | 'group';
@@ -87,6 +86,210 @@ interface MenuEntry {
   operationalAllowed?: boolean;
   items?: SubMenuItem[];
 }
+
+export const isSidebarPathActive = (currentPathname: string, path?: string): boolean => {
+  if (!path) return false;
+  const cleanTarget = path.split('?')[0];
+  if (!cleanTarget || cleanTarget === '/') {
+    return currentPathname === cleanTarget;
+  }
+  return currentPathname === cleanTarget || currentPathname.startsWith(`${cleanTarget}/`);
+};
+
+export interface BuildSidebarMenuParams {
+  isEsteticaApp: boolean;
+  labels: Pick<ReturnType<typeof getBusinessLabels>, 'orderPlural' | 'checkout' | 'clientPlural' | 'servicePlural'>;
+  unreadNotificationsCount: number;
+  releaseNotesUnseen: boolean;
+  onClose: () => void;
+  onOpenNotifications?: () => void;
+  onOpenReleaseNotes?: () => void;
+}
+
+export const buildRawSidebarMenu = ({
+  isEsteticaApp,
+  labels,
+  unreadNotificationsCount,
+  releaseNotesUnseen,
+  onClose,
+  onOpenNotifications,
+  onOpenReleaseNotes,
+}: BuildSidebarMenuParams): MenuEntry[] => [
+  {
+    name: 'Principal',
+    icon: LayoutDashboard,
+    type: 'group',
+    operationalAllowed: true,
+    items: [
+      { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', module: 'dashboard', operationalAllowed: true },
+      { name: 'Agenda', icon: CalendarDays, path: '/schedule', module: 'schedule', operationalAllowed: true },
+      { name: labels.orderPlural, icon: Receipt, path: '/comandas', module: 'comandas', operationalAllowed: true },
+      {
+        name: isEsteticaApp ? labels.checkout : 'Checkout / PDV',
+        icon: ShoppingBag,
+        path: '/checkout?mode=pdv',
+        module: 'checkout',
+        hideFromEsteticaMenu: true,
+        operationalAllowed: true,
+      },
+      {
+        name: 'Monitor do Dia',
+        icon: Activity,
+        path: '/operations',
+        module: 'dashboard',
+        hideFromEsteticaMenu: true,
+      },
+    ],
+  },
+  {
+    name: 'Club dos Chefes',
+    icon: Crown,
+    type: 'group',
+    items: [
+      { name: 'Assinaturas', icon: Crown, path: '/chef-club-subscriptions', module: 'chef_club' },
+      { name: 'Cobranças do Clube', icon: Receipt, path: '/chef-club-receivables', module: 'chef_club' },
+      { name: 'Planos do Clube', icon: Sparkles, path: '/chef-club-plans', module: 'chef_club' },
+    ],
+  },
+  {
+    name: 'Cadastros',
+    icon: Users,
+    type: 'group',
+    items: [
+      { name: labels.clientPlural, icon: Users, path: '/clients', module: 'clients' },
+      { name: 'Profissionais', icon: UserCheck, path: '/team', module: 'team' },
+      { name: labels.servicePlural, icon: Scissors, path: '/services', module: 'services' },
+      { name: 'Promoções', icon: Gift, path: '/promotions', module: 'products', hideFromEsteticaMenu: true },
+      { name: 'Motor de Retorno', icon: BrainCircuit, path: '/smart-return', module: 'clients', hideFromEsteticaMenu: true },
+    ],
+  },
+  {
+    name: 'Estoque & Compras',
+    icon: Package,
+    type: 'group',
+    items: [
+      { name: 'Produtos e Estoque', icon: Package, path: '/products', module: 'products' },
+      { name: 'Categorias', icon: Tags, path: '/categories', module: 'products', hideFromEsteticaMenu: true },
+      { name: 'Pedidos de Compra', icon: ShoppingCart, path: '/orders', module: 'orders', hideFromEsteticaMenu: true },
+      { name: 'Fornecedores', icon: Truck, path: '/suppliers', module: 'suppliers', hideFromEsteticaMenu: true },
+    ],
+  },
+  {
+    name: 'Financeiro',
+    icon: CircleDollarSign,
+    type: 'group',
+    items: [
+      { name: 'Fluxo de Caixa', icon: ArrowRightLeft, path: '/cashflow', module: 'cashflow', hideFromEsteticaMenu: true },
+      { name: 'Fechamento de Caixa', icon: Lock, path: '/cash-closing', module: 'financial', hideFromEsteticaMenu: true },
+      { name: 'Conciliação Bancária', icon: Building2, path: '/bank-reconciliation', module: 'financial', hideFromEsteticaMenu: true },
+      { name: 'Contas a Receber', icon: FileSpreadsheet, path: '/accounts-receivable', module: 'financial', hideFromEsteticaMenu: true },
+      { name: 'Contas a Pagar', icon: CreditCard, path: '/expenses', module: 'financial', hideFromEsteticaMenu: true },
+      { name: isEsteticaApp ? 'Repasses' : 'Comissões', icon: Percent, path: '/commissions', module: 'commissions' },
+      { name: 'Folha de Pagamento', icon: Wallet, path: '/payroll', module: 'financial', hideFromEsteticaMenu: true },
+      { name: 'Maquininhas e Taxas', icon: CreditCard, path: '/payment-terminals', module: 'settings', hideFromEsteticaMenu: true },
+      { name: 'Notas Fiscais (NFS-e)', icon: Receipt, path: '/fiscal', module: 'financial', hideFromEsteticaMenu: true },
+    ],
+  },
+  {
+    name: 'Relatórios',
+    icon: BarChart3,
+    type: 'group',
+    items: [
+      { name: 'Vendas e Faturamento', icon: BarChart3, path: '/reports', module: 'reports', hideFromEsteticaMenu: true },
+      { name: 'Performance da Equipe', icon: TrendingUp, path: '/performance', module: 'reports', hideFromEsteticaMenu: true },
+      { name: 'Resumo Diário', icon: FileSpreadsheet, path: '/daily-summary', module: 'reports', hideFromEsteticaMenu: true },
+      { name: 'Inteligência (BI)', icon: PieChart, path: '/bi', module: 'reports', hideFromEsteticaMenu: true },
+      { name: 'Visão Estratégica', icon: Activity, path: '/strategic-dashboard', module: 'reports', hideFromEsteticaMenu: true },
+    ],
+  },
+  {
+    name: 'Configurações',
+    icon: Settings,
+    type: 'group',
+    items: [
+      { name: 'Dados da Unidade', icon: Settings, path: '/settings', module: 'settings' },
+      { name: 'Agendamento Online', icon: Globe, path: '/booking-settings', module: 'portal' },
+      { name: 'Central de Automações', icon: Bot, path: '/automations', module: 'settings' },
+      { name: 'Permissões e Perfis', icon: ShieldCheck, path: '/access-control' },
+      { name: 'Sincronização Offline', icon: RefreshCw, path: '/offline-sync', operationalAllowed: true },
+    ],
+  },
+  {
+    name: 'Sistema',
+    icon: MonitorDot,
+    type: 'group',
+    operationalAllowed: true,
+    items: [
+      {
+        name: 'Avisos',
+        icon: Bell,
+        badge: unreadNotificationsCount > 0 ? unreadNotificationsCount : undefined,
+        onClick: () => {
+          onClose();
+          onOpenNotifications?.();
+        },
+        operationalAllowed: true,
+      },
+      {
+        name: 'Novidades',
+        icon: Sparkles,
+        dot: releaseNotesUnseen,
+        onClick: () => {
+          onClose();
+          onOpenReleaseNotes?.();
+        },
+        operationalAllowed: true,
+      },
+      { name: 'Observabilidade', icon: Eye, path: '/observability' },
+      { name: 'Super Admin', icon: ShieldCheck, path: '/superadmin', superAdminOnly: true },
+      { name: 'Event Versioning', icon: GitBranch, path: '/event-versioning', superAdminOnly: true },
+    ],
+  },
+];
+
+export interface FilterSidebarMenuParams {
+  rawMenuStructure: MenuEntry[];
+  isEsteticaApp: boolean;
+  isOperationalOnly: boolean;
+  canAccessSuperAdmin: boolean;
+  isModuleAllowed: (moduleName?: AppModuleSlug) => boolean;
+}
+
+/**
+ * Filters sidebar groups and items according to tenant app, licensing, and user role.
+ */
+export const filterSidebarMenu = ({
+  rawMenuStructure,
+  isEsteticaApp,
+  isOperationalOnly,
+  canAccessSuperAdmin,
+  isModuleAllowed,
+}: FilterSidebarMenuParams): MenuEntry[] => {
+  const isSubItemVisible = (item: SubMenuItem) => {
+    if (isEsteticaApp && item.hideFromEsteticaMenu) return false;
+    if (item.superAdminOnly && !canAccessSuperAdmin) return false;
+    if (isOperationalOnly && !item.operationalAllowed) return false;
+    return isModuleAllowed(item.module);
+  };
+
+  return rawMenuStructure
+    .map((entry) => {
+      if (entry.type === 'item') {
+        if (isOperationalOnly && !entry.operationalAllowed) return null;
+        if (!isModuleAllowed(entry.module)) return null;
+        return entry;
+      }
+
+      const visibleSubItems = (entry.items || []).filter(isSubItemVisible);
+      if (visibleSubItems.length === 0) return null;
+
+      return {
+        ...entry,
+        items: visibleSubItems,
+      };
+    })
+    .filter(Boolean) as MenuEntry[];
+};
 
 const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
@@ -117,20 +320,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
-    Principal: true,
-    Sistema: false,
-  });
-
-  const isSupportRoute = location.pathname === '/support';
-  const [isHelpMenuOpen, setIsHelpMenuOpen] = useState(isSupportRoute);
-
-  useEffect(() => {
-    if (isSupportRoute) {
-      setIsHelpMenuOpen(true);
-    }
-  }, [isSupportRoute]);
-
   const isOperationalOnly = accessRole === 'barber' || accessRole === 'receptionist';
 
   const isModuleAllowed = (moduleName?: AppModuleSlug) => {
@@ -141,175 +330,48 @@ const Sidebar: React.FC<SidebarProps> = ({
     return feature ? can(feature) : true;
   };
 
-  const isSubItemVisible = (item: SubMenuItem) => {
-    if (isEsteticaApp && item.hideFromEsteticaMenu) return false;
-    if (isOperationalOnly && !item.operationalAllowed) return false;
-    return isModuleAllowed(item.module);
-  };
-
-  const rawMenuStructure: MenuEntry[] = [
-    {
-      name: 'Principal',
-      icon: LayoutDashboard,
-      type: 'group',
-      operationalAllowed: true,
-      items: [
-        { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', module: 'dashboard', operationalAllowed: true },
-        { name: isEsteticaApp ? 'Agenda' : 'Agenda', icon: CalendarDays, path: '/schedule', module: 'schedule', operationalAllowed: true },
-        { name: labels.orderPlural, icon: Receipt, path: '/comandas', module: 'comandas', operationalAllowed: true },
-        {
-          name: isEsteticaApp ? labels.checkout : 'Checkout / PDV',
-          icon: ShoppingBag,
-          path: '/checkout?mode=pdv',
-          module: 'checkout',
-          hideFromEsteticaMenu: true,
-          operationalAllowed: true,
-        },
-        {
-          name: 'Cockpit de Operações',
-          icon: Activity,
-          path: '/operations',
-          module: 'dashboard',
-          hideFromEsteticaMenu: true,
-        },
-      ],
-    },
-    {
-      name: 'Cadastros',
-      icon: FileText,
-      type: 'group',
-      items: [
-        { name: labels.clientPlural, icon: Users, path: '/clients', module: 'clients' },
-        { name: isEsteticaApp ? 'Profissionais' : 'Profissionais', icon: UserCheck, path: '/team', module: 'team' },
-        { name: labels.servicePlural, icon: Scissors, path: '/services', module: 'services' },
-        { name: 'Produtos', icon: Package, path: '/products', module: 'products' },
-        { name: 'Categorias', icon: Tags, path: '/categories', module: 'products', hideFromEsteticaMenu: true },
-        { name: 'Fornecedores', icon: Truck, path: '/suppliers', module: 'suppliers', hideFromEsteticaMenu: true },
-        { name: 'Promoções', icon: Gift, path: '/promotions', module: 'products', hideFromEsteticaMenu: true },
-        { name: 'Maquininhas de Cartão', icon: CreditCard, path: '/payment-terminals', module: 'settings', hideFromEsteticaMenu: true },
-      ],
-    },
-    {
-      name: 'Gestão',
-      icon: Users,
-      type: 'group',
-      items: [
-        { name: 'Assinaturas (Clube)', icon: Crown, path: '/chef-club-subscriptions', module: 'chef_club' },
-        { name: 'Planos do Clube', icon: Sparkles, path: '/chef-club-plans', module: 'chef_club' },
-        { name: isEsteticaApp ? 'Repasses' : 'Comissões', icon: Percent, path: '/commissions', module: 'commissions' },
-        { name: 'Performance', icon: TrendingUp, path: '/performance', module: 'reports', hideFromEsteticaMenu: true },
-        { name: 'Motor de Retorno', icon: BrainCircuit, path: '/smart-return', module: 'clients', hideFromEsteticaMenu: true },
-      ],
-    },
-    {
-      name: 'Estoque',
-      icon: Package,
-      type: 'group',
-      items: [
-        { name: 'Controle de Estoque', icon: Package, path: '/products', module: 'products' },
-        { name: 'Pedidos de Compra', icon: ShoppingCart, path: '/orders', module: 'orders', hideFromEsteticaMenu: true },
-      ],
-    },
-    {
-      name: 'Financeiro',
-      icon: CircleDollarSign,
-      type: 'group',
-      items: [
-        { name: 'Fluxo de Caixa', icon: ArrowRightLeft, path: '/cashflow', module: 'cashflow', hideFromEsteticaMenu: true },
-        { name: 'Conciliação Bancária', icon: Building2, path: '/bank-reconciliation', module: 'financial', hideFromEsteticaMenu: true },
-        { name: 'Fechamento de Caixa', icon: Lock, path: '/cash-closing', module: 'financial', hideFromEsteticaMenu: true },
-        { name: 'Contas a Receber', icon: FileSpreadsheet, path: '/accounts-receivable', module: 'financial', hideFromEsteticaMenu: true },
-        { name: 'Contas a Pagar', icon: CreditCard, path: '/expenses', module: 'financial', hideFromEsteticaMenu: true },
-        { name: 'Folha de Pagamento', icon: Users, path: '/payroll', module: 'financial', hideFromEsteticaMenu: true },
-        { name: 'Notas Fiscais (NFS-e)', icon: Receipt, path: '/fiscal', module: 'financial', hideFromEsteticaMenu: true },
-      ],
-    },
-    {
-      name: 'Relatórios',
-      icon: BarChart3,
-      type: 'group',
-      items: [
-        { name: 'Vendas e Faturamento', icon: BarChart3, path: '/reports', module: 'reports', hideFromEsteticaMenu: true },
-        { name: 'Resumo Diário & Automações', icon: FileSpreadsheet, path: '/daily-summary', module: 'reports', hideFromEsteticaMenu: true },
-        { name: 'Inteligência (BI)', icon: PieChart, path: '/bi', module: 'reports', hideFromEsteticaMenu: true },
-        { name: 'Visão Estratégica', icon: Activity, path: '/strategic-dashboard', module: 'reports', hideFromEsteticaMenu: true },
-      ],
-    },
-    {
-      name: 'Configurações',
-      icon: Settings,
-      type: 'group',
-      items: [
-        { name: 'Geral da Unidade', icon: Settings, path: '/settings', module: 'settings' },
-        { name: 'Central de Automações', icon: Bot, path: '/automations', module: 'settings' },
-        { name: 'Agendamento Online', icon: Globe, path: '/booking-settings', module: 'portal' },
-        { name: 'Permissões e Perfis', icon: ShieldCheck, path: '/access-control' },
-        { name: 'Sincronização Offline', icon: RefreshCw, path: '/offline-sync', operationalAllowed: true },
-      ],
-    },
-    {
-      name: 'Sistema',
-      icon: MonitorDot,
-      type: 'group',
-      operationalAllowed: true,
-      items: [
-        {
-          name: 'Avisos',
-          icon: Bell,
-          badge: unreadNotificationsCount > 0 ? unreadNotificationsCount : undefined,
-          onClick: () => {
-            onClose();
-            onOpenNotifications?.();
-          },
-          operationalAllowed: true,
-        },
-        {
-          name: 'Novidades',
-          icon: Sparkles,
-          dot: releaseNotesUnseen,
-          onClick: () => {
-            onClose();
-            onOpenReleaseNotes?.();
-          },
-          operationalAllowed: true,
-        },
-        ...(!isOperationalOnly
-          ? [{ name: 'Observabilidade', icon: Eye, path: '/observability' } as SubMenuItem]
-          : []),
-        ...(canAccessSuperAdmin
-          ? [
-              { name: 'Super Admin', icon: ShieldCheck, path: '/superadmin' } as SubMenuItem,
-              { name: 'Event Versioning', icon: GitBranch, path: '/event-versioning' } as SubMenuItem,
-            ]
-          : []),
-      ],
-    },
-  ];
+  const rawMenuStructure = buildRawSidebarMenu({
+    isEsteticaApp,
+    labels,
+    unreadNotificationsCount,
+    releaseNotesUnseen,
+    onClose,
+    onOpenNotifications,
+    onOpenReleaseNotes,
+  });
 
   // Filter menu structure according to role and active tenant features
-  const menuStructure = rawMenuStructure
-    .map((entry) => {
-      if (entry.type === 'item') {
-        if (isOperationalOnly && !entry.operationalAllowed) return null;
-        if (!isModuleAllowed(entry.module)) return null;
-        return entry;
+  const menuStructure = filterSidebarMenu({
+    rawMenuStructure,
+    isEsteticaApp,
+    isOperationalOnly,
+    canAccessSuperAdmin,
+    isModuleAllowed,
+  });
+
+  const isPathActive = (path?: string) => isSidebarPathActive(location.pathname, path);
+
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {
+      Principal: true,
+      Sistema: false,
+    };
+    menuStructure.forEach((entry) => {
+      if (entry.type === 'group' && entry.items?.some((sub) => isSidebarPathActive(location.pathname, sub.path))) {
+        initial[entry.name] = true;
       }
+    });
+    return initial;
+  });
 
-      const visibleSubItems = (entry.items || []).filter(isSubItemVisible);
-      if (visibleSubItems.length === 0) return null;
+  const isSupportRoute = location.pathname === '/support';
+  const [isHelpMenuOpen, setIsHelpMenuOpen] = useState(isSupportRoute);
 
-      return {
-        ...entry,
-        items: visibleSubItems,
-      };
-    })
-    .filter(Boolean) as MenuEntry[];
-
-  const isPathActive = (path?: string) => {
-    if (!path) return false;
-    const cleanTarget = path.split('?')[0];
-    return location.pathname === cleanTarget;
-  };
+  useEffect(() => {
+    if (isSupportRoute) {
+      setIsHelpMenuOpen(true);
+    }
+  }, [isSupportRoute]);
 
   // Auto-expand group containing current active route
   useEffect(() => {

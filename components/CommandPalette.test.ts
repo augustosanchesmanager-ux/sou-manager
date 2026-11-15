@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { CommandItem } from './CommandPalette';
+import { buildCommandPaletteItems, type CommandItem } from './CommandPalette';
 
 describe('CommandPalette Logic & Search Filtering', () => {
   const sampleCommands: CommandItem[] = [
@@ -90,5 +90,18 @@ describe('CommandPalette Logic & Search Filtering', () => {
   it('should return empty array for non-matching search', () => {
     const results = filterCommands(sampleCommands, 'xyzinexistente999');
     expect(results).toHaveLength(0);
+  });
+
+  it('should expose valid schedule and club routes in buildCommandPaletteItems', () => {
+    const items = buildCommandPaletteItems('barbearia-modelo');
+    const paths = items.map((item) => item.path);
+
+    expect(paths).toContain('/schedule');
+    expect(paths).toContain('/chef-club-subscriptions');
+    expect(paths).toContain('/chef-club-receivables');
+    expect(paths).toContain('/chef-club-plans');
+    expect(paths).toContain('/agendar/barbearia-modelo');
+    expect(paths).not.toContain('/agenda');
+    expect(paths).not.toContain('/chef-club');
   });
 });
