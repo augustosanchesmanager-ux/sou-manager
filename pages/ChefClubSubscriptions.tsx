@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import Toast from '../components/Toast';
+import CancelSubscriptionModal, { type CancelSubscriptionModalConfirmPayload } from '../components/club/CancelSubscriptionModal';
 import { useAuth } from '../context/AuthContext';
 import { useMembershipOverview } from '../src/hooks/useMembershipOverview';
 import { formatCurrency } from '../shared/format/currency';
@@ -11,7 +12,7 @@ import {
     subscriptionActionLabels,
     normalizePlanServiceCredits,
 } from '../domain/chefClub';
-import { updateSubscriptionStatus } from '../application/chefClub';
+import { updateSubscriptionStatus, cancelSubscriptionWithReceivables } from '../application/chefClub';
 
 const formatDate = (value?: string | null) => {
     if (!value) return 'Sem data';
@@ -28,6 +29,8 @@ const ChefClubSubscriptions: React.FC = () => {
     const [statusFilter, setStatusFilter] = useState<SubscriptionStatus | 'all'>(initialStatus);
     const [search, setSearch] = useState('');
     const [updatingId, setUpdatingId] = useState<string | null>(null);
+    const [cancelTarget, setCancelTarget] = useState<{ id: string; clientName?: string; planName?: string } | null>(null);
+    const [cancellingModal, setCancellingModal] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     const { data, reload } = useMembershipOverview({
@@ -107,7 +110,7 @@ const ChefClubSubscriptions: React.FC = () => {
         window.open(`https://wa.me/55${cleanPhone}?text=${message}`, '_blank');
     };
 
-    const handleStatusChange = async (subscriptionId: string, newStatus: 'paused' | 'canceled' | 'active') => {
+    const handleStatusChange = async (subscriptionId: string, newStatus: 'paused' | 'active') => {
         if (!tenantId) {
             setToast({ message: 'Não foi possível identificar a barbearia desta sessão.', type: 'error' });
             return;
@@ -125,6 +128,38 @@ const ChefClubSubscriptions: React.FC = () => {
             setToast({ message: `Erro ao atualizar assinatura: ${err?.message}`, type: 'error' });
         } finally {
             setUpdatingId(null);
+        }
+    };
+
+    const handleCancelConfirm = async (payload: CancelSubscriptionModalConfirmPayload) => {
+        if (!tenantId || !cancelTarget) {
+            setToast({ message: 'Não foi possível identificar a barbearia desta sessão.', type: 'error' });
+            return;
+        }
+
+        setCancellingModal(true);
+
+        try {
+            const result = await cancelSubscriptionWithReceivables({
+                subscriptionId: cancelTarget.id,
+                tenantId,
+                cancelReceivables: payload.cancelReceivables,
+                cancelReason: payload.cancelReason,
+                cancelObservation: payload.cancelObservation ?? null,
+            });
+
+            const messages = ['Assinatura cancelada'];
+            if (result.receivablesCancelled > 0) {
+                messages.push(`${result.receivablesCancelled} recebível(is) cancelado(s)`);
+            }
+
+            setToast({ message: `${messages.join(' • ')}.`, type: 'success' });
+            setCancelTarget(null);
+            reload();
+        } catch (err: any) {
+            setToast({ message: err?.message || 'Erro ao cancelar assinatura.', type: 'error' });
+        } finally {
+            setCancellingModal(false);
         }
     };
 
@@ -450,14 +485,21 @@ const ChefClubSubscriptions: React.FC = () => {
                                                     </button>
                                                 )}
 
-                                                {(subscription.status === 'active' || subscription.status === 'paused') && (
+                                                {subscription.status !== 'canceled' && (
                                                     <button
-                                                        onClick={() => handleStatusChange(subscription.id, 'canceled')}
-                                                        disabled={isUpdating}
+                                                        type="button"
+                                                        onClick={() =>
+                                                            setCancelTarget({
+                                                                id: subscription.id,
+                                                                clientName: subscription.client.name,
+                                                                planName: subscription.plan.name,
+                                                            })
+                                                        }
+                                                        disabled={isUpdating || cancellingModal}
                                                         className="inline-flex size-9 items-center justify-center rounded-lg border border-red-200 text-red-600 transition-colors hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-500/20 dark:text-red-300 dark:hover:bg-red-500/10"
                                                         title="Cancelar assinatura"
                                                     >
-                                                        <span className="material-symbols-outlined text-base">{isUpdating ? 'progress_activity' : 'cancel'}</span>
+                                                        <span className="material-symbols-outlined text-base">cancel</span>
                                                     </button>
                                                 )}
                                             </div>
@@ -501,6 +543,15 @@ const ChefClubSubscriptions: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            <CancelSubscriptionModal
+                isOpen={Boolean(cancelTarget)}
+                onClose={() => (cancellingModal ? undefined : setCancelTarget(null))}
+                onConfirm={handleCancelConfirm}
+                saving={cancellingModal}
+                clientName={cancelTarget?.clientName}
+                planName={cancelTarget?.planName}
+            />
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </div>

@@ -50,8 +50,11 @@ export {
     payReceivable,
     settleReceivableWithDetails,
     refreshReceivableStatuses,
+    cancelReceivablesBySubscription,
+    cancelSingleReceivable,
     loadReceivablePage,
     canPayReceivable,
+    canCancelReceivable,
     getDisplayStatus,
     filterReceivables,
     computeReceivableTotals,
@@ -62,7 +65,11 @@ export type {
     ReceivableRecord,
     ClientRecord,
     PlanRecord,
+    SubscriptionSummaryRecord,
     ReceivableTotals,
+    CancelReceivablesParams,
+    CancelSingleReceivableParams,
+    CancelSingleReceivableResult,
 } from './chefClub/receivables';
 
 export {

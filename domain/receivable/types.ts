@@ -21,6 +21,9 @@ export interface CustomerSubscriptionReceivable {
   paid_at: string | null;
   transaction_id: string | null;
   notes: string | null;
+  cancel_reason?: string | null;
+  cancel_observation?: string | null;
+  cancelled_at?: string | null;
   created_at: string;
 }
 

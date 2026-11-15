@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getScopedClient } from '../../services/supabaseClient';
+import { getScopedClient, getSharedClient } from '../../services/supabaseClient';
 import { formatCurrency } from '../../shared/format/currency';
 
 interface ReceivableItem {
@@ -51,76 +51,95 @@ export const ClubReceivablesWidget: React.FC = () => {
       setLoading(true);
       try {
         const today = new Date().toISOString().split('T')[0];
-        
-        // Fetch subscriptions, plans, and credits
-        const [subsRes, plansRes, creditsRes] = await Promise.all([
+        const sharedSupabase = getSharedClient();
+
+        // Fetch subscriptions, plans, real receivables, and client names
+        const [subsRes, plansRes, receivablesRes, clientsRes] = await Promise.all([
           barberSupabase
             .from('customer_subscriptions')
-            .select('id, client_id, plan_id, status, next_billing_date, created_at, canceled_at')
+            .select('id, client_id, plan_id, status')
             .eq('tenant_id', tenantId),
           barberSupabase
             .from('customer_plans')
             .select('id, name, monthly_price')
-            .eq('tenant_id', tenantId)
-            .eq('active', true),
+            .eq('tenant_id', tenantId),
           barberSupabase
-            .from('customer_credits')
-            .select('subscription_id, available_credits, used_credits')
+            .from('customer_subscription_receivables')
+            .select('id, customer_id, subscription_id, plan_id, amount, due_date, status')
+            .eq('tenant_id', tenantId)
+            .in('status', ['pending', 'overdue'])
+            .order('due_date', { ascending: true }),
+          sharedSupabase
+            .from('clients')
+            .select('id, name, phone')
             .eq('tenant_id', tenantId),
         ]);
 
-        const activeSubs = (subsRes.data || []).filter(s => s.status === 'active');
-        const planMap = new Map((plansRes.data || []).map(p => [p.id, { name: p.name, price: Number(p.monthly_price) || 0 }]));
-        
-        // Calculate MRR
+        const allSubs = subsRes.data || [];
+        const activeSubs = allSubs.filter((s: any) => s.status === 'active');
+        const subStatusById = new Map<string, string>(allSubs.map((s: any) => [s.id, s.status]));
+        const planMap = new Map<string, { name: string; price: number }>(
+          (plansRes.data || []).map((p: any) => [p.id, { name: p.name, price: Number(p.monthly_price) || 0 }]),
+        );
+        const clientMap = new Map<string, { name: string; phone: string }>(
+          (clientsRes.data || []).map((c: any) => [c.id, { name: c.name || 'Cliente', phone: c.phone || '' }]),
+        );
+
+        // Calculate MRR from active subscriptions
         let mrr = 0;
-        activeSubs.forEach(sub => {
+        activeSubs.forEach((sub: any) => {
           const plan = planMap.get(sub.plan_id);
           if (plan) mrr += plan.price;
         });
 
-        // Calculate overdue and pending
+        // Calculate overdue and pending from actual receivables (excluding canceled subscriptions)
         let totalOverdue = 0;
         let totalPending = 0;
         let countOverdue = 0;
         let countPending = 0;
-        
         const items: ReceivableItem[] = [];
-        
-        activeSubs.forEach(sub => {
-          const plan = planMap.get(sub.plan_id);
-          if (!plan) return;
-          
-          const dueDate = sub.next_billing_date;
-          const isOverdue = dueDate < today;
-          
+        const todayObj = new Date(`${today}T00:00:00Z`);
+
+        (receivablesRes.data || []).forEach((rec: any) => {
+          if (subStatusById.get(rec.subscription_id) === 'canceled') return;
+
+          const dueDate = String(rec.due_date || '').slice(0, 10);
+          const isOverdue = rec.status === 'overdue' || (rec.status === 'pending' && dueDate < today);
+          const amount = Number(rec.amount) || 0;
+
           if (isOverdue) {
-            totalOverdue += plan.price;
+            totalOverdue += amount;
             countOverdue++;
           } else {
-            totalPending += plan.price;
+            totalPending += amount;
             countPending++;
           }
-          
-          const dueDateObj = new Date(dueDate);
-          const todayObj = new Date(today);
-          const daysOverdue = Math.floor((todayObj.getTime() - dueDateObj.getTime()) / (1000 * 60 * 60 * 24));
-          
+
+          const dueDateObj = new Date(`${dueDate}T00:00:00Z`);
+          const diffMs = todayObj.getTime() - dueDateObj.getTime();
+          const daysOverdue = Number.isNaN(diffMs) ? 0 : Math.floor(diffMs / (1000 * 60 * 60 * 24));
+          const client = clientMap.get(rec.customer_id);
+          const plan = planMap.get(rec.plan_id);
+
           items.push({
-            id: sub.id,
-            client_name: 'Cliente', // Will be enriched
-            client_phone: '',
-            plan_name: plan.name,
-            amount: plan.price,
-            due_date: dueDate,
+            id: rec.id,
+            client_name: client?.name || 'Cliente',
+            client_phone: client?.phone || '',
+            plan_name: plan?.name || 'Plano do Clube',
+            amount,
+            due_date: rec.due_date,
             status: isOverdue ? 'overdue' : 'pending',
             days_overdue: daysOverdue > 0 ? daysOverdue : 0,
           });
         });
 
+        items.sort((a, b) => {
+          if (a.status !== b.status) return a.status === 'overdue' ? -1 : 1;
+          return String(a.due_date).localeCompare(String(b.due_date));
+        });
+
         // Calculate churn rate (simplified)
-        const allSubs = subsRes.data || [];
-        const canceledSubs = allSubs.filter(s => s.status === 'canceled').length;
+        const canceledSubs = allSubs.filter((s: any) => s.status === 'canceled').length;
         const totalSubs = allSubs.length;
         const churnRate = totalSubs > 0 ? (canceledSubs / totalSubs) * 100 : 0;
 
@@ -161,7 +180,7 @@ export const ClubReceivablesWidget: React.FC = () => {
     );
   }
 
-  const hasData = metrics.activeSubscribers > 0;
+  const hasData = metrics.activeSubscribers > 0 || metrics.countPending > 0 || metrics.countOverdue > 0;
 
   return (
     <div className="card-boutique p-6">
@@ -253,7 +272,9 @@ export const ClubReceivablesWidget: React.FC = () => {
                   }`}
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="font-bold text-slate-900 dark:text-white truncate">{item.plan_name}</p>
+                    <p className="font-bold text-slate-900 dark:text-white truncate">
+                      {item.client_name} · {item.plan_name}
+                    </p>
                     <p className="text-slate-500 text-[10px]">
                       {item.status === 'overdue' 
                         ? `${item.days_overdue}d atrasado` 

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
+import CancelSubscriptionModal, { type CancelSubscriptionModalConfirmPayload } from '../components/club/CancelSubscriptionModal';
 import {
     loadSubscriptionDetail,
     changePlan,
@@ -22,10 +23,7 @@ import {
     normalizeCreditBalances,
     getTotalAvailableCredits,
     getTotalUsedCredits,
-    cancelReasonLabels,
-    isCancelReason,
     type ServiceBalanceEntry,
-    type CancelReason,
     type SubscriptionRecurringSlot,
 } from '../domain/chefClub';
 import { staffRepository } from '../domain/staff';
@@ -70,10 +68,8 @@ const ChefClubSubscriptionDetail: React.FC = () => {
     const [saving, setSaving] = useState(false);
 
     const [statusModalOpen, setStatusModalOpen] = useState(false);
-    const [pendingStatus, setPendingStatus] = useState<'paused' | 'canceled' | 'active' | null>(null);
-    const [cancelReason, setCancelReason] = useState<CancelReason | ''>('');
-    const [cancelObservation, setCancelObservation] = useState('');
-    const [cancelReceivables, setCancelReceivables] = useState(false);
+    const [pendingStatus, setPendingStatus] = useState<'paused' | 'active' | null>(null);
+    const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
     // Horários Fixos Recorrentes (ADR-038)
     const [recurringSlots, setRecurringSlots] = useState<SubscriptionRecurringSlot[]>([]);
@@ -249,37 +245,42 @@ const ChefClubSubscriptionDetail: React.FC = () => {
 
         setSaving(true);
         try {
-            if (pendingStatus === 'canceled') {
-                if (cancelReceivables && !cancelReason) {
-                    setToast({ message: 'Motivo do cancelamento é obrigatório', type: 'error' });
-                    setSaving(false);
-                    return;
-                }
-
-                const result = await cancelSubscriptionWithReceivables({
-                    subscriptionId,
-                    tenantId,
-                    cancelReceivables,
-                    cancelReason: cancelReason || undefined,
-                    cancelObservation: cancelObservation || null,
-                });
-
-                const messages = [];
-                messages.push('Assinatura cancelada');
-                if (result.receivablesCancelled > 0) {
-                    messages.push(`${result.receivablesCancelled} recebível(is) cancelado(s)`);
-                }
-                setToast({ message: messages.join(' + '), type: 'success' });
-            } else {
-                await updateSubscriptionStatus(tenantId, subscriptionId, pendingStatus);
-                const statusLabels = { active: 'reativada', paused: 'pausada', canceled: 'cancelada' };
-                setToast({ message: `Assinatura ${statusLabels[pendingStatus]} com sucesso!`, type: 'success' });
-            }
-
+            await updateSubscriptionStatus(tenantId, subscriptionId, pendingStatus);
+            const statusLabels = { active: 'reativada', paused: 'pausada' };
+            setToast({ message: `Assinatura ${statusLabels[pendingStatus]} com sucesso!`, type: 'success' });
             setStatusModalOpen(false);
-            setCancelReason('');
-            setCancelObservation('');
-            setCancelReceivables(false);
+            void loadData();
+        } catch (err: any) {
+            setToast({ message: `Erro ao atualizar: ${err.message}`, type: 'error' });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleCancelConfirm = async (payload: CancelSubscriptionModalConfirmPayload) => {
+        if (!tenantId || !subscriptionId) return;
+
+        if (payload.cancelReceivables && !payload.cancelReason) {
+            setToast({ message: 'Motivo do cancelamento é obrigatório', type: 'error' });
+            return;
+        }
+
+        setSaving(true);
+        try {
+            const result = await cancelSubscriptionWithReceivables({
+                subscriptionId,
+                tenantId,
+                cancelReceivables: payload.cancelReceivables,
+                cancelReason: payload.cancelReason,
+                cancelObservation: payload.cancelObservation ?? null,
+            });
+
+            const messages = ['Assinatura cancelada'];
+            if (result.receivablesCancelled > 0) {
+                messages.push(`${result.receivablesCancelled} recebível(is) cancelado(s)`);
+            }
+            setToast({ message: messages.join(' + '), type: 'success' });
+            setCancelModalOpen(false);
             void loadData();
         } catch (err: any) {
             setToast({ message: `Erro ao atualizar: ${err.message}`, type: 'error' });
@@ -341,25 +342,27 @@ const ChefClubSubscriptionDetail: React.FC = () => {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => { setPendingStatus(subscription.status === 'active' ? 'paused' : 'active'); setStatusModalOpen(true); }}
-                        className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                            subscription.status === 'active'
-                                ? 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20'
-                                : 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20'
-                        }`}
-                    >
-                        <span className="material-symbols-outlined text-sm mr-1">{subscription.status === 'active' ? 'pause' : 'play_arrow'}</span>
-                        {subscription.status === 'active' ? 'Pausar' : 'Reativar'}
-                    </button>
                     {subscription.status !== 'canceled' && (
-                        <button
-                            onClick={() => { setPendingStatus('canceled'); setStatusModalOpen(true); }}
-                            className="px-4 py-2 rounded-xl bg-red-500/10 text-red-600 hover:bg-red-500/20 text-sm font-bold transition-all"
-                        >
-                            <span className="material-symbols-outlined text-sm mr-1">cancel</span>
-                            Cancelar
-                        </button>
+                        <>
+                            <button
+                                onClick={() => { setPendingStatus(subscription.status === 'active' ? 'paused' : 'active'); setStatusModalOpen(true); }}
+                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                                    subscription.status === 'active'
+                                        ? 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20'
+                                        : 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20'
+                                }`}
+                            >
+                                <span className="material-symbols-outlined text-sm mr-1">{subscription.status === 'active' ? 'pause' : 'play_arrow'}</span>
+                                {subscription.status === 'active' ? 'Pausar' : 'Reativar'}
+                            </button>
+                            <button
+                                onClick={() => setCancelModalOpen(true)}
+                                className="px-4 py-2 rounded-xl bg-red-500/10 text-red-600 hover:bg-red-500/20 text-sm font-bold transition-all"
+                            >
+                                <span className="material-symbols-outlined text-sm mr-1">cancel</span>
+                                Cancelar
+                            </button>
+                        </>
                     )}
                 </div>
             </div>
@@ -722,71 +725,32 @@ const ChefClubSubscriptionDetail: React.FC = () => {
                 </div>
             </Modal>
 
-            <Modal isOpen={statusModalOpen} onClose={() => setStatusModalOpen(false)} title={pendingStatus === 'canceled' ? 'Cancelar Assinatura' : 'Confirmar Ação'} maxWidth="sm">
+            <Modal isOpen={statusModalOpen} onClose={() => setStatusModalOpen(false)} title="Confirmar Ação" maxWidth="sm">
                 <div className="space-y-4">
                     <p className="text-sm text-slate-600 dark:text-slate-300">
                         {pendingStatus === 'active' && 'Tem certeza que deseja reativar esta assinatura?'}
                         {pendingStatus === 'paused' && 'Tem certeza que deseja pausar esta assinatura? O cliente perderá o acesso aos benefícios.'}
-                        {pendingStatus === 'canceled' && 'Tem certeza que deseja cancelar esta assinatura? Esta ação não pode ser desfeita.'}
                     </p>
-
-                    {pendingStatus === 'canceled' && (
-                        <div className="space-y-3 p-3 bg-red-50 dark:bg-red-500/10 rounded-xl border border-red-200 dark:border-red-500/20">
-                            <div>
-                                <label className="text-[10px] uppercase font-black text-slate-500 mb-1 block">Motivo do Cancelamento *</label>
-                                <select
-                                    value={cancelReason}
-                                    onChange={(e) => setCancelReason(e.target.value as CancelReason | '')}
-                                    className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
-                                >
-                                    <option value="">Selecione o motivo</option>
-                                    {Object.entries(cancelReasonLabels).map(([key, label]) => (
-                                        <option key={key} value={key}>{label}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="text-[10px] uppercase font-black text-slate-500 mb-1 block">Observação (opcional)</label>
-                                <textarea
-                                    value={cancelObservation}
-                                    onChange={(e) => setCancelObservation(e.target.value)}
-                                    rows={2}
-                                    className="w-full bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-xl px-3 py-2 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary resize-none"
-                                    placeholder="Detalhes adicionais..."
-                                />
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="checkbox"
-                                    id="cancelReceivables"
-                                    checked={cancelReceivables}
-                                    onChange={(e) => setCancelReceivables(e.target.checked)}
-                                    className="rounded border-slate-300 text-red-500 focus:ring-red-500"
-                                />
-                                <label htmlFor="cancelReceivables" className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                                    Cancelar cobranças pendentes/atrasadas
-                                </label>
-                            </div>
-                            <p className="text-[10px] text-slate-500 -mt-1 ml-6">
-                                Recebíveis já pagos não serão afetados
-                            </p>
-                        </div>
-                    )}
 
                     <div className="flex gap-3">
                         <button onClick={() => setStatusModalOpen(false)} className="flex-1 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 font-bold text-sm">
                             Voltar
                         </button>
-                        <button onClick={handleStatusChange} disabled={saving || (pendingStatus === 'canceled' && cancelReceivables && !cancelReason)} className={`flex-1 py-3 rounded-xl font-black uppercase tracking-widest text-sm disabled:opacity-50 ${
-                            pendingStatus === 'canceled' ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-gradient-to-r from-primary to-primary-dark hover:brightness-105 text-night'
-                        }`}>
+                        <button onClick={handleStatusChange} disabled={saving} className="flex-1 py-3 rounded-xl font-black uppercase tracking-widest text-sm disabled:opacity-50 bg-gradient-to-r from-primary to-primary-dark hover:brightness-105 text-night">
                             {saving ? 'Aguarde...' : 'Confirmar'}
                         </button>
                     </div>
                 </div>
             </Modal>
+
+            <CancelSubscriptionModal
+                isOpen={cancelModalOpen}
+                onClose={() => setCancelModalOpen(false)}
+                onConfirm={handleCancelConfirm}
+                saving={saving}
+                clientName={client?.name}
+                planName={plan?.name}
+            />
 
             {/* Modal: Adicionar Horário Fixo (ADR-038) */}
             <Modal isOpen={slotModalOpen} onClose={() => setSlotModalOpen(false)} title="Adicionar Horário Fixo (Cadeira Cativa)" maxWidth="md">
