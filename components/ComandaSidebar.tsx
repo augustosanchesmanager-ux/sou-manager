@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import Button from './ui/Button';
 import { useAuth } from '../context/AuthContext';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
@@ -157,6 +157,18 @@ const ComandaSidebar: React.FC<ComandaSidebarProps> = ({
     const isEsteticaApp = appSlug === 'estetica';
     const orderLabel = labels.order;
     const orderLabelLower = orderLabel.toLowerCase();
+
+    // Esc fecha a gaveta — exceto quando um modal (ui/Modal) está por cima, que já trata o próprio Esc.
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== 'Escape') return;
+            if (document.body.classList.contains('modal-open')) return;
+            onClose();
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [onClose]);
 
     if (!comanda) {
         return (

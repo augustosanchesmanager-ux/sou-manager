@@ -32,7 +32,7 @@ import type { ParticipantRow as DomainParticipantRow } from '../domain/commissio
 import { isManagerLikeRole } from '../src/lib/finance/zeroClose';
 import { isAppointmentDateDueInTimezone } from '../src/lib/finance/unblock';
 import { markComandaAsFiado } from '../src/lib/finance/settlement';
-import { getQuickPeriodDateRange, calculateComandaKpiSummary } from '../src/utils/comandaFilters';
+import { calculateComandaKpiSummary, deriveComandaDateRange, isRelativeComandaRange } from '../src/utils/comandaFilters';
 import { QuickOpenComandaModal, type QuickOpenComandaPayload } from '@/src/components/comandas/QuickOpenComandaModal';
 import { type CatalogItem } from '@/src/utils/comandaQuickActions';
 import { comandaQuickService } from '@/services/comandaQuickService';
@@ -292,6 +292,44 @@ const getConsumptionTypeForFilter = (comanda: Comanda): ConsumptionType => {
     return 'all';
 };
 
+const QUICK_RANGE_OPTIONS: Array<{ value: QuickRange; label: string }> = [
+    { value: 'today', label: 'Hoje' },
+    { value: 'yesterday', label: 'Ontem' },
+    { value: 'this_week', label: 'Esta semana' },
+    { value: 'this_month', label: 'Este mês' },
+    { value: '7d', label: 'Últimos 7 dias' },
+    { value: '30d', label: 'Últimos 30 dias' },
+    { value: 'custom', label: 'Personalizado' },
+    { value: 'all', label: 'Todo o período' },
+];
+
+const QUICK_RANGE_LABELS: Record<QuickRange, string> = QUICK_RANGE_OPTIONS.reduce(
+    (acc, option) => { acc[option.value] = option.label; return acc; },
+    {} as Record<QuickRange, string>,
+);
+
+/**
+ * Adapta o utilitário puro (startDate/endDate) para os campos do formulário.
+ */
+const deriveDateRangeForQuickRange = (range: QuickRange): { dateFrom: string; dateTo: string } => {
+    const derived = deriveComandaDateRange(range);
+    return { dateFrom: derived.startDate, dateTo: derived.endDate };
+};
+
+const buildPeriodLabel = (range: QuickRange, dateFrom: string, dateTo: string) => {
+    const presetLabel = QUICK_RANGE_LABELS[range];
+    const formatShortDate = (value: string) => (value ? formatDateLabel(`${value}T00:00:00`) : '');
+
+    if (!dateFrom && !dateTo) return presetLabel;
+    if (dateFrom && dateTo) {
+        const from = formatShortDate(dateFrom);
+        const to = formatShortDate(dateTo);
+        return from === to ? `${presetLabel} · ${from}` : `${presetLabel} · ${from} – ${to}`;
+    }
+    if (dateFrom) return `${presetLabel} · a partir de ${formatShortDate(dateFrom)}`;
+    return `${presetLabel} · até ${formatShortDate(dateTo)}`;
+};
+
 const loadComandasPreferences = (): ComandasPreferences => {
     const today = new Date();
     const todayStr = formatDateInputValue(today);
@@ -316,28 +354,23 @@ const loadComandasPreferences = (): ComandasPreferences => {
         const rawValue = window.localStorage.getItem(COMANDAS_PREFERENCES_KEY);
         if (!rawValue) return defaultPreferences;
         const parsed = JSON.parse(rawValue) as Partial<ComandasPreferences>;
-        const parsedRange = ['today', '7d', '30d', 'custom', 'all'].includes(parsed.quickRange || '')
+        const parsedRange = Object.prototype.hasOwnProperty.call(QUICK_RANGE_LABELS, parsed.quickRange || '')
             ? (parsed.quickRange as QuickRange)
             : defaultPreferences.quickRange;
 
-        let computedDateFrom = typeof parsed.dateFrom === 'string' ? parsed.dateFrom : '';
-        let computedDateTo = typeof parsed.dateTo === 'string' ? parsed.dateTo : '';
-
-        if (!computedDateFrom && !computedDateTo) {
-            if (parsedRange === 'today') {
-                computedDateFrom = todayStr;
-                computedDateTo = todayStr;
-            } else if (parsedRange === '7d') {
-                const start7d = new Date(today);
-                start7d.setDate(start7d.getDate() - 6);
-                computedDateFrom = formatDateInputValue(start7d);
-                computedDateTo = todayStr;
-            } else if (parsedRange === '30d') {
-                const start30d = new Date(today);
-                start30d.setDate(start30d.getDate() - 29);
-                computedDateFrom = formatDateInputValue(start30d);
-                computedDateTo = todayStr;
-            }
+        // Períodos relativos são recalculados a partir do relógio na leitura:
+        // cache de um dia anterior nunca define o período exibido.
+        let resolvedDates: { dateFrom: string; dateTo: string };
+        if (isRelativeComandaRange(parsedRange)) {
+            const derived = deriveComandaDateRange(parsedRange);
+            resolvedDates = { dateFrom: derived.startDate, dateTo: derived.endDate };
+        } else if (parsedRange === 'all') {
+            resolvedDates = { dateFrom: '', dateTo: '' };
+        } else {
+            resolvedDates = {
+                dateFrom: typeof parsed.dateFrom === 'string' && parsed.dateFrom ? parsed.dateFrom : defaultPreferences.dateFrom,
+                dateTo: typeof parsed.dateTo === 'string' && parsed.dateTo ? parsed.dateTo : defaultPreferences.dateTo,
+            };
         }
 
         return {
@@ -345,8 +378,8 @@ const loadComandasPreferences = (): ComandasPreferences => {
                 ? (parsed.filterStatus as 'all' | ComandaStatus)
                 : defaultPreferences.filterStatus,
             searchTerm: typeof parsed.searchTerm === 'string' ? parsed.searchTerm : defaultPreferences.searchTerm,
-            dateFrom: computedDateFrom || defaultPreferences.dateFrom,
-            dateTo: computedDateTo || defaultPreferences.dateTo,
+            dateFrom: resolvedDates.dateFrom,
+            dateTo: resolvedDates.dateTo,
             quickRange: parsedRange,
             sortField: ['date', 'client', 'status', 'total'].includes(parsed.sortField || '')
                 ? (parsed.sortField as SortField)
@@ -478,6 +511,9 @@ const Comandas: React.FC = () => {
     const isEsteticaApp = appSlug === 'estetica';
     const orderLabel = labels.order;
     const orderLabelLower = orderLabel.toLowerCase();
+    // Rótulo do CTA e do modal que ele abre — mesma fonte, sem divergência de nomenclatura.
+    // 'Atendimento' é masculino; 'Comanda' e 'Ordem' são femininos.
+    const newOrderLabel = orderLabel === 'Atendimento' ? `Novo ${orderLabel}` : `Nova ${orderLabel}`;
     const orderPluralLabel = labels.orderPlural;
     const orderPluralLower = orderPluralLabel.toLowerCase();
     const servicePluralLabel = labels.servicePlural;
@@ -486,7 +522,7 @@ const Comandas: React.FC = () => {
     const statusLabels: Record<'all' | ComandaStatus, string> = isEsteticaApp
         ? comandaStatusLabelsEstetica
         : comandaStatusLabels;
-    const preferences = loadComandasPreferences();
+    const [preferences] = React.useState(loadComandasPreferences);
 
     const [comandas, setComandas] = useState<Comanda[]>([]);
     const [financialHistoryByComandaId, setFinancialHistoryByComandaId] = useState<Record<string, ComandaFinancialHistory>>({});
@@ -743,7 +779,13 @@ const Comandas: React.FC = () => {
         }
     }, [tenantId]);
 
-    // Frente 1.G: Atalho de teclado 'N' para Abertura Rápida (quando não estiver digitando em inputs)
+    // Caminho único de criação: botão primário, atalho [N] e estado vazio.
+    const openQuickOpenModal = useCallback(() => {
+        void loadQuickOpenAuxiliaryData();
+        setIsQuickOpenModalOpen(true);
+    }, [loadQuickOpenAuxiliaryData]);
+
+    // Frente 1.G: Atalho de teclado 'N' para abertura rápida (quando não estiver digitando em inputs)
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'n' || e.key === 'N') {
@@ -756,15 +798,14 @@ const Comandas: React.FC = () => {
 
                 if (!isInputActive && !isQuickOpenModalOpen && !selectedComandaId) {
                     e.preventDefault();
-                    void loadQuickOpenAuxiliaryData();
-                    setIsQuickOpenModalOpen(true);
+                    openQuickOpenModal();
                 }
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isQuickOpenModalOpen, selectedComandaId, loadQuickOpenAuxiliaryData]);
+    }, [isQuickOpenModalOpen, selectedComandaId, openQuickOpenModal]);
 
     // Lazy load do histórico financeiro e reversals sob demanda (apenas quando uma comanda é aberta)
     useEffect(() => {
@@ -864,53 +905,31 @@ const Comandas: React.FC = () => {
     }, [filterStatus, searchTerm, dateFrom, dateTo, quickRange, sortField, sortDirection, staffFilter, paymentMethodFilter, minTotal, maxTotal, consumptionType]);
 
     const applyQuickRange = (range: QuickRange) => {
-        if (range === 'all') {
-            setQuickRange('all');
-            setDateFrom('');
-            setDateTo('');
-            return;
-        }
         if (range === 'custom') {
             setQuickRange('custom');
             return;
         }
-
-        if (range === 'today' || range === 'yesterday' || range === 'this_week' || range === 'this_month') {
-            const calculated = getQuickPeriodDateRange(range);
-            setQuickRange(range);
-            setDateFrom(calculated.startDate);
-            setDateTo(calculated.endDate);
-            return;
-        }
-
-        const today = new Date();
-        const startDate = new Date(today);
-        if (range === '7d') startDate.setDate(startDate.getDate() - 6);
-        if (range === '30d') startDate.setDate(startDate.getDate() - 29);
+        const derived = deriveDateRangeForQuickRange(range);
         setQuickRange(range);
-        setDateFrom(formatDateInputValue(startDate));
-        setDateTo(formatDateInputValue(today));
+        setDateFrom(derived.dateFrom);
+        setDateTo(derived.dateTo);
     };
 
-    useEffect(() => {
-        if (preferences.dateFrom || preferences.dateTo) return;
-        applyQuickRange(preferences.quickRange || 'today');
-    }, []);
-
     const todayInputValue = formatDateInputValue(new Date());
-    const hasCustomDateFilter = quickRange !== 'today' || dateFrom !== todayInputValue || dateTo !== todayInputValue;
-    const activeFiltersCount = [
+    const hasRelativeOrPresetPeriod = quickRange !== 'custom';
+    const hasCustomDateFilter = hasRelativeOrPresetPeriod
+        ? quickRange !== 'today' || dateFrom !== todayInputValue || dateTo !== todayInputValue
+        : true;
+    // Contadores separados por dono: o badge do botão "Filtros" mostra só o que o modal controla.
+    const advancedFiltersCount = [Boolean(minTotal), Boolean(maxTotal), consumptionType !== 'all'].filter(Boolean).length;
+    const primaryFiltersCount = [
         filterStatus !== 'all',
         Boolean(searchTerm.trim()),
         hasCustomDateFilter,
         Boolean(staffFilter),
         Boolean(paymentMethodFilter),
-        Boolean(minTotal),
-        Boolean(maxTotal),
-        consumptionType !== 'all',
     ].filter(Boolean).length;
-    const hasAdvancedFilters = Boolean(staffFilter || paymentMethodFilter || minTotal || maxTotal || consumptionType !== 'all');
-    const hasAnyFilter = activeFiltersCount > 0 || hasAdvancedFilters;
+    const hasAnyFilter = primaryFiltersCount > 0 || advancedFiltersCount > 0;
 
     const dateFilteredComandas = React.useMemo(() => comandas.filter((c) => {
         const createdAt = new Date(c.created_at);
@@ -1012,12 +1031,13 @@ const Comandas: React.FC = () => {
         setSelectedOpenComandaIds((current) => Array.from(new Set([...current, ...openComandasInView.map((c) => c.id)])));
     };
 
+    // Fonte única do resumo financeiro: período + busca + filtros avançados,
+    // SEM o status da aba ativa (quem conta status são as abas).
     const kpiSummary = React.useMemo(() => {
-        return calculateComandaKpiSummary(filteredComandas);
-    }, [filteredComandas]);
+        return calculateComandaKpiSummary(statusScopeComandas);
+    }, [statusScopeComandas]);
 
     const openCount = kpiSummary.openCount;
-    const paidCount = kpiSummary.paidCount;
     const totalOpen = kpiSummary.openTotal;
     const totalPaid = kpiSummary.paidTotal;
     const avgTicket = kpiSummary.averageTicket;
@@ -1042,10 +1062,30 @@ const Comandas: React.FC = () => {
     )).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })), [comandas]);
 
     const dateFilterDescription = !dateFrom && !dateTo
-        ? 'Período completo'
+        ? 'Todo o período'
         : dateFrom && dateTo
-        ? `${formatDateLabel(`${dateFrom}T00:00:00`)} ate ${formatDateLabel(`${dateTo}T00:00:00`)}`
-        : dateFrom ? `A partir de ${formatDateLabel(`${dateFrom}T00:00:00`)}` : `Ate ${formatDateLabel(`${dateTo}T00:00:00`)}`;
+        ? dateFrom === dateTo
+            ? formatDateLabel(`${dateFrom}T00:00:00`)
+            : `${formatDateLabel(`${dateFrom}T00:00:00`)} até ${formatDateLabel(`${dateTo}T00:00:00`)}`
+        : dateFrom ? `A partir de ${formatDateLabel(`${dateFrom}T00:00:00`)}` : `Até ${formatDateLabel(`${dateTo}T00:00:00`)}`;
+
+    // Rótulo humanizado e não redundante do período exibido ("Hoje · 15/11/2026").
+    const periodLabel = buildPeriodLabel(quickRange, dateFrom, dateTo);
+    const staffFilterLabel = staffFilter
+        ? staffOptions.find((staff) => staff.id === staffFilter)?.name || 'selecionado'
+        : '';
+    const consumptionTypeLabels: Record<ConsumptionType, string> = {
+        all: 'Todos',
+        service: servicePluralLabel,
+        product: 'Produtos',
+        mixed: 'Misto',
+    };
+
+    const clearAdvancedFilters = () => {
+        setMinTotal('');
+        setMaxTotal('');
+        setConsumptionType('all');
+    };
 
     const clearAllFilters = () => {
         setFilterStatus('all');
@@ -1521,9 +1561,9 @@ const Comandas: React.FC = () => {
                                 <span className="material-symbols-outlined text-base text-primary">receipt_long</span>
                                 <span>{isEsteticaApp ? 'Atendimentos da clínica' : 'Balcão de Atendimento'}</span>
                                 <span>•</span>
-                                <span className="capitalize">{dateFilterDescription}</span>
+                                <span className="tabular-nums">{periodLabel}</span>
                             </div>
-                            <h1 className="font-display text-2xl sm:text-3xl font-medium tracking-tight text-ink dark:text-white">
+                            <h1 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-ink dark:text-white">
                                 {isEsteticaApp ? orderPluralLabel : 'Comandas do balcão'}
                             </h1>
                         </div>
@@ -1531,72 +1571,46 @@ const Comandas: React.FC = () => {
                         <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap justify-start lg:justify-end">
                             <button
                                 type="button"
-                                onClick={() => {
-                                    void loadQuickOpenAuxiliaryData();
-                                    setIsQuickOpenModalOpen(true);
-                                }}
+                                onClick={openQuickOpenModal}
                                 className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-dark px-4 py-2.5 text-xs sm:text-sm font-bold text-night shadow-sm hover:brightness-105 active:scale-[0.98] transition-all touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 whitespace-nowrap"
-                                title="Abertura rápida com atalho [N]"
+                                title={`${newOrderLabel} — atalho [N]`}
                             >
                                 <span className="material-symbols-outlined text-lg">bolt</span>
-                                <span>Abertura Rápida</span>
+                                <span>{newOrderLabel}</span>
                                 <span className="rounded bg-black/15 px-1.5 py-0.5 text-[10px] font-mono">N</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => navigate('/checkout?mode=pdv')}
-                                className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-ink dark:text-white hover:border-primary/40 active:scale-[0.98] transition-all touch-manipulation whitespace-nowrap"
-                            >
-                                <span className="material-symbols-outlined text-lg text-primary">point_of_sale</span>
-                                <span>{isEsteticaApp ? 'Finalizar atendimento' : 'Abrir PDV'}</span>
                             </button>
                         </div>
                     </div>
 
-                    {/* Bottom Strip: 4 KPIs Alinhados em linha contínua no padrão da Agenda */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark divide-x divide-y sm:divide-y-0 divide-line dark:divide-border-dark overflow-hidden">
+                    {/* Resumo Financeiro: só dinheiro. Contagem de status pertence às abas. */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 rounded-xl border border-line dark:border-border-dark bg-card dark:bg-surface-dark divide-y sm:divide-y-0 sm:divide-x divide-line dark:divide-border-dark overflow-hidden">
                         <div className="p-3.5 space-y-1">
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-semibold uppercase tracking-wider text-primary-dark dark:text-primary-light">
-                                    {isEsteticaApp ? 'Abertos' : 'Abertas'}
+                                    Total Pendente
                                 </span>
                                 <span className="material-symbols-outlined text-base text-primary">schedule</span>
                             </div>
-                            <p className="font-sans text-2xl font-normal tabular-nums tracking-tight text-ink dark:text-white">
-                                {loading ? '...' : String(openCount).padStart(2, '0')}
+                            <p className="font-display text-2xl font-bold tabular-nums tracking-tight whitespace-nowrap text-ink dark:text-white">
+                                {loading ? '...' : formatCurrency(totalOpen)}
                             </p>
-                            <p className="text-[11px] tabular-nums text-ink-soft">
-                                Pendente: {formatCurrency(totalOpen)}
+                            <p className="text-[11px] text-ink-soft">
+                                A receber no período
                             </p>
                         </div>
 
                         <div className="p-3.5 space-y-1">
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-semibold uppercase tracking-wider text-success">
-                                    Liquidadas
+                                    Recebido
                                 </span>
                                 <span className="material-symbols-outlined text-base text-success">task_alt</span>
                             </div>
-                            <p className="font-sans text-2xl font-normal tabular-nums tracking-tight text-ink dark:text-white">
-                                {loading ? '...' : String(paidCount).padStart(2, '0')}
+                            <p className="font-display text-2xl font-bold tabular-nums tracking-tight whitespace-nowrap text-ink dark:text-white">
+                                {loading ? '...' : formatCurrency(totalPaid)}
                             </p>
-                            <p className="text-[11px] tabular-nums text-ink-soft">
-                                Total: {formatCurrency(totalPaid)}
-                            </p>
-                        </div>
-
-                        <div className="p-3.5 space-y-1">
-                            <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-soft">
-                                    Total Geral
-                                </span>
-                                <span className="material-symbols-outlined text-base text-primary">payments</span>
-                            </div>
-                            <p className="font-sans text-xl font-normal tabular-nums tracking-tight whitespace-nowrap text-ink dark:text-white">
-                                {loading ? '...' : formatCurrency(totalOpen + totalPaid)}
-                            </p>
-                            <p className="text-[11px] tabular-nums text-ink-soft">
-                                {kpiSummary.totalCount} {orderPluralLower}
+                            <p className="text-[11px] text-ink-soft">
+                                Baixas confirmadas no período
                             </p>
                         </div>
 
@@ -1607,11 +1621,11 @@ const Comandas: React.FC = () => {
                                 </span>
                                 <span className="material-symbols-outlined text-base text-ink-soft">monitoring</span>
                             </div>
-                            <p className="font-sans text-xl font-normal tabular-nums tracking-tight whitespace-nowrap text-ink dark:text-white">
+                            <p className="font-display text-2xl font-bold tabular-nums tracking-tight whitespace-nowrap text-ink dark:text-white">
                                 {loading ? '...' : formatCurrency(avgTicket)}
                             </p>
-                            <p className="text-[11px] tabular-nums text-ink-soft">
-                                Por atendimento
+                            <p className="text-[11px] text-ink-soft">
+                                Média por {orderLabelLower} não anulada
                             </p>
                         </div>
                     </div>
@@ -1641,8 +1655,9 @@ const Comandas: React.FC = () => {
                                 key={tab.key}
                                 type="button"
                                 onClick={() => setFilterStatus(tab.key)}
+                                aria-pressed={filterStatus === tab.key}
                                 title={tab.key === 'all' ? `Todos os ${orderPluralLower} filtrados` : getStatusContextLabel(tab.key, isEsteticaApp)}
-                                className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition active:scale-[0.98] touch-manipulation ${
+                                className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition active:scale-[0.98] touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
                                     filterStatus === tab.key
                                         ? 'border-primary/60 bg-gold-soft text-primary-dark'
                                         : 'border-line text-ink-soft hover:border-primary/40 hover:text-ink'
@@ -1670,33 +1685,34 @@ const Comandas: React.FC = () => {
                         <button
                             type="button"
                             onClick={() => setFiltersModalOpen((open) => !open)}
-                            className={`flex items-center gap-1 rounded-xl border px-3 py-2 text-sm font-semibold transition active:scale-[0.98] touch-manipulation ${
-                                activeFiltersCount > 0
+                            aria-expanded={filtersModalOpen}
+                            className={`flex items-center gap-1 rounded-xl border px-3 py-2 text-sm font-semibold transition active:scale-[0.98] touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                                advancedFiltersCount > 0
                                     ? 'border-primary/60 bg-gold-soft text-primary-dark'
                                     : 'border-line bg-card text-ink-soft hover:border-primary/40 hover:text-ink'
                             }`}
                         >
                             <span className="material-symbols-outlined text-sm">tune</span>
                             Filtros
-                            {activeFiltersCount > 0 && (
+                            {advancedFiltersCount > 0 && (
                                 <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-black leading-none text-night tabular-nums">
-                                    {activeFiltersCount}
+                                    {advancedFiltersCount}
                                 </span>
                             )}
                         </button>
                         <select
                             value={quickRange}
-                            onChange={(e) => applyQuickRange(e.target.value as QuickRange)}
+                            onChange={(e) => {
+                                const nextRange = e.target.value as QuickRange;
+                                applyQuickRange(nextRange);
+                                if (nextRange === 'custom') setFiltersModalOpen(true);
+                            }}
                             className="rounded-xl border border-line bg-card px-2 py-2 text-xs text-ink focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/40"
                             title="Filtrar por período"
                         >
-                            <option value="today">Hoje</option>
-                            <option value="yesterday">Ontem</option>
-                            <option value="this_week">Esta Semana</option>
-                            <option value="this_month">Este Mês</option>
-                            <option value="7d">Últimos 7 dias</option>
-                            <option value="30d">Últimos 30 dias</option>
-                            <option value="all">Todo o período</option>
+                            {QUICK_RANGE_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
                         </select>
                         <select
                             value={staffFilter}
@@ -1796,9 +1812,9 @@ const Comandas: React.FC = () => {
                             <span>{statusLabels[filterStatus]}</span>
                             <span>•</span>
                             <span>{dateFilterDescription}</span>
-                            {staffFilter && <><span>•</span><span>Profissional selecionado</span></>}
+                            {staffFilter && <><span>•</span><span>Profissional: {staffFilterLabel}</span></>}
                             {paymentMethodFilter && <><span>•</span><span>Pagamento: {paymentMethodFilter}</span></>}
-                            {consumptionType !== 'all' && <><span>•</span><span>Consumo: {consumptionType}</span></>}
+                            {consumptionType !== 'all' && <><span>•</span><span>Consumo: {consumptionTypeLabels[consumptionType]}</span></>}
                         </div>
                     )}
 
@@ -1835,12 +1851,12 @@ const Comandas: React.FC = () => {
                                 <span className="material-symbols-outlined">receipt_long</span>
                             </div>
                             <p className="text-sm font-black text-ink">
-                                {hasAnyFilter ? `Nenhum ${orderLabelLower} encontrado com os filtros atuais.` : `Nenhum ${orderLabelLower} encontrado.`}
+                                {hasAnyFilter ? 'Nenhum resultado com os filtros atuais.' : 'Nenhum resultado no período selecionado.'}
                             </p>
                             <p className="mx-auto mt-2 max-w-xl text-xs text-ink-soft">
                                 {hasAnyFilter
                                     ? 'Revise status, período, cliente, profissional ou forma de pagamento. Nenhuma regra financeira foi alterada.'
-                                    : `Quando houver ${orderPluralLower} abertos ou finalizados, eles aparecerão aqui com referência curta, cliente e status operacional.`}
+                                    : `Quando houver movimento no balcão, ${orderPluralLower} aparecerão aqui com referência curta, cliente e status operacional.`}
                             </p>
                             <div className="mt-4 flex flex-wrap justify-center gap-2">
                                 {hasAnyFilter && (
@@ -1848,7 +1864,7 @@ const Comandas: React.FC = () => {
                                         Limpar filtros
                                     </Button>
                                 )}
-                                <Button onClick={() => navigate('/checkout?mode=comanda')} leftIcon="add">Abrir {orderLabelLower}</Button>
+                                <Button onClick={openQuickOpenModal} leftIcon="add">{newOrderLabel}</Button>
                             </div>
                         </div>
                     ) : (
@@ -1860,7 +1876,6 @@ const Comandas: React.FC = () => {
                                 isBulkSelected={selectedOpenComandaIds.includes(comanda.id)}
                                 onSelect={() => setSelectedComandaId(comanda.id)}
                                 onToggleBulk={() => toggleOpenComandaSelection(comanda.id)}
-                                onSelectForSidebar={() => setSelectedComandaId(comanda.id)}
                                 onCancel={() => { setDeleteComanda(comanda); setCancelReason(''); setCancelReasonOther(''); }}
                             />
                         ))
@@ -1962,27 +1977,19 @@ const Comandas: React.FC = () => {
             <ComandaFiltersModal
                 isOpen={filtersModalOpen}
                 onClose={() => setFiltersModalOpen(false)}
+                periodLabel={periodLabel}
                 dateFrom={dateFrom}
                 dateTo={dateTo}
-                quickRange={quickRange}
                 onApplyQuickRange={applyQuickRange}
                 onDateFromChange={setDateFrom}
                 onDateToChange={setDateTo}
-                staffFilter={staffFilter}
-                onStaffFilterChange={setStaffFilter}
-                staffOptions={staffOptions}
                 minTotal={minTotal}
                 maxTotal={maxTotal}
                 onMinTotalChange={setMinTotal}
                 onMaxTotalChange={setMaxTotal}
                 consumptionType={consumptionType}
                 onConsumptionTypeChange={setConsumptionType}
-                sortField={sortField}
-                onSortFieldChange={setSortField}
-                sortDirection={sortDirection}
-                onSortDirectionChange={setSortDirection}
-                activeFiltersCount={activeFiltersCount}
-                onClearAll={clearAllFilters}
+                onClearAdvanced={clearAdvancedFilters}
             />
 
             <Modal

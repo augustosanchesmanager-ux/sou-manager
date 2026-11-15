@@ -44,7 +44,6 @@ interface ComandaListItemProps {
     isBulkSelected: boolean;
     onSelect: () => void;
     onToggleBulk: () => void;
-    onSelectForSidebar: () => void;
     onCancel: () => void;
 }
 
@@ -127,7 +126,6 @@ const ComandaListItem: React.FC<ComandaListItemProps> = ({
     isBulkSelected,
     onSelect,
     onToggleBulk,
-    onSelectForSidebar,
     onCancel,
 }) => {
     const navigate = useNavigate();
@@ -160,7 +158,9 @@ const ComandaListItem: React.FC<ComandaListItemProps> = ({
                     <button
                         type="button"
                         onClick={(e) => handleAction(e, onToggleBulk)}
-                        className="flex size-7 items-center justify-center rounded-lg border border-primary/30 bg-card text-primary-dark transition-all duration-150 active:scale-95 touch-manipulation hover:bg-gold-soft/40"
+                        aria-label={isBulkSelected ? 'Desmarcar para baixa em massa' : 'Selecionar para baixa em massa'}
+                        aria-pressed={isBulkSelected}
+                        className="flex size-7 items-center justify-center rounded-lg border border-primary/30 bg-card text-primary-dark transition-all duration-150 active:scale-95 touch-manipulation hover:bg-gold-soft/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                         title={isBulkSelected ? 'Desmarcar' : 'Selecionar'}
                     >
                         <span className="material-symbols-outlined text-[16px]">
@@ -175,9 +175,14 @@ const ComandaListItem: React.FC<ComandaListItemProps> = ({
 
                 <div className="min-w-[180px] flex-1">
                     <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-semibold text-ink">
+                        <button
+                            type="button"
+                            onClick={(e) => handleAction(e, onSelect)}
+                            aria-label={`Ver detalhes da ${orderLabelLower} de ${clientName}`}
+                            className="max-w-[220px] truncate rounded text-left text-sm font-semibold text-ink underline-offset-2 transition-colors hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                        >
                             {clientName}
-                        </span>
+                        </button>
                         {!isEsteticaApp && comanda.chefClubInfo && (
                             <span className="flex items-center gap-0.5 rounded-full border border-primary/30 bg-gold-soft px-1.5 py-0.5 text-[10px] font-bold text-primary-dark">
                                 <span className="material-symbols-outlined text-[10px]">workspace_premium</span>
@@ -249,22 +254,12 @@ const ComandaListItem: React.FC<ComandaListItemProps> = ({
                         <button
                             type="button"
                             onClick={(e) => handleAction(e, () => navigate(`/checkout/${comanda.id}`))}
-                            className="flex items-center gap-1 rounded-lg border border-line bg-card px-2.5 py-1.5 text-xs font-semibold text-ink transition-all duration-150 active:scale-95 touch-manipulation hover:border-primary-light hover:bg-gold-pale hover:text-primary-dark"
+                            aria-label={isEsteticaApp ? `Finalizar ${orderLabelLower} de ${clientName}` : `Fechar ${orderLabelLower} de ${clientName}`}
                             title={isEsteticaApp ? `Finalizar ${orderLabelLower}` : 'Fechar comanda'}
+                            className="flex items-center gap-1 rounded-lg border border-line bg-card px-2.5 py-1.5 text-xs font-semibold text-ink transition-all duration-150 active:scale-95 touch-manipulation hover:border-primary-light hover:bg-gold-pale hover:text-primary-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                         >
                             <span className="material-symbols-outlined text-[14px]">point_of_sale</span>
-                            <span className="hidden sm:inline">{isEsteticaApp ? 'Finalizar' : 'Fechar'}</span>
-                        </button>
-                    )}
-
-                    {(comanda.status === 'open' || comanda.status === 'blocked' || comanda.status === 'paid' || comanda.status === 'cancelled') && (
-                        <button
-                            type="button"
-                            onClick={(e) => handleAction(e, onSelectForSidebar)}
-                            className="flex size-8 items-center justify-center rounded-lg border border-line bg-card text-ink-soft transition-all duration-150 active:scale-95 touch-manipulation hover:border-primary-light hover:bg-gold-pale hover:text-ink"
-                            title="Ver detalhes"
-                        >
-                            <span className="material-symbols-outlined text-[16px]">visibility</span>
+                            <span>{isEsteticaApp ? 'Finalizar' : 'Fechar'}</span>
                         </button>
                     )}
 
@@ -272,11 +267,12 @@ const ComandaListItem: React.FC<ComandaListItemProps> = ({
                         <button
                             type="button"
                             onClick={(e) => handleAction(e, onCancel)}
-                            className="flex items-center gap-1 rounded-lg border border-danger/30 bg-danger/10 px-2 py-1.5 text-xs font-semibold text-danger transition-all duration-150 active:scale-95 touch-manipulation hover:bg-danger/20"
+                            aria-label={`Anular ${orderLabelLower} de ${clientName}`}
                             title={`Anular ${orderLabelLower}`}
+                            className="flex items-center gap-1 rounded-lg border border-danger/30 bg-danger/10 px-2 py-1.5 text-xs font-semibold text-danger transition-all duration-150 active:scale-95 touch-manipulation hover:bg-danger/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-danger/40"
                         >
                             <span className="material-symbols-outlined text-[14px]">block</span>
-                            <span className="hidden sm:inline">Anular</span>
+                            <span>Anular</span>
                         </button>
                     )}
                 </div>
