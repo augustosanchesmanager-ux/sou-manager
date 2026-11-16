@@ -39,6 +39,7 @@ export interface TenantSettings {
   instagram_url?: string | null;
   whatsapp_number?: string | null;
   maps_url?: string | null;
+  google_review_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -72,6 +73,7 @@ export interface OnlineBookingSettingsRecord {
   phone_whatsapp: string | null;
   instagram_url: string | null;
   google_maps_url: string | null;
+  google_review_url?: string | null;
   weekly_schedule: Record<string, unknown> | null;
   automations_config: OnlineBookingAutomationsConfig | null;
   created_at?: string;
@@ -96,6 +98,7 @@ export interface UpsertOnlineBookingSettingsInput {
   phone_whatsapp?: string | null;
   instagram_url?: string | null;
   google_maps_url?: string | null;
+  google_review_url?: string | null;
   weekly_schedule?: Record<string, unknown> | null;
   automations_config?: OnlineBookingAutomationsConfig | null;
   work_start_time?: string;
@@ -136,6 +139,7 @@ export interface BrandingSettings {
   show_products?: boolean;
   featured_product_ids?: string[];
   featured_service_ids?: string[];
+  google_review_url?: string | null;
 }
 
 export interface BusinessHours {
@@ -167,4 +171,5 @@ export interface CreateTenantSettingsInput {
   instagram_url?: string | null;
   whatsapp_number?: string | null;
   maps_url?: string | null;
+  google_review_url?: string | null;
 }

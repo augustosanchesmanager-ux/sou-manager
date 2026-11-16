@@ -19,9 +19,12 @@ interface AppointmentData {
   status: string;
 }
 
+import { PostSaleWhatsAppButton } from '../src/components/whatsapp/PostSaleWhatsAppButton';
+
 interface ComandaData {
   id: string;
   client: string;
+  clientPhone?: string;
   total: number;
   paymentMethod: string;
   itemsCount: number;
@@ -327,6 +330,11 @@ const OperationSuccess: React.FC = () => {
           </div>
 
           <div className="space-y-3">
+            <PostSaleWhatsAppButton
+              clientName={comanda.client}
+              clientPhone={comanda.clientPhone}
+              showMissingPhoneHint
+            />
             <button
               onClick={() => navigate('/checkout?mode=pdv')}
               className="w-full py-4 px-6 bg-primary hover:bg-primary/90 text-night rounded-xl font-bold text-lg shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2"
