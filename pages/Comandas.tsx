@@ -2131,6 +2131,7 @@ const Comandas: React.FC = () => {
                     total: selectedComanda.total,
                     client_id: selectedComanda.client_id || (selectedComanda.clients as any)?.id || null,
                     client_name: selectedComanda.clients?.name || null,
+                    client_phone: selectedComanda.clients?.phone || null,
                     items: selectedComanda.comanda_items,
                 } : null}
                 tenantId={tenantId || ''}
