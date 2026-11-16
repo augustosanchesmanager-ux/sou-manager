@@ -98,6 +98,7 @@ const toTenantSettings = (row: Record<string, unknown>): TenantSettings => ({
   instagram_url: (row.instagram_url as string) ?? null,
   whatsapp_number: (row.whatsapp_number as string) ?? null,
   maps_url: (row.maps_url as string) ?? null,
+  google_review_url: (row.google_review_url as string) ?? null,
   created_at: row.created_at as string,
   updated_at: row.updated_at as string,
 });
@@ -125,6 +126,7 @@ const toOnlineBookingSettings = (row: Record<string, unknown>): OnlineBookingSet
   phone_whatsapp: typeof row.phone_whatsapp === 'string' ? row.phone_whatsapp : null,
   instagram_url: typeof row.instagram_url === 'string' ? row.instagram_url : null,
   google_maps_url: typeof row.google_maps_url === 'string' ? row.google_maps_url : null,
+  google_review_url: typeof row.google_review_url === 'string' ? row.google_review_url : null,
   weekly_schedule:
     row.weekly_schedule && typeof row.weekly_schedule === 'object'
       ? (row.weekly_schedule as Record<string, unknown>)
@@ -191,6 +193,9 @@ const buildFallbackOnlineSettingsFromTenantSettings = (
     phone_whatsapp: ts.whatsapp_number ?? null,
     instagram_url: ts.instagram_url ?? null,
     google_maps_url: ts.maps_url ?? null,
+    google_review_url:
+      ts.google_review_url ??
+      (typeof branding.google_review_url === 'string' ? branding.google_review_url : null),
     weekly_schedule: bh,
     automations_config: null,
   };
@@ -262,6 +267,7 @@ class TenantSettingsRepositoryImpl extends SupabaseRepository {
       instagram_url?: string | null;
       whatsapp_number?: string | null;
       maps_url?: string | null;
+      google_review_url?: string | null;
       business_hours?: TenantSettings['business_hours'] | Record<string, unknown>;
       appointment_interval_minutes?: number | null;
       min_booking_notice_minutes?: number | null;
@@ -288,6 +294,9 @@ class TenantSettingsRepositoryImpl extends SupabaseRepository {
       }
       if (hours.maps_url !== undefined) {
         payload.maps_url = hours.maps_url;
+      }
+      if (hours.google_review_url !== undefined) {
+        payload.google_review_url = hours.google_review_url;
       }
       if (hours.business_hours !== undefined) {
         payload.business_hours = hours.business_hours;
@@ -355,6 +364,7 @@ class TenantSettingsRepositoryImpl extends SupabaseRepository {
           phone_whatsapp: parsed.phone_whatsapp ?? fallback.phone_whatsapp,
           instagram_url: parsed.instagram_url ?? fallback.instagram_url,
           google_maps_url: parsed.google_maps_url ?? fallback.google_maps_url,
+          google_review_url: parsed.google_review_url ?? fallback.google_review_url ?? null,
           weekly_schedule: parsed.weekly_schedule ?? fallback.weekly_schedule,
         };
       }
@@ -378,6 +388,7 @@ class TenantSettingsRepositoryImpl extends SupabaseRepository {
 
     const sanitizedSlug = input.slug ? sanitizeBookingSlug(input.slug) : null;
     const sanitizedColor = sanitizeHexColor(input.primary_color);
+    const sanitizedGoogleReviewUrl = input.google_review_url?.trim() || null;
     const themeMode: BookingThemeMode = input.theme_mode === 'light' ? 'light' : 'dark';
     const featuredProductIds = Array.isArray(input.featured_product_ids)
       ? input.featured_product_ids
@@ -403,6 +414,7 @@ class TenantSettingsRepositoryImpl extends SupabaseRepository {
         show_products: Boolean(input.show_products),
         featured_product_ids: featuredProductIds,
         featured_service_ids: featuredServiceIds,
+        google_review_url: sanitizedGoogleReviewUrl,
       },
     };
 
@@ -414,6 +426,7 @@ class TenantSettingsRepositoryImpl extends SupabaseRepository {
       instagram_url: input.instagram_url ?? null,
       whatsapp_number: input.phone_whatsapp ?? null,
       maps_url: input.google_maps_url ?? null,
+      google_review_url: sanitizedGoogleReviewUrl,
       business_hours: businessHoursPayload,
       appointment_interval_minutes: input.appointment_interval_minutes,
       min_booking_notice_minutes: input.min_booking_notice_minutes,
@@ -438,6 +451,7 @@ class TenantSettingsRepositoryImpl extends SupabaseRepository {
       phone_whatsapp: input.phone_whatsapp ?? null,
       instagram_url: input.instagram_url ?? null,
       google_maps_url: input.google_maps_url ?? null,
+      google_review_url: sanitizedGoogleReviewUrl,
       weekly_schedule: businessHoursPayload,
       automations_config: input.automations_config ?? {
         reminders_24h_2h: true,
@@ -551,6 +565,7 @@ export interface TenantSettingsRepository {
       instagram_url?: string | null;
       whatsapp_number?: string | null;
       maps_url?: string | null;
+      google_review_url?: string | null;
       business_hours?: TenantSettings['business_hours'] | Record<string, unknown>;
     }
   ): Promise<TenantSettings>;
