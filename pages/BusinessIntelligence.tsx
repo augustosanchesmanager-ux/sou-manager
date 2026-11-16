@@ -405,14 +405,14 @@ const BusinessIntelligence: React.FC = () => {
                 </div>
 
                 {/* Abas de Navegação Analítica */}
-                <div className="flex items-center gap-2 mt-6 pt-4 border-t border-line overflow-x-auto">
+                <div className="flex items-center gap-2 mt-6 pt-4 border-t border-line overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     {[
-                        { key: 'cockpit', label: '1. Cockpit Executivo (Visão Geral)', icon: 'dashboard' },
-                        { key: 'forecast', label: '2. Previsão Estratégica (Semanal / Quinzenal / Mensal)', icon: 'trending_up' },
-                        { key: 'executive', label: '3. Liquidez Real & DRE Cascata', icon: 'payments' },
-                        { key: 'staff', label: '4. Produtividade & Lucro da Equipe', icon: 'badge' },
-                        { key: 'heatmap', label: '5. Mapa de Ocupação da Grade (Heatmap)', icon: 'calendar_month' },
-                        { key: 'legacy_charts', label: '6. Visão Operacional & Clientes', icon: 'insights' },
+                        { key: 'cockpit', label: '1. Cockpit Executivo', icon: 'dashboard' },
+                        { key: 'forecast', label: '2. Previsão Estratégica', icon: 'trending_up' },
+                        { key: 'executive', label: '3. Liquidez & DRE', icon: 'payments' },
+                        { key: 'staff', label: '4. Produtividade da Equipe', icon: 'badge' },
+                        { key: 'heatmap', label: '5. Mapa de Ocupação', icon: 'calendar_month' },
+                        { key: 'legacy_charts', label: '6. Visão Operacional', icon: 'insights' },
                     ].map((tab) => (
                         <button
                             key={tab.key}
@@ -526,8 +526,8 @@ const BusinessIntelligence: React.FC = () => {
                                 </h3>
                                 <span className="text-[10px] font-bold text-ink-soft uppercase">Últimos Meses</span>
                             </div>
-                            <div className="h-[280px] w-full">
-                                <ResponsiveContainer width="100%" height="100%">
+                            <div className="h-[280px] w-full min-w-0">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                     <BarChart data={data.analytics.revenueEvolution}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E8DFC9" />
                                         <XAxis dataKey="month" stroke="#6B6252" fontSize={11} tickLine={false} />

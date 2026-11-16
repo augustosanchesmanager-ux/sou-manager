@@ -94,7 +94,7 @@ export const dailySummaryService = {
 
       supabase
         .from('transactions')
-        .select('id, description, amount, due_date, date, status, category, type')
+        .select('id, description, amount, date, status, category, type')
         .eq('tenant_id', tenantId)
         .eq('type', 'expense')
         .gte('date', targetDateStr)
