@@ -71,6 +71,12 @@ const presetLabels: Record<DatePreset, string> = {
   custom: 'Personalizado',
 };
 
+// Campos do período usam os tokens do design system (flipam no tema) e não a
+// paleta legada slate/#0f172a. `w-[9.75rem]` é o mínimo que evita truncar
+// "01/11/2026" depois do `pr-11` que o DatePickerInput reserva para o ícone.
+const fieldClassName =
+  'rounded-lg border border-line bg-card px-2 py-1.5 text-xs font-bold text-ink outline-none transition-colors focus:border-primary focus-visible:ring-2 focus-visible:ring-primary';
+
 const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
   startDate,
   endDate,
@@ -120,7 +126,8 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
         <select
           value={activePreset}
           onChange={(e) => handlePresetClick(e.target.value as DatePreset)}
-          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold outline-none focus:border-primary dark:border-white/10 dark:bg-[#0f172a] max-w-[140px]"
+          aria-label="Período"
+          className={`${fieldClassName} max-w-[140px]`}
         >
           {(Object.keys(presetLabels) as DatePreset[]).map((preset) => (
             <option key={preset} value={preset}>
@@ -130,21 +137,21 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
         </select>
       )}
 
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center gap-1">
         <DatePickerInput
           value={startDate}
           onChange={handleStartDateChange}
           max={endDate}
-          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold outline-none focus:border-primary dark:border-white/10 dark:bg-[#0f172a] w-28"
+          className={`${fieldClassName} w-[9.75rem]`}
         />
 
-        <span className="text-slate-400 text-xs mx-1">ate</span>
+        <span className="text-ink-soft text-xs mx-1">até</span>
 
         <DatePickerInput
           value={endDate}
           onChange={handleEndDateChange}
           min={startDate}
-          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold outline-none focus:border-primary dark:border-white/10 dark:bg-[#0f172a] w-28"
+          className={`${fieldClassName} w-[9.75rem]`}
         />
       </div>
     </div>
