@@ -1393,6 +1393,38 @@ case 'comanda_items':
   return builder;
 };
 
+/**
+ * Canal de realtime do modo demo local.
+ *
+ * O Supabase JS expõe uma interface fluente: `.on()` e `.subscribe()` devolvem o
+ * próprio canal, então o consumidor encadeia quantos `.on()` precisar — o
+ * `useNotifications` registra dois (`notifications` e `tenant_alerts`). Este stub
+ * precisa espelhar esse contrato; quando `.on()` devolvia um objeto novo, o
+ * segundo `.on()` era `undefined` e o shell autenticado quebrava no modo demo.
+ */
+export type DemoRealtimeChannel = {
+  on: (
+    event: string,
+    filter?: Record<string, unknown>,
+    callback?: (payload: unknown) => void,
+  ) => DemoRealtimeChannel;
+  subscribe: (callback?: (status: string) => void) => DemoRealtimeChannel;
+  unsubscribe: () => Promise<'ok'>;
+};
+
+export const createDemoRealtimeChannel = (): DemoRealtimeChannel => {
+  const channel: DemoRealtimeChannel = {
+    on: () => channel,
+    subscribe: () => channel,
+    unsubscribe: async () => 'ok',
+  };
+
+  return channel;
+};
+
+/** Remoção de canal no modo demo: sem estado, então é idempotente por construção. */
+export const removeDemoRealtimeChannel = async (): Promise<null> => null;
+
 const createLocalDemoClient = (): SupabaseClient => {
   const createRpcResult = (data: unknown, error: Error | null) => ({
     data,
@@ -1531,13 +1563,8 @@ const client = {
     auth,
     from: (table: string) => createLocalDemoQueryBuilder(table),
     schema: () => client,
-    channel: (_name: string) => ({
-      on: () => ({
-        subscribe: () => ({}),
-      }),
-      subscribe: () => ({}),
-    }),
-    removeChannel: async () => null,
+    channel: (_name: string) => createDemoRealtimeChannel(),
+    removeChannel: removeDemoRealtimeChannel,
     rpc: (fn: string, params?: Record<string, unknown>) => {
       if (fn === 'get_auth_access_context' && readDemoSession()) {
         return createRpcResult({
@@ -2745,6 +2772,7 @@ export const getPublicAnonymousClient = (): SupabaseClient => {
   if (hasSupabaseEnv) {
     publicAnonymousClient = createClient(supabaseUrl!, supabaseAnonKey!, {
       auth: {
+        storageKey: 'sb-public-anon-auth-token',
         persistSession: false,
         autoRefreshToken: false,
         detectSessionInUrl: false,

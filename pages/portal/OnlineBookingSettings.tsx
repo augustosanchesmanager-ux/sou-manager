@@ -18,6 +18,7 @@ import {
   type BookingQrStaffOption,
 } from '../../src/components/qrcode/BookingQrCodePanel';
 import { ProductShowcaseSelector } from './ProductShowcaseSelector';
+import { invalidateTenantCommunicationCache } from '../../src/hooks/useTenantCommunicationConfig';
 
 const BRAND_COLOR_PRESETS = [
   { label: 'Ouro Atelier', hex: '#B88A44' },
@@ -149,6 +150,7 @@ const OnlineBookingSettings: React.FC = () => {
   const [instagramInput, setInstagramInput] = useState<string>('');
   const [whatsappInput, setWhatsappInput] = useState<string>('');
   const [mapsInput, setMapsInput] = useState<string>('');
+  const [googleReviewInput, setGoogleReviewInput] = useState<string>('');
 
   const [weeklySchedule, setWeeklySchedule] = useState<{
     [day: string]: { enabled: boolean; open: string; close: string };
@@ -251,6 +253,7 @@ const OnlineBookingSettings: React.FC = () => {
           onlineData.phone_whatsapp ? formatWhatsAppMask(onlineData.phone_whatsapp) : '',
         );
         setMapsInput(onlineData.google_maps_url || '');
+        setGoogleReviewInput(onlineData.google_review_url || legacyData?.google_review_url || '');
 
         if (onlineData.weekly_schedule) {
           const ws = onlineData.weekly_schedule;
@@ -280,6 +283,7 @@ const OnlineBookingSettings: React.FC = () => {
       } else {
         setDisplayName(tenant?.name || '');
         setCustomSlug(tenantSlug || '');
+        setGoogleReviewInput(legacyData?.google_review_url || '');
       }
     } catch (err) {
       console.error('[OnlineBookingSettings] Falha ao carregar configurações:', err);
@@ -376,6 +380,14 @@ const OnlineBookingSettings: React.FC = () => {
       return;
     }
 
+    const sanitizedGoogleReview = sanitizeMapsUrl(googleReviewInput);
+    if (googleReviewInput.trim() && !sanitizedGoogleReview) {
+      const msg = 'Informe uma URL segura (https://) válida para avaliação no Google.';
+      setSaveError(msg);
+      setToast({ message: msg, type: 'error' });
+      return;
+    }
+
     const normalizedPrimaryColor = sanitizeHexColor(primaryColor);
 
     const schedulePayload: Record<string, unknown> = {};
@@ -425,6 +437,7 @@ const OnlineBookingSettings: React.FC = () => {
         phone_whatsapp: sanitizedWhatsApp,
         instagram_url: sanitizedInstagram,
         google_maps_url: sanitizedMaps,
+        google_review_url: sanitizedGoogleReview,
         weekly_schedule: schedulePayload,
         work_start_time: workStartTime,
         work_end_time: workEndTime,
@@ -432,6 +445,7 @@ const OnlineBookingSettings: React.FC = () => {
         min_booking_notice_minutes: minBookingNoticeMinutes,
       });
 
+      invalidateTenantCommunicationCache(tenantId);
       setCustomSlug(saved.slug || sanitizedSlug);
       setPrimaryColor(saved.primary_color || normalizedPrimaryColor);
       setInstagramInput(saved.instagram_url ?? sanitizedInstagram ?? '');
@@ -441,6 +455,7 @@ const OnlineBookingSettings: React.FC = () => {
           : '',
       );
       setMapsInput(saved.google_maps_url ?? sanitizedMaps ?? '');
+      setGoogleReviewInput(saved.google_review_url ?? sanitizedGoogleReview ?? '');
       setStartHour(effectiveStartHour);
       setEndHour(effectiveEndHour);
 
@@ -1272,6 +1287,38 @@ const OnlineBookingSettings: React.FC = () => {
                     placeholder="https://maps.google.com/?q=Sua+Barbearia"
                     className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-surface-dark border border-slate-200 dark:border-border-dark rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#B88A44]/30 transition-colors disabled:opacity-60"
                   />
+                </div>
+              </div>
+
+              {/* Google Reviews (Pós-Venda) */}
+              <div className="space-y-2 sm:col-span-2">
+                <label
+                  htmlFor="google-review-url"
+                  className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300"
+                >
+                  Link de Avaliação no Google (Google Meu Negócio)
+                </label>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#B88A44] text-lg">
+                    star_rate
+                  </span>
+                  <input
+                    id="google-review-url"
+                    type="url"
+                    value={googleReviewInput}
+                    disabled={saving}
+                    onChange={(e) => setGoogleReviewInput(e.target.value)}
+                    placeholder="https://g.page/r/SUA-BARBEARIA/review"
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-[#141414] border border-slate-200 dark:border-[#262626] rounded-xl text-sm text-slate-900 dark:text-[#F5F2EB] placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#B88A44]/40 focus:border-[#B88A44] transition-colors disabled:opacity-60"
+                  />
+                </div>
+                <div className="rounded-xl border border-[#B88A44]/25 bg-[#B88A44]/10 px-3.5 py-2.5 text-[11px] text-amber-800 dark:text-[#E7D8B9] flex items-start gap-2">
+                  <span className="material-symbols-outlined text-sm text-[#B88A44] shrink-0 mt-0.5">
+                    auto_awesome
+                  </span>
+                  <span>
+                    Ao cadastrar o link oficial do Google Meu Negócio, o botão de <strong>Pós-Venda no WhatsApp</strong> ao finalizar a comanda passa a convidar o cliente automaticamente para avaliar a barbearia. Se deixado em branco, a mensagem envia apenas o agradecimento e o link de agendamento.
+                  </span>
                 </div>
               </div>
             </div>

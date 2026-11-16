@@ -19,6 +19,17 @@ export interface SavedClientBooking {
 }
 
 export const STORAGE_KEY_LAST_BOOKING = 'smg_client_last_booking';
+export const ACTIVE_BOOKING_CHANGED_EVENT = 'smg_active_booking_changed';
+
+function notifyActiveBookingChanged(): void {
+  if (
+    typeof window !== 'undefined' &&
+    typeof window.dispatchEvent === 'function' &&
+    typeof Event === 'function'
+  ) {
+    window.dispatchEvent(new Event(ACTIVE_BOOKING_CHANGED_EVENT));
+  }
+}
 
 function getStorage(): Storage | null {
   try {
@@ -72,6 +83,7 @@ export function saveActiveBooking(booking: SavedClientBooking): void {
     const storage = getStorage();
     if (!storage) return;
     storage.setItem(STORAGE_KEY_LAST_BOOKING, JSON.stringify(booking));
+    notifyActiveBookingChanged();
   } catch {
     // Ignore storage quota errors
   }
@@ -82,6 +94,7 @@ export function clearActiveBooking(): void {
     const storage = getStorage();
     if (!storage) return;
     storage.removeItem(STORAGE_KEY_LAST_BOOKING);
+    notifyActiveBookingChanged();
   } catch {
     // Ignore storage errors
   }
@@ -100,8 +113,27 @@ export const ActiveBookingBanner: React.FC<ActiveBookingBannerProps> = ({
   const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
-    const booking = getSavedActiveBooking(tenantSlug);
-    setActiveBooking(booking);
+    const syncActiveBooking = () => {
+      setActiveBooking(getSavedActiveBooking(tenantSlug));
+    };
+
+    syncActiveBooking();
+
+    if (typeof window === 'undefined') return;
+
+    const handleStorage = (event: StorageEvent) => {
+      if (!event.key || event.key === STORAGE_KEY_LAST_BOOKING) {
+        syncActiveBooking();
+      }
+    };
+
+    window.addEventListener(ACTIVE_BOOKING_CHANGED_EVENT, syncActiveBooking);
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener(ACTIVE_BOOKING_CHANGED_EVENT, syncActiveBooking);
+      window.removeEventListener('storage', handleStorage);
+    };
   }, [tenantSlug]);
 
   const handleDismiss = useCallback((e: React.MouseEvent) => {

@@ -1544,6 +1544,7 @@ const Checkout: React.FC = () => {
                         comanda: {
                             id: result.comandaId,
                             client: selectedClient?.name || '',
+                            clientPhone: selectedClient?.phone || undefined,
                             total,
                             paymentMethod,
                             itemsCount: cart.length,

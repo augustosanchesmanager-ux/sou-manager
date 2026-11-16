@@ -118,3 +118,59 @@ describe('QuickCheckoutModal: Modo Balcão Express', () => {
     expect(html).not.toContain('Baixar com Crédito do Clube (R$ 0,00)');
   });
 });
+
+describe('QuickCheckoutModal - post-sale thank-you view', () => {
+  it('should_render_post_sale_success_actions_when_checkout_is_completed_with_phone', () => {
+    const html = renderToStaticMarkup(
+      <QuickCheckoutModal
+        isOpen={true}
+        onClose={vi.fn()}
+        tenantId="tenant-1"
+        onSuccess={vi.fn()}
+        comanda={{
+          id: '12345678-abcd-efgh',
+          total: 90,
+          client_name: 'Carlos Silva',
+          client_phone: '11999998888',
+        }}
+        initialSuccessState={{
+          comandaId: '12345678-abcd-efgh',
+          paymentMethod: 'PIX',
+          total: 90,
+          clientName: 'Carlos Silva',
+          clientPhone: '11999998888',
+        }}
+      />,
+    );
+
+    expect(html).toContain('Sucesso no Atendimento');
+    expect(html).toContain('Comanda #12345678 encerrada');
+    expect(html).toContain('Enviar Agradecimento (WhatsApp)');
+    expect(html).toContain('Fechar');
+    expect(html).not.toContain('Cliente sem telefone cadastrado para envio via WhatsApp.');
+  });
+
+  it('should_disable_post_sale_whatsapp_button_when_client_phone_is_missing', () => {
+    const html = renderToStaticMarkup(
+      <QuickCheckoutModal
+        isOpen={true}
+        onClose={vi.fn()}
+        tenantId="tenant-1"
+        onSuccess={vi.fn()}
+        comanda={null}
+        initialSuccessState={{
+          comandaId: '87654321-abcd-efgh',
+          paymentMethod: 'Cartão Crédito',
+          total: 55,
+          clientName: 'Cliente Sem Telefone',
+          clientPhone: null,
+        }}
+      />,
+    );
+
+    expect(html).toContain('Cliente sem telefone cadastrado para envio via WhatsApp.');
+    expect(html).toContain('disabled=""');
+    expect(html).toContain('Enviar Agradecimento (WhatsApp)');
+    expect(html).toContain('Fechar');
+  });
+});

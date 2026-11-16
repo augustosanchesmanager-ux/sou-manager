@@ -12,9 +12,12 @@ import {
   saveActiveBooking,
   clearActiveBooking,
   STORAGE_KEY_LAST_BOOKING,
+  ACTIVE_BOOKING_CHANGED_EVENT,
   type SavedClientBooking,
 } from './components/ActiveBookingBanner';
 import { buildStructuredWhatsAppConfirmationUrl } from './BookingSuccessVoucher';
+import { cancelPublicBooking, isUsingMock } from './hooks/bookingService';
+import * as clientModule from '../../../../services/supabaseClient';
 import type { PublicTenantProfile, CreatePublicBookingResult } from './hooks/types';
 
 class MemoryStorage implements Storage {
@@ -104,6 +107,35 @@ describe('PublicBookingCancellation — Invariants & Logic Suite', () => {
       clearActiveBooking();
       expect(getSavedActiveBooking('sanchez-barber')).toBeNull();
       expect(localStorage.getItem(STORAGE_KEY_LAST_BOOKING)).toBeNull();
+    });
+
+    it('should dispatch active booking changed event on save and clear', () => {
+      const dispatchSpy = vi.fn();
+      const originalWindow = globalThis.window;
+      const originalEvent = globalThis.Event;
+
+      globalThis.Event = class FakeEvent {
+        type: string;
+        constructor(type: string) {
+          this.type = type;
+        }
+      } as unknown as typeof Event;
+      globalThis.window = {
+        localStorage: globalThis.localStorage,
+        dispatchEvent: dispatchSpy,
+      } as unknown as Window & typeof globalThis;
+
+      try {
+        saveActiveBooking(mockSavedBooking);
+        clearActiveBooking();
+
+        expect(dispatchSpy).toHaveBeenCalledTimes(2);
+        expect(dispatchSpy.mock.calls[0][0].type).toBe(ACTIVE_BOOKING_CHANGED_EVENT);
+        expect(dispatchSpy.mock.calls[1][0].type).toBe(ACTIVE_BOOKING_CHANGED_EVENT);
+      } finally {
+        globalThis.window = originalWindow;
+        globalThis.Event = originalEvent;
+      }
     });
   });
 
@@ -206,6 +238,60 @@ describe('PublicBookingCancellation — Invariants & Logic Suite', () => {
 
       const decoded = decodeURIComponent(url.split('?text=')[1]);
       expect(decoded).not.toContain('Gerenciar/Cancelar:');
+    });
+
+    it('should percent-encode base64 characters (+, /, =) in WhatsApp manage/cancel link', () => {
+      const resultWithBase64Token: CreatePublicBookingResult = {
+        ...mockResultWithToken,
+        public_token: 'abc+def/ghi=123==',
+      };
+
+      const url = buildStructuredWhatsAppConfirmationUrl(
+        mockTenant,
+        resultWithBase64Token,
+        'Carlos Cliente',
+        'Dom, 25',
+        '14:00'
+      );
+
+      const decoded = decodeURIComponent(url.split('?text=')[1]);
+      expect(decoded).toContain(
+        'Gerenciar/Cancelar: https://barber.soumanager.com/#/agendar/sanchez-barber?token=abc%2Bdef%2Fghi%3D123%3D%3D'
+      );
+    });
+  });
+
+  describe('cancelPublicBooking Token Normalization', () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it('should normalize spaces back to + in corrupted base64 tokens before calling RPC', async () => {
+      vi.stubEnv('VITE_ENABLE_BOOKING_MOCK', 'false');
+      expect(isUsingMock()).toBe(false);
+
+      const mockRpc = vi.fn().mockResolvedValue({
+        data: {
+          appointment_id: 'apt-1',
+          status: 'cancelled',
+          cancelled_at: '2026-11-15T13:00:00Z',
+          cancelled: true,
+          idempotent: false,
+        },
+        error: null,
+      });
+
+      vi.spyOn(clientModule, 'getPublicAnonymousClient').mockReturnValue({
+        rpc: mockRpc,
+      } as never);
+
+      const result = await cancelPublicBooking('sanchezbarber', '  abc def+ghi/123=  ');
+
+      expect(mockRpc).toHaveBeenCalledWith('cancel_public_booking', {
+        p_tenant_identifier: 'sanchezbarber',
+        p_public_token: 'abc+def+ghi/123=',
+      });
+      expect(result.cancelled).toBe(true);
     });
   });
 });

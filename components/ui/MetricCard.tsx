@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 
 export type MetricTone = 'brass' | 'positive' | 'negative' | 'info' | 'warning' | 'neutral';
 export type MetricDensity = 'compact' | 'comfortable';
@@ -37,8 +37,8 @@ const toneTileStyles: Record<MetricTone, string> = {
 };
 
 const trendConfig: Record<MetricTrendDirection, { icon: string; text: string }> = {
-    up: { icon: 'trending_up', text: 'text-success' },
-    down: { icon: 'trending_down', text: 'text-danger' },
+    up: { icon: 'trending_up', text: 'text-delta-up' },
+    down: { icon: 'trending_down', text: 'text-delta-down' },
     flat: { icon: 'minimize', text: 'text-ink-soft' },
 };
 
