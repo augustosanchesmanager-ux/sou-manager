@@ -269,7 +269,7 @@ const fetchSnapshotContext = async (
           'service_execution_participants',
           'comanda_item_id',
           itemIds,
-          'id, comanda_item_id, professional_id, role, payout_type, payout_value, affects_commission',
+          'id, comanda_item_id, staff_id, role, payout_type, payout_value, affects_commission',
           tenantId,
         )
       : [];

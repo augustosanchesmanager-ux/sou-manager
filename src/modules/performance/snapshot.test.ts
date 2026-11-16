@@ -13,6 +13,8 @@ import {
   makePerformanceAppointment,
   makePerformanceComanda,
   makePerformanceContext,
+  makePerformanceItem,
+  makePerformanceParticipant,
   makePerformanceStaff,
   resetPerformanceSeq,
 } from '../../../tests/builders/performance';
@@ -127,6 +129,44 @@ describe('buildSnapshot', () => {
     const timelineCount = snapshot.timeline.reduce((sum, point) => sum + point.count, 0);
     expect(timelineRevenue).toBeCloseTo(snapshot.totals.totalRevenue, 6);
     expect(timelineCount).toBe(snapshot.totals.totalAttendances);
+  });
+
+  it('should_attribute_revenue_to_staff_when_participant_row_uses_staff_id_without_professional_id', () => {
+    const staff = makePerformanceStaff({ id: 'staff-canon-1', name: 'Barbeiro Canônico' });
+    const comanda = makePerformanceComanda({
+      id: 'cmd-canon-1',
+      total: 100,
+      payment_method: 'dinheiro',
+      closed_at: '2026-11-05T15:00:00-03:00',
+      staff_id: null,
+    });
+    const item = makePerformanceItem({
+      id: 'item-canon-1',
+      comanda_id: 'cmd-canon-1',
+      unit_price: 100,
+      quantity: 1,
+      staff_id: null,
+    });
+    // Schema real de produção retorna staff_id e não professional_id
+    const participant = makePerformanceParticipant({
+      id: 'part-canon-1',
+      comanda_item_id: 'item-canon-1',
+      professional_id: undefined,
+      staff_id: 'staff-canon-1',
+    });
+
+    const context = makePerformanceContext({
+      staffById: new Map([['staff-canon-1', staff]]),
+      itemsByComandaId: new Map([['cmd-canon-1', [item]]]),
+      participantsByItemId: new Map([['item-canon-1', [participant]]]),
+    });
+
+    const snapshot = buildSnapshot([comanda], context, windowFor('2026-11-01', '2026-11-07'));
+
+    const staffMetric = snapshot.rankedStaff.find((s) => s.id === 'staff-canon-1');
+    expect(staffMetric).toBeDefined();
+    expect(staffMetric?.total_revenue).toBe(100);
+    expect(staffMetric?.appointments_count).toBe(1);
   });
 
   it('should_attribute_comanda_to_appointment_day_when_regime_is_attendance', () => {
