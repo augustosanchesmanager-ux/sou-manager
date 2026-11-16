@@ -135,7 +135,7 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
           .order('date', { ascending: true }),
         appointmentsClient
           .from('appointments')
-          .select('id, status, start_time, client_id, staff_id, staff_name, service_name')
+          .select('id, status, start_time, client_id, staff_id, staff_name, service_name, price')
           .eq('tenant_id', tenantId)
           .order('start_time', { ascending: false }),
         clientsClient
@@ -321,6 +321,7 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
             serviceMap[a.service_name] = { name: a.service_name, count: 0, revenue: 0 };
           }
           serviceMap[a.service_name].count++;
+          serviceMap[a.service_name].revenue += Number(a.price) || 0;
         });
 
       const topServices = Object.values(serviceMap)
