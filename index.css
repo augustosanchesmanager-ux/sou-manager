@@ -35,9 +35,13 @@
   --color-gold-soft: #F7E7C2;
   --color-gold-pale: #FCF6E7;
 
-  /* Status / Charts ONLY — never used as brand voice */
+  /* Status / Charts ONLY - never used as brand voice */
   --color-success: #178A50;
   --color-danger: #C92A2A;
+
+  /* Delta indicators (variam no dark para manter AA sobre superfícies escuras) */
+  --color-delta-up: #147347;
+  --color-delta-down: #C92A2A;
 
   /* Accent (AA 5.48:1 on light) + single gold pill/border token */
   --color-accent: #047857;
@@ -110,6 +114,8 @@
   --color-sched-completed-strong: #6EE7B7;
   --color-sched-cancelled-strong: #FCA5A5;
   --color-sched-no-show-strong: #A79C8A;
+  --color-delta-up: #34D399;
+  --color-delta-down: #F87171;
 }
 
 /* ===== Repaginada Base ===== */
@@ -147,6 +153,16 @@ option {
 .dark select,
 .dark option {
   color-scheme: dark;
+}
+
+/*
+ * Performance: o DateRangeFilter compartilhado aplica w-28 (112px) ao input de
+ * data e pr-11 (44px) para o ícone de calendário, sobrando ~68px para
+ * "01/11/2026" — o valor aparece truncado. A largura é corrigida só no escopo
+ * do painel, sem alterar o componente compartilhado por outras telas.
+ */
+.performance-period input[type='date'] {
+  width: 9.75rem;
 }
 
 /* ===== Scrollbar Boutique ===== */

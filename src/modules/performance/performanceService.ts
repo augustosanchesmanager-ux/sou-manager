@@ -1,53 +1,51 @@
-import { getScopedClient, getSharedClient } from '../../../services/supabaseClient';
-import { getEffectiveCommissionRateForItem } from '../../lib/staff/roles';
-import { calculateCommissionValue } from '../../../domain/commission/calculate';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { getScopedClient, getSharedClient, logSupabaseError } from '../../../services/supabaseClient';
+import {
+  MAX_DISPLAY_RECORDS,
+  buildSnapshot,
+  clampToRecordLimit,
+  computeDeltas,
+  resolveGoalContext,
+  resolvePreviousWindow,
+  resolveWindow,
+  todayInSaoPaulo,
+  type PerformanceAppointmentRow,
+  type PerformanceComandaItemRow,
+  type PerformanceComandaRow,
+  type PerformanceCommissionRecordRow,
+  type PerformanceParticipantRow,
+  type PerformancePaymentRow,
+  type PerformanceSnapshotContext,
+  type PerformanceStaffInfo,
+  type ResolvedWindow,
+} from './snapshot';
 import type {
   DateRegime,
   PerformanceFilterState,
   PerformanceResult,
-  StaffPerformanceRecord,
+  PerformanceWindow,
   TenantGoal,
-  TimelinePoint,
 } from './types';
 
-const MAX_DISPLAY_RECORDS = 500;
 const CHUNK_SIZE = 150;
 
-const formatLocalYMD = (date: Date): string => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-};
+const COMANDA_COLUMNS =
+  'id, client_id, appointment_id, status, total, discount, payment_method, closure_mode, financial_effect, created_at, closed_at, staff_id, clients(name)';
 
-const fmtDate = (d: string) => {
-  if (!d) return '-';
-  const [y, m, day] = d.split('-');
-  if (!y || !m || !day) return d;
-  return `${day}/${m}/${y}`;
-};
+const toPublicWindow = (window: ResolvedWindow): PerformanceWindow => ({
+  dateFrom: window.dateFrom,
+  dateTo: window.dateTo,
+  days: window.days,
+  granularity: window.granularity,
+});
 
-const isClubPaymentMethod = (
-  method?: string | null,
-  closureMode?: string | null,
-  financialEffect?: boolean | null,
-): boolean => {
-  if (closureMode === 'legacy_membership' || financialEffect === false) return true;
-  const normalized = String(method || '').toLowerCase().trim();
-  return (
-    normalized.includes('clube') ||
-    normalized.includes('chef') ||
-    normalized.includes('assinatura') ||
-    normalized === 'membership' ||
-    normalized === 'subscription' ||
-    normalized === 'club_credit' ||
-    normalized === 'credito_clube' ||
-    normalized === 'crédito clube'
-  );
-};
+const toWindowBounds = (window: ResolvedWindow) => ({
+  fromIso: `${window.dateFrom}T00:00:00-03:00`,
+  toIso: `${window.dateTo}T23:59:59.999-03:00`,
+});
 
 const fetchChunks = async <T,>(
-  client: any,
+  client: SupabaseClient,
   table: string,
   column: string,
   ids: string[],
@@ -62,203 +60,211 @@ const fetchChunks = async <T,>(
       .select(selectCols)
       .eq('tenant_id', tenantId)
       .in(column, batch);
-    if (!error && Array.isArray(data)) {
+    // Erro de enriquecimento não pode virar número menor em silêncio.
+    if (error) {
+      throw new Error(`Falha ao consultar ${table}: ${error.message}`);
+    }
+    if (Array.isArray(data)) {
       results.push(...(data as T[]));
     }
   }
   return results;
 };
 
-export const fetchPerformanceData = async (
-  tenantId: string,
-  filters: PerformanceFilterState,
-  dateRegime: DateRegime,
-): Promise<PerformanceResult> => {
-  const clubSupabase = getScopedClient('barber');
+const fetchActiveGoal = async (tenantId: string): Promise<TenantGoal | null> => {
   const sharedSupabase = getSharedClient();
-
-  // 1. Buscar metas ativas da unidade (public.tenant_goals)
-  const { data: goalRows, error: goalErr } = await sharedSupabase
+  const { data, error } = await sharedSupabase
     .from('tenant_goals')
     .select('id, period, revenue_goal, appointments_goal, clients_goal, active')
     .eq('tenant_id', tenantId)
     .eq('active', true);
 
-  if (goalErr) {
-    console.warn('Aviso ao consultar tenant_goals:', goalErr.message);
+  if (error) {
+    // Meta é metadado: falhar aqui não pode derrubar o painel inteiro, mas o
+    // motivo fica registrado para não parecer que a unidade não tem meta.
+    logSupabaseError('performance.fetchActiveGoal', error, { tenantId });
+    return null;
   }
 
-  let resolvedGoal: TenantGoal | null = null;
-  if (goalRows && goalRows.length > 0) {
-    const activeGoal =
-      goalRows.find((g: any) => g.period === 'monthly') || goalRows[0];
-    resolvedGoal = {
-      id: activeGoal.id,
-      period: activeGoal.period || 'monthly',
-      revenue_goal: Number(activeGoal.revenue_goal || 0),
-      appointments_goal: Number(activeGoal.appointments_goal || 0),
-      clients_goal: Number(activeGoal.clients_goal || 0),
-      active: Boolean(activeGoal.active),
-    };
-  }
+  if (!data || data.length === 0) return null;
+  const goals = data as Array<{
+    id: string;
+    period?: string | null;
+    revenue_goal?: number | string | null;
+    appointments_goal?: number | string | null;
+    clients_goal?: number | string | null;
+    active?: boolean | null;
+  }>;
+  const activeGoal = goals.find((goal) => goal.period === 'monthly') || goals[0];
+  return {
+    id: activeGoal.id,
+    period: activeGoal.period || 'monthly',
+    revenue_goal: Number(activeGoal.revenue_goal || 0),
+    appointments_goal: Number(activeGoal.appointments_goal || 0),
+    clients_goal: Number(activeGoal.clients_goal || 0),
+    active: Boolean(activeGoal.active),
+  };
+};
 
-  // 2. Montagem de datas com offset explícito (-03:00) para eliminar distorção de timezone
-  const fromIso = filters.dateFrom ? `${filters.dateFrom}T00:00:00-03:00` : undefined;
-  const toIso = filters.dateTo ? `${filters.dateTo}T23:59:59.999-03:00` : undefined;
-  const fromMs = fromIso ? new Date(fromIso).getTime() : null;
-  const toMs = toIso ? new Date(toIso).getTime() : null;
+interface WindowRows {
+  rows: PerformanceComandaRow[];
+  truncated: boolean;
+}
 
-  let rawComandas: any[] = [];
+const fetchComandasForWindow = async (
+  tenantId: string,
+  window: ResolvedWindow,
+  dateRegime: DateRegime,
+): Promise<WindowRows> => {
+  const clubSupabase = getScopedClient('barber');
+  const { fromIso, toIso } = toWindowBounds(window);
 
   if (dateRegime === 'payment') {
-    // Regime de Caixa / Pagamento (closed_at com fallback para created_at)
-    let query = clubSupabase
+    const { data, error } = await clubSupabase
       .from('comandas')
-      .select(
-        'id, client_id, appointment_id, status, total, discount, payment_method, closure_mode, financial_effect, created_at, closed_at, staff_id, clients(name)',
-      )
+      .select(COMANDA_COLUMNS)
       .eq('tenant_id', tenantId)
       .eq('status', 'paid')
+      .or(
+        `and(closed_at.gte.${fromIso},closed_at.lte.${toIso}),and(closed_at.is.null,created_at.gte.${fromIso},created_at.lte.${toIso})`,
+      )
       .order('closed_at', { ascending: false })
       .limit(MAX_DISPLAY_RECORDS + 1);
 
-    if (fromIso && toIso) {
-      query = query.or(
-        `and(closed_at.gte.${fromIso},closed_at.lte.${toIso}),and(closed_at.is.null,created_at.gte.${fromIso},created_at.lte.${toIso})`,
-      );
-    } else if (fromIso) {
-      query = query.gte('closed_at', fromIso);
-    } else if (toIso) {
-      query = query.lte('closed_at', toIso);
-    }
-
-    const { data, error } = await query;
     if (error) throw error;
-    rawComandas = data || [];
-  } else {
-    // Regime de Atendimento (appointment.start_time ou comandas.created_at)
-    let apptIdsInWindow: string[] = [];
-    if (fromIso || toIso) {
-      let apptQuery = clubSupabase
-        .from('appointments')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .limit(MAX_DISPLAY_RECORDS);
-      if (fromIso) apptQuery = apptQuery.gte('start_time', fromIso);
-      if (toIso) apptQuery = apptQuery.lte('start_time', toIso);
-      const { data: apptRows } = await apptQuery;
-      apptIdsInWindow = (apptRows || []).map((a: any) => a.id).filter(Boolean);
-    }
-
-    let createdQuery = clubSupabase
-      .from('comandas')
-      .select(
-        'id, client_id, appointment_id, status, total, discount, payment_method, closure_mode, financial_effect, created_at, closed_at, staff_id, clients(name)',
-      )
-      .eq('tenant_id', tenantId)
-      .eq('status', 'paid')
-      .order('created_at', { ascending: false })
-      .limit(MAX_DISPLAY_RECORDS + 1);
-
-    if (fromIso) createdQuery = createdQuery.gte('created_at', fromIso);
-    if (toIso) createdQuery = createdQuery.lte('created_at', toIso);
-
-    const [createdRes, byApptComandas] = await Promise.all([
-      createdQuery,
-      apptIdsInWindow.length > 0
-        ? fetchChunks<any>(
-            clubSupabase,
-            'comandas',
-            'appointment_id',
-            apptIdsInWindow,
-            'id, client_id, appointment_id, status, total, discount, payment_method, closure_mode, financial_effect, created_at, closed_at, staff_id, clients(name)',
-            tenantId,
-          )
-        : Promise.resolve([] as any[]),
-    ]);
-
-    if (createdRes.error) throw createdRes.error;
-
-    const mergedMap = new Map<string, any>();
-    for (const c of createdRes.data || []) {
-      if (c.id) mergedMap.set(c.id, c);
-    }
-    for (const c of byApptComandas) {
-      if (c.id && c.status === 'paid' && !mergedMap.has(c.id)) {
-        mergedMap.set(c.id, c);
-      }
-    }
-    rawComandas = Array.from(mergedMap.values());
+    return clampToRecordLimit<PerformanceComandaRow>(data || []);
   }
 
-  const comandasSlice =
-    rawComandas.length > MAX_DISPLAY_RECORDS
-      ? rawComandas.slice(0, MAX_DISPLAY_RECORDS)
-      : rawComandas;
+  const apptRes = await clubSupabase
+    .from('appointments')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .gte('start_time', fromIso)
+    .lte('start_time', toIso)
+    .limit(MAX_DISPLAY_RECORDS + 1);
 
-  const comandaIds = comandasSlice.map((c: any) => c.id).filter(Boolean);
+  // Sem os atendimentos da janela não há como atribuir as comandas ao dia
+  // correto; devolver números parciais seria pior do que falhar explicitamente.
+  if (apptRes.error) throw apptRes.error;
+
+  const appointmentIds = ((apptRes.data || []) as PerformanceAppointmentRow[])
+    .map((appointment) => appointment.id)
+    .filter(Boolean);
+  const appointmentsTruncated = appointmentIds.length > MAX_DISPLAY_RECORDS;
+  const cappedAppointmentIds = appointmentIds.slice(0, MAX_DISPLAY_RECORDS);
+
+  const createdRes = await clubSupabase
+    .from('comandas')
+    .select(COMANDA_COLUMNS)
+    .eq('tenant_id', tenantId)
+    .eq('status', 'paid')
+    .gte('created_at', fromIso)
+    .lte('created_at', toIso)
+    .order('created_at', { ascending: false })
+    .limit(MAX_DISPLAY_RECORDS + 1);
+
+  if (createdRes.error) throw createdRes.error;
+
+  const byAppointment: PerformanceComandaRow[] =
+    cappedAppointmentIds.length > 0
+      ? await fetchChunks<PerformanceComandaRow>(
+          clubSupabase,
+          'comandas',
+          'appointment_id',
+          cappedAppointmentIds,
+          COMANDA_COLUMNS,
+          tenantId,
+        )
+      : [];
+
+  const merged = new Map<string, PerformanceComandaRow>();
+  for (const comanda of (createdRes.data || []) as PerformanceComandaRow[]) {
+    if (comanda.id) merged.set(comanda.id, comanda);
+  }
+  for (const comanda of byAppointment) {
+    if (comanda.id && comanda.status === 'paid' && !merged.has(comanda.id)) {
+      merged.set(comanda.id, comanda);
+    }
+  }
+
+  const all = Array.from(merged.values());
+  const capped = clampToRecordLimit(all);
+  return {
+    rows: capped.rows,
+    truncated:
+      appointmentsTruncated ||
+      (createdRes.data || []).length > MAX_DISPLAY_RECORDS ||
+      capped.truncated,
+  };
+};
+
+const fetchSnapshotContext = async (
+  tenantId: string,
+  comandas: PerformanceComandaRow[],
+  dateRegime: DateRegime,
+): Promise<PerformanceSnapshotContext> => {
+  const clubSupabase = getScopedClient('barber');
+  const sharedSupabase = getSharedClient();
+
+  const comandaIds = Array.from(new Set(comandas.map((comanda) => comanda.id).filter(Boolean)));
   const appointmentIds = Array.from(
-    new Set(comandasSlice.map((c: any) => c.appointment_id).filter(Boolean)),
+    new Set(comandas.map((comanda) => comanda.appointment_id).filter(Boolean)),
   ) as string[];
 
-  // 3. Enriquecimento paralelo em chunks (somente SELECT, estritamente tenant_id)
-  const [
-    staffRes,
-    itemsData,
-    appointmentsData,
-    paymentsData,
-    commissionsData,
-  ] = await Promise.all([
-    sharedSupabase
-      .from('staff')
-      .select('id, name, role, commission_rate, product_commission_rate')
-      .eq('tenant_id', tenantId),
-    comandaIds.length > 0
-      ? fetchChunks<any>(
-          clubSupabase,
-          'comanda_items',
-          'comanda_id',
-          comandaIds,
-          'id, comanda_id, service_id, product_id, product_name, quantity, unit_price, staff_id',
-          tenantId,
-        )
-      : Promise.resolve([] as any[]),
-    appointmentIds.length > 0
-      ? fetchChunks<any>(
-          clubSupabase,
-          'appointments',
-          'id',
-          appointmentIds,
-          'id, start_time, source, channel',
-          tenantId,
-        )
-      : Promise.resolve([] as any[]),
-    comandaIds.length > 0
-      ? fetchChunks<any>(
-          sharedSupabase,
-          'comanda_payments',
-          'comanda_id',
-          comandaIds,
-          'id, comanda_id, payment_type, amount, payment_method, reversed_at',
-          tenantId,
-        )
-      : Promise.resolve([] as any[]),
-    comandaIds.length > 0
-      ? fetchChunks<any>(
-          sharedSupabase,
-          'commission_records',
-          'comanda_id',
-          comandaIds,
-          'id, comanda_id, comanda_item_id, staff_id, record_type, commission_value, status',
-          tenantId,
-        )
-      : Promise.resolve([] as any[]),
-  ]);
+  const [staffRes, itemsData, appointmentsData, paymentsData, commissionsData] =
+    await Promise.all([
+      sharedSupabase
+        .from('staff')
+        .select('id, name, role, commission_rate, product_commission_rate')
+        .eq('tenant_id', tenantId),
+      comandaIds.length > 0
+        ? fetchChunks<PerformanceComandaItemRow>(
+            clubSupabase,
+            'comanda_items',
+            'comanda_id',
+            comandaIds,
+            'id, comanda_id, service_id, product_id, product_name, quantity, unit_price, staff_id',
+            tenantId,
+          )
+        : Promise.resolve([] as PerformanceComandaItemRow[]),
+      appointmentIds.length > 0
+        ? fetchChunks<PerformanceAppointmentRow>(
+            clubSupabase,
+            'appointments',
+            'id',
+            appointmentIds,
+            'id, start_time, source, channel',
+            tenantId,
+          )
+        : Promise.resolve([] as PerformanceAppointmentRow[]),
+      comandaIds.length > 0
+        ? fetchChunks<PerformancePaymentRow>(
+            sharedSupabase,
+            'comanda_payments',
+            'comanda_id',
+            comandaIds,
+            'id, comanda_id, payment_type, amount, payment_method, reversed_at',
+            tenantId,
+          )
+        : Promise.resolve([] as PerformancePaymentRow[]),
+      comandaIds.length > 0
+        ? fetchChunks<PerformanceCommissionRecordRow>(
+            sharedSupabase,
+            'commission_records',
+            'comanda_id',
+            comandaIds,
+            'id, comanda_id, comanda_item_id, staff_id, record_type, commission_value, status',
+            tenantId,
+          )
+        : Promise.resolve([] as PerformanceCommissionRecordRow[]),
+    ]);
 
-  const itemIds = itemsData.map((item: any) => item.id).filter(Boolean);
+  if (staffRes.error) throw staffRes.error;
+
+  const itemIds = itemsData.map((item) => item.id).filter(Boolean);
   const participantsData =
     itemIds.length > 0
-      ? await fetchChunks<any>(
+      ? await fetchChunks<PerformanceParticipantRow>(
           sharedSupabase,
           'service_execution_participants',
           'comanda_item_id',
@@ -268,326 +274,109 @@ export const fetchPerformanceData = async (
         )
       : [];
 
-  // Mapeamentos em memória
-  const staffById = new Map<
-    string,
-    { id: string; name: string; role: string; commission_rate: number | null; product_commission_rate: number | null }
-  >();
-  for (const s of staffRes.data || []) {
-    staffById.set(s.id, {
-      id: s.id,
-      name: String(s.name || 'Profissional'),
-      role: String(s.role || 'barber'),
-      commission_rate: s.commission_rate ?? null,
-      product_commission_rate: s.product_commission_rate ?? null,
+  const staffById = new Map<string, PerformanceStaffInfo>();
+  for (const staff of staffRes.data || []) {
+    staffById.set(staff.id, {
+      id: staff.id,
+      name: String(staff.name || 'Profissional'),
+      role: String(staff.role || 'barber'),
+      commission_rate: staff.commission_rate ?? null,
+      product_commission_rate: staff.product_commission_rate ?? null,
     });
   }
 
-  const appointmentById = new Map<string, any>();
-  for (const appt of appointmentsData) {
-    appointmentById.set(appt.id, appt);
+  const appointmentById = new Map<string, PerformanceAppointmentRow>();
+  for (const appointment of appointmentsData) {
+    appointmentById.set(appointment.id, appointment);
   }
 
-  const itemsByComandaId = new Map<string, any[]>();
+  const itemsByComandaId = new Map<string, PerformanceComandaItemRow[]>();
   for (const item of itemsData) {
     const list = itemsByComandaId.get(item.comanda_id) || [];
     list.push(item);
     itemsByComandaId.set(item.comanda_id, list);
   }
 
-  const participantsByItemId = new Map<string, any[]>();
-  for (const part of participantsData) {
-    const list = participantsByItemId.get(part.comanda_item_id) || [];
-    list.push(part);
-    participantsByItemId.set(part.comanda_item_id, list);
+  const participantsByItemId = new Map<string, PerformanceParticipantRow[]>();
+  for (const participant of participantsData) {
+    const list = participantsByItemId.get(participant.comanda_item_id) || [];
+    list.push(participant);
+    participantsByItemId.set(participant.comanda_item_id, list);
   }
 
-  const paymentsByComandaId = new Map<string, any[]>();
-  for (const pay of paymentsData) {
-    if (pay.reversed_at) continue;
-    const list = paymentsByComandaId.get(pay.comanda_id) || [];
-    list.push(pay);
-    paymentsByComandaId.set(pay.comanda_id, list);
+  const paymentsByComandaId = new Map<string, PerformancePaymentRow[]>();
+  for (const payment of paymentsData) {
+    if (payment.reversed_at) continue;
+    const list = paymentsByComandaId.get(payment.comanda_id) || [];
+    list.push(payment);
+    paymentsByComandaId.set(payment.comanda_id, list);
   }
 
-  const commissionRecordsByComandaId = new Map<string, any[]>();
-  for (const rec of commissionsData) {
-    const list = commissionRecordsByComandaId.get(rec.comanda_id) || [];
-    list.push(rec);
-    commissionRecordsByComandaId.set(rec.comanda_id, list);
+  const commissionRecordsByComandaId = new Map<string, PerformanceCommissionRecordRow[]>();
+  for (const record of commissionsData) {
+    const list = commissionRecordsByComandaId.get(record.comanda_id) || [];
+    list.push(record);
+    commissionRecordsByComandaId.set(record.comanda_id, list);
   }
-
-  // Estruturas de agregação por barbeiro
-  const staffMetricsMap = new Map<
-    string,
-    {
-      cash_revenue: number;
-      club_credit_volume: number;
-      commission_generated: number;
-      comandaIds: Set<string>;
-    }
-  >();
-
-  const initStaffMetrics = (id: string) => {
-    if (!staffMetricsMap.has(id)) {
-      staffMetricsMap.set(id, {
-        cash_revenue: 0,
-        club_credit_volume: 0,
-        commission_generated: 0,
-        comandaIds: new Set<string>(),
-      });
-    }
-    return staffMetricsMap.get(id)!;
-  };
-
-  for (const s of staffById.values()) {
-    initStaffMetrics(s.id);
-  }
-
-  let houseCashRevenue = 0;
-  let houseClubVolume = 0;
-  let houseTotalRevenue = 0;
-  let houseTotalCommissions = 0;
-  let houseTotalAttendances = 0;
-
-  const timelineMap = new Map<string, { cash: number; club: number; total: number; count: number }>();
-
-  for (const comanda of comandasSlice) {
-    const appt = comanda.appointment_id ? appointmentById.get(comanda.appointment_id) : null;
-    const attendanceDate = appt?.start_time || comanda.created_at;
-    const paymentDate = comanda.closed_at || comanda.created_at;
-
-    const targetDate = dateRegime === 'attendance' ? attendanceDate : paymentDate;
-    const targetTimestamp = new Date(targetDate).getTime();
-
-    if (fromMs !== null && !Number.isNaN(targetTimestamp) && targetTimestamp < fromMs) {
-      continue;
-    }
-    if (toMs !== null && !Number.isNaN(targetTimestamp) && targetTimestamp > toMs) {
-      continue;
-    }
-
-    const comandaTotal = Number(comanda.total || 0);
-    const items = itemsByComandaId.get(comanda.id) || [];
-    const activePayments = paymentsByComandaId.get(comanda.id) || [];
-
-    let comandaCash = 0;
-    let comandaClub = 0;
-    const comandaIsClub = isClubPaymentMethod(
-      comanda.payment_method,
-      comanda.closure_mode,
-      comanda.financial_effect,
-    );
-
-    if (activePayments.length > 0) {
-      for (const pay of activePayments) {
-        const amt = Number(pay.amount || 0);
-        const isClub =
-          comandaIsClub ||
-          isClubPaymentMethod(pay.payment_method, comanda.closure_mode, comanda.financial_effect);
-        if (isClub) {
-          comandaClub += amt;
-        } else {
-          comandaCash += amt;
-        }
-      }
-    } else {
-      if (comandaIsClub) {
-        comandaClub = comandaTotal;
-      } else {
-        comandaCash = comandaTotal;
-      }
-    }
-
-    const calculatedComandaTotal = comandaCash + comandaClub;
-    const effectiveTotal = calculatedComandaTotal > 0 ? calculatedComandaTotal : comandaTotal;
-    const cashRatio = effectiveTotal > 0 ? comandaCash / effectiveTotal : 1;
-    const clubRatio = effectiveTotal > 0 ? comandaClub / effectiveTotal : 0;
-
-    houseCashRevenue += comandaCash;
-    houseClubVolume += comandaClub;
-    houseTotalRevenue += effectiveTotal;
-    houseTotalAttendances += 1;
-
-    const dayKey = targetDate ? formatLocalYMD(new Date(targetDate)) : 'outros';
-    const currentDay = timelineMap.get(dayKey) || { cash: 0, club: 0, total: 0, count: 0 };
-    timelineMap.set(dayKey, {
-      cash: currentDay.cash + comandaCash,
-      club: currentDay.club + comandaClub,
-      total: currentDay.total + effectiveTotal,
-      count: currentDay.count + 1,
-    });
-
-    if (items.length > 0) {
-      for (const item of items) {
-        const qty = Math.max(1, Number(item.quantity || 1));
-        const itemPrice = Number(item.unit_price || 0) * qty;
-        const itemCash = itemPrice * cashRatio;
-        const itemClub = itemPrice * clubRatio;
-
-        const parts = participantsByItemId.get(item.id) || [];
-        if (parts.length > 0) {
-          const partShare = 1 / parts.length;
-          for (const part of parts) {
-            const pid =
-              part.professional_id || part.staff_id || item.staff_id || comanda.staff_id;
-            if (pid) {
-              const m = initStaffMetrics(pid);
-              m.cash_revenue += itemCash * partShare;
-              m.club_credit_volume += itemClub * partShare;
-              m.comandaIds.add(comanda.id);
-            }
-          }
-        } else {
-          const pid = item.staff_id || comanda.staff_id;
-          if (pid) {
-            const m = initStaffMetrics(pid);
-            m.cash_revenue += itemCash;
-            m.club_credit_volume += itemClub;
-            m.comandaIds.add(comanda.id);
-          }
-        }
-      }
-    } else if (comanda.staff_id) {
-      const m = initStaffMetrics(comanda.staff_id);
-      m.cash_revenue += comandaCash;
-      m.club_credit_volume += comandaClub;
-      m.comandaIds.add(comanda.id);
-    }
-
-    const commRecords = commissionRecordsByComandaId.get(comanda.id) || [];
-    if (commRecords.length > 0) {
-      const activeOriginals = commRecords.filter(
-        (r: any) => r.record_type === 'commission' && r.status === 'active',
-      );
-      const recordsToProcess =
-        activeOriginals.length > 0 ? activeOriginals : commRecords;
-
-      for (const rec of recordsToProcess) {
-        const val = Number(rec.commission_value || 0);
-        houseTotalCommissions += val;
-        if (rec.staff_id) {
-          const m = initStaffMetrics(rec.staff_id);
-          m.commission_generated += val;
-        }
-      }
-    } else if (comanda.financial_effect !== false) {
-      for (const item of items) {
-        const qty = Math.max(1, Number(item.quantity || 1));
-        const lineTotal = Number(item.unit_price || 0) * qty;
-        if (lineTotal <= 0) continue;
-
-        const parts = (participantsByItemId.get(item.id) || []).filter(
-          (p: any) => p.affects_commission !== false,
-        );
-
-        if (parts.length > 0) {
-          for (const part of parts) {
-            const pid =
-              part.professional_id || part.staff_id || item.staff_id || comanda.staff_id;
-            const staffObj = pid ? staffById.get(pid) : undefined;
-            const effRate = getEffectiveCommissionRateForItem(staffObj, item);
-            const comm = calculateCommissionValue(
-              lineTotal,
-              {
-                id: part.id,
-                comanda_item_id: item.id,
-                staff_id: pid || null,
-                role: part.role || 'primary',
-                payout_type: part.payout_type || 'percentage',
-                payout_value: Number(part.payout_value ?? 100),
-                affects_commission: part.affects_commission !== false,
-              },
-              effRate,
-            );
-            houseTotalCommissions += comm;
-            if (pid && comm > 0) {
-              const m = initStaffMetrics(pid);
-              m.commission_generated += comm;
-            }
-          }
-        } else {
-          const pid = item.staff_id || comanda.staff_id;
-          const staffObj = pid ? staffById.get(pid) : undefined;
-          const effRate = getEffectiveCommissionRateForItem(staffObj, item);
-          if (effRate > 0) {
-            const comm = lineTotal * effRate;
-            houseTotalCommissions += comm;
-            if (pid) {
-              const m = initStaffMetrics(pid);
-              m.commission_generated += comm;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  const builtStaffList: StaffPerformanceRecord[] = [];
-  staffMetricsMap.forEach((metrics, sId) => {
-    const staffObj = staffById.get(sId);
-    const name = staffObj ? staffObj.name : 'Colaborador';
-    const role = staffObj ? staffObj.role : 'barber';
-    const commission_rate = staffObj ? staffObj.commission_rate : null;
-
-    const totalRev = metrics.cash_revenue + metrics.club_credit_volume;
-    const apptCount = metrics.comandaIds.size;
-    const avgTicket = apptCount > 0 ? totalRev / apptCount : 0;
-    const sharePct =
-      houseTotalRevenue > 0 ? (totalRev / houseTotalRevenue) * 100 : 0;
-
-    builtStaffList.push({
-      id: sId,
-      name,
-      role,
-      commission_rate,
-      appointments_count: apptCount,
-      cash_revenue: metrics.cash_revenue,
-      club_credit_volume: metrics.club_credit_volume,
-      total_revenue: totalRev,
-      average_ticket: avgTicket,
-      commission_generated: metrics.commission_generated,
-      share_percentage: sharePct,
-    });
-  });
-
-  builtStaffList.sort((a, b) => {
-    if (b.total_revenue !== a.total_revenue) {
-      return b.total_revenue - a.total_revenue;
-    }
-    return b.appointments_count - a.appointments_count;
-  });
-
-  const avgTicket =
-    houseTotalAttendances > 0 ? houseTotalRevenue / houseTotalAttendances : 0;
-  const netMargin = Math.max(0, houseTotalRevenue - houseTotalCommissions);
-  const netMarginPercent =
-    houseTotalRevenue > 0 ? (netMargin / houseTotalRevenue) * 100 : 0;
-
-  const sortedDays = Array.from(timelineMap.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, val]) => ({
-      key,
-      label: fmtDate(key),
-      cash: val.cash,
-      club: val.club,
-      total: val.total,
-      count: val.count,
-    }));
 
   return {
-    tenantGoal: resolvedGoal,
-    rankedStaff: builtStaffList,
-    timeline: sortedDays,
-    totals: {
-      totalRevenue: houseTotalRevenue,
-      cashRevenue: houseCashRevenue,
-      clubCreditVolume: houseClubVolume,
-      totalAttendances: houseTotalAttendances,
-      averageTicket: avgTicket,
-      totalCommissions: houseTotalCommissions,
-      netMargin,
-      netMarginPercent,
-    },
+    dateRegime,
+    staffById,
+    appointmentById,
+    itemsByComandaId,
+    participantsByItemId,
+    paymentsByComandaId,
+    commissionRecordsByComandaId,
+  };
+};
+
+export const fetchPerformanceData = async (
+  tenantId: string,
+  filters: PerformanceFilterState,
+  dateRegime: DateRegime,
+): Promise<PerformanceResult> => {
+  const window = resolveWindow(filters.dateFrom, filters.dateTo);
+  if (!window) {
+    throw new Error('Período inválido. Selecione uma data inicial e uma data final.');
+  }
+  const previousWindow = resolvePreviousWindow(window);
+
+  const [goal, currentRows, previousRows] = await Promise.all([
+    fetchActiveGoal(tenantId),
+    fetchComandasForWindow(tenantId, window, dateRegime),
+    previousWindow
+      ? fetchComandasForWindow(tenantId, previousWindow, dateRegime)
+      : Promise.resolve<WindowRows>({ rows: [], truncated: false }),
+  ]);
+
+  const union = new Map<string, PerformanceComandaRow>();
+  for (const comanda of [...currentRows.rows, ...previousRows.rows]) {
+    if (comanda.id && !union.has(comanda.id)) union.set(comanda.id, comanda);
+  }
+  const context = await fetchSnapshotContext(
+    tenantId,
+    Array.from(union.values()),
+    dateRegime,
+  );
+
+  const current = buildSnapshot(currentRows.rows, context, window);
+  const previous = previousWindow
+    ? buildSnapshot(previousRows.rows, context, previousWindow)
+    : null;
+  const previousTotals =
+    previous && previousRows.rows.length > 0 ? previous.totals : null;
+
+  return {
+    tenantGoal: goal,
+    goalContext: resolveGoalContext(window, goal, todayInSaoPaulo()),
+    rankedStaff: current.rankedStaff,
+    timeline: current.timeline,
+    totals: current.totals,
+    previousTotals,
+    deltas: computeDeltas(current.totals, previousTotals),
+    window: toPublicWindow(window),
+    previousWindow: previousWindow ? toPublicWindow(previousWindow) : null,
+    truncated: currentRows.truncated,
+    previousTruncated: previousRows.truncated,
   };
 };
