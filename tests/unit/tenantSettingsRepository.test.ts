@@ -110,3 +110,88 @@ describe('domain/tenantSettings: Repository appointment_interval_minutes persist
     expect(updateWorkingHoursCalledWith?.appointment_interval_minutes).toBe(45);
   });
 });
+
+describe('TenantSettingsRepositoryImpl - google_review_url', () => {
+  it('should_return_and_persist_google_review_url_when_managing_online_booking_settings', async () => {
+    const persistedByTable: Record<string, Record<string, unknown>> = {};
+
+    const onlineRow = {
+      id: 'obs-1',
+      tenant_id: 'tenant-1',
+      enabled: true,
+      barbershop_name: 'Sanchez Barber',
+      booking_slug: 'sanchezbarber',
+      slot_interval_minutes: 30,
+      min_advance_hours: 1,
+      max_advance_days: 30,
+      cancellation_hours: 2,
+      confirmation_mode: 'auto',
+      require_phone: true,
+      allow_notes: true,
+      theme_color: '#B88A44',
+      logo_url: null,
+      welcome_message: null,
+      working_hours: {},
+      maps_url: null,
+      google_review_url: 'https://g.page/r/sanchez/review',
+      created_at: '2026-11-15T00:00:00Z',
+      updated_at: '2026-11-15T00:00:00Z',
+    };
+
+    const createTableBuilder = (table: string) => {
+      const builder: any = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        update: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+          persistedByTable[table] = payload;
+          return builder;
+        }),
+        upsert: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
+          persistedByTable[table] = payload;
+          return builder;
+        }),
+        maybeSingle: vi.fn().mockResolvedValue(
+          table === 'online_booking_settings'
+            ? { data: onlineRow, error: null }
+            : { data: null, error: null },
+        ),
+        single: vi.fn().mockResolvedValue({ data: onlineRow, error: null }),
+      };
+      return builder;
+    };
+
+    const clientMock = {
+      from: vi.fn().mockImplementation((table: string) => createTableBuilder(table)),
+    } as unknown as DatabaseClient;
+
+    const repository = new (tenantSettingsRepository.constructor as any)(clientMock);
+
+    const loaded = await repository.getOnlineBookingSettings('tenant-1');
+    expect(loaded?.google_review_url).toBe('https://g.page/r/sanchez/review');
+
+    const saved = await repository.upsertOnlineBookingSettings({
+      tenant_id: 'tenant-1',
+      enabled: true,
+      barbershop_name: 'Sanchez Barber',
+      booking_slug: 'sanchezbarber',
+      slot_interval_minutes: 30,
+      min_advance_hours: 1,
+      max_advance_days: 30,
+      cancellation_hours: 2,
+      confirmation_mode: 'auto',
+      require_phone: true,
+      allow_notes: true,
+      theme_color: '#B88A44',
+      logo_url: null,
+      welcome_message: null,
+      maps_url: null,
+      google_review_url: 'https://g.page/r/updated/review',
+    });
+
+    expect(persistedByTable.online_booking_settings).toMatchObject({
+      google_review_url: 'https://g.page/r/updated/review',
+    });
+    expect(saved.google_review_url).toBe('https://g.page/r/sanchez/review');
+  });
+});
