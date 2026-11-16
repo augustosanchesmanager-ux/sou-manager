@@ -23,6 +23,24 @@ import {
   isAuditPinFormatValid,
   normalizeAuditPin,
 } from '../../src/lib/audit/competence';
+import { useTenantCommunicationConfig } from '../../src/hooks/useTenantCommunicationConfig';
+import { isValidWhatsAppPhone } from '../../src/utils/whatsappHub';
+import { PostSaleWhatsAppButton } from '../../src/components/whatsapp/PostSaleWhatsAppButton';
+
+const QUICK_PAYMENT_LABELS: Record<'pix' | 'debit' | 'credit' | 'cash', string> = {
+  pix: 'PIX',
+  debit: 'Cartão Débito',
+  credit: 'Cartão Crédito',
+  cash: 'Dinheiro',
+};
+
+export interface QuickCheckoutCompletedState {
+  comandaId: string;
+  paymentMethod: string;
+  total: number;
+  clientName: string;
+  clientPhone?: string | null;
+}
 
 export interface QuickCheckoutModalProps {
   isOpen: boolean;
@@ -32,12 +50,14 @@ export interface QuickCheckoutModalProps {
     total: number;
     client_id?: string | null;
     client_name?: string | null;
+    client_phone?: string | null;
     items?: Array<{ id: string; name?: string; service_name?: string; product_name?: string; service_id?: string; product_id?: string; quantity: number }>;
   } | null;
   tenantId: string;
   onSuccess: (comandaId: string, paymentMethod: string) => void;
   onOpenChairQrCode?: () => void;
   initialCreditEligibility?: ClientCreditEligibility | null;
+  initialSuccessState?: QuickCheckoutCompletedState | null;
 }
 
 export const QuickCheckoutModal: React.FC<QuickCheckoutModalProps> = ({
@@ -48,6 +68,7 @@ export const QuickCheckoutModal: React.FC<QuickCheckoutModalProps> = ({
   onSuccess,
   onOpenChairQrCode,
   initialCreditEligibility,
+  initialSuccessState = null,
 }) => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,7 +134,27 @@ export const QuickCheckoutModal: React.FC<QuickCheckoutModalProps> = ({
     };
   }, [isOpen, comanda?.client_id, comanda?.items, comanda?.total, tenantId, initialCreditEligibility]);
 
-  if (!comanda) return null;
+  const [completedCheckout, setCompletedCheckout] = useState<QuickCheckoutCompletedState | null>(
+    initialSuccessState,
+  );
+  const { googleReviewUrl } = useTenantCommunicationConfig(tenantId);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setCompletedCheckout(initialSuccessState);
+    }
+  }, [isOpen, initialSuccessState]);
+
+  useEffect(() => {
+    setCompletedCheckout(initialSuccessState);
+  }, [comanda?.id, initialSuccessState]);
+
+  const handleCloseModal = useCallback(() => {
+    setCompletedCheckout(null);
+    onClose();
+  }, [onClose]);
+
+  if (!comanda && !completedCheckout) return null;
 
   const handleQuickPay = async (method: 'pix' | 'debit' | 'credit' | 'cash') => {
     if (submitting) return;
@@ -141,8 +182,14 @@ export const QuickCheckoutModal: React.FC<QuickCheckoutModalProps> = ({
 
       playCheckoutSuccessChime();
       triggerHapticFeedback([40, 60, 40]);
+      setCompletedCheckout({
+        comandaId: comanda.id,
+        paymentMethod: QUICK_PAYMENT_LABELS[method] || method,
+        total: comanda.total,
+        clientName: comanda.client_name || 'Cliente Avulso',
+        clientPhone: comanda.client_phone || null,
+      });
       onSuccess(comanda.id, method);
-      onClose();
     } catch (err: any) {
       console.error('[QuickCheckoutModal] Erro ao registrar baixa express:', err);
       setError(err?.message || 'Falha ao registrar baixa financeira no balcão.');
@@ -169,8 +216,14 @@ export const QuickCheckoutModal: React.FC<QuickCheckoutModalProps> = ({
 
       playCheckoutSuccessChime();
       triggerHapticFeedback([60, 100, 60]);
+      setCompletedCheckout({
+        comandaId: comanda.id,
+        paymentMethod: 'Club dos Chefes',
+        total: 0,
+        clientName: comanda.client_name || 'Cliente Avulso',
+        clientPhone: comanda.client_phone || null,
+      });
       onSuccess(comanda.id, 'Club dos Chefes');
-      onClose();
     } catch (err: any) {
       console.error('[QuickCheckoutModal] Erro ao baixar com créditos do Clube:', err);
       setError(err?.message || 'Falha ao processar consumo de créditos do Clube dos Chefes.');
@@ -267,12 +320,93 @@ export const QuickCheckoutModal: React.FC<QuickCheckoutModalProps> = ({
     }
   };
 
+  if (completedCheckout) {
+    const hasValidPhone = isValidWhatsAppPhone(completedCheckout.clientPhone);
+
+    return (
+      <Modal
+        isOpen={isOpen}
+        onClose={handleCloseModal}
+        title="Comanda Finalizada"
+        size="md"
+      >
+        <div className="space-y-5 rounded-2xl bg-[#141414] border border-[#262626] p-5 text-[#F5F2EB]">
+          <div className="flex flex-col items-center text-center gap-3">
+            <div className="size-14 rounded-full bg-[#B88A44]/15 border border-[#B88A44]/40 flex items-center justify-center">
+              <span className="material-symbols-outlined text-3xl text-[#B88A44]">
+                check_circle
+              </span>
+            </div>
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#B88A44]">
+                Sucesso no Atendimento
+              </span>
+              <h3 className="text-xl font-black text-[#F5F2EB] mt-1">
+                Comanda #{completedCheckout.comandaId.slice(0, 8)} encerrada
+              </h3>
+              <p className="text-xs text-[#F5F2EB]/70 mt-1">
+                {completedCheckout.clientName} • {completedCheckout.paymentMethod} •{' '}
+                <span className="font-bold text-[#F5F2EB]">
+                  {formatBrlCurrency(completedCheckout.total)}
+                </span>
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-[#1C1A17] border border-[#262626] p-3.5 text-xs text-[#F5F2EB]/80 leading-relaxed">
+            {googleReviewUrl ? (
+              <p>
+                Envie o agradecimento no WhatsApp com o link direto para avaliação no Google e o
+                portal de agendamento da barbearia.
+              </p>
+            ) : (
+              <p>
+                Envie o agradecimento no WhatsApp com o link do portal para os próximos agendamentos
+                do cliente.
+              </p>
+            )}
+          </div>
+
+          {!hasValidPhone && (
+            <div
+              role="status"
+              className="rounded-xl bg-[#1C1A17] border border-[#262626] px-3.5 py-2.5 text-xs text-[#F5F2EB]/70 flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-base text-[#B88A44]">
+                phone_disabled
+              </span>
+              <span>Cliente sem telefone cadastrado para envio via WhatsApp.</span>
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+            <PostSaleWhatsAppButton
+              clientName={completedCheckout.clientName}
+              clientPhone={completedCheckout.clientPhone}
+              tenantId={tenantId}
+              className="flex-1"
+            />
+            <button
+              type="button"
+              onClick={handleCloseModal}
+              className="px-5 py-3.5 rounded-xl font-bold text-sm bg-[#1E1E1E] hover:bg-[#2A2A2A] text-[#F5F2EB] border border-[#262626] transition-all cursor-pointer"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+
+  if (!comanda) return null;
+
   const clientName = comanda.client_name || 'Cliente Avulso';
   const shortId = comanda.id.slice(0, 8);
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} title="⚡ Modo Balcão Express (1 Toque)" size="md">
+      <Modal isOpen={isOpen} onClose={handleCloseModal} title="⚡ Modo Balcão Express (1 Toque)" size="md">
       <div className="space-y-5 p-1">
         {/* Header com resumo do atendimento */}
         <div className="p-4 rounded-2xl bg-slate-50 dark:bg-surface-dark border border-slate-200/70 dark:border-border-dark flex items-center justify-between">
