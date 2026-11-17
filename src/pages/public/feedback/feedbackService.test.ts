@@ -13,6 +13,10 @@ describe('feedbackService — Universal Staff & Establishment Review Funnel', ()
   });
 
   it('should_format_all_tenant_staff_roles_in_portuguese', () => {
+    expect(getRoleLabelPtBr('admin')).toBe('Gerente Administrativo');
+    expect(getRoleLabelPtBr('AdminManager')).toBe('Gerente Administrativo');
+    expect(getRoleLabelPtBr('gerente administrativo')).toBe('Gerente Administrativo');
+    expect(getRoleLabelPtBr('owner')).toBe('Proprietário');
     expect(getRoleLabelPtBr('Manager')).toBe('Gerente Operacional');
     expect(getRoleLabelPtBr('manager')).toBe('Gerente Operacional');
     expect(getRoleLabelPtBr('Receptionist')).toBe('Recepção');
