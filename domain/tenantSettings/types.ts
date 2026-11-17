@@ -105,6 +105,7 @@ export interface UpsertOnlineBookingSettingsInput {
   work_end_time?: string;
   appointment_interval_minutes?: number | null;
   min_booking_notice_minutes?: number | null;
+  booking_horizon_days?: number | null;
 }
 
 export interface ShowcaseProductItem {
