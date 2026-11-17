@@ -1,10 +1,21 @@
 name: Deploy Production (Promote Controlado)
 
-# P-AUTO Fase 1 — Governança C+D (decisão PO 2026-09-26)
+# P-AUTO Fase 1 — Governanca C+D (decisao PO 2026-09-26)
 # C = workflow_dispatch + Environment Protection (aprovacao humana)
 # D = vercel promote (promocao explicita do deployment alvo)
 # Regra: merge em main NAO promove producao. Promocao exige este workflow
 # dispatchado manualmente, com dry_run=true por padrao e confirmacao dupla.
+#
+# ADR-049 (Accepted 2026-11-17) — GATE PRE-ATRIBUICAO:
+# o job `pre-validate` roda health check + E2E smoke contra a URL do
+# deployment candidato (sem alias publico) e o `promote` so executa com
+# esse veredito verde. O `post-validate` deixa de ser a unica barreira e
+# passa a verificar convergencia (alias servindo o SHA promovido).
+#
+# Proveniencia do artefato = P1 (ADR-049): a Vercel builda target=production
+# no merge e o alias so e atribuido pelo `vercel promote`.
+# NUNCA restaurar `commandForIgnoringBuildStep` — ele cancelaria o build e
+# o promote ficaria sem candidato.
 
 on:
   workflow_dispatch:
@@ -42,9 +53,9 @@ permissions:
   contents: read
   deployments: read
 
-# Uma promocao por vez, por projeto. Nunca cancela uma promocao em andamento.
+# D5-B — fila serial estrita por projeto. Nunca cancela uma promocao em andamento.
 concurrency:
-  group: deploy-production-${{ github.event.inputs.project }}
+  group: deploy-production-serial-${{ inputs.project }}
   cancel-in-progress: false
 
 jobs:
@@ -57,6 +68,7 @@ jobs:
       domain: ${{ steps.guard.outputs.domain }}
       promote: ${{ steps.guard.outputs.promote }}
       authorization_ref: ${{ steps.guard.outputs.authorization_ref }}
+      deployment_url: ${{ steps.guard.outputs.deployment_url }}
     steps:
       - name: Guardrails de entrada
         id: guard
@@ -94,7 +106,37 @@ jobs:
           echo "domain=$DOMAIN" >> "$GITHUB_OUTPUT"
           echo "promote=$PROMOTE" >> "$GITHUB_OUTPUT"
           echo "authorization_ref=$AUTH_REF" >> "$GITHUB_OUTPUT"
+          echo "deployment_url=$DEPLOYMENT_URL" >> "$GITHUB_OUTPUT"
           echo "Projeto=$PROJECT | DryRun=$DRY_RUN | Promote=$PROMOTE | Auth=$AUTH_REF"
+
+      - name: Auditoria de assinatura do commit (advisory)
+        # D1-B como OBSERVABILIDADE, nao como gate bloqueador. Motivo tecnico:
+        # em push/merge para main o `git log -1` le o merge commit, que o
+        # proprio GitHub assina — portanto um gate sobre ele praticamente
+        # nunca falha. A assinatura que a Vercel avalia (requireVerifiedCommits)
+        # e a do commit de HEAD da PR; isso se resolve na autoria (assinatura
+        # configurada localmente), nao aqui.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          JSON=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}" 2>/dev/null || echo '{}')
+          VERIFIED=$(echo "$JSON" | jq -r '.commit.verification.verified // "desconhecido"')
+          REASON=$(echo "$JSON" | jq -r '.commit.verification.reason // "desconhecido"')
+          echo "Assinatura do commit $GITHUB_SHA: verified=$VERIFIED reason=$REASON"
+          {
+            echo "### Assinatura do commit (auditoria)"
+            echo ""
+            echo "| Campo | Valor |"
+            echo "|-------|-------|"
+            echo "| Commit | $GITHUB_SHA |"
+            echo "| Verified | $VERIFIED |"
+            echo "| Reason | $REASON |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$VERIFIED" != "true" ]; then
+            echo "::warning::Commit $GITHUB_SHA sem assinatura verificada (reason=$REASON). Preview da Vercel pode ficar BLOCKED."
+          fi
 
       - name: Listar deployments GitHub do projeto (auditoria read-only)
         env:
@@ -111,10 +153,146 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  promote:
-    name: promote (requer aprovacao do Environment)
+  pre-validate:
+    name: pre-validate (candidato isolado, sem alias)
+    # ADR-049 — roda ANTES de mover qualquer alias publico.
     needs: resolve-validate
     if: needs.resolve-validate.outputs.promote == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      deployment_id: ${{ steps.resolve.outputs.deployment_id }}
+      candidate_url: ${{ steps.resolve.outputs.candidate_url }}
+      candidate_sha: ${{ steps.resolve.outputs.candidate_sha }}
+    steps:
+      - name: Resolver candidato (id, url, sha) e aguardar READY
+        id: resolve
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          DEPLOYMENT_URL: ${{ needs.resolve-validate.outputs.deployment_url }}
+        run: |
+          set -euo pipefail
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::Secret VERCEL_TOKEN ausente. Sem ele nao e possivel resolver o candidato."
+            exit 1
+          fi
+          STATE=""
+          for i in $(seq 1 60); do
+            BODY=$(curl -sS -H "Authorization: Bearer $VERCEL_TOKEN" \
+              "https://api.vercel.com/v13/deployments/${DEPLOYMENT_URL}")
+            STATE=$(echo "$BODY" | jq -r '.readyState // "unknown"')
+            if [ "$STATE" = "READY" ]; then break; fi
+            if [ "$STATE" = "ERROR" ] || [ "$STATE" = "CANCELED" ]; then
+              echo "::error::Candidato em estado $STATE — promocao abortada."
+              exit 1
+            fi
+            if [ "$i" = "60" ]; then
+              echo "::error::Timeout aguardando readyState=READY (ultimo: $STATE)."
+              exit 1
+            fi
+            echo "readyState=$STATE — tentativa $i/60, retry em 10s..."
+            sleep 10
+          done
+          ID=$(echo "$BODY" | jq -r '.id')
+          URL=$(echo "$BODY" | jq -r '.url')
+          SHA=$(echo "$BODY" | jq -r '.meta.githubCommitSha // empty')
+          TARGET=$(echo "$BODY" | jq -r '.target // "null"')
+          if [ -z "$ID" ] || [ "$ID" = "null" ] || [ -z "$URL" ] || [ "$URL" = "null" ]; then
+            echo "::error::Nao foi possivel resolver id/url do candidate. Resposta: $BODY"
+            exit 1
+          fi
+          echo "Candidato: id=$ID url=$URL sha=${SHA:-<sem meta>} target=$TARGET"
+          if [ "$TARGET" != "production" ]; then
+            echo "::warning::Candidato nao e target=production ($TARGET). Promover preview pode levar bundle com env de preview."
+          fi
+          echo "deployment_id=$ID" >> "$GITHUB_OUTPUT"
+          echo "candidate_url=https://$URL" >> "$GITHUB_OUTPUT"
+          echo "candidate_sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Health check no CANDIDATO (nao no dominio publico)
+        env:
+          CANDIDATE: ${{ steps.resolve.outputs.candidate_url }}
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' -L --max-time 15 "$CANDIDATE" || echo "000")
+            if [ "$CODE" = "200" ]; then
+              echo "Health check PASSED (HTTP 200) no candidato em $CANDIDATE (tentativa $i)"
+              exit 0
+            fi
+            echo "Tentativa $i/30 — HTTP $CODE, retry em 10s..."
+            sleep 10
+          done
+          echo "::error::Health check FALHOU no candidato $CANDIDATE. Alias publico NAO foi movido."
+          exit 1
+
+      - name: Checkout (validacao + smoke)
+        uses: actions/checkout@v4
+
+      - name: Setup Node (validacao + smoke)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Gate de validacao do artefato
+        # D4-C — gate bloqueador com o conjunto canonico de validacao.
+        # Os sinais advisory (lint, e2e smoke do CI) permanecem fora deste
+        # bloqueio ate a sprint de saneamento. NaO existe script npm
+        # "validate"; os comandos reais sao executados explicitamente para
+        # manter o escopo desta mudanca restrito a este arquivo.
+        # Observacao: valida o checkout (HEAD de main). Em rollback
+        # documentado o aviso de divergencia do job `promote` cobre o caso.
+        run: |
+          set -euo pipefail
+          echo "== typecheck =="
+          npm run typecheck
+          echo "== unit =="
+          npm run test
+          echo "== architecture:ci =="
+          npm run architecture:ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Write .env.local for E2E helpers
+        run: |
+          printf 'VITE_SUPABASE_URL=%s\n' "$VITE_SUPABASE_URL" > .env.local
+          printf 'VITE_SUPABASE_ANON_KEY=%s\n' "$VITE_SUPABASE_ANON_KEY" >> .env.local
+          printf 'SUPABASE_SERVICE_ROLE_KEY=%s\n' "$SUPABASE_SERVICE_ROLE_KEY" >> .env.local
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Smoke E2E contra o CANDIDATO (antes de mover o alias)
+        env:
+          CI: "true"
+          PLAYWRIGHT_BASE_URL: ${{ steps.resolve.outputs.candidate_url }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run test:e2e:smoke
+
+      - name: Publicar artefatos do Playwright em falha
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-prevalidate-artifacts
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  promote:
+    name: promote (requer aprovacao do Environment)
+    needs: [resolve-validate, pre-validate]
+    if: needs.resolve-validate.outputs.promote == 'true' && needs.pre-validate.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
@@ -149,8 +327,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_TEAM_SCOPE: ${{ secrets.VERCEL_TEAM_SCOPE }}
-          DEPLOYMENT_URL: ${{ inputs.deployment_url }}
+          CANDIDATE_SHA: ${{ needs.pre-validate.outputs.candidate_sha }}
         run: |
           set -uo pipefail
           MAIN_SHA=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha' 2>/dev/null || true)
@@ -158,40 +335,35 @@ jobs:
             echo "::notice::Nao foi possivel resolver o HEAD da main. Aviso ignorado."
             exit 0
           fi
-          API_URL="https://api.vercel.com/v13/deployments/${DEPLOYMENT_URL}"
-          if [ -n "${VERCEL_TEAM_SCOPE:-}" ]; then
-            API_URL="$API_URL?slug=$VERCEL_TEAM_SCOPE"
-          fi
-          TARGET_SHA=$(curl -sS -H "Authorization: Bearer $VERCEL_TOKEN" "$API_URL" | jq -r '.meta.githubCommitSha // empty' 2>/dev/null || true)
-          if [ -z "$TARGET_SHA" ]; then
+          if [ -z "${CANDIDATE_SHA:-}" ]; then
             echo "::notice::Nao foi possivel obter o SHA do deployment alvo. Aviso ignorado."
             exit 0
           fi
-          echo "deployment alvo = $TARGET_SHA"
+          echo "deployment alvo = $CANDIDATE_SHA"
           echo "main HEAD       = $MAIN_SHA"
-          if [ "$TARGET_SHA" != "$MAIN_SHA" ]; then
-            echo "::warning::Deployment alvo ($TARGET_SHA) difere do HEAD da main ($MAIN_SHA). Permitido apenas em rollback documentado (docs/runbooks/P-AUTO_PROMOTE_RUNBOOK.md)."
+          if [ "$CANDIDATE_SHA" != "$MAIN_SHA" ]; then
+            echo "::warning::Deployment alvo ($CANDIDATE_SHA) difere do HEAD da main ($MAIN_SHA). Permitido apenas em rollback documentado (docs/runbooks/P-AUTO_PROMOTE_RUNBOOK.md)."
           fi
 
       - name: vercel promote
+        # D3-A - saneamento: removida a variavel de escopo de time do bloco
+        # `promote` (ela nao existe em nenhum escopo do repositorio, nem como
+        # secret nem como variable) e a flag de escopo que ela alimentava.
+        # O token usado ja e do time, portanto o alvo e o deployment id
+        # resolvido e validado por `pre-validate`, nao a string crua do input.
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_TEAM_SCOPE: ${{ secrets.VERCEL_TEAM_SCOPE }}
-          DEPLOYMENT_URL: ${{ inputs.deployment_url }}
+          TARGET_DEPLOYMENT: ${{ needs.pre-validate.outputs.deployment_id }}
         run: |
           set -euo pipefail
-          SCOPE_ARGS=""
-          if [ -n "${VERCEL_TEAM_SCOPE:-}" ]; then
-            SCOPE_ARGS="--scope $VERCEL_TEAM_SCOPE"
-          fi
-          echo "Promovendo deployment: $DEPLOYMENT_URL"
-          npx --yes vercel promote "$DEPLOYMENT_URL" \
+          echo "Promovendo deployment validado: $TARGET_DEPLOYMENT"
+          npx --yes vercel promote "$TARGET_DEPLOYMENT" \
             --token "$VERCEL_TOKEN" \
-            --yes --non-interactive --timeout 5m $SCOPE_ARGS
+            --yes --non-interactive --timeout 5m
 
   post-validate:
     name: post-validate
-    needs: [resolve-validate, promote]
+    needs: [resolve-validate, promote, pre-validate]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -215,6 +387,33 @@ jobs:
           done
           echo "::error::Health check FALHOU apos 300s em $DOMAIN"
           exit 1
+
+      - name: Convergencia — alias serve o SHA promovido
+        # ADR-049: o post-validate deixa de ser a unica barreira e passa a
+        # verificar que o alias publico serve exatamente o artefato validado.
+        # Nao bloqueante: a contencao real e o `pre-validate` (que roda antes
+        # do alias). Aqui o objetivo e detectar divergencia de propagacao.
+        if: needs.promote.result == 'success'
+        continue-on-error: true
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          DOMAIN: ${{ needs.resolve-validate.outputs.domain }}
+          EXPECTED_SHA: ${{ needs.pre-validate.outputs.candidate_sha }}
+        run: |
+          set -uo pipefail
+          HOST="${DOMAIN#https://}"
+          DEPID=$(curl -sS -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v4/aliases/$HOST" | jq -r '.deploymentId // empty')
+          if [ -z "$DEPID" ]; then
+            echo "::warning::Nao foi possivel resolver o alias $HOST."
+            exit 0
+          fi
+          SERVED=$(curl -sS -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v13/deployments/$DEPID" | jq -r '.meta.githubCommitSha // empty')
+          echo "alias $HOST -> $DEPID -> sha=${SERVED:-<sem meta>} (esperado=${EXPECTED_SHA:-<sem meta>})"
+          if [ -n "${EXPECTED_SHA:-}" ] && [ "${SERVED:-}" != "$EXPECTED_SHA" ]; then
+            echo "::warning::Alias serve SHA diferente do candidato validado. Investigar propagacao."
+          fi
 
       - name: Checkout (smoke)
         if: needs.promote.result == 'success'
@@ -267,6 +466,8 @@ jobs:
           DEPLOYMENT_URL: ${{ inputs.deployment_url }}
           DRY_RUN: ${{ inputs.dry_run }}
           PROMOTE_RESULT: ${{ needs.promote.result }}
+          PREVALIDATE_RESULT: ${{ needs.pre-validate.result }}
+          CANDIDATE_SHA: ${{ needs.pre-validate.outputs.candidate_sha }}
           VALIDATE_RESULT: ${{ needs.resolve-validate.result }}
         run: |
           {
@@ -279,13 +480,16 @@ jobs:
             echo "| SHA informado | ${SHA_INPUT:-(nao informado)} |"
             echo "| Commit do workflow run | $GITHUB_SHA |"
             echo "| Deployment alvo | ${DEPLOYMENT_URL:-(dry-run)} |"
+            echo "| SHA do candidato | ${CANDIDATE_SHA:-(nao resolvido)} |"
             echo "| Dry run | $DRY_RUN |"
             echo "| Authorization ref | $AUTH_REF |"
             echo "| Executor | $GITHUB_ACTOR |"
             echo "| Job resolve-validate | $VALIDATE_RESULT |"
+            echo "| Job pre-validate | $PREVALIDATE_RESULT |"
             echo "| Job promote | $PROMOTE_RESULT |"
             echo "| Timestamp | $(date -u +%Y-%m-%dT%H:%M:%SZ) |"
             echo ""
+            echo "Gate pre-atribuicao (ADR-049): health check + E2E smoke rodaram no candidato SEM alias publico."
             echo "Rollback: promover o deployment anterior conhecido com o mesmo comando \`vercel promote <deployment-id>\`. Ver docs/runbooks/P-AUTO_PROMOTE_RUNBOOK.md."
           } >> "$GITHUB_STEP_SUMMARY"
 
