@@ -205,6 +205,7 @@ git diff --check           # obrigatório antes do commit
 - **Nenhum formatter ativo** (biome com `formatter.enabled: false`). Não reformatar arquivos por conta própria.
 - **`architecture:ci` pode passar mascarado.** O runner conta violações pela regex `Total: N violation`; guards que reportam `Total: N error(s)` (Forbidden Imports) ou `Found N circular dependency` são contados como 0. *Evidência (2026-09-28):* `architecture:ci` sai com exit 0, mas `guard-imports.mjs` e `guard-circular.mjs` saem com exit 1 (1 forbidden import: `components/billing/StatusBanner.tsx`; 1 circular: `domain/billing/repository.ts ↔ supabaseBillingRepository.ts`). Para verificação real, rodar os guards individuais. **Corrigir o runner é mudança de CI → PO + ADR.**
 - Baseline de arquitetura: `architecture-baseline.json` (repo 233 / imports 0 / circular 0) — violações não podem aumentar.
+- **Verificação de estado externo exige resolução ao vivo — nunca eco de constante.** Nenhuma checagem de infraestrutura/ambiente pode depender de ID estático, deployment fixo ou valor cacheado em script. A cadeia obrigatória é **domínio/alias público → `deploymentId` → commit SHA / metadados**, resolvida em tempo real: `GET /v4/aliases/<domínio>?teamId=…` → `GET /v13/deployments/<deploymentId>?teamId=…`. *Incidente (2026-11-17):* script com `dpl_…` hardcoded reimprimia sempre o mesmo SHA sob o rótulo do domínio; produção havia sido promovida em sequência (`071dee4` → `893c578` → `65a13d4` → `8686463`) e o registro documental afirmou "alias fixo, não se moveu". **Valor que não varia entre execuções é suspeito, não confirmação.** Registro completo: `docs/audit/ERRATA_20261117_PRODUCTION_BASELINE.md`.
 
 ### E2E (Playwright)
 
@@ -264,6 +265,8 @@ VITE_APP_HOSTNAME_MAP={"custom.domain":"barber"}   # opcional
   ```
 
   Se retornar `AUSENTE`/`null`, o bloqueio **não está ativo** e todo merge em `main` volta a publicar em produção.
+
+  **Estado verificado em 2026-11-17 (read-only):** o campo retornou `""` — bloqueio **inativo**; cada merge em `main` gera deployment `target=production` `READY`, e o invariante `MERGE ≠ DEPLOY` vem sendo sustentado pela aprovação manual do `promote`, não por este mecanismo. Restaurar o comando é **decisão pendente do PO** e **não** foi executado. Evidência e trilha: `docs/audit/ERRATA_20261117_PRODUCTION_BASELINE.md`.
 - **(C) Único caminho para produção = aprovação manual no GitHub Actions.** `.github/workflows/deploy-production.yml` (`Deploy Production (Promote Controlado)`): `workflow_dispatch` → Environment `Production` (reviewer obrigatório) → `vercel promote <deployment>`. `dry_run=true` por padrão; `dry_run=false` exige `confirm` idêntico ao projeto e `deployment_url`.
   - **Guard anti-regressão (bloqueante):** antes do promote, compara `$GITHUB_SHA` com o HEAD atual de `main` e falha com `🚨 Regressão evitada: O commit que você está tentando promover não é o mais recente da main`.
   - **Aviso de deployment defasado (não bloqueante):** se o SHA do deployment alvo difere do HEAD de `main`, emite `::warning::` — rollback documentado (promover deployment anterior) é permitido, ver `docs/runbooks/P-AUTO_PROMOTE_RUNBOOK.md`.
