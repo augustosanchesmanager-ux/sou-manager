@@ -41,8 +41,23 @@ export interface SubmitPublicReviewResult {
 
 export function getRoleLabelPtBr(role: string | null | undefined): string {
   const normalized = (role || '').trim().toLowerCase();
-  if (normalized === 'manager') return 'Gerente Operacional';
-  if (normalized === 'receptionist') return 'Recepção';
+  if (
+    normalized === 'admin' ||
+    normalized === 'adminmanager' ||
+    normalized === 'admin_manager' ||
+    normalized === 'gerente administrativo'
+  ) {
+    return 'Gerente Administrativo';
+  }
+  if (normalized === 'owner' || normalized === 'proprietario' || normalized === 'dono') {
+    return 'Proprietário';
+  }
+  if (normalized === 'manager' || normalized === 'gerente' || normalized === 'gerente operacional') {
+    return 'Gerente Operacional';
+  }
+  if (normalized === 'receptionist' || normalized === 'recepcionista') {
+    return 'Recepção';
+  }
   return 'Barbeiro';
 }
 
