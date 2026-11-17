@@ -50,8 +50,8 @@ export const RevenueEvolutionChart: React.FC<RevenueEvolutionChartProps> = ({ da
           Dados reais
         </span>
       </div>
-      <div className="h-56">
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="h-56 min-w-0">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <AreaChart data={data} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
             <defs>
               <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">

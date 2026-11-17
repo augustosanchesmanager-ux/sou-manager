@@ -64,8 +64,8 @@ export const StaffProfitabilityTable: React.FC<StaffProfitabilityTableProps> = (
 
       {/* Gráfico Comparativo: Faturamento vs Comissão vs Margem da Casa */}
       {chartData.length > 0 && (
-        <div className="h-64 w-full pt-2">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="h-64 w-full min-w-0 pt-2">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
               <XAxis dataKey="name" tick={{ fill: '#64748B', fontSize: 12 }} axisLine={false} />
