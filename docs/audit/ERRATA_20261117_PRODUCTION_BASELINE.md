@@ -110,6 +110,7 @@ No instante desta errata: `main = 3efbc1c`, produção = `8686463`. Há separaç
 
 1. Errata registrada. Os registros 7.79 e o doc de rodada recebem **marcador inline** apontando para este documento; o texto original **não é reescrito** — trilha de auditoria preservada.
 2. **Nenhuma alteração de infraestrutura** foi feita: `commandForIgnoringBuildStep` continua `""` (item 1a pendente de decisão do PO).
+   > **⚠️ ATUALIZAÇÃO (2026-11-17, ADR-049 Accepted):** o item 1a foi **decidido e encerrado — rejeitado por incompatibilidade arquitetural**. O campo permanece `""` **deliberadamente**: ativar o comando com `exit 0` em produção cancelaria o build e eliminaria o deployment `target=production` que o `vercel promote` consome, deixando o único caminho de publicação sem candidato. A decisão de proveniência **P1** foi aprovada pelo PO e o texto original acima é preservado como trilha. Ver `docs/adr/ADR-049-deploy-gate-pre-atribuicao.md` (R1/R2) e `AGENTS.md` § Mecânica real de deploy (B).
 3. Recomendações ao PO, fora do escopo desta errata:
    - decidir se `post-validate` de `8686463` é executado ou se produção é **reprovada** (rollback para deployment anterior via `promote` documentado no runbook);
    - reenunciar o item 1b com base na realidade de aliases;

@@ -85,7 +85,7 @@ Se **não há env do Supabase** e o host é `localhost`/`127.0.0.1`, o app sobe 
 
 - **Fonte Única de Verdade (Single Source of Truth):** O arquivo `AGENTS.md` na raiz do projeto é a **Fonte Única de Verdade** normativa para o fluxo de engenharia da SMG, vinculando integralmente tanto o **Antigravity (ambiente principal)** quanto o **OpenCode (ambiente alternativo)**.
 - **Proibição de Duplicação e Espelhamento:** É **expressamente proibida a duplicação ou o espelhamento de arquivos de governança** entre `.agent/` e `.opencode/`. A máquina de estados, o ciclo de transição e os invariantes de governança residem centralizadamente neste `AGENTS.md` (e no contrato formal referenciado em `docs/adr/ADR-028-smg-gate-formal-contract.md`), eliminando qualquer risco de fragmentação ou divergência entre ferramentas.
-- **Isolamento de Infraestrutura (`MERGE ≠ DEPLOY PROD`):** O princípio de que *Merge autorizado não significa Deploy de produção autorizado* é sustentado pelo **Ignored Build Step** do projeto Vercel `smg-barber` — **não** pela desconexão do Git: o repositório permanece conectado, a branch de produção continua sendo `main` e os **preview builds seguem ativos**; apenas o build de produção é abortado na origem. O **único caminho para produção** é `.github/workflows/deploy-production.yml` (`Deploy Production (Promote Controlado)`), disparado por `workflow_dispatch`, com aprovação humana no Environment `Production` e promoção explícita via `vercel promote`. Mecânica e verificação em [Mecânica real de deploy](#mecânica-real-de-deploy-vercel-smg-barber).
+- **Isolamento de Infraestrutura (`MERGE ≠ DEPLOY PROD`):** O princípio de que *Merge autorizado não significa Deploy de produção autorizado* é sustentado pela **aprovação manual no Environment `Production`** do workflow `deploy-production.yml` e pela promoção explícita via `vercel promote` — **não** pelo Ignored Build Step, que está inativo por decisão (ADR-049). O repositório permanece conectado ao Git: a branch de produção continua sendo `main` e os **preview builds seguem ativos**; o build de produção acontece normalmente, mas **sem receber o domínio público** até o promote. O **único caminho para produção** é `.github/workflows/deploy-production.yml` (`Deploy Production (Promote Controlado)`), disparado por `workflow_dispatch`, com aprovação humana no Environment `Production`. Mecânica e verificação em [Mecânica real de deploy](#mecânica-real-de-deploy-vercel-smg-barber).
 
 ### Authorization Record (Token de Autorização)
 
@@ -132,7 +132,7 @@ INTAKE → AUDIT → CLASSIFY → STOP/GATE → ISOLATE → IMPLEMENT → VALIDA
 ### Sempre exigir aprovação explícita do PO
 
 - Merge em `main` (merge só no encerramento da fase completa, nunca durante subfases) · deploy em produção · migration em produção · novo ADR · mudança de regra de negócio · operação destrutiva (rollback, exclusões).
-- **`MERGE ≠ DEPLOY PROD`** (ADR-026): merge em main não implica deploy. O bloqueio é o Ignored Build Step (produção) + o guard anti-regressão do workflow de promote; verificar `commandForIgnoringBuildStep` pelo campo do projeto Vercel antes de assumir que o bloqueio está ativo.
+- **`MERGE ≠ DEPLOY PROD`** (ADR-026): merge em main não implica deploy. O bloqueio é a **aprovação manual no Environment `Production`** + o `vercel promote` + o guard anti-regressão do workflow de promote. O Ignored Build Step (`commandForIgnoringBuildStep`) está **deliberadamente vazio** — ver (B) abaixo e ADR-049; não é pendência e **não deve ser restaurado**.
 - **Deploy de produção só pelo workflow.** `vercel --prod` / `vercel deploy --prod` por CLI é **proibido**: o Ignored Build Step não é avaliado em deploys de CLI, então esse caminho contorna o ADR-026, o Environment `Production` e o guard anti-regressão. Detecção e incidente registrado em [Mecânica real de deploy](#mecânica-real-de-deploy-vercel-smg-barber).
 
 ### Sempre executar automaticamente (sem perguntar)
@@ -251,22 +251,24 @@ VITE_APP_HOSTNAME_MAP={"custom.domain":"barber"}   # opcional
 
 - **(A) Produção = branch `main`.** O projeto está conectado ao repositório (`link.productionBranch = main`, `gitProviderOptions.createDeployments = enabled`). Os **preview builds** de PR/branch continuam ativos e **não devem ser desativados**.
 - **Previews de commit não assinado ficam `BLOCKED`.** Com `gitProviderOptions.requireVerifiedCommits = true`, commit cuja verificação no GitHub é `unverified` gera deployment em `BLOCKED` (nenhum preview é publicado e o check `Vercel – smg-barber` falha). Merge commits gerados pelo próprio GitHub são `verified` e passam. É mecanismo **distinto** do Ignored Build Step: um governa *se* o build acontece, o outro *se o artefato é publicado*.
-- **(B) O auto-deploy de produção é bloqueado por Ignored Build Step.** O comando roda antes do build e aborta **somente** produção:
+- **(B) O Ignored Build Step está desativado por decisão — NÃO restaurar.** O campo `commandForIgnoringBuildStep` do projeto está **vazio** (`""`), e isso é **decisão registrada** (ADR-049, 2026-11-17), não configuração esquecida.
+
+  **Por que:** o job `promote` consome um deployment `target=production` que a Vercel builda no merge. O comando abaixo, quando `VERCEL_ENV=production`, executa `exit 0` — e `exit 0` **cancela** o build. Aplicá-lo **eliminaria o candidato**: não existiria artefato `target=production` para o `vercel promote` promover, e o único caminho de publicação deixaria de funcionar. A existência do build desacoplado do alias é a fundação do gate Blue/Green.
 
   ```bash
+  # NÃO APLICAR — incompatível com o fluxo de promote (ADR-049).
+  # exit 0 = cancela o build; exit 1 = mantém o build.
   if [ "$VERCEL_ENV" = "production" ]; then echo "production: apenas via promote controlado"; exit 0; fi; exit 1
   ```
 
-  Semântica Vercel: `exit 0` **cancela** o build; `exit 1` **mantém** o build. Verificação read-only (esperado: campo preenchido):
+  Verificação read-only do estado atual (esperado: campo vazio):
 
   ```bash
   curl -sS -H "Authorization: Bearer $VERCEL_TOKEN" \
     "https://api.vercel.com/v9/projects/<projectId>?teamId=<teamId>" | jq -r '.commandForIgnoringBuildStep // "AUSENTE"'
   ```
 
-  Se retornar `AUSENTE`/`null`, o bloqueio **não está ativo** e todo merge em `main` volta a publicar em produção.
-
-  **Estado verificado em 2026-11-17 (read-only):** o campo retornou `""` — bloqueio **inativo**; cada merge em `main` gera deployment `target=production` `READY`, e o invariante `MERGE ≠ DEPLOY` vem sendo sustentado pela aprovação manual do `promote`, não por este mecanismo. Restaurar o comando é **decisão pendente do PO** e **não** foi executado. Evidência e trilha: `docs/audit/ERRATA_20261117_PRODUCTION_BASELINE.md`.
+  **Estado verificado em 2026-11-17 (read-only):** `""`. Consequência: cada merge em `main` gera deployment `target=production` `READY` **sem alias de domínio** — o domínio só é atribuído pelo `promote`. O invariante `MERGE ≠ DEPLOY` é sustentado pela aprovação manual no Environment `Production` + `vercel promote`, não por este mecanismo. Evidência: `docs/audit/ERRATA_20261117_PRODUCTION_BASELINE.md` e [ADR-049](./docs/adr/ADR-049-deploy-gate-pre-atribuicao.md) (R1/R2).
 - **(C) Único caminho para produção = aprovação manual no GitHub Actions.** `.github/workflows/deploy-production.yml` (`Deploy Production (Promote Controlado)`): `workflow_dispatch` → Environment `Production` (reviewer obrigatório) → `vercel promote <deployment>`. `dry_run=true` por padrão; `dry_run=false` exige `confirm` idêntico ao projeto e `deployment_url`.
   - **Guard anti-regressão (bloqueante):** antes do promote, compara `$GITHUB_SHA` com o HEAD atual de `main` e falha com `🚨 Regressão evitada: O commit que você está tentando promover não é o mais recente da main`.
   - **Aviso de deployment defasado (não bloqueante):** se o SHA do deployment alvo difere do HEAD de `main`, emite `::warning::` — rollback documentado (promover deployment anterior) é permitido, ver `docs/runbooks/P-AUTO_PROMOTE_RUNBOOK.md`.

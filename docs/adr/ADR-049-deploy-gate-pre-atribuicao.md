@@ -1,6 +1,6 @@
 # ADR-049: Gate de Deploy Pré-Atribuição — Smoke antes do Promote
 
-**Status:** Proposed
+**Status:** Accepted (2026-11-17 — PO aprovou **P1** como proveniência oficial do artefato e declarou o **item 1a obsoleto por incompatibilidade arquitetural**; ver [Ratificação](#ratificação-po-2026-11-17))
 **Date:** 2026-11-17
 **Deciders:** PO (Augusto) + OpenCode
 **Requested by:** PO, 2026-11-17 — "o fluxo deve executar o smoke test diretamente contra o endpoint único gerado pelo build; somente após health check == 200 e smoke E2E == PASS no deployment isolado o `promote` é autorizado a transferir os aliases públicos"
@@ -87,12 +87,34 @@ Negativas / custos:
 - O smoke roda contra URL de deployment, não contra o domínio: diferenças de cookie/domínio, CORS e redirects precisam ser validadas (risco de falso negativo).
 - Exige mexer em `deploy-production.yml` — mudança de CI, com gates próprios.
 
+## Ratificação (PO, 2026-11-17)
+
+Status alterado de **Proposed** para **Accepted**. Três decisões, tomadas pelo PO na mesma deliberação:
+
+### R1 — Proveniência **P1** aprovada como diretriz oficial da plataforma
+
+`commandForIgnoringBuildStep` permanece **vazio**. O ciclo nativo de Git integration da Vercel compila o artefato de produção **sem atribuir o alias público**; a validação roda sobre a URL imutável do deployment (`dpl_xxx.vercel.app`) e somente o veredito positivo dispara o apontamento dos domínios oficiais.
+
+**Confirmação empírica (2026-11-17T05:38:55Z, resolução ao vivo):** 3 segundos após o merge do PR #331 (`3ea41c5`), a Vercel iniciou o deployment `dpl_JDdQUjmPYZEgUjQv4JmG7ZHVBy3w` — `target=production`, `source=git`. Estado resolvido pela API v13: `readyState=READY`, `meta.githubCommitSha=3ea41c57fc9f4009e90f32a0bd370ecbc9fd555a`, URL `smg-barber-3yekwqdhd-augustosanchesmanager-uxs-projects.vercel.app`, respondendo **HTTP 200 sem autenticação** (`server: Vercel`). É exatamente o candidato isolado descrito em P1: existe, está pronto e **não recebe o domínio público** até o `promote`.
+
+Esse `HTTP 200` fecha o GAP de Deployment Protection: deployments `target=production` são publicamente acessíveis, portanto o smoke pré-atribuição é tecnicamente viável contra a URL do candidato.
+
+### R2 — Item 1a declarado **obsoleto por incompatibilidade arquitetural**
+
+O item 1a (`commandForIgnoringBuildStep`) **deixa de ser pendência de infraestrutura** e passa a **rejeitado**. Fundamento: com o comando canônico ativo, `exit 0` quando `VERCEL_ENV=production` **cancelaria o build** — e o candidato `dpl_JDdQ…` não existiria. Sem artefato pré-construído e isolado em `target=production`, a esteira perde a capacidade de testar o candidato exato antes do `promote`. **A existência do build desacoplado do alias é a fundação do gate Blue/Green.**
+
+Consequência operacional: **não restaurar** o campo. O invariante `MERGE ≠ DEPLOY PROD` é sustentado pela aprovação manual no Environment `Production` e pelo `vercel promote`, não por esse mecanismo. Registrado em `AGENTS.md` para que nenhuma sessão futura "corrija" a configuração e derrube a publicação.
+
+### R3 — Escopo da implementação
+
+O desenho cirúrgico do workflow está em `docs/audit/2026-11-17-deploy-gate-implementation-plan.md`. Alterar `.github/workflows/deploy-production.yml` é **mudança de CI** e exige autorização própria do PO — não é executada por este ADR.
+
 ## Status
 
-**Proposed.** Aguarda decisão do PO sobre:
+**Accepted (2026-11-17).** As três pendências da versão *Proposed* estão resolvidas:
 
-1. aprovação do desenho de gate pré-atribuição (este ADR);
-2. proveniência do artefato (P1 recomendada; P2–P4 em aberto);
-3. destino do item 1a do backlog de infraestrutura — **suspenso** até (2).
+1. desenho do gate pré-atribuição — **aprovado** (seções Decision e Ratificação);
+2. proveniência do artefato — **P1 aprovada** (R1); P2–P4 permanecem sem verificação técnica e não são adotadas;
+3. destino do item 1a — **rejeitado por incompatibilidade arquitetural** (R2).
 
-Nenhum arquivo de workflow, configuração de infraestrutura ou código foi alterado por este ADR.
+**Nenhum arquivo de workflow, configuração de infraestrutura ou código foi alterado por este ADR.** A implementação é frente separada, com gate próprio.

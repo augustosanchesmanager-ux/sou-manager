@@ -22,10 +22,11 @@ YYYY-MM-DD-slug.md
 
 ## Inventário
 
-Total: **145** documentos.
+Total: **146** documentos.
 
-| Entrada | Documento | Titulo (H1 do proprio arquivo) |
+| Entrada | Documento | Título (H1 do próprio arquivo) |
 |---|---|---|
+| 2026-11-17 | [2026-11-17-deploy-gate-implementation-plan.md](./2026-11-17-deploy-gate-implementation-plan.md) | Plano cirúrgico — Gate de Deploy Pré-Atribuição |
 | 2026-11-17 | [ERRATA_20261117_PRODUCTION_BASELINE.md](./ERRATA_20261117_PRODUCTION_BASELINE.md) | ERRATA — Baseline real de produção (Vercel `smg-barber`) |
 | 2026-11-17 | [MERGE_ROUND_20261116_PR319_PR321_PR322.md](./MERGE_ROUND_20261116_PR319_PR321_PR322.md) | Rodada de Merge 2026-11-16 — PRs #319, #321, #322 |
 | 2026-11-08 | [UNIFIED_RELEASE_NOTE_20261108.md](./UNIFIED_RELEASE_NOTE_20261108.md) | Auditoria de Liberação de Produção — Lote Unificado |
@@ -176,7 +177,7 @@ Total: **145** documentos.
 
 ## Dívida declarada deste índice
 
-1. **Data no nome não é confiável quando existe.** De 23 documentos com `_YYYYMMDD` no nome, **7 divergem** da data de entrada no git — ex. `D8_AMD04_GATE_20260828.md` entrou em 2026-08-27; `CI_FINDING_01_02_LINT_ARCHITECTURE_GATES_20260928.md` entrou em 2026-09-30. A coluna "Entrada" é a do git; o nome registra a intenção da frente, não o commit.
+1. **Data no nome não é confiável quando existe.** De 23 documentos com `_YYYYMMDD` no nome, **7 divergem** da data de entrada no git. A coluna `Entrada` é a do git; o nome registra a intenção da frente, não o commit.
 2. **Data ausente no nome** na maioria dos documentos — a coluna "Entrada" resolve isso.
 3. **Nomes com numeração de fase** (`6.1.4_`, `FASE_7_`) não ordenam alfabeticamente por data; a ordenação útil é a da coluna "Entrada".
 4. **Sem campo de status** (ativo / superado / encerrado) — hoje o status vive no documento ou no `PROJECT_STATUS.md`, não aqui.
