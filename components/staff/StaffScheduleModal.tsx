@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Modal from '../ui/Modal';
-import type { DayWorkingHours, StaffWorkingHours } from '../../domain/staff/types';
+import type { DayWorkingHours, StaffWorkingHours, StaffDayKey } from '../../domain/staff/types';
 
 interface StaffScheduleModalProps {
     isOpen: boolean;
@@ -10,7 +10,7 @@ interface StaffScheduleModalProps {
     onSave: (workingHours: StaffWorkingHours) => Promise<void>;
 }
 
-const DAYS_OF_WEEK: Array<{ key: keyof NonNullable<StaffWorkingHours>; label: string }> = [
+const DAYS_OF_WEEK: Array<{ key: StaffDayKey; label: string }> = [
     { key: 'monday', label: 'Segunda-feira' },
     { key: 'tuesday', label: 'Terça-feira' },
     { key: 'wednesday', label: 'Quarta-feira' },

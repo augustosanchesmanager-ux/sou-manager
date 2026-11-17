@@ -12,6 +12,25 @@ export interface DayWorkingHours {
   break_end?: string | null;
 }
 
+export type PixKeyType = 'cpf' | 'cnpj' | 'email' | 'phone' | 'random';
+
+export interface StaffProfileDetails {
+  nickname?: string | null;
+  pix_key?: string | null;
+  pix_type?: PixKeyType | null;
+  bank?: string | null;
+  fixed_salary?: number | null;
+  cpf?: string | null;
+  rg?: string | null;
+  birth_date?: string | null;
+  hire_date?: string | null;
+  address?: string | null;
+  notes?: string | null;
+  show_in_calendar?: boolean | null;
+}
+
+export type StaffDayKey = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+
 export type StaffWorkingHours = {
   monday?: DayWorkingHours | null;
   tuesday?: DayWorkingHours | null;
@@ -20,6 +39,7 @@ export type StaffWorkingHours = {
   friday?: DayWorkingHours | null;
   saturday?: DayWorkingHours | null;
   sunday?: DayWorkingHours | null;
+  _profile?: StaffProfileDetails | null;
 } | null;
 
 export interface StaffMember {
