@@ -33,6 +33,7 @@ const QualityDashboard: React.FC = () => {
   const [notesDraft, setNotesDraft] = useState<Record<string, string>>({});
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [reviewFilter, setReviewFilter] = useState<'all' | 'pending' | 'promoters' | 'resolved'>('all');
 
   const effectiveSlug = tenantSlug || tenant?.slug || 'sua-barbearia';
   const baseUrl =
@@ -283,122 +284,219 @@ const QualityDashboard: React.FC = () => {
         </div>
       </section>
 
-      {/* Inbox de Recuperação (Churn Recovery + Playbook) */}
-      <section className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-border-dark p-6 space-y-4">
-        <div className="flex items-center gap-2.5">
-          <ShieldAlert className="w-5 h-5 text-amber-500" />
-          <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">
-              Inbox de Recuperação de Clientes (Churn Recovery)
-            </h2>
-            <p className="text-xs text-slate-500">
-              Acione clientes detratores via WhatsApp e registre a nota de resolução (Playbook) para orientar os próximos atendimentos.
-            </p>
+      {/* Feed Unificado de Feedbacks e Recuperação de Clientes */}
+      <section className="bg-white dark:bg-card-dark rounded-2xl border border-slate-200 dark:border-border-dark p-6 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-border-dark pb-4">
+          <div className="flex items-center gap-2.5">
+            <ShieldAlert className="w-5 h-5 text-amber-500" />
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                Mural de Feedbacks & Gestão de Relacionamento
+              </h2>
+              <p className="text-xs text-slate-500">
+                Acompanhe todos os elogios e mantenha em evidência imediata os atritos para resolução prioritária.
+              </p>
+            </div>
+          </div>
+
+          {/* Abas de Filtro */}
+          <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-surface-dark border border-slate-200 dark:border-border-dark text-xs">
+            <button
+              type="button"
+              onClick={() => setReviewFilter('all')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                reviewFilter === 'all'
+                  ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Todos ({(metrics?.recovery_inbox ?? []).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setReviewFilter('pending')}
+              className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                reviewFilter === 'pending'
+                  ? 'bg-amber-500 text-neutral-950 shadow-sm'
+                  : 'text-amber-500 hover:text-amber-400'
+              }`}
+            >
+              <span>Atritos Pendentes</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-xs font-black">
+                {(metrics?.recovery_inbox ?? []).filter((r) => r.rating <= 3 && r.status !== 'resolved').length}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setReviewFilter('promoters')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                reviewFilter === 'promoters'
+                  ? 'bg-emerald-500 text-neutral-950 shadow-sm'
+                  : 'text-emerald-500 hover:text-emerald-400'
+              }`}
+            >
+              Elogios ({(metrics?.recovery_inbox ?? []).filter((r) => r.rating >= 4).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setReviewFilter('resolved')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                reviewFilter === 'resolved'
+                  ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Resolvidos ({(metrics?.recovery_inbox ?? []).filter((r) => r.status === 'resolved').length})
+            </button>
           </div>
         </div>
 
         <div className="space-y-4">
-          {(metrics?.recovery_inbox ?? []).map((item) => {
-            const whatsappHref = buildWhatsAppRecoveryHref(item);
-            const isVip = Number(item.client_ltv || 0) > VIP_LTV_THRESHOLD;
-            const isResolved = item.status === 'resolved';
+          {(metrics?.recovery_inbox ?? [])
+            .filter((item) => {
+              if (reviewFilter === 'pending') return item.rating <= 3 && item.status !== 'resolved';
+              if (reviewFilter === 'promoters') return item.rating >= 4;
+              if (reviewFilter === 'resolved') return item.status === 'resolved';
+              return true;
+            })
+            .map((item) => {
+              const whatsappHref = buildWhatsAppRecoveryHref(item);
+              const isVip = Number(item.client_ltv || 0) > VIP_LTV_THRESHOLD;
+              const isLowRating = item.rating <= 3;
+              const isResolved = item.status === 'resolved';
+              const isPendingFriction = isLowRating && !isResolved;
 
-            return (
-              <div
-                key={item.id}
-                className={`p-5 rounded-2xl border transition-all space-y-3 ${
-                  isResolved
-                    ? 'bg-slate-50/50 dark:bg-surface-dark/40 border-slate-200 dark:border-border-dark'
-                    : 'bg-amber-500/5 border-amber-500/30'
-                }`}
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-400 font-black text-xs">
-                      {item.rating} ★
-                    </span>
-                    <span className="font-bold text-sm text-slate-900 dark:text-white">
-                      {item.client_name}
-                    </span>
-                    {isVip && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#B88A44] text-neutral-950 font-black text-[10px] uppercase">
-                        <Crown className="w-3 h-3" />
-                        VIP · LTV {formatCurrency(item.client_ltv)}
-                      </span>
-                    )}
-                    {item.staff_name ? (
-                      <span className="text-xs text-slate-400">
-                        · Avaliado: <strong className="text-slate-200">{item.staff_name}</strong> (
-                        {getRoleLabelPtBr(item.staff_role)})
-                      </span>
-                    ) : (
-                      <span className="text-xs text-slate-400">· Avaliação do Estabelecimento</span>
-                    )}
-                  </div>
-
-                  <span
-                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                      isResolved
-                        ? 'bg-emerald-500/15 text-emerald-400'
-                        : 'bg-amber-500/20 text-amber-300'
-                    }`}
-                  >
-                    {isResolved ? 'Resolvido' : 'Pendente'}
-                  </span>
-                </div>
-
-                <p className="text-xs text-slate-600 dark:text-slate-300 bg-white/60 dark:bg-black/30 p-3 rounded-xl border border-slate-200/60 dark:border-border-dark">
-                  {item.comment || 'Cliente registrou nota baixa sem comentário em texto.'}
-                </p>
-
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-                  <input
-                    type="text"
-                    value={notesDraft[item.id] ?? ''}
-                    onChange={(e) =>
-                      setNotesDraft((prev) => ({ ...prev, [item.id]: e.target.value }))
-                    }
-                    placeholder="Playbook: descreva como o caso foi resolvido (aparecerá no próximo check-in do cliente)..."
-                    className="flex-1 px-3.5 py-2.5 rounded-xl bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark text-xs text-slate-900 dark:text-white outline-none focus:border-[#B88A44]"
-                  />
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    {whatsappHref && (
-                      <a
-                        href={whatsappHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs inline-flex items-center gap-1.5"
+              return (
+                <div
+                  key={item.id}
+                  className={`p-5 rounded-2xl border transition-all space-y-3 ${
+                    isPendingFriction
+                      ? 'bg-amber-500/10 border-amber-500/50 ring-1 ring-amber-500/30 shadow-sm'
+                      : isLowRating && isResolved
+                        ? 'bg-slate-50/50 dark:bg-surface-dark/40 border-slate-200 dark:border-border-dark'
+                        : 'bg-emerald-500/5 border-emerald-500/20'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`px-2.5 py-1 rounded-lg font-black text-xs ${
+                          isLowRating
+                            ? 'bg-amber-500/20 text-amber-400'
+                            : 'bg-emerald-500/20 text-emerald-400'
+                        }`}
                       >
-                        <MessageCircle className="w-3.5 h-3.5" />
-                        <span>Acionar WhatsApp</span>
-                      </a>
-                    )}
-
-                    <button
-                      type="button"
-                      disabled={resolvingId === item.id}
-                      onClick={() => void handleResolve(item)}
-                      className="px-4 py-2.5 rounded-xl bg-[#B88A44] hover:bg-[#a37838] text-neutral-950 font-extrabold text-xs inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>
-                        {resolvingId === item.id
-                          ? 'Salvando...'
-                          : isResolved
-                            ? 'Atualizar Playbook'
-                            : 'Marcar Resolvido'}
+                        {item.rating} ★ {isLowRating ? 'Atrito' : 'Elogio'}
                       </span>
-                    </button>
+                      <span className="font-bold text-sm text-slate-900 dark:text-white">
+                        {item.client_name}
+                      </span>
+                      {isVip && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#B88A44] text-neutral-950 font-black text-[10px] uppercase">
+                          <Crown className="w-3 h-3" />
+                          VIP · LTV {formatCurrency(item.client_ltv)}
+                        </span>
+                      )}
+                      {item.staff_name ? (
+                        <span className="text-xs text-slate-400">
+                          · Avaliado: <strong className="text-slate-200">{item.staff_name}</strong> (
+                          {getRoleLabelPtBr(item.staff_role)})
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400">· Avaliação do Estabelecimento</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {isPendingFriction && (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-500/20 text-red-400 animate-pulse border border-red-500/30">
+                          Ação Necessária
+                        </span>
+                      )}
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                          isResolved
+                            ? 'bg-emerald-500/15 text-emerald-400'
+                            : isLowRating
+                              ? 'bg-amber-500/20 text-amber-300'
+                              : 'bg-emerald-500/15 text-emerald-300'
+                        }`}
+                      >
+                        {isResolved ? 'Resolvido' : isLowRating ? 'Pendente' : 'Positivo'}
+                      </span>
+                    </div>
                   </div>
+
+                  <p className="text-xs text-slate-600 dark:text-slate-300 bg-white/60 dark:bg-black/30 p-3 rounded-xl border border-slate-200/60 dark:border-border-dark">
+                    {item.comment || (isLowRating ? 'Cliente registrou nota baixa sem comentário.' : 'Cliente registrou avaliação positiva sem comentário.')}
+                  </p>
+
+                  {/* Ações para notas baixas / atritos */}
+                  {isLowRating ? (
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                      <input
+                        type="text"
+                        value={notesDraft[item.id] ?? ''}
+                        onChange={(e) =>
+                          setNotesDraft((prev) => ({ ...prev, [item.id]: e.target.value }))
+                        }
+                        placeholder="Playbook: descreva como o caso foi resolvido (orientará próximos atendimentos)..."
+                        className="flex-1 px-3.5 py-2.5 rounded-xl bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark text-xs text-slate-900 dark:text-white outline-none focus:border-[#B88A44]"
+                      />
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {whatsappHref && (
+                          <a
+                            href={whatsappHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs inline-flex items-center gap-1.5"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            <span>Acionar WhatsApp</span>
+                          </a>
+                        )}
+
+                        <button
+                          type="button"
+                          disabled={resolvingId === item.id}
+                          onClick={() => void handleResolve(item)}
+                          className="px-4 py-2.5 rounded-xl bg-[#B88A44] hover:bg-[#a37838] text-neutral-950 font-extrabold text-xs inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>
+                            {resolvingId === item.id
+                              ? 'Salvando...'
+                              : isResolved
+                                ? 'Atualizar Playbook'
+                                : 'Marcar Resolvido'}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Ações para elogios / promotores */
+                    whatsappHref && (
+                      <div className="flex justify-end pt-1">
+                        <a
+                          href={whatsappHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1.5 rounded-lg border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 font-bold text-xs inline-flex items-center gap-1.5"
+                        >
+                          <MessageCircle className="w-3 h-3" />
+                          <span>Agradecer via WhatsApp</span>
+                        </a>
+                      </div>
+                    )
+                  )}
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
 
           {!loading && (metrics?.recovery_inbox ?? []).length === 0 && (
             <div className="py-8 text-center text-xs text-slate-400">
-              Nenhum atrito pendente! Todas as avaliações recentes estão positivas.
+              Nenhum feedback registrado no período selecionado.
             </div>
           )}
         </div>
