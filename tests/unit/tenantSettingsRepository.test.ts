@@ -194,4 +194,60 @@ describe('TenantSettingsRepositoryImpl - google_review_url', () => {
     });
     expect(saved.google_review_url).toBe('https://g.page/r/sanchez/review');
   });
+
+  it('should_include_and_propagate_booking_horizon_days_in_working_hours_and_upsert', async () => {
+    const targetTenantId = 'tenant-test-horizon-123';
+    let capturedWorkingHours: Record<string, unknown> | null = null;
+
+    const mockDb: DatabaseClient = {
+      from: vi.fn((tableName: string) => {
+        if (tableName === 'tenant_settings') {
+          return {
+            upsert: vi.fn((payload: Record<string, unknown>) => {
+              capturedWorkingHours = payload;
+              return {
+                select: vi.fn(() => ({
+                  single: vi.fn(async () => ({
+                    data: {
+                      id: 'ts-horizon-1',
+                      tenant_id: targetTenantId,
+                      ...payload,
+                    },
+                    error: null,
+                  })),
+                })),
+              };
+            }),
+          };
+        }
+        return {
+          upsert: vi.fn((payload: Record<string, unknown>) => ({
+            select: vi.fn(() => ({
+              single: vi.fn(async () => ({
+                data: {
+                  id: 'obs-horizon-1',
+                  tenant_id: targetTenantId,
+                  ...payload,
+                },
+                error: null,
+              })),
+            })),
+          })),
+        };
+      }) as any,
+    } as unknown as DatabaseClient;
+
+    const repo = new (tenantSettingsRepository.constructor as any)(mockDb);
+
+    await repo.upsertOnlineBookingSettings({
+      tenant_id: targetTenantId,
+      is_active: true,
+      display_name: 'Barbearia Modelo',
+      slug: 'barbearia-modelo',
+      booking_horizon_days: 60,
+    });
+
+    expect(capturedWorkingHours).not.toBeNull();
+    expect(capturedWorkingHours?.booking_horizon_days).toBe(60);
+  });
 });
