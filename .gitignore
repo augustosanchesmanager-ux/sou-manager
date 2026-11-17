@@ -76,3 +76,8 @@ h4_*.json
 # Local design tooling & secondary agent harnesses (untracked)
 .opencode/skills/impeccable/
 .claude/
+
+# Worktrees locais de agentes secundarios (nunca versionar como gitlink)
+# Bug observado: .codex-barber-safe, .codex-clean-access e .codex-release-barber
+# entraram no indice como entradas 160000 (gitlink) sem .gitmodules.
+.codex-*/
