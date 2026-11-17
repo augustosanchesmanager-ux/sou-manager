@@ -2953,8 +2953,8 @@ Podemos confirmar? 😄`;
               <h1 className="text-base sm:text-lg font-black text-stone-100 tracking-wider uppercase font-sans">
                 Agenda
               </h1>
-              <span className="text-[10px] font-black text-[#B88A44] bg-[#B88A44]/15 px-2 py-0.5 rounded border border-[#B88A44]/30 hidden sm:inline-block">
-                {isEsteticaApp ? 'Estética' : 'Sanchez'}
+              <span className="text-[10px] font-black text-[#B88A44] bg-[#B88A44]/15 px-2 py-0.5 rounded border border-[#B88A44]/30 hidden sm:inline-block truncate max-w-[160px]" title={tenant?.name || undefined}>
+                {isEsteticaApp ? 'Estética' : (tenant?.name || 'Barber')}
               </span>
             </div>
 
