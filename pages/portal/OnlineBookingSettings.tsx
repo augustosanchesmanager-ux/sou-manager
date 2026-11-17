@@ -147,6 +147,7 @@ const OnlineBookingSettings: React.FC = () => {
   const [endHour, setEndHour] = useState<number>(20);
   const [appointmentIntervalMinutes, setAppointmentIntervalMinutes] = useState<number>(30);
   const [minBookingNoticeMinutes, setMinBookingNoticeMinutes] = useState<number>(30);
+  const [bookingHorizonDays, setBookingHorizonDays] = useState<number>(30);
   const [instagramInput, setInstagramInput] = useState<string>('');
   const [whatsappInput, setWhatsappInput] = useState<string>('');
   const [mapsInput, setMapsInput] = useState<string>('');
@@ -233,6 +234,12 @@ const OnlineBookingSettings: React.FC = () => {
           legacyData.min_booking_notice_minutes >= 0
         ) {
           setMinBookingNoticeMinutes(legacyData.min_booking_notice_minutes);
+        }
+        if (
+          typeof legacyData.booking_horizon_days === 'number' &&
+          legacyData.booking_horizon_days > 0
+        ) {
+          setBookingHorizonDays(legacyData.booking_horizon_days);
         }
       }
 
@@ -443,6 +450,7 @@ const OnlineBookingSettings: React.FC = () => {
         work_end_time: workEndTime,
         appointment_interval_minutes: appointmentIntervalMinutes,
         min_booking_notice_minutes: minBookingNoticeMinutes,
+        booking_horizon_days: bookingHorizonDays,
       });
 
       invalidateTenantCommunicationCache(tenantId);
@@ -1195,6 +1203,54 @@ const OnlineBookingSettings: React.FC = () => {
                   {minBookingNoticeMinutes === 0
                     ? 'No modo imediato (0 min), se o profissional estiver livre antes do próximo ponto da grade fixa, o sistema injeta o próximo horário arredondado de 5 em 5 min mantendo a grade futura intacta.'
                     : `O cliente só verá horários com pelo menos ${minBookingNoticeMinutes} minutos de antecedência a partir do momento da consulta (com encaixe imediato de 5 em 5 min quando livre antes da grade fixa).`}
+                </span>
+              </div>
+            </div>
+
+            {/* Prazo Limite / Horizonte Máximo da Agenda */}
+            <div className="pt-5 border-t border-slate-100 dark:border-white/5 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <label className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary text-lg">calendar_month</span>
+                    Prazo Limite da Agenda (Horizonte de Agendamento)
+                  </label>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Define até quando a agenda fica aberta para os clientes agendarem pelo link público.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 dark:bg-surface-dark border border-slate-200 dark:border-border-dark rounded-xl">
+                  {[
+                    { value: 7, label: '7 dias' },
+                    { value: 15, label: '15 dias' },
+                    { value: 30, label: '30 dias' },
+                    { value: 60, label: '60 dias' },
+                    { value: 90, label: '90 dias' },
+                  ].map((option) => {
+                    const isSelected = bookingHorizonDays === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setBookingHorizonDays(option.value)}
+                        disabled={saving}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-primary text-white shadow-sm'
+                            : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-white/5'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-white/[0.02] p-3 rounded-xl border border-slate-200/60 dark:border-white/5 flex items-start gap-2">
+                <span className="material-symbols-outlined text-amber-500 text-sm mt-0.5 shrink-0">info</span>
+                <span>
+                  A vitrine pública só exibirá datas dentro dos próximos <strong>{bookingHorizonDays} dias</strong>. Dias posteriores permanecerão fechados para reserva. A disponibilidade de cada barbeiro continua respeitando suas folgas e bloqueios individuais.
                 </span>
               </div>
             </div>

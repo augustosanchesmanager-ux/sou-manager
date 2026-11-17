@@ -271,6 +271,7 @@ class TenantSettingsRepositoryImpl extends SupabaseRepository {
       business_hours?: TenantSettings['business_hours'] | Record<string, unknown>;
       appointment_interval_minutes?: number | null;
       min_booking_notice_minutes?: number | null;
+      booking_horizon_days?: number | null;
     }
   ): Promise<TenantSettings> {
     if (!tenantId || !tenantId.trim()) {
@@ -310,6 +311,13 @@ class TenantSettingsRepositoryImpl extends SupabaseRepository {
         hours.min_booking_notice_minutes >= 0
       ) {
         payload.min_booking_notice_minutes = hours.min_booking_notice_minutes;
+      }
+      if (
+        hours.booking_horizon_days !== undefined &&
+        hours.booking_horizon_days !== null &&
+        hours.booking_horizon_days > 0
+      ) {
+        payload.booking_horizon_days = hours.booking_horizon_days;
       }
 
       const result = await this.from()
@@ -430,6 +438,7 @@ class TenantSettingsRepositoryImpl extends SupabaseRepository {
       business_hours: businessHoursPayload,
       appointment_interval_minutes: input.appointment_interval_minutes,
       min_booking_notice_minutes: input.min_booking_notice_minutes,
+      booking_horizon_days: input.booking_horizon_days,
     });
 
     // 2. Upsert into online_booking_settings
