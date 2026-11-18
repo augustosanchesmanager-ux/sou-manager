@@ -550,7 +550,7 @@ export const Products: React.FC = () => {
 
                 <div className="bg-[#141210] border border-[#2D2A26] rounded-xl p-4">
                     <div className="flex items-center justify-between text-stone-400 text-xs font-semibold uppercase tracking-wider mb-1">
-                        <span>Valor em Estoque (Custo)</span>
+                        <span>Valor do Estoque (Custo)</span>
                         <Tag className="w-4 h-4 text-emerald-400" />
                     </div>
                     <div className="text-2xl font-bold text-emerald-400">
