@@ -1,49 +1,58 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import {
+  TrendingUp,
+  Calendar,
+  Package,
+  Wallet,
+  Award,
+  RefreshCw,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { getScopedClient, getSharedClient } from '../services/supabaseClient';
-import DateRangeFilter, { type DatePreset } from '../components/ui/DateRangeFilter';
+import { useTenantOptional } from '../src/context/TenantContext';
+import { getScopedClient } from '../services/supabaseClient';
+import DateRangeFilter from '../components/ui/DateRangeFilter';
 import Toast from '../components/Toast';
-import MetricCard, { type MetricTone } from '../components/ui/MetricCard';
-import { getDashboardKpis } from '../src/modules/dashboard/rpc';
-import type { DashboardKpiFinancial, DashboardKpiPeriod } from '../src/modules/dashboard/kpiTypes';
+import ExportActionsDropdown from '../src/components/common/ExportActionsDropdown';
+import type { ExportPayload } from '../src/utils/export/types';
 import {
-  canonicalPeriodLabel,
-  INITIAL_CANONICAL_PERIOD,
-  resolveCanonicalPeriod,
-} from '../src/modules/reports/presetMapping';
+  fetchAppointmentsReport,
+  fetchBarberAdvancesInPeriod,
+  fetchFinancialTitlesReport,
+  fetchPaidComandasReport,
+  fetchProductsReport,
+  type AllocatedComandaItemDetail,
+  type AppointmentReportRow,
+  type BarberAdvanceRecord,
+  type FinancialTitleRow,
+  type PaidComandaDetail,
+  type PaymentCategoryKey,
+  type ProductCatalogItem,
+  type ProductSalesReportRow,
+} from '../src/modules/reports/reportsDataService';
 import {
-  fetchSalesData,
-  MAX_DISPLAY_RECORDS,
-  type DateRegime,
-  type FilterState,
-  type PaymentBadgeInfo,
-  type SaleRecord,
-} from '../src/modules/reports/salesReportService';
-import { requestAsyncExcelExport } from '../src/lib/export/excelExportService';
+  buildAppointmentsExportPayload,
+  buildCommissionsExportPayload,
+  buildFinancialTitlesExportPayload,
+  buildProductsSalesExportPayload,
+  buildProductsStockExportPayload,
+  buildSalesExportPayload,
+} from '../src/modules/reports/reportsExportBuilder';
+import { ReportsSalesTab } from '../components/reports/ReportsSalesTab';
+import {
+  ReportsAppointmentsTab,
+  type AppointmentStatusFilter,
+} from '../components/reports/ReportsAppointmentsTab';
+import { ReportsProductsTab } from '../components/reports/ReportsProductsTab';
+import {
+  ReportsFinancialTab,
+  type FinancialSubTab,
+} from '../components/reports/ReportsFinancialTab';
+import { ReportsChefClubTab } from '../components/reports/ReportsChefClubTab';
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+export type ReportsTabKey = 'sales' | 'appointments' | 'products' | 'financial' | 'chefclub';
 
-// YYYY-MM-DD puro — evita parse UTC (new Date('YYYY-MM-DD') = midnight UTC,
-// que em America/Sao_Paulo renderiza o dia ANTERIOR).
-const fmtDate = (d: string) => {
-  if (!d) return '-';
-  const [y, m, day] = d.split('-');
-  if (!y || !m || !day) return d;
-  return `${day}/${m}/${y}`;
-};
-
-const fmtDateTime = (d?: string | null) =>
-  d
-    ? new Date(d).toLocaleString('pt-BR', {
-        timeZone: 'America/Sao_Paulo',
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    : '-';
+const VALID_TABS: ReportsTabKey[] = ['sales', 'appointments', 'products', 'financial', 'chefclub'];
 
 const formatLocalYMD = (date: Date): string => {
   const y = date.getFullYear();
@@ -52,7 +61,7 @@ const formatLocalYMD = (date: Date): string => {
   return `${y}-${m}-${d}`;
 };
 
-const getInitialMonthRange = (): FilterState => {
+const getInitialMonthRange = () => {
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -62,23 +71,69 @@ const getInitialMonthRange = (): FilterState => {
   };
 };
 
+const fmtDateDisplay = (d: string) => {
+  if (!d) return '-';
+  const [y, m, day] = d.split('-');
+  if (!y || !m || !day) return d;
+  return `${day}/${m}/${y}`;
+};
+
 const Reports: React.FC = () => {
   const { tenantId } = useAuth();
-  const clubSupabase = getScopedClient('barber');
-  const sharedSupabase = getSharedClient();
+  const tenantCtx = useTenantOptional();
+  const tenantName = tenantCtx?.tenant?.name || 'Unidade SMG Barber';
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Sincronização de Aba Ativa com URL (?tab=sales | appointments | products | financial | chefclub)
+  const rawTabParam = searchParams.get('tab') as ReportsTabKey | null;
+  const activeTab: ReportsTabKey =
+    rawTabParam && VALID_TABS.includes(rawTabParam) ? rawTabParam : 'sales';
+
+  const initialDates = useMemo(() => getInitialMonthRange(), []);
+  const dateFrom = searchParams.get('from') || initialDates.dateFrom;
+  const dateTo = searchParams.get('to') || initialDates.dateTo;
+
+  const setActiveTab = useCallback(
+    (tab: ReportsTabKey) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.set('tab', tab);
+          return next;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
+
+  const setDateRange = useCallback(
+    (newFrom: string, newTo: string) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.set('from', newFrom);
+          next.set('to', newTo);
+          return next;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
+
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
-  const [activeTab, setActiveTab] = useState<'chefclub' | 'sales'>('chefclub');
 
-  const [filters, setFilters] = useState<FilterState>(getInitialMonthRange);
-  const [dateRegime, setDateRegime] = useState<DateRegime>('payment');
-  const [isTruncated, setIsTruncated] = useState<boolean>(false);
-
-  // ─── Período canônico (§5 do Design Gate) ────────────────────
-  const [preset, setPreset] = useState<DatePreset>('this_month');
-  const [anchorPeriod, setAnchorPeriod] = useState<DashboardKpiPeriod>(INITIAL_CANONICAL_PERIOD);
-  const { period: canonicalPeriod, isMapped } = resolveCanonicalPeriod(preset, anchorPeriod);
-
+  // Dados Carregados
+  const [paidComandas, setPaidComandas] = useState<PaidComandaDetail[]>([]);
+  const [allocatedItems, setAllocatedItems] = useState<AllocatedComandaItemDetail[]>([]);
+  const [appointments, setAppointments] = useState<AppointmentReportRow[]>([]);
+  const [productSales, setProductSales] = useState<ProductSalesReportRow[]>([]);
+  const [productCatalog, setProductCatalog] = useState<ProductCatalogItem[]>([]);
+  const [barberAdvances, setBarberAdvances] = useState<BarberAdvanceRecord[]>([]);
+  const [receivables, setReceivables] = useState<FinancialTitleRow[]>([]);
+  const [payables, setPayables] = useState<FinancialTitleRow[]>([]);
   const [chefClubStats, setChefClubStats] = useState({
     activeSubscriptions: 0,
     totalCreditsAvailable: 0,
@@ -86,941 +141,405 @@ const Reports: React.FC = () => {
     popularPlan: null as string | null,
   });
 
-  const [sales, setSales] = useState<SaleRecord[]>([]);
+  // Filtros locais por aba
+  const [salesStaffFilter, setSalesStaffFilter] = useState('all');
+  const [salesPaymentFilter, setSalesPaymentFilter] = useState<'all' | PaymentCategoryKey>('all');
+  const [apptStaffFilter, setApptStaffFilter] = useState('all');
+  const [apptStatusFilter, setApptStatusFilter] = useState<AppointmentStatusFilter>('all');
+  const [productsSubView, setProductsSubView] = useState<'sales' | 'stock'>('sales');
+  const [financialSubTab, setFinancialSubTab] = useState<FinancialSubTab>('commissions');
+  const [selectedBarberId, setSelectedBarberId] = useState('all');
+  const [dateFieldMode, setDateFieldMode] = useState<'due_date' | 'paid_at'>('due_date');
 
-  // ─── Filtros Dinâmicos de Vendas ──────────────────────────────
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedStaff, setSelectedStaff] = useState('all');
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('all');
-  const [selectedChannel, setSelectedChannel] = useState<'all' | 'online' | 'balcao'>('all');
-  const [selectedClubMember, setSelectedClubMember] = useState<'all' | 'members' | 'non_members'>('all');
-
-  const availableStaff = useMemo(() => {
-    const set = new Set<string>();
-    sales.forEach((s) => s.staff_names.forEach((name) => { if (name) set.add(name); }));
-    return Array.from(set).sort();
-  }, [sales]);
-
-  const hasActiveDynamicFilters = Boolean(
-    searchTerm.trim() ||
-    selectedStaff !== 'all' ||
-    selectedPaymentMethod !== 'all' ||
-    selectedChannel !== 'all' ||
-    selectedClubMember !== 'all'
-  );
-
-  const resetDynamicFilters = useCallback(() => {
-    setSearchTerm('');
-    setSelectedStaff('all');
-    setSelectedPaymentMethod('all');
-    setSelectedChannel('all');
-    setSelectedClubMember('all');
-  }, []);
-
-  const filteredSales = useMemo(() => {
-    return sales.filter((sale) => {
-      if (searchTerm.trim()) {
-        const term = searchTerm.toLowerCase().trim();
-        const matchesClient = sale.client_name.toLowerCase().includes(term);
-        const matchesShortId = sale.short_id.toLowerCase().includes(term);
-        const matchesItems = sale.items_summary.toLowerCase().includes(term);
-        if (!matchesClient && !matchesShortId && !matchesItems) return false;
-      }
-
-      if (selectedStaff !== 'all') {
-        if (!sale.staff_names.includes(selectedStaff)) return false;
-      }
-
-      if (selectedPaymentMethod !== 'all') {
-        const hasMethod = sale.payment_badges.some((badge) => {
-          const l = badge.label.toLowerCase();
-          if (selectedPaymentMethod === 'pix') return l.includes('pix');
-          if (selectedPaymentMethod === 'dinheiro') return l.includes('dinheiro') || l.includes('cash');
-          if (selectedPaymentMethod === 'credito') return (l.includes('crédito') || l.includes('credito')) && !badge.isClubCredit;
-          if (selectedPaymentMethod === 'debito') return l.includes('débito') || l.includes('debito');
-          if (selectedPaymentMethod === 'clube') return badge.isClubCredit || l.includes('clube');
-          return true;
-        });
-        if (!hasMethod) return false;
-      }
-
-      if (selectedChannel !== 'all') {
-        if (sale.channel !== selectedChannel) return false;
-      }
-
-      if (selectedClubMember !== 'all') {
-        if (selectedClubMember === 'members' && !sale.is_club_member) return false;
-        if (selectedClubMember === 'non_members' && sale.is_club_member) return false;
-      }
-
-      return true;
-    });
-  }, [sales, searchTerm, selectedStaff, selectedPaymentMethod, selectedChannel, selectedClubMember]);
-
-  // Totalizadores rápidos calculados dinamicamente sobre as vendas filtradas
-  const periodTotals = useMemo(() => {
-    return filteredSales.reduce(
-      (acc, sale) => {
-        acc.cashRevenue += sale.cash_revenue;
-        acc.clubCreditVolume += sale.club_credit_volume;
-        acc.totalCommissions += sale.commission_generated;
-        acc.totalAttendances += 1;
-        return acc;
-      },
-      {
-        cashRevenue: 0,
-        clubCreditVolume: 0,
-        totalCommissions: 0,
-        totalAttendances: 0,
-      },
-    );
-  }, [filteredSales]);
-
-  // Exportação oficial em CSV (UTF-8 BOM para Excel brasileiro)
-  const [exportingExcel, setExportingExcel] = useState(false);
-
-  const exportToExcel = useCallback(async () => {
-    if (filteredSales.length === 0) {
-      setToast({ msg: 'Nenhum registro para exportar com os filtros atuais.', type: 'error' });
-      return;
-    }
-
-    setExportingExcel(true);
-    try {
-      const fromStr = filters.dateFrom || 'inicio';
-      const toStr = filters.dateTo || 'fim';
-      const result = await requestAsyncExcelExport({
-        tenantId: tenantId || undefined,
-        reportType: 'sales',
-        title: 'Relatório de Vendas e Faturamento',
-        subtitle: `Período: ${fmtDate(fromStr)} até ${fmtDate(toStr)}`,
-        sheetName: 'Vendas e Faturamento',
-        fileName: `relatorio_vendas_${fromStr}_a_${toStr}.xlsx`,
-        columns: [
-          { key: 'short_id', header: 'Comanda', width: 14, type: 'string' },
-          { key: 'attendance_date', header: 'Data Atendimento', width: 20, type: 'string' },
-          { key: 'payment_date', header: 'Data Pagamento', width: 20, type: 'string' },
-          { key: 'channel', header: 'Canal', width: 14, type: 'string' },
-          { key: 'client_name', header: 'Cliente', width: 28, type: 'string' },
-          { key: 'is_club_member', header: 'Assinante Clube', width: 16, type: 'string' },
-          { key: 'staff_names', header: 'Profissionais', width: 26, type: 'string' },
-          { key: 'items_summary', header: 'Itens', width: 34, type: 'string' },
-          { key: 'payment_methods', header: 'Forma de Pagamento', width: 28, type: 'string' },
-          { key: 'total', header: 'Valor Total (R$)', width: 18, type: 'currency' },
-          { key: 'cash_revenue', header: 'Receita Caixa (R$)', width: 18, type: 'currency' },
-          { key: 'club_credit_volume', header: 'Volume Clube (R$)', width: 18, type: 'currency' },
-          { key: 'commission_generated', header: 'Comissão Gerada (R$)', width: 20, type: 'currency' },
-          { key: 'status', header: 'Status', width: 14, type: 'string' },
-        ],
-        rows: filteredSales.map((s) => ({
-          short_id: s.short_id,
-          attendance_date: fmtDateTime(s.attendance_date),
-          payment_date: fmtDateTime(s.payment_date),
-          channel: s.channel === 'online' ? 'Online' : 'Balcão',
-          client_name: s.client_name,
-          is_club_member: s.is_club_member ? 'Sim' : 'Não',
-          staff_names: s.staff_names.join(', '),
-          items_summary: s.items_summary,
-          payment_methods: s.payment_badges.map((b) => `${b.label} (${fmt(b.amount)})`).join(' + '),
-          total: s.total,
-          cash_revenue: s.cash_revenue,
-          club_credit_volume: s.club_credit_volume,
-          commission_generated: s.commission_generated,
-          status: s.status,
-        })),
-        summaryRows: [
-          { label: 'Total Receita Caixa (R$)', value: periodTotals.cashRevenue, type: 'currency' },
-          { label: 'Total Volume Clube (R$)', value: periodTotals.clubCreditVolume, type: 'currency' },
-          { label: 'Total Comissões Geradas (R$)', value: periodTotals.totalCommissions, type: 'currency' },
-          { label: 'Total de Atendimentos', value: periodTotals.totalAttendances, type: 'number' },
-        ],
-      });
-
-      if (result.ok) {
-        setToast({
-          msg: result.fallbackUsed
-            ? `Planilha exportada em modo local (${result.rowCount} registros).`
-            : `Excel (.xlsx) gerado no servidor e baixado via Presigned URL (${result.rowCount} registros).`,
-          type: 'success',
-        });
-      } else {
-        setToast({ msg: result.error || 'Erro ao exportar Excel.', type: 'error' });
-      }
-    } finally {
-      setExportingExcel(false);
-    }
-  }, [filteredSales, filters.dateFrom, filters.dateTo, periodTotals, tenantId]);
-
-  const exportToCsv = useCallback(() => {
-    if (filteredSales.length === 0) {
-      setToast({ msg: 'Nenhum registro para exportar com os filtros atuais.', type: 'error' });
-      return;
-    }
-
-    const escapeCSV = (val: any) => `"${String(val ?? '').replace(/"/g, '""')}"`;
-    const fmtNumber = (v: number) => v.toFixed(2).replace('.', ',');
-
-    const headers = [
-      'Comanda',
-      'Data Atendimento',
-      'Data Pagamento',
-      'Canal',
-      'Cliente',
-      'Assinante Clube',
-      'Profissionais',
-      'Itens',
-      'Forma de Pagamento',
-      'Valor Total (R$)',
-      'Receita Caixa (R$)',
-      'Volume Clube (R$)',
-      'Comissao Gerada (R$)',
-      'Status',
-    ];
-
-    const rows = filteredSales.map((s) => [
-      escapeCSV(s.short_id),
-      escapeCSV(fmtDateTime(s.attendance_date)),
-      escapeCSV(fmtDateTime(s.payment_date)),
-      escapeCSV(s.channel === 'online' ? 'Online' : 'Balcão'),
-      escapeCSV(s.client_name),
-      escapeCSV(s.is_club_member ? 'Sim' : 'Não'),
-      escapeCSV(s.staff_names.join(', ')),
-      escapeCSV(s.items_summary),
-      escapeCSV(s.payment_badges.map((b) => `${b.label} (${fmt(b.amount)})`).join(' + ')),
-      escapeCSV(fmtNumber(s.total)),
-      escapeCSV(fmtNumber(s.cash_revenue)),
-      escapeCSV(fmtNumber(s.club_credit_volume)),
-      escapeCSV(fmtNumber(s.commission_generated)),
-      escapeCSV(s.status),
-    ]);
-
-    const csvContent = '\uFEFF' + [headers.map(escapeCSV).join(';'), ...rows.map((r) => r.join(';'))].join('\r\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    const fromStr = filters.dateFrom || 'inicio';
-    const toStr = filters.dateTo || 'fim';
-    link.setAttribute('download', `relatorio_vendas_${fromStr}_a_${toStr}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    setToast({ msg: `Relatório CSV exportado com sucesso (${filteredSales.length} registros).`, type: 'success' });
-  }, [filteredSales, filters.dateFrom, filters.dateTo]);
-
-  // KPIs vêm EXCLUSIVAMENTE do RPC canônico — zero recálculo local (§4.4/§4.5).
-  const [kpi, setKpi] = useState<DashboardKpiFinancial | null>(null);
-  const [kpiLoading, setKpiLoading] = useState(false);
-  const [kpiError, setKpiError] = useState<string | null>(null);
-
-  const handlePresetChange = useCallback((nextPreset: DatePreset) => {
-    setPreset(nextPreset);
-    setAnchorPeriod((prevAnchor) => resolveCanonicalPeriod(nextPreset, prevAnchor).anchor);
-  }, []);
-
-  const fetchChefClubData = useCallback(async () => {
+  // Carregar dados consolidados
+  const loadReportData = useCallback(async () => {
     if (!tenantId) return;
     setLoading(true);
     try {
-      const [subsRes, creditsRes, plansRes] = await Promise.all([
+      const clubSupabase = getScopedClient('barber');
+
+      const [comandasRes, apptsRes, advancesRes, titlesRes, subsRes] = await Promise.all([
+        fetchPaidComandasReport(tenantId, dateFrom, dateTo),
+        fetchAppointmentsReport(tenantId, dateFrom, dateTo),
+        fetchBarberAdvancesInPeriod(tenantId, dateFrom, dateTo),
+        fetchFinancialTitlesReport(tenantId, dateFrom, dateTo, dateFieldMode),
         clubSupabase
           .from('customer_subscriptions')
-          .select('id, status, plan_id')
+          .select('id, status, available_credits, used_credits, customer_plans(name)')
           .eq('tenant_id', tenantId)
           .eq('status', 'active'),
-        clubSupabase
-          .from('customer_credits')
-          .select('available_credits, used_credits')
-          .eq('tenant_id', tenantId),
-        clubSupabase
-          .from('customer_plans')
-          .select('id, name')
-          .eq('tenant_id', tenantId),
       ]);
 
-      const activeCount = (subsRes.data || []).length;
-      const planMap = new Map((plansRes.data || []).map((p: any) => [p.id, p.name]));
+      setPaidComandas(comandasRes.comandas);
+      setAllocatedItems(comandasRes.allocatedItems);
+      setAppointments(apptsRes);
+      setBarberAdvances(advancesRes);
+      setReceivables(titlesRes.receivables);
+      setPayables(titlesRes.payables);
 
-      const planCounts = new Map<string, number>();
-      (subsRes.data || []).forEach((sub: any) => {
-        const planName = planMap.get(sub.plan_id) || 'Standard';
-        planCounts.set(planName, (planCounts.get(planName) || 0) + 1);
-      });
+      // Produtos (cruza catálogo real + itens rateados das comandas pagas)
+      const productsRes = await fetchProductsReport(tenantId, comandasRes.allocatedItems);
+      setProductSales(productsRes.salesRows);
+      setProductCatalog(productsRes.catalogItems);
 
-      let popularPlan: string | null = null;
-      let maxCount = 0;
-      planCounts.forEach((count, plan) => {
-        if (count > maxCount) {
-          maxCount = count;
-          popularPlan = plan;
+      // Clube dos Chefes stats
+      if (!subsRes.error && Array.isArray(subsRes.data)) {
+        const activeSubs = subsRes.data;
+        let totalAvail = 0;
+        let totalUsed = 0;
+        const planCounts: Record<string, number> = {};
+
+        for (const sub of activeSubs as any[]) {
+          totalAvail += Number(sub.available_credits || 0);
+          totalUsed += Number(sub.used_credits || 0);
+          const pName = sub.customer_plans?.name || 'Plano Padrão';
+          planCounts[pName] = (planCounts[pName] || 0) + 1;
         }
-      });
 
-      let totalAvailable = 0;
-      let totalUsed = 0;
-      (creditsRes.data || []).forEach((c: any) => {
-        totalAvailable += Number(c.available_credits || 0);
-        totalUsed += Number(c.used_credits || 0);
-      });
+        const popularPlan =
+          Object.entries(planCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 
-      setChefClubStats({
-        activeSubscriptions: activeCount,
-        totalCreditsAvailable: totalAvailable,
-        totalCreditsUsed: totalUsed,
-        popularPlan,
+        setChefClubStats({
+          activeSubscriptions: activeSubs.length,
+          totalCreditsAvailable: totalAvail,
+          totalCreditsUsed: totalUsed,
+          popularPlan,
+        });
+      }
+    } catch (err: any) {
+      console.error('Erro ao carregar relatórios:', err);
+      setToast({
+        msg: err?.message || 'Não foi possível carregar os dados do relatório.',
+        type: 'error',
       });
-    } catch (err) {
-      console.error('Erro ao buscar dados do Clube:', err);
-      setToast({ msg: 'Erro ao carregar dados do Clube', type: 'error' });
     } finally {
       setLoading(false);
     }
-  }, [tenantId, clubSupabase]);
+  }, [tenantId, dateFrom, dateTo, dateFieldMode]);
 
-  // Detalhamento de vendas enriquecido (somente leitura, isolamento por tenant_id via salesReportService)
-  const fetchSales = useCallback(async () => {
-    if (!tenantId) return;
-    setLoading(true);
-    try {
-      const result = await fetchSalesData(tenantId, filters, dateRegime);
-      setIsTruncated(result.isTruncated);
-      setSales(result.sales);
-    } catch (err) {
-      console.error("Erro ao buscar vendas:", err);
-      setToast({ msg: "Erro ao carregar vendas", type: "error" });
-    } finally {
-      setLoading(false);
-    }
-  }, [tenantId, filters, dateRegime]);
-
-  // Efeito dedicado à aba Clube dos Chefs (não re-executa ao mudar filtros de data de vendas)
   useEffect(() => {
-    if (!tenantId || activeTab !== 'chefclub') return;
-    void fetchChefClubData();
-  }, [tenantId, activeTab, fetchChefClubData]);
+    loadReportData();
+  }, [loadReportData]);
 
-  // Efeito dedicado à aba Vendas
-  useEffect(() => {
-    if (!tenantId || activeTab !== 'sales') return;
-    void fetchSales();
-  }, [tenantId, activeTab, fetchSales]);
+  // Listas de profissionais para filtros
+  const availableSalesStaff = useMemo(() => {
+    const set = new Set<string>();
+    paidComandas.forEach((c) => c.staffNames.forEach((n) => set.add(n)));
+    return Array.from(set).sort();
+  }, [paidComandas]);
 
-  // Cards canônicos: período derivado do preset ativo (nunca do intervalo livre).
-  useEffect(() => {
-    if (!tenantId || activeTab !== 'sales') return;
+  const availableApptStaff = useMemo(() => {
+    const set = new Set<string>();
+    appointments.forEach((a) => {
+      if (a.staffName) set.add(a.staffName);
+    });
+    return Array.from(set).sort();
+  }, [appointments]);
 
-    let cancelled = false;
-    setKpiLoading(true);
-    getDashboardKpis(canonicalPeriod)
-      .then((result) => {
-        if (!cancelled) {
-          setKpi(result?.financial ?? null);
-          setKpiError(null);
+  const availableBarbersForCommissions = useMemo(() => {
+    const map = new Map<string, string>();
+    allocatedItems.forEach((it) => {
+      if (it.barber_id && it.barber_name && it.barber_name !== 'Sem profissional') {
+        map.set(it.barber_id, it.barber_name);
+      }
+    });
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [allocatedItems]);
+
+  // Gerador de Payload Contextual para ExportActionsDropdown
+  const periodLabel = `${fmtDateDisplay(dateFrom)} a ${fmtDateDisplay(dateTo)}`;
+
+  const getExportPayload = useCallback((): ExportPayload<any> => {
+    if (activeTab === 'sales') {
+      const filtered = paidComandas.filter((c) => {
+        if (salesStaffFilter !== 'all' && !c.staffNames.includes(salesStaffFilter)) return false;
+        if (salesPaymentFilter !== 'all') {
+          if (
+            salesPaymentFilter === 'club' &&
+            c.paymentBreakdown.club <= 0 &&
+            c.primaryPaymentCategory !== 'club'
+          ) {
+            return false;
+          }
+          if (
+            salesPaymentFilter !== 'club' &&
+            c.paymentBreakdown[salesPaymentFilter] <= 0 &&
+            c.primaryPaymentCategory !== salesPaymentFilter
+          ) {
+            return false;
+          }
         }
-      })
-      .catch((err: Error) => {
-        if (!cancelled) {
-          setKpi(null);
-          setKpiError(err.message || 'Falha ao carregar KPIs canônicos');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setKpiLoading(false);
+        return true;
       });
+      return buildSalesExportPayload(filtered, tenantName, periodLabel);
+    }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [tenantId, activeTab, canonicalPeriod]);
+    if (activeTab === 'appointments') {
+      const filtered = appointments.filter((a) => {
+        if (apptStaffFilter !== 'all' && a.staffName !== apptStaffFilter) return false;
+        if (apptStatusFilter !== 'all' && a.statusCategory !== apptStatusFilter) return false;
+        return true;
+      });
+      return buildAppointmentsExportPayload(filtered, tenantName, periodLabel);
+    }
 
+    if (activeTab === 'products') {
+      if (productsSubView === 'sales') {
+        return buildProductsSalesExportPayload(productSales, tenantName, periodLabel);
+      }
+      return buildProductsStockExportPayload(productCatalog, tenantName, periodLabel);
+    }
 
-  const tabs = [
-    { id: 'chefclub', label: 'Clube dos Chefs', icon: 'workspace_premium' },
-    { id: 'sales', label: 'Vendas', icon: 'point_of_sale' },
-  ];
+    if (activeTab === 'financial') {
+      if (financialSubTab === 'commissions') {
+        const filteredItems = allocatedItems.filter(
+          (it) => selectedBarberId === 'all' || it.barber_id === selectedBarberId
+        );
+        const filteredAdv = barberAdvances.filter(
+          (adv) => selectedBarberId === 'all' || adv.staffId === selectedBarberId
+        );
+        const barberLabel =
+          selectedBarberId === 'all'
+            ? 'Todos os Barbeiros'
+            : availableBarbersForCommissions.find((b) => b.id === selectedBarberId)?.name ||
+              'Barbeiro';
 
-  const renderKpiCard = (
-    label: string,
-    value: string,
-    tone: MetricTone,
-    helper?: string,
-    icon?: string,
-  ) => (
-    <MetricCard
-      label={label}
-      value={value}
-      tone={tone}
-      helper={helper}
-      icon={icon}
-      density="compact"
-    />
-  );
+        return buildCommissionsExportPayload(
+          filteredItems,
+          filteredAdv,
+          barberLabel,
+          tenantName,
+          periodLabel
+        );
+      }
 
-  const renderSalesTab = () => {
-    const detailRange =
-      filters.dateFrom || filters.dateTo
-        ? `${filters.dateFrom ? fmtDate(filters.dateFrom) : '—'} → ${filters.dateTo ? fmtDate(filters.dateTo) : '—'}`
-        : 'Todo o período';
+      if (financialSubTab === 'receivables') {
+        return buildFinancialTitlesExportPayload(
+          receivables,
+          'Relatório de Contas a Receber',
+          tenantName,
+          periodLabel
+        );
+      }
 
-    const regimeLabel =
-      dateRegime === 'payment' ? 'Regime de Caixa (Data do Pagamento)' : 'Competência (Data do Atendimento)';
-
-    const growthText = kpi?.growth == null ? '—' : `${(kpi.growth * 100).toFixed(1)}%`;
-
-    return (
-      <div className="space-y-5">
-        {/* Seletor de Regime Temporal (Atendimento vs. Pagamento/Caixa) */}
-        <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Critério Temporal da Auditoria
-            </p>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Escolha se o período selecionado filtra as comandas pela data em que o serviço ocorreu ou pela data da baixa financeira.
-            </p>
-          </div>
-
-          <div
-            className="inline-flex rounded-xl bg-slate-100 dark:bg-slate-800/80 p-1 border border-slate-200 dark:border-slate-700 shrink-0"
-            role="group"
-            aria-label="Seletor de Regime de Data"
-          >
-            <button
-              type="button"
-              onClick={() => setDateRegime('payment')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
-                dateRegime === 'payment'
-                  ? 'bg-primary text-night shadow-sm'
-                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <span className="material-symbols-outlined text-base">payments</span>
-              <span>Data do Pagamento / Caixa</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setDateRegime('attendance')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
-                dateRegime === 'attendance'
-                  ? 'bg-primary text-night shadow-sm'
-                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <span className="material-symbols-outlined text-base">event_available</span>
-              <span>Data do Atendimento</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Cards Totalizadores Rápidos do Período Selecionado */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white dark:bg-card-dark rounded-xl border border-emerald-500/30 p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">
-                Faturamento de Caixa
-              </p>
-              <span className="material-symbols-outlined text-emerald-500 text-lg">account_balance_wallet</span>
-            </div>
-            <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
-              {fmt(periodTotals.cashRevenue)}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Apenas Dinheiro, PIX e Cartões ({detailRange})
-            </p>
-          </div>
-
-          <div className="bg-white dark:bg-card-dark rounded-xl border border-amber-500/30 p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">
-                Consumo Créditos do Clube
-              </p>
-              <span className="material-symbols-outlined text-amber-500 text-lg">workspace_premium</span>
-            </div>
-            <p className="text-2xl font-black text-amber-600 dark:text-amber-400 tabular-nums">
-              {fmt(periodTotals.clubCreditVolume)}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Volume facial de assinaturas (isolado do caixa)
-            </p>
-          </div>
-
-          <div className="bg-white dark:bg-card-dark rounded-xl border border-teal-500/30 p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">
-                Comissões Geradas
-              </p>
-              <span className="material-symbols-outlined text-teal-600 text-lg">badge</span>
-            </div>
-            <p className="text-2xl font-black text-teal-700 dark:text-teal-300 tabular-nums">
-              {fmt(periodTotals.totalCommissions)}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Total apurado nas comandas do período
-            </p>
-          </div>
-
-          <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">
-                Total de Atendimentos
-              </p>
-              <span className="material-symbols-outlined text-primary text-lg">receipt_long</span>
-            </div>
-            <p className="text-2xl font-black text-slate-900 dark:text-white tabular-nums">
-              {periodTotals.totalAttendances}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Comandas baixadas no filtro ativo
-            </p>
-          </div>
-        </div>
-
-        {!isMapped && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-xs font-semibold text-amber-700 dark:text-amber-300">
-            <span className="material-symbols-outlined align-middle text-sm mr-1">info</span>
-            Período dos KPIs institucionais: <strong>{canonicalPeriodLabel(canonicalPeriod)}</strong>
-            <span className="mx-2 text-amber-500/60">·</span>
-            Auditoria e totalizadores acima: <strong>{detailRange}</strong> ({regimeLabel})
-          </div>
-        )}
-
-        {/* KPIs Canônicos Consolidados (RPC get_dashboard_kpis) */}
-        <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 rounded-xl border border-emerald-500/20 p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-              <span className="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-2xl">point_of_sale</span>
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-900 dark:text-white text-lg">Resumo Executivo (DRE / Caixa)</h3>
-              <p className="text-sm text-slate-500">
-                KPIs canônicos: {canonicalPeriodLabel(canonicalPeriod)}
-              </p>
-            </div>
-          </div>
-
-          {kpiError && (
-            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10 px-4 py-3 text-xs font-semibold text-red-700 dark:text-red-300">
-              KPIs canônicos indisponíveis: {kpiError}. A auditoria detalhada abaixo continua
-              funcionando com os filtros selecionados.
-            </div>
-          )}
-
-          {kpiError ? (
-            <div className="flex items-center justify-center py-4 text-sm font-semibold text-slate-400">
-              KPIs indisponíveis — consulte os totalizadores do período e o detalhamento abaixo.
-            </div>
-          ) : kpiLoading || !kpi ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              {renderKpiCard('Faturamento Líquido', fmt(kpi.revenue), 'positive', isMapped ? canonicalPeriodLabel(canonicalPeriod) : undefined, 'payments')}
-              {renderKpiCard('Despesas', fmt(kpi.expenses), 'neutral', isMapped ? canonicalPeriodLabel(canonicalPeriod) : undefined, 'trending_down')}
-              {renderKpiCard('Resultado', fmt(kpi.result), kpi.result >= 0 ? 'positive' : 'negative', isMapped ? canonicalPeriodLabel(canonicalPeriod) : undefined, 'account_balance_wallet')}
-              {renderKpiCard('Ticket Médio', fmt(kpi.average_ticket), 'brass', isMapped ? canonicalPeriodLabel(canonicalPeriod) : undefined, 'receipt_long')}
-              {renderKpiCard('Crescimento', growthText, kpi.growth != null && kpi.growth >= 0 ? 'positive' : 'negative', 'vs. período anterior', 'trending_up')}
-            </div>
-          )}
-        </div>
-
-        {isTruncated && (
-          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-2">
-            <span className="material-symbols-outlined text-base">warning</span>
-            <span>
-              Exibindo os primeiros <strong>{MAX_DISPLAY_RECORDS}</strong> registros do intervalo selecionado. Para auditorias mais extensas, refine o filtro de datas.
-            </span>
-          </div>
-        )}
-
-        {/* Barra de Filtros Dinâmicos e Exportação CSV */}
-        <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark p-4 space-y-3 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary text-xl">tune</span>
-              <h4 className="text-sm font-bold text-slate-900 dark:text-white">Filtros Dinâmicos</h4>
-              {hasActiveDynamicFilters && (
-                <button
-                  type="button"
-                  onClick={resetDynamicFilters}
-                  className="text-xs font-bold text-primary hover:underline ml-2 flex items-center gap-1"
-                >
-                  <span className="material-symbols-outlined text-sm">close</span>
-                  Limpar Filtros
-                </button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={exportToExcel}
-                disabled={loading || exportingExcel || filteredSales.length === 0}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-night bg-primary hover:bg-primary-dark shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed font-display"
-                title="Gerar arquivo Excel (.xlsx) assíncrono via Edge Function + Presigned URL"
-              >
-                <span className="material-symbols-outlined text-base">
-                  {exportingExcel ? 'progress_activity' : 'table_view'}
-                </span>
-                <span>
-                  {exportingExcel
-                    ? 'Gerando Excel...'
-                    : `Exportar Excel (${filteredSales.length})`}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={exportToCsv}
-                disabled={loading || filteredSales.length === 0}
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-display"
-                title="Exportar registros filtrados para planilha CSV (formato Excel com acentos)"
-              >
-                <span className="material-symbols-outlined text-base">download</span>
-                <span>CSV</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-1">
-            {/* 1. Busca textual */}
-            <div className="relative">
-              <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
-                search
-              </span>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar cliente, comanda ou item..."
-                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white outline-none focus:border-primary"
-              />
-            </div>
-
-            {/* 2. Filtro por profissional */}
-            <div>
-              <select
-                value={selectedStaff}
-                onChange={(e) => setSelectedStaff(e.target.value)}
-                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white outline-none focus:border-primary"
-              >
-                <option value="all">Todos os Profissionais</option>
-                {availableStaff.map((staffName) => (
-                  <option key={staffName} value={staffName}>
-                    {staffName}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* 3. Filtro por forma de pagamento */}
-            <div>
-              <select
-                value={selectedPaymentMethod}
-                onChange={(e) => setSelectedPaymentMethod(e.target.value)}
-                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white outline-none focus:border-primary"
-              >
-                <option value="all">Todas as Formas</option>
-                <option value="pix">PIX</option>
-                <option value="dinheiro">Dinheiro</option>
-                <option value="credito">Cartão de Crédito</option>
-                <option value="debito">Cartão de Débito</option>
-                <option value="clube">Crédito do Clube</option>
-              </select>
-            </div>
-
-            {/* 4. Filtro por canal */}
-            <div>
-              <select
-                value={selectedChannel}
-                onChange={(e) => setSelectedChannel(e.target.value as any)}
-                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white outline-none focus:border-primary"
-              >
-                <option value="all">Todos os Canais</option>
-                <option value="balcao">🏬 Balcão</option>
-                <option value="online">🌐 Online / Site</option>
-              </select>
-            </div>
-
-            {/* 5. Filtro por membro do clube */}
-            <div>
-              <select
-                value={selectedClubMember}
-                onChange={(e) => setSelectedClubMember(e.target.value as any)}
-                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-white outline-none focus:border-primary"
-              >
-                <option value="all">Todos os Clientes</option>
-                <option value="members">⭐ Assinantes do Clube</option>
-                <option value="non_members">Avulsos (Não assinantes)</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Tabela de Auditoria de Comandas */}
-        <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                Auditoria de Comandas no Período
-              </h4>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                {filteredSales.length === sales.length
-                  ? `${sales.length} ${sales.length === 1 ? 'registro' : 'registros'}`
-                  : `${filteredSales.length} de ${sales.length} registros`}
-              </span>
-            </div>
-            <span className="text-[11px] font-semibold text-slate-500">
-              {detailRange} · {regimeLabel} (BRT -03:00)
-            </span>
-          </div>
-
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-          ) : sales.length === 0 ? (
-            <div className="text-center py-12">
-              <span className="material-symbols-outlined text-5xl text-slate-300 mb-3">receipt_long</span>
-              <p className="text-sm font-semibold text-slate-500">Nenhuma comanda encontrada no período e regime selecionados</p>
-            </div>
-          ) : filteredSales.length === 0 ? (
-            <div className="text-center py-12">
-              <span className="material-symbols-outlined text-5xl text-slate-300 mb-3">filter_alt_off</span>
-              <p className="text-sm font-semibold text-slate-500">Nenhum atendimento corresponde aos filtros aplicados.</p>
-              <button
-                type="button"
-                onClick={resetDynamicFilters}
-                className="mt-2 text-xs font-bold text-primary hover:underline"
-              >
-                Limpar Filtros Dinâmicos
-              </button>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-[10px] uppercase tracking-widest text-slate-400 border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/40">
-                    <th className="px-3.5 py-2.5 font-bold whitespace-nowrap">Comanda</th>
-                    <th className="px-3.5 py-2.5 font-bold whitespace-nowrap">Data Atendimento</th>
-                    <th className="px-3.5 py-2.5 font-bold whitespace-nowrap">Data Pagamento</th>
-                    <th className="px-3.5 py-2.5 font-bold whitespace-nowrap">Canal</th>
-                    <th className="px-3.5 py-2.5 font-bold whitespace-nowrap">Cliente</th>
-                    <th className="px-3.5 py-2.5 font-bold whitespace-nowrap">Profissional(is)</th>
-                    <th className="px-3.5 py-2.5 font-bold">Itens</th>
-                    <th className="px-3.5 py-2.5 font-bold whitespace-nowrap">Forma de Pagamento</th>
-                    <th className="px-3.5 py-2.5 font-bold text-right whitespace-nowrap">Valor Total</th>
-                    <th className="px-3.5 py-2.5 font-bold text-right whitespace-nowrap">Comissão Gerada</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredSales.map((sale) => (
-                    <tr
-                      key={sale.id}
-                      className="border-b border-slate-100 dark:border-slate-800 last:border-0 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
-                    >
-                      {/* Comanda (#ID) */}
-                      <td className="px-3.5 py-3 font-mono text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap" title={sale.id}>
-                        {sale.short_id}
-                      </td>
-
-                      {/* Data Atendimento */}
-                      <td className="px-3.5 py-3 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                        {fmtDateTime(sale.attendance_date)}
-                      </td>
-
-                      {/* Data Pagamento */}
-                      <td className="px-3.5 py-3 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                        {fmtDateTime(sale.payment_date)}
-                      </td>
-
-                      {/* Canal */}
-                      <td className="px-3.5 py-3 whitespace-nowrap">
-                        {sale.channel === 'online' ? (
-                          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-teal-500/15 text-teal-700 dark:text-teal-300 border border-teal-500/30">
-                            <span aria-hidden="true">🌐</span>
-                            <span>Online</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-slate-500/15 text-slate-700 dark:text-slate-300 border border-slate-500/30">
-                            <span aria-hidden="true">🏬</span>
-                            <span>Balcão</span>
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Cliente + Indicador Assinante do Clube */}
-                      <td className="px-3.5 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-semibold text-slate-900 dark:text-white">
-                            {sale.client_name}
-                          </span>
-                          {sale.is_club_member && (
-                            <span
-                              className="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30"
-                              title="Assinante do Clube dos Chefes"
-                            >
-                              <span className="material-symbols-outlined text-[12px]">workspace_premium</span>
-                              Clube
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Profissional(is) */}
-                      <td className="px-3.5 py-3 text-xs text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                        {sale.staff_names.length > 0 ? sale.staff_names.join(', ') : '—'}
-                      </td>
-
-                      {/* Itens (resumo) */}
-                      <td className="px-3.5 py-3 text-xs text-slate-600 dark:text-slate-300 max-w-[240px]">
-                        <div className="truncate" title={sale.items_summary}>
-                          {sale.items_summary}
-                        </div>
-                      </td>
-
-                      {/* Forma de Pagamento */}
-                      <td className="px-3.5 py-3 whitespace-nowrap">
-                        <div className="flex flex-wrap items-center gap-1">
-                          {sale.payment_badges.map((badge, idx) => (
-                            <span
-                              key={`${sale.id}-pay-${idx}`}
-                              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${badge.toneClass}`}
-                            >
-                              <span>{badge.label}</span>
-                              {sale.payment_badges.length > 1 && (
-                                <span className="opacity-80">({fmt(badge.amount)})</span>
-                              )}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-
-                      {/* Valor Total */}
-                      <td className="px-3.5 py-3 font-bold text-slate-900 dark:text-white text-right tabular-nums whitespace-nowrap">
-                        {fmt(sale.total)}
-                      </td>
-
-                      {/* Comissão Gerada */}
-                      <td className="px-3.5 py-3 font-bold text-teal-700 dark:text-teal-300 text-right tabular-nums whitespace-nowrap">
-                        {fmt(sale.commission_generated)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const renderTabContent = () => {
-    if (loading && activeTab === 'chefclub') {
-      return (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
+      return buildFinancialTitlesExportPayload(
+        payables,
+        'Relatório de Contas a Pagar',
+        tenantName,
+        periodLabel
       );
     }
 
-    switch (activeTab) {
-      case 'chefclub':
-        return (
-          <div className="space-y-4">
-            <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-xl border border-amber-500/20 p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-amber-600 dark:text-amber-400 text-2xl">workspace_premium</span>
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-900 dark:text-white text-lg">Clube dos Chefs</h3>
-                  <p className="text-sm text-slate-500">Programa de fidelidade</p>
-                </div>
-              </div>
+    // Fallback para Chef Club
+    return {
+      metadata: {
+        title: 'Indicadores Clube dos Chefes',
+        tenantName,
+        periodLabel,
+        generatedAt: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+      },
+      columns: [
+        { header: 'Indicador', key: 'label' },
+        { header: 'Valor', key: 'value' },
+      ],
+      data: [
+        { label: 'Assinaturas Ativas', value: chefClubStats.activeSubscriptions },
+        { label: 'Créditos Disponíveis', value: chefClubStats.totalCreditsAvailable },
+        { label: 'Créditos Utilizados', value: chefClubStats.totalCreditsUsed },
+        { label: 'Plano Mais Popular', value: chefClubStats.popularPlan || '-' },
+      ],
+    };
+  }, [
+    activeTab,
+    paidComandas,
+    salesStaffFilter,
+    salesPaymentFilter,
+    appointments,
+    apptStaffFilter,
+    apptStatusFilter,
+    productsSubView,
+    productSales,
+    productCatalog,
+    financialSubTab,
+    allocatedItems,
+    barberAdvances,
+    selectedBarberId,
+    availableBarbersForCommissions,
+    receivables,
+    payables,
+    chefClubStats,
+    tenantName,
+    periodLabel,
+  ]);
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white/50 dark:bg-black/20 rounded-lg p-4">
-                  <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Assinantes Ativos</p>
-                  <p className="text-3xl font-black text-amber-600">{chefClubStats.activeSubscriptions}</p>
-                </div>
-                <div className="bg-white/50 dark:bg-black/20 rounded-lg p-4">
-                  <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Créditos Usados</p>
-                  <p className="text-3xl font-black text-amber-600">{chefClubStats.totalCreditsUsed}</p>
-                </div>
-                <div className="bg-white/50 dark:bg-black/20 rounded-lg p-4">
-                  <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Créditos Disponíveis</p>
-                  <p className="text-3xl font-black text-emerald-600">{chefClubStats.totalCreditsAvailable}</p>
-                </div>
-                <div className="bg-white/50 dark:bg-black/20 rounded-lg p-4">
-                  <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Plano Mais Popular</p>
-                  <p className="text-xl font-black text-amber-600 truncate">{chefClubStats.popularPlan || 'N/A'}</p>
-                </div>
-              </div>
-
-              {chefClubStats.activeSubscriptions > 0 && (
-                <div className="mt-4 pt-4 border-t border-amber-500/20">
-                  <a
-                    href="/chef-club-subscriptions"
-                    className="text-sm font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1"
-                  >
-                    Ver todos os assinantes
-                    <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                  </a>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-
-      case 'sales':
-        return renderSalesTab();
+  const exportFilename = useMemo(() => {
+    const suffix = `${dateFrom}_a_${dateTo}`;
+    if (activeTab === 'sales') return `vendas-faturamento-${suffix}`;
+    if (activeTab === 'appointments') return `atendimentos-${suffix}`;
+    if (activeTab === 'products') {
+      return productsSubView === 'sales'
+        ? `produtos-vendas-${suffix}`
+        : `produtos-estoque-${dateTo}`;
     }
-  };
+    if (activeTab === 'financial') {
+      if (financialSubTab === 'commissions') return `extrato-comissoes-${suffix}`;
+      if (financialSubTab === 'receivables') return `contas-a-receber-${suffix}`;
+      return `contas-a-pagar-${suffix}`;
+    }
+    return `clube-dos-chefes-${suffix}`;
+  }, [activeTab, productsSubView, financialSubTab, dateFrom, dateTo]);
+
+  const tabsConfig: Array<{
+    key: ReportsTabKey;
+    label: string;
+    icon: React.ReactNode;
+  }> = [
+    { key: 'sales', label: 'Vendas & Faturamento', icon: <TrendingUp className="w-4 h-4" /> },
+    { key: 'appointments', label: 'Atendimentos', icon: <Calendar className="w-4 h-4" /> },
+    { key: 'products', label: 'Produtos & Estoque', icon: <Package className="w-4 h-4" /> },
+    { key: 'financial', label: 'Financeiro & Comissões', icon: <Wallet className="w-4 h-4" /> },
+    { key: 'chefclub', label: 'Clube dos Chefes', icon: <Award className="w-4 h-4" /> },
+  ];
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen bg-[#0E0C0A] text-[#F5F5F0] p-4 sm:p-6 lg:p-8 space-y-6">
       {toast && (
         <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />
       )}
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Cabeçalho Global e Ações */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-[#2D2A26] pb-6">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white">Relatórios</h1>
-          <p className="text-sm text-slate-500">Visão completa de faturamento, caixa e auditoria operacional</p>
+          <span className="text-[11px] font-semibold uppercase tracking-widest text-[#B88A44]">
+            Gestão & Inteligência
+          </span>
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#F5F5F0] mt-1">
+            Relatórios
+          </h1>
+          <p className="text-xs text-stone-400 mt-1">
+            Separação clara entre faturamento liquidado, operação da cadeira, giro de produtos e extrato de comissões.
+          </p>
         </div>
-        <DateRangeFilter
-          startDate={filters.dateFrom}
-          endDate={filters.dateTo}
-          onStartDateChange={(v) => setFilters((f) => ({ ...f, dateFrom: v }))}
-          onEndDateChange={(v) => setFilters((f) => ({ ...f, dateTo: v }))}
-          onPresetChange={handlePresetChange}
-          showPresets={true}
-        />
-      </div>
 
-      <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700 overflow-x-auto">
-        {tabs.map((tab) => (
+        <div className="flex flex-wrap items-center gap-3">
           <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as 'chefclub' | 'sales')}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === tab.id
-                ? 'border-primary text-primary'
-                : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-            }`}
+            type="button"
+            onClick={loadReportData}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-[#141210] border border-[#2D2A26] text-stone-300 hover:border-[#B88A44]/50 hover:text-[#F5F5F0] transition-colors disabled:opacity-50"
           >
-            <span className="material-symbols-outlined text-lg">{tab.icon}</span>
-            {tab.label}
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#B88A44]' : ''}`} />
+            Atualizar
           </button>
-        ))}
+
+          <ExportActionsDropdown
+            getPayload={getExportPayload}
+            baseFilename={exportFilename}
+            disabled={loading}
+          />
+        </div>
       </div>
 
-      <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-4">
-        {renderTabContent()}
+      {/* Barra Global de Período + Navegação em 5 Abas */}
+      <div className="space-y-4">
+        <div className="bg-[#141210] border border-[#2D2A26] rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <DateRangeFilter
+            startDate={dateFrom}
+            endDate={dateTo}
+            onStartDateChange={(newStart) => setDateRange(newStart, dateTo)}
+            onEndDateChange={(newEnd) => setDateRange(dateFrom, newEnd)}
+          />
+          <div className="text-xs text-stone-400">
+            Período ativo: <strong className="text-[#F5F5F0]">{periodLabel}</strong>
+          </div>
+        </div>
+
+        {/* Navegação de Abas */}
+        <div
+          className="flex flex-wrap items-center gap-2 border-b border-[#2D2A26] pb-3"
+          role="tablist"
+        >
+          {tabsConfig.map((tab) => {
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setActiveTab(tab.key)}
+                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 border ${
+                  isActive
+                    ? 'bg-[#B88A44] text-[#0E0C0A] border-[#B88A44] shadow-md'
+                    : 'bg-[#141210] text-stone-300 border-[#2D2A26] hover:border-[#B88A44]/50 hover:text-[#F5F5F0]'
+                }`}
+              >
+                {tab.icon}
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Conteúdo da Aba Selecionada */}
+      <div className="pt-2">
+        {activeTab === 'sales' && (
+          <ReportsSalesTab
+            comandas={paidComandas}
+            loading={loading}
+            selectedStaff={salesStaffFilter}
+            onSelectStaff={setSalesStaffFilter}
+            selectedPayment={salesPaymentFilter}
+            onSelectPayment={setSalesPaymentFilter}
+            availableStaff={availableSalesStaff}
+          />
+        )}
+
+        {activeTab === 'appointments' && (
+          <ReportsAppointmentsTab
+            appointments={appointments}
+            loading={loading}
+            selectedStaff={apptStaffFilter}
+            onSelectStaff={setApptStaffFilter}
+            selectedStatus={apptStatusFilter}
+            onSelectStatus={setApptStatusFilter}
+            availableStaff={availableApptStaff}
+          />
+        )}
+
+        {activeTab === 'products' && (
+          <ReportsProductsTab
+            salesRows={productSales}
+            catalogItems={productCatalog}
+            loading={loading}
+            subView={productsSubView}
+            onChangeSubView={setProductsSubView}
+          />
+        )}
+
+        {activeTab === 'financial' && (
+          <ReportsFinancialTab
+            subTab={financialSubTab}
+            onChangeSubTab={setFinancialSubTab}
+            allocatedItems={allocatedItems}
+            advances={barberAdvances}
+            receivables={receivables}
+            payables={payables}
+            loading={loading}
+            selectedBarberId={selectedBarberId}
+            onSelectBarberId={setSelectedBarberId}
+            availableBarbers={availableBarbersForCommissions}
+            dateFieldMode={dateFieldMode}
+            onChangeDateFieldMode={setDateFieldMode}
+          />
+        )}
+
+        {activeTab === 'chefclub' && (
+          <ReportsChefClubTab stats={chefClubStats} loading={loading} />
+        )}
       </div>
     </div>
   );
