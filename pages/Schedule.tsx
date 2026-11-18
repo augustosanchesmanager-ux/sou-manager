@@ -58,6 +58,7 @@ import {
 import { isSharedServiceItem, calculateParticipantBaseValue } from '../domain/commission';
 import { buildWhatsAppUrl, findClientByCanonicalPhone } from '../src/lib/utils/phone';
 import { WhatsAppTemplateDropdown } from '../src/components/whatsapp/WhatsAppTemplateDropdown';
+import { getTodayDateKey, toLocalDateKey } from '../src/utils/dateTimezone';
 import { clientRepository } from '../domain/client/repository';
 import { confirmAppointmentAttendance, correctAppointmentAttendance } from '../src/lib/finance/attendance';
 import { unblockComandaIfDue } from '../src/lib/finance/unblock';
@@ -541,8 +542,8 @@ const Schedule: React.FC = () => {
     type: 'full_day',
     professionalScope: 'all',
     professionalId: '',
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0],
+    startDate: getTodayDateKey(),
+    endDate: getTodayDateKey(),
     startTime: '12:00',
     endTime: '13:00',
     reason: 'Agenda fechada',
@@ -612,7 +613,7 @@ const Schedule: React.FC = () => {
     service: '',
     serviceIds: [],
     staffId: '',
-    date: new Date().toISOString().split('T')[0],
+    date: getTodayDateKey(),
     start: SCHEDULE_START_HOUR,
     duration: 1,
     notes: '',
@@ -642,7 +643,7 @@ const Schedule: React.FC = () => {
 
     return appointmentsForModalDate.find((apt) => {
       if (apt.status === 'cancelled' || apt.status === 'no_show') return false;
-      const aptDate = apt.date ? apt.date.split('T')[0] : '';
+      const aptDate = apt.date ? toLocalDateKey(apt.date) : '';
       if (aptDate !== formData.date) return false;
 
       const aptPhone = (apt.clientPhone || '').replace(/\D/g, '');
@@ -1056,15 +1057,12 @@ const Schedule: React.FC = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Sync modal date with selected view date
+  // Sync modal date with selected view date (only when creating a new appointment)
   useEffect(() => {
-    if (isModalOpen) {
-      const year = selectedDate.getFullYear();
-      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const day = String(selectedDate.getDate()).padStart(2, '0');
-      setFormData(prev => ({ ...prev, date: `${year}-${month}-${day}`, staffId: prev.staffId || (staffList[0]?.id ?? '') }));
+    if (isModalOpen && !editingAppointmentId) {
+      setFormData(prev => ({ ...prev, date: toLocalDateKey(selectedDate), staffId: prev.staffId || (staffList[0]?.id ?? '') }));
     }
-  }, [isModalOpen, selectedDate, staffList]);
+  }, [editingAppointmentId, isModalOpen, selectedDate, staffList]);
 
   // Fetch appointments for the date selected inside the modal when it differs from the loaded view
   useEffect(() => {
@@ -1328,7 +1326,7 @@ const Schedule: React.FC = () => {
         });
     }
 
-    const datePart = apt.startTime.split('T')[0];
+    const datePart = toLocalDateKey(apt.startTime);
     const rawServiceNames = (apt.service || '')
       .split(',')
       .map((name) => name.trim().toLowerCase())
@@ -1389,7 +1387,7 @@ const Schedule: React.FC = () => {
     const newHours = Math.floor(roundedHour);
     const newMinutes = (roundedHour % 1) * 60;
 
-    const dateStr = dropDate || apt.startTime.split('T')[0];
+    const dateStr = dropDate || toLocalDateKey(apt.startTime);
     const newStartTimeLine = new Date(`${dateStr}T${String(newHours).padStart(2, '0')}:${String(newMinutes).padStart(2, '0')}:00`);
     const newEndTimeLine = new Date(newStartTimeLine.getTime() + apt.duration * 60 * 60 * 1000);
 
@@ -2614,7 +2612,7 @@ const Schedule: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `agenda_exportada_${selectedDate.toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `agenda_exportada_${toLocalDateKey(selectedDate)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

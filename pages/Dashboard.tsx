@@ -27,6 +27,7 @@ import {
 } from '../components/dashboard';
 import ActivityTimelineModal from '../components/dashboard/ActivityTimelineModal';
 import BarberCommissionStatementModal from '../components/commissions/BarberCommissionStatementModal';
+import { toLocalDateKey } from '../src/utils/dateTimezone';
 
 const getDefaultQuickAppointmentDateTime = (): { date: string; time: string } => {
   const now = new Date();
@@ -44,7 +45,7 @@ const getDefaultQuickAppointmentDateTime = (): { date: string; time: string } =>
     nextTime.setHours(nextHour, roundedMinute, 0, 0);
 
     return {
-      date: nextTime.toISOString().split('T')[0],
+      date: toLocalDateKey(nextTime),
       time: `${String(nextHour).padStart(2, '0')}:${String(roundedMinute).padStart(2, '0')}`,
     };
   }
@@ -54,7 +55,7 @@ const getDefaultQuickAppointmentDateTime = (): { date: string; time: string } =>
   tomorrow.setHours(9, 0, 0, 0);
 
   return {
-    date: tomorrow.toISOString().split('T')[0],
+    date: toLocalDateKey(tomorrow),
     time: '09:00',
   };
 };

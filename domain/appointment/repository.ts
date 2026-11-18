@@ -53,6 +53,9 @@ const toAppointment = (row: Record<string, unknown>): Appointment => ({
   cancelled_at: (row.cancelled_at as string) || null,
   cancelled_by_user_id: (row.cancelled_by_user_id as string) || null,
   created_at: (row.created_at as string) || '',
+  updated_at: (row.updated_at as string) || undefined,
+  created_by: (row.created_by as string) || null,
+  updated_by: (row.updated_by as string) || null,
 });
 
 class AppointmentRepositoryImpl extends SupabaseRepository {

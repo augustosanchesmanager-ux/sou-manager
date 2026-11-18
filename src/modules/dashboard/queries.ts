@@ -10,6 +10,7 @@ import {
 } from './selectors';
 import { shouldAppearOnSchedule } from '../../lib/staff/roles';
 import { getTodayRangeInSaoPaulo } from './timezone';
+import { getTodayDateKey, toLocalDateKey } from '../../utils/dateTimezone';
 import type {
   DashboardClient,
   DashboardData,
@@ -30,7 +31,7 @@ const logSupabaseError = (label: string, error: unknown) => {
   }
 };
 
-const toDateInput = (date: Date): string => date.toISOString().split('T')[0];
+const toDateInput = (date: Date): string => toLocalDateKey(date);
 
 const parseTransactionDate = (value: unknown): Date => {
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -294,7 +295,7 @@ export const fetchDashboardData = async ({
     name: staff.name,
   }));
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getTodayDateKey();
 
   const upcomingClientIds = new Set(
     (appointmentsRes.data || [])
@@ -341,7 +342,7 @@ export const fetchDashboardData = async ({
   });
 
   const todayAppointmentsByStaff = last90DaysApts.filter((a: any) => {
-    return a.start_time && a.start_time.startsWith(todayStr);
+    return a.start_time && toLocalDateKey(a.start_time) === todayStr;
   });
 
   const returningClients = buildReturningClients({

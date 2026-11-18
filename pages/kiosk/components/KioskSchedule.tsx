@@ -7,6 +7,7 @@ import {
     scheduleBlocksApi,
 } from '../../../services/scheduleBlocksApi';
 import { shouldAppearOnSchedule } from '../../../src/lib/staff/roles';
+import { getLocalDayRangeIso, getTodayDateKey, toLocalDateKey } from '../../../src/utils/dateTimezone';
 
 interface Client { id: string; name: string; phone: string; }
 interface Service { id: string; name: string; price: number; duration_minutes: number; }
@@ -69,15 +70,16 @@ const KioskSchedule: React.FC<KioskScheduleProps> = ({ tenantId, client, channel
     const generateSlots = async () => {
         setLoading(true);
         const duration = selectedService?.duration_minutes || 30;
-        const dateStr = selectedDate.toISOString().split('T')[0];
+        const dateStr = toLocalDateKey(selectedDate);
+        const { startIso, endIso } = getLocalDayRangeIso(dateStr);
 
         // Get existing appointments for the day
         let query = supabase
             .from('appointments')
             .select('start_time, end_time')
             .eq('tenant_id', tenantId)
-            .gte('start_time', `${dateStr}T00:00:00`)
-            .lt('start_time', `${dateStr}T23:59:59`)
+            .gte('start_time', startIso)
+            .lte('start_time', endIso)
             .in('status', ['confirmed', 'pending']);
 
         if (selectedBarber) query = query.eq('staff_id', selectedBarber.id);
@@ -100,7 +102,7 @@ const KioskSchedule: React.FC<KioskScheduleProps> = ({ tenantId, client, channel
             return;
         }
 
-        const isToday = dateStr === new Date().toISOString().split('T')[0];
+        const isToday = dateStr === getTodayDateKey();
         const startHour = isToday ? Math.max(SCHEDULE_START_HOUR, new Date().getHours() + 1) : SCHEDULE_START_HOUR;
         const endHour = SCHEDULE_END_HOUR;
 
@@ -131,7 +133,7 @@ const KioskSchedule: React.FC<KioskScheduleProps> = ({ tenantId, client, channel
         try {
             const start = new Date(selectedSlot.datetime);
             const end = addMinutes(start, selectedService.duration_minutes);
-            const dateKey = start.toISOString().split('T')[0];
+            const dateKey = toLocalDateKey(start);
             const blocks = await scheduleBlocksApi.listByRange(tenantId, { startDate: dateKey, endDate: dateKey });
             const blocksForDate = getBlocksForDate(
                 blocks,
