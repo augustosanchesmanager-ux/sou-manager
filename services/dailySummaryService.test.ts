@@ -6,6 +6,7 @@ const tables = vi.hoisted(() => ({
   staff: [] as unknown[],
   transactions: [] as unknown[],
   daily_summary_settings: [] as unknown[],
+  summary_dispatch_logs: [] as unknown[],
 }));
 
 vi.mock('./supabaseClient', () => {
@@ -36,10 +37,18 @@ describe('dailySummaryService (Resumo Diário — filtro operacional e comissão
   const tenantId = 'tenant-sanchez';
 
   beforeEach(() => {
+    const store = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => store.set(k, v),
+      removeItem: (k: string) => store.delete(k),
+      clear: () => store.clear(),
+    });
     tables.appointments = [];
     tables.comandas = [];
     tables.transactions = [];
     tables.daily_summary_settings = [];
+    tables.summary_dispatch_logs = [];
     tables.staff = [
       { id: 'barber-1', name: 'Rubens Sanchez', role: 'barber', commission_rate: null },
       { id: 'barber-2', name: 'Diego Lima', role: 'barber', commission_rate: 40 },
@@ -122,5 +131,52 @@ describe('dailySummaryService (Resumo Diário — filtro operacional e comissão
     expect(adminComanda.staffName).toBe('Augusto Sanchez');
     expect(adminComanda.clientName).toBe('Cliente Balcao');
     expect(unknownComanda.staffName).toBe('Barbeiro da Casa');
+  });
+
+  it('should_count_cancelled_appointments_and_cash_payments', async () => {
+    tables.appointments = [
+      { id: 'a1', status: 'confirmed', price: 80, staff_id: 'barber-1', start_time: '2026-11-13T10:00:00.000-03:00' },
+      { id: 'a2', status: 'cancelled', price: 60, staff_id: 'barber-2', start_time: '2026-11-13T11:00:00.000-03:00' },
+    ];
+    tables.comandas = [
+      { id: 'c1', status: 'paid', total: 100, payment_method: 'cash', staff_id: 'barber-1', created_at: '2026-11-13T11:30:00.000-03:00' },
+      { id: 'c2', status: 'paid', total: 50, payment_method: 'pix', staff_id: 'barber-2', created_at: '2026-11-13T12:30:00.000-03:00' },
+    ];
+
+    const summary = await dailySummaryService.getDailySummary(tenantId, '2026-11-13', 'Barbearia Teste');
+
+    expect(summary.morning.scheduledCount).toBe(1);
+    expect(summary.evening.cancelledCount).toBe(1);
+    expect(summary.evening.realizedRevenue).toBe(150);
+    expect(summary.evening.paymentBreakdownLabel).toContain('Dinheiro R$ 100');
+    expect(summary.evening.paymentBreakdownLabel).toContain('Pix R$ 50');
+  });
+
+  it('should_use_real_alerts_and_cancelled_count_in_whatsapp_messages', async () => {
+    tables.appointments = [
+      { id: 'a1', status: 'cancelled', price: 50, staff_id: 'barber-1', start_time: '2026-11-13T10:00:00.000-03:00' },
+      { id: 'a2', status: 'cancelled', price: 50, staff_id: 'barber-2', start_time: '2026-11-13T11:00:00.000-03:00' },
+    ];
+    tables.transactions = [
+      { id: 't1', description: 'Aluguel', amount: 1200, date: '2026-11-13', status: 'pending', category: 'Fixo', type: 'expense' },
+    ];
+
+    const summary = await dailySummaryService.getDailySummary(tenantId, '2026-11-13', 'Barbearia Teste');
+    const morningMsg = dailySummaryService.formatWhatsAppMorningMessage(summary);
+    const eveningMsg = dailySummaryService.formatWhatsAppEveningMessage(summary);
+
+    expect(morningMsg).toContain('Aluguel: R$ 1200.00');
+    expect(morningMsg).not.toContain('Felipe A.');
+    expect(eveningMsg).toContain('2 cancelado(s)');
+  });
+
+  it('should_detect_duplicate_dispatch_in_recordDispatch', async () => {
+    const first = await dailySummaryService.recordDispatch(tenantId, '2026-11-13', 'morning', 'WHATSAPP');
+    const second = await dailySummaryService.recordDispatch(tenantId, '2026-11-13', 'morning', 'WHATSAPP');
+
+    expect(first.wasDuplicate).toBe(false);
+    expect(first.item.status).toBe('SENT');
+    expect(second.wasDuplicate).toBe(true);
+    expect(second.item.status).toBe('SKIPPED_DUPLICATE');
   });
 });
