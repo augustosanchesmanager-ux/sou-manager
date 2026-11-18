@@ -333,8 +333,8 @@ const SmartReturn: React.FC = () => {
 
             {/* Filter Tabs + RFM Selector + Sort + Search */}
             <div className="card-boutique p-5 space-y-4">
-                <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-                    <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 custom-scrollbar">
+                <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+                    <div className="flex flex-wrap items-center gap-2">
                         {([
                             { key: 'attention' as SmartReturnFilterTab, label: 'Janela de Retorno', count: data.kpis.attention, highlight: 'text-teal-700 dark:text-teal-400' },
                             { key: 'risk' as SmartReturnFilterTab, label: 'Em Risco', count: data.kpis.risk, highlight: 'text-[#9A6F2D] dark:text-[#E3C382]' },
@@ -377,7 +377,7 @@ const SmartReturn: React.FC = () => {
 
                 {/* Sub-bar: RFM Segment filter and Sort */}
                 <div className="pt-3 border-t border-slate-100 dark:border-white/5 flex flex-wrap items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2 overflow-x-auto">
+                    <div className="flex flex-wrap items-center gap-2">
                         <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1">
                             <span className="material-symbols-outlined text-xs">tune</span>
                             Segmento RFM:

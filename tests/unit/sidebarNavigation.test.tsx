@@ -65,6 +65,7 @@ describe('Sidebar Navigation Architecture', () => {
       'Principal',
       'Club dos Chefes',
       'Cadastros',
+      'CRM & Retenção',
       'Estoque & Compras',
       'Financeiro',
       'Relatórios',
@@ -98,10 +99,12 @@ describe('Sidebar Navigation Architecture', () => {
 
     // Act
     const cadastrosPaths = (raw.find((group) => group.name === 'Cadastros')?.items || []).map((i) => i.path);
+    const crmPaths = (raw.find((group) => group.name === 'CRM & Retenção')?.items || []).map((i) => i.path);
     const stockPaths = (raw.find((group) => group.name === 'Estoque & Compras')?.items || []).map((i) => i.path);
 
     // Assert
-    expect(cadastrosPaths).toEqual(['/clients', '/team', '/services', '/promotions', '/smart-return']);
+    expect(cadastrosPaths).toEqual(['/clients', '/team', '/services', '/promotions']);
+    expect(crmPaths).toEqual(['/smart-return']);
     expect(stockPaths).toEqual(['/products', '/categories', '/orders', '/suppliers']);
   });
 
