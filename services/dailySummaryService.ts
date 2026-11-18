@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { shouldAppearOnSchedule } from '../src/lib/staff/roles';
+import { businessDateInTimeZone } from '../shared/dates/timezone';
 import type {
   DailySummaryPayload,
   AutomationSettings,
@@ -10,6 +11,7 @@ import type {
 
 const STORAGE_KEY_SETTINGS = 'smg_daily_summary_settings';
 const STORAGE_KEY_LOGS = 'smg_daily_summary_logs';
+const DAILY_SLOT_CAPACITY_PER_STAFF = 10;
 
 const DEFAULT_SETTINGS: AutomationSettings = {
   morningEnabled: true,
@@ -74,7 +76,6 @@ export const dailySummaryService = {
         .eq('tenant_id', tenantId)
         .gte('start_time', startIso)
         .lte('start_time', endIso)
-        .not('status', 'in', '("cancelled")')
         .order('start_time', { ascending: true }),
 
       supabase
@@ -101,7 +102,9 @@ export const dailySummaryService = {
         .lte('date', targetDateStr),
     ]);
 
-    const appointments = (aptsRes.data || []) as any[];
+    const allAppointments = (aptsRes.data || []) as any[];
+    const cancelledAppointments = allAppointments.filter((a) => a.status === 'cancelled').length;
+    const appointments = allAppointments.filter((a) => a.status !== 'cancelled');
     const comandas = (cmdasRes.data || []) as any[];
     const rawStaffList = (staffRes.data || []) as any[];
     const staffList = rawStaffList.filter((st) => shouldAppearOnSchedule(st));
@@ -110,12 +113,11 @@ export const dailySummaryService = {
     // 3. Métricas operacionais reais
     const scheduledCount = appointments.length;
     const completedAppointments = appointments.filter((a) => a.status === 'completed').length;
-    const cancelledAppointments = 0; // Cancelados já filtrados na query
-    const openAppointments = scheduledCount - completedAppointments;
 
     const projectedRevenue = appointments.reduce((sum, a) => sum + (Number(a.price) || 0), 0);
-    const occupancyRate = scheduledCount > 0
-      ? Math.min(100, Math.round((completedAppointments / scheduledCount) * 100))
+    const totalCapacity = staffList.length * DAILY_SLOT_CAPACITY_PER_STAFF;
+    const occupancyRate = totalCapacity > 0
+      ? Math.min(100, Math.round((scheduledCount / totalCapacity) * 100))
       : 0;
 
     // Métricas financeiras de comandas
@@ -127,10 +129,12 @@ export const dailySummaryService = {
 
     let pixTotal = 0;
     let cardTotal = 0;
+    let cashTotal = 0;
     closedComandas.forEach((c) => {
       const amt = Number(c.total) || 0;
       if (c.payment_method === 'pix') pixTotal += amt;
       else if (c.payment_method === 'credit_card' || c.payment_method === 'debit_card') cardTotal += amt;
+      else if (c.payment_method === 'cash' || c.payment_method === 'money') cashTotal += amt;
     });
 
     const ticketMedio = completedAppointments > 0
@@ -151,7 +155,7 @@ export const dailySummaryService = {
 
       const timeRange = stCount > 0
         ? `Primeiro cliente às ${stAppointments[0].start_time?.slice(11, 16) || '--:--'} • ${stCount} agendamento(s)`
-        : 'Sem atendimentos agendados para hoje';
+        : 'Sem atendimentos agendados para esta data';
 
       return {
         staffId: st.id,
@@ -161,8 +165,10 @@ export const dailySummaryService = {
         isManager: st.role === 'manager',
         scheduledCount: stCount,
         projectedRevenue: stRevenue,
-        occupancyPercentage: scheduledCount > 0 ? Math.round((stCount / scheduledCount) * 100) : 0,
-        freeWindows: stCount === 0 ? 'Dia Livre' : 'Intervalos disponíveis',
+        occupancyPercentage: Math.min(100, Math.round((stCount / DAILY_SLOT_CAPACITY_PER_STAFF) * 100)),
+        freeWindows: stCount === 0
+          ? 'Dia livre'
+          : `${Math.max(0, DAILY_SLOT_CAPACITY_PER_STAFF - stCount)} horários aprox. livres`,
         timeRangeDescription: timeRange,
       };
     });
@@ -223,16 +229,18 @@ export const dailySummaryService = {
     return {
       date: targetDateStr,
       formattedDate,
-      tenantName: tenantName || 'Sanchez Barber',
+      tenantName: tenantName || 'Minha Barbearia',
       unitName: 'Unidade Principal',
       timezone: 'America/Sao_Paulo • UTC-3',
       morning: {
         scheduledCount,
-        scheduledDeltaLabel: scheduledCount > 0 ? `${scheduledCount} clientes confirmados` : 'Grade disponível',
+        scheduledDeltaLabel: scheduledCount > 0 ? `${scheduledCount} clientes agendados` : 'Grade livre',
         projectedRevenue,
-        projectedBreakdownLabel: `R$ ${projectedRevenue.toFixed(2)} previsto na grade`,
+        projectedBreakdownLabel: `R$ ${projectedRevenue.toFixed(2)} previsto na agenda`,
         occupancyRate,
-        freeSlotsLabel: scheduledCount > 0 ? `${scheduledCount} horários preenchidos` : 'Dia livre para novos encaixes',
+        freeSlotsLabel: totalCapacity > 0
+          ? `${scheduledCount} de ${totalCapacity} horários preenchidos`
+          : 'Nenhuma cadeira ativa',
         clubSubscribersCount: clubClients.length,
         staffOccupancy,
         clubClients,
@@ -240,7 +248,7 @@ export const dailySummaryService = {
       },
       evening: {
         realizedRevenue,
-        paymentBreakdownLabel: `Pix R$ ${pixTotal.toFixed(0)} • Cartão R$ ${cardTotal.toFixed(0)}`,
+        paymentBreakdownLabel: `Pix R$ ${pixTotal.toFixed(0)} • Cartão R$ ${cardTotal.toFixed(0)} • Dinheiro R$ ${cashTotal.toFixed(0)}`,
         clubCreditsCount: clubClients.length,
         completedCount: closedComandas.length,
         totalAppointments: scheduledCount,
@@ -296,15 +304,18 @@ export const dailySummaryService = {
     try {
       localStorage.setItem(`${STORAGE_KEY_SETTINGS}_${tenantId}`, JSON.stringify(settings));
 
-      await supabase.from('daily_summary_settings').upsert({
-        tenant_id: tenantId,
-        morning_enabled: settings.morningEnabled,
-        morning_time: `${settings.morningTime}:00`,
-        evening_enabled: settings.eveningEnabled,
-        evening_time: `${settings.eveningTime}:00`,
-        send_individual_barber: settings.sendIndividualBarber,
-        updated_at: new Date().toISOString(),
-      });
+      await supabase.from('daily_summary_settings').upsert(
+        {
+          tenant_id: tenantId,
+          morning_enabled: settings.morningEnabled,
+          morning_time: `${settings.morningTime}:00`,
+          evening_enabled: settings.eveningEnabled,
+          evening_time: `${settings.eveningTime}:00`,
+          send_individual_barber: settings.sendIndividualBarber,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'tenant_id' }
+      );
     } catch {
       // Fallback em storage local já garantido
     }
@@ -316,9 +327,9 @@ export const dailySummaryService = {
   async triggerDispatch(
     tenantId: string,
     shift: ShiftType,
-    channels: PreviewChannel[]
+    channels: PreviewChannel[],
+    targetDateStr: string = businessDateInTimeZone()
   ): Promise<{ success: boolean; logIds: string[] }> {
-    const todayIso = new Date().toISOString().split('T')[0];
     const logIds: string[] = [];
 
     const existingLogs = getStoredLogs(tenantId);
@@ -326,10 +337,10 @@ export const dailySummaryService = {
     channels.forEach((ch) => {
       const logItem: DispatchLogItem = {
         id: `log-${Date.now()}-${ch}`,
-        date: todayIso,
+        date: targetDateStr,
         shift,
         channel: ch,
-        idempotencyKey: `${tenantId}_${todayIso}_${shift}_${ch.toLowerCase()}`,
+        idempotencyKey: `${tenantId}_${targetDateStr}_${shift}_${ch.toLowerCase()}`,
         status: 'SENT',
         dispatchedAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' BRT',
       };
@@ -347,30 +358,82 @@ export const dailySummaryService = {
   },
 
   /**
-   * Lista os logs recentes de disparo
+   * Lista os logs recentes de disparo (banco com fallback local)
    */
-  async listDispatchLogs(tenantId: string, _dateStr?: string): Promise<DispatchLogItem[]> {
-    return getStoredLogs(tenantId);
+  async listDispatchLogs(tenantId: string, dateStr?: string): Promise<DispatchLogItem[]> {
+    try {
+      let query = supabase
+        .from('summary_dispatch_logs')
+        .select('id, dispatch_date, shift, channel, idempotency_key, status, dispatched_at')
+        .eq('tenant_id', tenantId)
+        .order('dispatched_at', { ascending: false })
+        .limit(20);
+
+      if (dateStr) {
+        query = query.eq('dispatch_date', dateStr);
+      }
+
+      const { data, error } = await query;
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data.map((row: any) => ({
+          id: row.id,
+          date: row.dispatch_date,
+          shift: row.shift as ShiftType,
+          channel: row.channel as PreviewChannel,
+          idempotencyKey: row.idempotency_key,
+          status: row.status,
+          dispatchedAt: row.dispatched_at
+            ? new Date(row.dispatched_at).toLocaleTimeString('pt-BR', {
+                timeZone: 'America/Sao_Paulo',
+                hour: '2-digit',
+                minute: '2-digit',
+              })
+            : '--:--',
+        }));
+      }
+    } catch {
+      // Fallback para logs locais
+    }
+
+    const local = getStoredLogs(tenantId);
+    return dateStr ? local.filter((l) => l.date === dateStr) : local;
   },
 
   /**
    * Formata a mensagem do WhatsApp para o turno da manhã
    */
   formatWhatsAppMorningMessage(data: DailySummaryPayload): string {
+    const staffLines =
+      data.morning.staffOccupancy.length > 0
+        ? data.morning.staffOccupancy.map(
+            (s) =>
+              `• *${s.name}:* ${s.scheduledCount} agend. (${s.occupancyPercentage}%) — _${s.freeWindows}_`
+          )
+        : ['• Nenhum profissional ativo na agenda'];
+
+    const alertLines =
+      data.morning.financialAlerts.length > 0
+        ? data.morning.financialAlerts.map(
+            (fa) =>
+              `• ${fa.amount < 0 ? '🔴' : '🟢'} ${fa.title}: R$ ${Math.abs(fa.amount).toFixed(2)}`
+          )
+        : ['• Nenhum vencimento financeiro registrado para esta data'];
+
     const lines = [
-      `*🌅 BRIEFING DA MANHÃ — ${data.tenantName.toUpperCase()}*`,
+      `☀️ *BRIEFING DA MANHÃ — ${data.tenantName.toUpperCase()}*`,
       `📅 *${data.formattedDate}*`,
-      `----------------------------------------`,
-      `*🎯 PREVISÃO DO DIA:*`,
-      `• Agendamentos: *${data.morning.scheduledCount} clientes*`,
-      `• Receita Prevista: *R$ ${data.morning.projectedRevenue.toFixed(2)}*`,
-      `• Ocupação da Grade: *${data.morning.occupancyRate}%*`,
-      `----------------------------------------`,
-      `*💈 OCUPAÇÃO POR PROFISSIONAL:*`,
-      ...data.morning.staffOccupancy.map(
-        (st) => `• *${st.name}:* ${st.scheduledCount} agendamentos (Previsto: R$ ${st.projectedRevenue.toFixed(2)})`
-      ),
-      `----------------------------------------`,
+      ``,
+      `📊 *PREVISÃO OPERACIONAL*`,
+      `• *Agendamentos:* ${data.morning.scheduledCount} clientes (${data.morning.occupancyRate}% ocupação)`,
+      `• *Receita Prevista:* R$ ${data.morning.projectedRevenue.toFixed(2)} _(${data.morning.projectedBreakdownLabel})_`,
+      `• *Clube dos Chefes:* ${data.morning.clubSubscribersCount} assinantes agendados`,
+      ``,
+      `💈 *OCUPAÇÃO POR PROFISSIONAL*`,
+      ...staffLines,
+      ``,
+      `⚠️ *ALERTAS FINANCEIROS DO DIA*`,
+      ...alertLines,
+      ``,
       `_SMG Barber • Gestão Inteligente de Barbearias_`,
     ];
     return lines.join('\n');
@@ -380,24 +443,40 @@ export const dailySummaryService = {
    * Formata a mensagem do WhatsApp para o turno da noite
    */
   formatWhatsAppEveningMessage(data: DailySummaryPayload): string {
-    const lines = [
-      `*🌙 FECHAMENTO DO DIA — ${data.tenantName.toUpperCase()}*`,
-      `📅 *${data.formattedDate}*`,
-      `----------------------------------------`,
-      `*💰 FATURAMENTO REALIZADO:*`,
-      `• Total em Caixa: *R$ ${data.evening.realizedRevenue.toFixed(2)}*`,
-      `• Formas de Pagamento: ${data.evening.paymentBreakdownLabel}`,
-      `• Atendimentos Concluídos: *${data.evening.completedCount}*`,
-      `• Ticket Médio: *R$ ${data.evening.ticketMedio.toFixed(2)}*`,
-      `----------------------------------------`,
-      `*✂️ PRODUÇÃO DA EQUIPE:*`,
-      ...data.evening.staffClosing.map(
-        (st) => `• *${st.name}:* R$ ${st.cashRevenue.toFixed(2)} (Comissão: R$ ${st.commissionAmount.toFixed(2)})`
-      ),
+    const staffLines =
+      data.evening.staffClosing.length > 0
+        ? data.evening.staffClosing.map(
+            (st) =>
+              `• *${st.name}:* ${st.completedCount} atend. → R$ ${st.cashRevenue.toFixed(2)} _(Comissão: R$ ${st.commissionAmount.toFixed(2)})_`
+          )
+        : ['• Sem movimentação de equipe registrada'];
+
+    const openComandasBlock =
       data.evening.openComandas.length > 0
-        ? `\n⚠️ *Comandas em Aberto (${data.evening.openComandas.length}):* R$ ${data.evening.openComandasTotal.toFixed(2)}`
-        : `\n✅ *100% das comandas baixadas no caixa!*`,
-      `----------------------------------------`,
+        ? [
+            ``,
+            `🚨 *AUDITORIA: ${data.evening.openComandas.length} COMANDA(S) EM ABERTO (R$ ${data.evening.openComandasTotal.toFixed(2)})*`,
+            ...data.evening.openComandas.map(
+              (c) => `• *${c.comandaNumber}* ${c.clientName} (c/ ${c.staffName}) — *R$ ${c.amount.toFixed(2)}*`
+            ),
+            `_Acesse o PDV para baixar ou cancelar antes de encerrar o caixa._`,
+          ]
+        : [``, `✅ *100% das comandas do dia baixadas no caixa!*`];
+
+    const lines = [
+      `🌙 *FECHAMENTO DA NOITE — ${data.tenantName.toUpperCase()}*`,
+      `📅 *${data.formattedDate}*`,
+      ``,
+      `💰 *RESULTADO FINANCEIRO REALIZADO*`,
+      `• *Caixa Líquido:* R$ ${data.evening.realizedRevenue.toFixed(2)} _(${data.evening.paymentBreakdownLabel})_`,
+      `• *Consumo Clube dos Chefes:* ${data.evening.clubCreditsCount} créditos _(R$ 0 impacto caixa)_`,
+      `• *Concluídos:* ${data.evening.completedCount} de ${data.evening.totalAppointments} _(${data.evening.cancelledCount} cancelado(s) • ${data.evening.openCount} em aberto)_`,
+      `• *Ticket Médio:* R$ ${data.evening.ticketMedio.toFixed(2)}`,
+      ...openComandasBlock,
+      ``,
+      `💈 *COMISSÕES GERADAS (CAIXA)*`,
+      ...staffLines,
+      ``,
       `_SMG Barber • Gestão Inteligente de Barbearias_`,
     ];
     return lines.join('\n');
@@ -409,16 +488,67 @@ export const dailySummaryService = {
     shift: ShiftType,
     channel: PreviewChannel
   ): Promise<{ item: DispatchLogItem; wasDuplicate: boolean }> {
-    const key = `dispatch_${tenantId}_${targetDateStr}_${shift}_${channel}`;
+    const key = `dispatch_${tenantId}_${targetDateStr}_${shift}_${channel.toLowerCase()}`;
+    const existingLocal = getStoredLogs(tenantId);
+    const alreadyInLocal = existingLocal.find((l) => l.idempotencyKey === key);
+
+    const dispatchedAt = new Date().toLocaleTimeString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    if (alreadyInLocal) {
+      return {
+        item: {
+          ...alreadyInLocal,
+          id: `log-dup-${Date.now()}`,
+          status: 'SKIPPED_DUPLICATE',
+          dispatchedAt,
+        },
+        wasDuplicate: true,
+      };
+    }
+
     const item: DispatchLogItem = {
       id: `log-${Date.now()}`,
       date: targetDateStr,
       shift,
       channel,
       status: 'SENT',
-      dispatchedAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      dispatchedAt,
       idempotencyKey: key,
     };
+
+    try {
+      const { error } = await supabase.from('summary_dispatch_logs').insert({
+        tenant_id: tenantId,
+        dispatch_date: targetDateStr,
+        shift,
+        channel,
+        idempotency_key: key,
+        status: 'SENT',
+      });
+
+      if (error && error.code === '23505') {
+        return {
+          item: { ...item, status: 'SKIPPED_DUPLICATE' },
+          wasDuplicate: true,
+        };
+      }
+    } catch {
+      // Fallback em storage local
+    }
+
+    try {
+      localStorage.setItem(
+        `${STORAGE_KEY_LOGS}_${tenantId}`,
+        JSON.stringify([item, ...existingLocal].slice(0, 30))
+      );
+    } catch {
+      // ignore
+    }
+
     return { item, wasDuplicate: false };
   },
 };
