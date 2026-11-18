@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertCircle, CheckCircle, XCircle, ExternalLink, Wallet } from 'lucide-react';
+import { AlertCircle, CheckCircle, XCircle, ExternalLink, Wallet, MessageCircle, Clock, AlertTriangle } from 'lucide-react';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import EmptyStateFinance from '../components/financial/EmptyStateFinance';
+import { QuickClubSettlementModal } from '../components/financial/QuickClubSettlementModal';
 import { AuditAdjustmentButton } from '../components/audit';
+import { settleReceivableWithDetails } from '../application/chefClub';
 import { useAuth } from '../context/AuthContext';
 import { useTenantOptional } from '../src/context/TenantContext';
 import { supabase, getScopedClient } from '../services/supabaseClient';
@@ -327,6 +329,10 @@ const AccountsReceivable: React.FC = () => {
     const [paidComandaSettlements, setPaidComandaSettlements] = useState<PaidComandaSettlement[]>([]);
     const [clubReceivables, setClubReceivables] = useState<ClubReceivableRecord[]>([]);
     const [pendingReceipts, setPendingReceipts] = useState<ReceiptRecord[]>([]);
+    const [agingFilter, setAgingFilter] = useState<'all' | '1_7' | '8_30' | '30_plus'>('all');
+    const [quickClubEntry, setQuickClubEntry] = useState<AREntry | null>(null);
+    const [clubSettling, setClubSettling] = useState(false);
+    const clubSettlementLockRef = React.useRef(false);
 
     const [clubClients, setClubClients] = useState<Record<string, { name: string; phone?: string | null }>>({});
     const [clubPlans, setClubPlans] = useState<Record<string, { name: string }>>({});
@@ -1101,6 +1107,14 @@ const AccountsReceivable: React.FC = () => {
                 if (!haystack.includes(searchTerm)) return false;
             }
 
+            if (agingFilter !== 'all') {
+                const days = getDaysOverdue(entry.dateValue);
+                if (days <= 0) return false;
+                if (agingFilter === '1_7' && (days < 1 || days > 7)) return false;
+                if (agingFilter === '8_30' && (days < 8 || days > 30)) return false;
+                if (agingFilter === '30_plus' && days <= 30) return false;
+            }
+
             return true;
         });
 
@@ -1114,7 +1128,104 @@ const AccountsReceivable: React.FC = () => {
             if (sortKey === 'date_asc') return firstDate - secondDate;
             return secondDate - firstDate;
         });
-    }, [tabbedEntries, listFilters, sortKey]);
+    }, [tabbedEntries, listFilters, sortKey, agingFilter]);
+
+    const getDaysOverdue = (rawDate?: string | null): number => {
+        if (!rawDate) return 0;
+        const targetStr = String(rawDate).slice(0, 10);
+        const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+        const targetMs = new Date(`${targetStr}T12:00:00-03:00`).getTime();
+        const todayMs = new Date(`${todayStr}T12:00:00-03:00`).getTime();
+        if (!Number.isFinite(targetMs) || !Number.isFinite(todayMs)) return 0;
+        return Math.round((todayMs - targetMs) / (1000 * 60 * 60 * 24));
+    };
+
+    const buildWhatsAppChargeLink = (
+        phone: string | null | undefined,
+        clientName: string,
+        amount: number,
+        description: string
+    ): string | null => {
+        if (!phone) return null;
+        const digits = phone.replace(/\D/g, '');
+        if (!digits) return null;
+        const fullPhone = digits.startsWith('55') ? digits : `55${digits}`;
+        const msg = `Olá, ${clientName}! Passando para lembrar sobre sua cobrança em aberto (${description}) no valor de ${formatCurrency(amount)}. Qualquer dúvida estamos à disposição!`;
+        return `https://wa.me/${fullPhone}?text=${encodeURIComponent(msg)}`;
+    };
+
+    const handleConfirmClubQuickSettlement = async (params: {
+        paymentMethod: string;
+        paidAt: string;
+        notes: string | null;
+    }) => {
+        if (clubSettlementLockRef.current || !quickClubEntry || !tenantId) return;
+        clubSettlementLockRef.current = true;
+        setClubSettling(true);
+        try {
+            // Preserva 100% a regra P0.2: libera créditos apenas via RPC pay_club_receivable
+            await settleReceivableWithDetails({
+                receivableId: quickClubEntry.id,
+                paymentMethod: params.paymentMethod,
+                paidAt: params.paidAt,
+                notes: params.notes,
+            });
+            setToast({
+                message: 'Recebimento do Clube confirmado! Os créditos da assinatura foram liberados automaticamente.',
+                type: 'success',
+            });
+            setQuickClubEntry(null);
+            await fetchData();
+        } catch (err: any) {
+            console.error('Erro na baixa rápida do Clube (P0.2):', err);
+            setToast({
+                message: err?.message || 'Não foi possível confirmar o recebimento do Clube.',
+                type: 'error',
+            });
+        } finally {
+            clubSettlementLockRef.current = false;
+            setClubSettling(false);
+        }
+    };
+
+    const executiveCards = useMemo(() => {
+        const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+        let dueTodaySum = 0;
+        let dueTodayCount = 0;
+        let overdueSum = 0;
+        let overdueCount = 0;
+        let openSum = 0;
+        let openCount = 0;
+
+        allEntries.forEach((e) => {
+            if (e.status === 'paid' || e.status === 'cancelled') return;
+            const dStr = String(e.dateValue || '').slice(0, 10);
+            const days = getDaysOverdue(e.dateValue);
+            openSum += Number(e.amount || 0);
+            openCount += 1;
+
+            if (dStr === todayStr) {
+                dueTodaySum += Number(e.amount || 0);
+                dueTodayCount += 1;
+            } else if (days > 0 || e.status === 'overdue') {
+                overdueSum += Number(e.amount || 0);
+                overdueCount += 1;
+            }
+        });
+
+        const settledSum = paidComandaSettlements.reduce((sum, s) => sum + Number(s.amount || 0), 0);
+
+        return {
+            dueTodaySum,
+            dueTodayCount,
+            overdueSum,
+            overdueCount,
+            openSum,
+            openCount,
+            settledSum,
+            settledCount: paidComandaSettlements.length,
+        };
+    }, [allEntries, paidComandaSettlements]);
 
     const totals = useMemo(() => {
         const openComandaTotal = openComandas.reduce((sum, c) => sum + Number(c.total || 0), 0);
@@ -1301,14 +1412,6 @@ const AccountsReceivable: React.FC = () => {
         { key: 'recibos', label: 'Recibos', count: pendingReceipts.length },
         { key: 'historico', label: 'Histórico / Baixadas', count: paidComandaSettlements.length },
     ];
-
-    const getDaysOverdue = (dateString: string): number => {
-        const past = new Date(dateString).getTime();
-        if (isNaN(past)) return 0;
-        const now = Date.now();
-        const diffMs = now - past;
-        return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
-    };
 
     const getUrgencyBadge = (days: number) => {
         if (days >= 15) {
@@ -1615,10 +1718,68 @@ const AccountsReceivable: React.FC = () => {
                 </div>
             </div>
 
-            <AccountsReceivableKPIs
-                totals={totals}
-                selectedPeriodLabel={selectedPeriodLabel}
-            />
+            {/* 4 Cards Executivos de Inadimplência e Recebíveis (Atelier Tech) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div className="bg-[#141210] border border-[#2D2A26] rounded-xl p-5 flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                            Vencendo Hoje
+                        </span>
+                        <Clock className="w-4 h-4 text-[#B88A44]" />
+                    </div>
+                    <div className="mt-3 text-2xl font-bold text-[#F5F5F0]">
+                        {formatCurrency(executiveCards.dueTodaySum)}
+                    </div>
+                    <div className="mt-1 text-xs text-stone-400">
+                        {executiveCards.dueTodayCount} título(s) com vencimento hoje
+                    </div>
+                </div>
+
+                <div className="bg-[#141210] border border-red-500/30 rounded-xl p-5 flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-red-400">
+                            Em Atraso / Inadimplência
+                        </span>
+                        <AlertTriangle className="w-4 h-4 text-red-400" />
+                    </div>
+                    <div className="mt-3 text-2xl font-bold text-red-400">
+                        {formatCurrency(executiveCards.overdueSum)}
+                    </div>
+                    <div className="mt-1 text-xs text-stone-400">
+                        {executiveCards.overdueCount} título(s) vencido(s)
+                    </div>
+                </div>
+
+                <div className="bg-[#141210] border border-[#B88A44]/50 rounded-xl p-5 flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-[#B88A44]">
+                            Aberto no Período
+                        </span>
+                        <Wallet className="w-4 h-4 text-[#B88A44]" />
+                    </div>
+                    <div className="mt-3 text-2xl font-bold text-[#F5F5F0]">
+                        {formatCurrency(executiveCards.openSum)}
+                    </div>
+                    <div className="mt-1 text-xs text-stone-400">
+                        {executiveCards.openCount} título(s) pendentes ({selectedPeriodLabel})
+                    </div>
+                </div>
+
+                <div className="bg-[#141210] border border-emerald-500/30 rounded-xl p-5 flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">
+                            Liquidado no Período
+                        </span>
+                        <CheckCircle className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <div className="mt-3 text-2xl font-bold text-emerald-400">
+                        {formatCurrency(executiveCards.settledSum)}
+                    </div>
+                    <div className="mt-1 text-xs text-stone-400">
+                        {executiveCards.settledCount} recebimento(s) efetivado(s)
+                    </div>
+                </div>
+            </div>
 
             {loadError && (
                 <section className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">
@@ -1637,31 +1798,61 @@ const AccountsReceivable: React.FC = () => {
                 </section>
             )}
 
-            <div className="flex flex-wrap gap-2 p-1 bg-slate-100 dark:bg-white/5 rounded-xl w-fit">
-                {tabs.map(tab => (
-                    <button
-                        key={tab.key}
-                        onClick={() => handleTabSelect(tab.key)}
-                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                            activeTab === tab.key
-                                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                        }`}
-                    >
-                        <span>{tab.label}</span>
-                        {typeof tab.count === 'number' && (
-                            <span
-                                className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
-                                    activeTab === tab.key
-                                        ? 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary-light'
-                                        : 'bg-slate-200/80 text-slate-600 dark:bg-white/10 dark:text-slate-400'
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap gap-2 p-1 bg-[#141210] border border-[#2D2A26] rounded-xl w-fit">
+                    {tabs.map(tab => (
+                        <button
+                            key={tab.key}
+                            onClick={() => handleTabSelect(tab.key)}
+                            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                                activeTab === tab.key
+                                    ? 'bg-[#B88A44] text-[#0E0C0A] shadow-sm'
+                                    : 'text-stone-400 hover:text-[#F5F5F0]'
+                            }`}
+                        >
+                            <span>{tab.label}</span>
+                            {typeof tab.count === 'number' && (
+                                <span
+                                    className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                                        activeTab === tab.key
+                                            ? 'bg-[#0E0C0A]/20 text-[#0E0C0A]'
+                                            : 'bg-[#0E0C0A] text-stone-300'
+                                    }`}
+                                >
+                                    {tab.count}
+                                </span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Sub-filtro de Faixas de Atraso (Aging) */}
+                {executiveCards.overdueCount > 0 && activeTab !== 'creditos' && activeTab !== 'historico' && (
+                    <div className="flex flex-wrap items-center gap-1.5 bg-[#141210] border border-[#2D2A26] rounded-xl p-1">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-stone-400 px-2">
+                            Atrasos:
+                        </span>
+                        {[
+                            { key: 'all', label: 'Todos Atrasos' },
+                            { key: '1_7', label: '1 a 7 dias' },
+                            { key: '8_30', label: '8 a 30 dias' },
+                            { key: '30_plus', label: '+30 dias (Crítico)' },
+                        ].map((ag) => (
+                            <button
+                                key={ag.key}
+                                type="button"
+                                onClick={() => setAgingFilter(ag.key as any)}
+                                className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${
+                                    agingFilter === ag.key
+                                        ? 'bg-red-500/20 text-red-300 border border-red-500/40'
+                                        : 'text-stone-400 hover:text-[#F5F5F0]'
                                 }`}
                             >
-                                {tab.count}
-                            </span>
-                        )}
-                    </button>
-                ))}
+                                {ag.label}
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
 
             <AccountsReceivableFilters
@@ -1973,75 +2164,123 @@ const AccountsReceivable: React.FC = () => {
                                                 <div className="flex items-start justify-between gap-3">
                                                     <div className="min-w-0">
                                                         <p className="truncate font-bold text-slate-800 dark:text-slate-100">{entry.description}</p>
-                                                        <p className="mt-0.5 text-slate-500">{SOURCE_LABELS[entry.source]} · {getStatusLabel(entry.status)}</p>
+                                                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-slate-500">
+                                                            <span>{SOURCE_LABELS[entry.source]} · {getStatusLabel(entry.status)}</span>
+                                                            {entry.status !== 'paid' && entry.status !== 'cancelled' && (() => {
+                                                                const days = getDaysOverdue(entry.dateValue);
+                                                                if (days > 0) {
+                                                                    return (
+                                                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/30">
+                                                                            Atrasado há {days} {days === 1 ? 'dia' : 'dias'}
+                                                                        </span>
+                                                                    );
+                                                                }
+                                                                if (days === 0) {
+                                                                    return (
+                                                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#B88A44]/20 text-[#B88A44] border border-[#B88A44]/40">
+                                                                            Vence Hoje
+                                                                        </span>
+                                                                    );
+                                                                }
+                                                                return null;
+                                                            })()}
+                                                        </div>
                                                     </div>
                                                     <p className="shrink-0 font-black text-slate-900 dark:text-white">{formatCurrency(entry.amount)}</p>
                                                 </div>
-                                                {entry.actionKind === 'settle' && entry.receivable && (
+                                                {entry.status !== 'paid' && entry.status !== 'cancelled' && (
                                                     <div className="mt-2 flex flex-wrap justify-end gap-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => navigate(`/checkout?comandaId=${entry.id}`)}
-                                                            title="Abrir comanda no Checkout"
-                                                            className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-border-dark dark:bg-card-dark dark:text-slate-300 dark:hover:bg-white/5"
-                                                        >
-                                                            <ExternalLink className="size-3" />
-                                                            Checkout
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => openSettlementModal(entry.receivable!)}
-                                                            disabled={Boolean(markingPaid || cancellingId)}
-                                                            title="A baixa sera registrada pela RPC financeira central."
-                                                            className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-black text-emerald-700 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:text-emerald-300"
-                                                        >
-                                                            {markingPaid === entry.id ? (
-                                                                <span className="size-3 rounded-full border-2 border-emerald-600/30 border-t-emerald-600 animate-spin"></span>
-                                                            ) : (
-                                                                <CheckCircle className="size-3.5" />
-                                                            )}
-                                                            Dar baixa
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => openCancelModal(entry.receivable!)}
-                                                            disabled={Boolean(markingPaid || cancellingId)}
-                                                            title="Cancelar somente comanda aberta, com motivo obrigatório e auditoria."
-                                                            className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-[11px] font-black text-rose-700 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:text-rose-300"
-                                                        >
-                                                            {cancellingId === entry.id ? (
-                                                                <span className="size-3 rounded-full border-2 border-rose-600/30 border-t-rose-600 animate-spin"></span>
-                                                            ) : (
-                                                                <XCircle className="size-3.5" />
-                                                            )}
-                                                            Cancelar
-                                                        </button>
-                                                    </div>
-                                                )}
-                                                {entry.source === 'clube' && (
-                                                    <div className="mt-2 flex flex-wrap justify-end gap-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => navigate('/chef-club-receivables')}
-                                                            title="Gerenciar cobranças no Clube dos Chefes"
-                                                            className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-border-dark dark:bg-card-dark dark:text-slate-300 dark:hover:bg-white/5"
-                                                        >
-                                                            <ExternalLink className="size-3" />
-                                                            Ver no Clube
-                                                        </button>
-                                                    </div>
-                                                )}
-                                                {entry.source === 'recibo' && (
-                                                    <div className="mt-2 flex flex-wrap justify-end gap-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => navigate('/receipts')}
-                                                            title="Ver no módulo de Recibos"
-                                                            className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-border-dark dark:bg-card-dark dark:text-slate-300 dark:hover:bg-white/5"
-                                                        >
-                                                            <ExternalLink className="size-3" />
-                                                            Ver Recibo
-                                                        </button>
+                                                        {(() => {
+                                                            const waLink = buildWhatsAppChargeLink(entry.clientPhone, entry.clientName, entry.amount, entry.description);
+                                                            if (!waLink) return null;
+                                                            return (
+                                                                <a
+                                                                    href={waLink}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    title="Cobrar via WhatsApp"
+                                                                    className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-bold text-emerald-400 transition hover:bg-emerald-500/20"
+                                                                >
+                                                                    <MessageCircle className="size-3" />
+                                                                    WhatsApp
+                                                                </a>
+                                                            );
+                                                        })()}
+                                                        {entry.actionKind === 'settle' && entry.receivable && (
+                                                            <>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => navigate(`/checkout?comandaId=${entry.id}`)}
+                                                                    title="Abrir comanda no Checkout"
+                                                                    className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-border-dark dark:bg-card-dark dark:text-slate-300 dark:hover:bg-white/5"
+                                                                >
+                                                                    <ExternalLink className="size-3" />
+                                                                    Checkout
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => openSettlementModal(entry.receivable!)}
+                                                                    disabled={Boolean(markingPaid || cancellingId || clubSettling)}
+                                                                    title="A baixa sera registrada pela RPC financeira central."
+                                                                    className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-[#B88A44] px-2.5 py-1.5 text-[11px] font-black text-[#0E0C0A] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                                                                >
+                                                                    {markingPaid === entry.id ? (
+                                                                        <span className="size-3 rounded-full border-2 border-[#0E0C0A]/30 border-t-[#0E0C0A] animate-spin"></span>
+                                                                    ) : (
+                                                                        <CheckCircle className="size-3.5" />
+                                                                    )}
+                                                                    Dar Baixa
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => openCancelModal(entry.receivable!)}
+                                                                    disabled={Boolean(markingPaid || cancellingId || clubSettling)}
+                                                                    title="Cancelar somente comanda aberta, com motivo obrigatório e auditoria."
+                                                                    className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-[11px] font-black text-rose-700 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:text-rose-300"
+                                                                >
+                                                                    {cancellingId === entry.id ? (
+                                                                        <span className="size-3 rounded-full border-2 border-rose-600/30 border-t-rose-600 animate-spin"></span>
+                                                                    ) : (
+                                                                        <XCircle className="size-3.5" />
+                                                                    )}
+                                                                    Cancelar
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                        {entry.source === 'clube' && entry.receivable && (
+                                                            <>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setQuickClubEntry(entry.receivable!)}
+                                                                    disabled={Boolean(markingPaid || cancellingId || clubSettling)}
+                                                                    title="Dar baixa rápida no recebível do Clube (P0.2)"
+                                                                    className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-[#B88A44] px-2.5 py-1.5 text-[11px] font-black text-[#0E0C0A] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                                                                >
+                                                                    <CheckCircle className="size-3.5" />
+                                                                    Dar Baixa
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => navigate('/chef-club-receivables')}
+                                                                    title="Gerenciar cobranças no Clube dos Chefes"
+                                                                    className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-border-dark dark:bg-card-dark dark:text-slate-300 dark:hover:bg-white/5"
+                                                                >
+                                                                    <ExternalLink className="size-3" />
+                                                                    Ver no Clube
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                        {entry.source === 'recibo' && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => navigate('/receipts')}
+                                                                title="Ver no módulo de Recibos"
+                                                                className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-border-dark dark:bg-card-dark dark:text-slate-300 dark:hover:bg-white/5"
+                                                            >
+                                                                <ExternalLink className="size-3" />
+                                                                Ver Recibo
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
@@ -2091,7 +2330,25 @@ const AccountsReceivable: React.FC = () => {
                                                 )}
                                             </td>
                                             <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-200">
-                                                {new Date(entry.dateValue).toLocaleDateString('pt-BR')}
+                                                <div>{new Date(entry.dateValue).toLocaleDateString('pt-BR')}</div>
+                                                {entry.status !== 'paid' && entry.status !== 'cancelled' && (() => {
+                                                    const days = getDaysOverdue(entry.dateValue);
+                                                    if (days > 0) {
+                                                        return (
+                                                            <span className="mt-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/30">
+                                                                Atrasado há {days} {days === 1 ? 'dia' : 'dias'}
+                                                            </span>
+                                                        );
+                                                    }
+                                                    if (days === 0) {
+                                                        return (
+                                                            <span className="mt-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#B88A44]/20 text-[#B88A44] border border-[#B88A44]/40">
+                                                                Vence Hoje
+                                                            </span>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
                                             </td>
                                             <td className="px-5 py-4 text-sm font-bold text-slate-900 dark:text-white">
                                                 {formatCurrency(entry.amount)}
@@ -2102,69 +2359,98 @@ const AccountsReceivable: React.FC = () => {
                                                 </span>
                                             </td>
                                             <td className="px-5 py-4 text-right">
-                                                {entry.actionKind === 'settle' && entry.receivable && (
-                                                    <div className="flex items-center justify-end gap-2">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    {entry.status !== 'paid' && entry.status !== 'cancelled' && (() => {
+                                                        const waLink = buildWhatsAppChargeLink(entry.clientPhone, entry.clientName, entry.amount, entry.description);
+                                                        if (!waLink) return null;
+                                                        return (
+                                                            <a
+                                                                href={waLink}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                title="Cobrar via WhatsApp"
+                                                                className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-bold text-emerald-400 transition hover:bg-emerald-500/20"
+                                                            >
+                                                                <MessageCircle className="size-3" />
+                                                                WhatsApp
+                                                            </a>
+                                                        );
+                                                    })()}
+                                                    {entry.actionKind === 'settle' && entry.receivable && (
+                                                        <>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => navigate(`/checkout?comandaId=${entry.id}`)}
+                                                                title="Abrir comanda no Checkout"
+                                                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-border-dark dark:bg-card-dark dark:text-slate-300 dark:hover:bg-white/5"
+                                                            >
+                                                                <ExternalLink className="size-3" />
+                                                                Checkout
+                                                            </button>
+                                                            <button
+                                                                onClick={() => openSettlementModal(entry.receivable!)}
+                                                                disabled={Boolean(markingPaid || cancellingId || clubSettling)}
+                                                                title="A baixa sera registrada pela RPC financeira central."
+                                                                className="inline-flex items-center gap-1.5 rounded-lg bg-[#B88A44] px-3 py-1.5 text-[11px] font-black text-[#0E0C0A] transition hover:brightness-110 disabled:opacity-50"
+                                                            >
+                                                                {markingPaid === entry.id ? (
+                                                                    <span className="size-3 rounded-full border-2 border-[#0E0C0A]/30 border-t-[#0E0C0A] animate-spin"></span>
+                                                                ) : (
+                                                                    <CheckCircle className="size-3.5" />
+                                                                )}
+                                                                Dar Baixa
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openCancelModal(entry.receivable!)}
+                                                                disabled={Boolean(markingPaid || cancellingId || clubSettling)}
+                                                                title="Cancelar somente comanda aberta, com motivo obrigatório e auditoria."
+                                                                className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-[11px] font-bold text-rose-700 transition hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-300"
+                                                            >
+                                                                {cancellingId === entry.id ? (
+                                                                    <span className="size-3 rounded-full border-2 border-rose-600/30 border-t-rose-600 animate-spin"></span>
+                                                                ) : (
+                                                                    <XCircle className="size-3.5" />
+                                                                )}
+                                                                Cancelar
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                    {entry.source === 'clube' && entry.receivable && entry.status !== 'paid' && entry.status !== 'cancelled' && (
+                                                        <>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setQuickClubEntry(entry.receivable!)}
+                                                                disabled={Boolean(markingPaid || cancellingId || clubSettling)}
+                                                                title="Dar baixa rápida no recebível do Clube (P0.2)"
+                                                                className="inline-flex items-center gap-1.5 rounded-lg bg-[#B88A44] px-3 py-1.5 text-[11px] font-black text-[#0E0C0A] transition hover:brightness-110 disabled:opacity-50"
+                                                            >
+                                                                <CheckCircle className="size-3.5" />
+                                                                Dar Baixa
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => navigate('/chef-club-receivables')}
+                                                                title="Gerenciar cobranças no Clube dos Chefes"
+                                                                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-border-dark dark:bg-card-dark dark:text-slate-300 dark:hover:bg-white/5"
+                                                            >
+                                                                <ExternalLink className="size-3" />
+                                                                Ver no Clube
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                    {entry.source === 'recibo' && (
                                                         <button
                                                             type="button"
-                                                            onClick={() => navigate(`/checkout?comandaId=${entry.id}`)}
-                                                            title="Abrir comanda no Checkout"
-                                                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-border-dark dark:bg-card-dark dark:text-slate-300 dark:hover:bg-white/5"
+                                                            onClick={() => navigate('/receipts')}
+                                                            title="Visualizar no módulo de Recibos"
+                                                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-border-dark dark:bg-card-dark dark:text-slate-300 dark:hover:bg-white/5"
                                                         >
                                                             <ExternalLink className="size-3" />
-                                                            Checkout
+                                                            Ver Recibo
                                                         </button>
-                                                        <button
-                                                            onClick={() => openSettlementModal(entry.receivable!)}
-                                                            disabled={markingPaid === entry.id}
-                                                            title="A baixa sera registrada pela RPC financeira central."
-                                                            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-[11px] font-bold text-emerald-600 transition hover:bg-emerald-500/20 disabled:opacity-50 dark:text-emerald-300"
-                                                        >
-                                                            {markingPaid === entry.id ? (
-                                                                <span className="size-3 rounded-full border-2 border-emerald-600/30 border-t-emerald-600 animate-spin"></span>
-                                                            ) : (
-                                                                <CheckCircle className="size-3.5" />
-                                                            )}
-                                                            Dar baixa
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => openCancelModal(entry.receivable!)}
-                                                            disabled={Boolean(markingPaid || cancellingId)}
-                                                            title="Cancelar somente comanda aberta, com motivo obrigatório e auditoria."
-                                                            className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-[11px] font-bold text-rose-700 transition hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-300"
-                                                        >
-                                                            {cancellingId === entry.id ? (
-                                                                <span className="size-3 rounded-full border-2 border-rose-600/30 border-t-rose-600 animate-spin"></span>
-                                                            ) : (
-                                                                <XCircle className="size-3.5" />
-                                                            )}
-                                                            Cancelar
-                                                        </button>
-                                                    </div>
-                                                )}
-                                                {entry.source === 'clube' && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => navigate('/chef-club-receivables')}
-                                                        title="Gerenciar cobranças no Clube dos Chefes"
-                                                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-border-dark dark:bg-card-dark dark:text-slate-300 dark:hover:bg-white/5"
-                                                    >
-                                                        <ExternalLink className="size-3" />
-                                                        Ver no Clube
-                                                    </button>
-                                                )}
-                                                {entry.source === 'recibo' && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => navigate('/receipts')}
-                                                        title="Visualizar no módulo de Recibos"
-                                                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-border-dark dark:bg-card-dark dark:text-slate-300 dark:hover:bg-white/5"
-                                                    >
-                                                        <ExternalLink className="size-3" />
-                                                        Ver Recibo
-                                                    </button>
-                                                )}
-                                                {entry.actionKind === 'reverse' && entry.settlement && isReversalEligible(entry.settlement) && (
+                                                    )}
+                                                    {entry.actionKind === 'reverse' && entry.settlement && isReversalEligible(entry.settlement) && (
                                                     <Button
                                                         type="button"
                                                         variant="secondary"
@@ -2176,6 +2462,7 @@ const AccountsReceivable: React.FC = () => {
                                                         Estornar no Fluxo
                                                     </Button>
                                                 )}
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -2185,6 +2472,17 @@ const AccountsReceivable: React.FC = () => {
                     )}
                 </section>
             )}
+
+            <QuickClubSettlementModal
+                isOpen={Boolean(quickClubEntry)}
+                onClose={() => !clubSettling && setQuickClubEntry(null)}
+                clientName={quickClubEntry?.clientName || CLIENT_FALLBACK_LABEL}
+                description={quickClubEntry?.description || 'Mensalidade Clube dos Chefes'}
+                amount={quickClubEntry?.amount || 0}
+                dueDate={quickClubEntry?.dateValue || ''}
+                isSubmitting={clubSettling}
+                onConfirm={handleConfirmClubQuickSettlement}
+            />
 
             <SettlementModal
                 isOpen={Boolean(settlementEntry)}
