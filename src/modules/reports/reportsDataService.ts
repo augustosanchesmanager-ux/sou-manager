@@ -266,10 +266,10 @@ export async function fetchPaidComandasReport(
   ]);
 
   const clientMap = new Map<string, string>();
-  clientsData.forEach((cl: any) => clientMap.set(cl.id, cl.name || 'Cliente Balcão'));
+  clientsData.forEach((cl: any) => { clientMap.set(cl.id, cl.name || 'Cliente Balcão'); });
 
   const staffMap = new Map<string, any>();
-  staffData.forEach((st: any) => staffMap.set(st.id, st));
+  staffData.forEach((st: any) => { staffMap.set(st.id, st); });
 
   const itemsByComanda = new Map<string, any[]>();
   itemsData.forEach((it: any) => {
@@ -470,13 +470,13 @@ export async function fetchAppointmentsReport(
   ]);
 
   const clientMap = new Map<string, { name: string; phone: string }>();
-  clientsData.forEach((c: any) => clientMap.set(c.id, { name: c.name || 'Cliente', phone: c.phone || '' }));
+  clientsData.forEach((c: any) => { clientMap.set(c.id, { name: c.name || 'Cliente', phone: c.phone || '' }); });
 
   const serviceMap = new Map<string, { name: string; duration: number }>();
-  servicesData.forEach((s: any) => serviceMap.set(s.id, { name: s.name || 'Serviço', duration: Number(s.duration || 30) }));
+  servicesData.forEach((s: any) => { serviceMap.set(s.id, { name: s.name || 'Serviço', duration: Number(s.duration || 30) }); });
 
   const staffMap = new Map<string, string>();
-  staffData.forEach((st: any) => staffMap.set(st.id, st.name || 'Profissional'));
+  staffData.forEach((st: any) => { staffMap.set(st.id, st.name || 'Profissional'); });
 
   return appts.map((a: any) => {
     const clientInfo = (a.client_id && clientMap.get(a.client_id)) || { name: 'Cliente', phone: '' };
@@ -557,7 +557,7 @@ export async function fetchProductsReport(
   });
 
   const catalogByName = new Map<string, ProductCatalogItem>();
-  catalogItems.forEach((p) => catalogByName.set(p.name.toLowerCase().trim(), p));
+  catalogItems.forEach((p) => { catalogByName.set(p.name.toLowerCase().trim(), p); });
 
   // Agregar vendas por nome de produto a partir dos itens rateados
   const productSalesMap = new Map<string, ProductSalesReportRow>();

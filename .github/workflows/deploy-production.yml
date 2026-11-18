@@ -158,6 +158,7 @@ jobs:
     # ADR-049 — roda ANTES de mover qualquer alias publico.
     needs: resolve-validate
     if: needs.resolve-validate.outputs.promote == 'true'
+    environment: Production-Validation
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:

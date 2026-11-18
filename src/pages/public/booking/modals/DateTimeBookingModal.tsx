@@ -597,11 +597,12 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
 
               {isForOther ? (
                 <div className="pt-1.5 space-y-1">
-                  <label className="block text-[11px] font-bold text-neutral-200 flex items-center gap-1.5">
+                  <label htmlFor="beneficiary-name-input" className="block text-[11px] font-bold text-neutral-200 flex items-center gap-1.5">
                     <Users size={12} className="text-amber-400" />
                     <span>Nome de quem será atendido: <strong className="text-amber-400">*</strong></span>
                   </label>
                   <input
+                    id="beneficiary-name-input"
                     type="text"
                     value={beneficiaryName}
                     onChange={(e) => setBeneficiaryName(e.target.value)}
