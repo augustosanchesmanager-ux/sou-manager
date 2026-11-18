@@ -3349,7 +3349,7 @@ Podemos confirmar? 😄`;
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
                   </div>
                 ) : (
-                  <div className="flex min-h-[2600px]" style={{ minWidth: viewMode === 'week' ? weekGridMinWidth : dayGridMinWidth }}>
+                  <div className="flex min-h-[2600px]" style={{ minWidth: (viewMode as 'day' | 'week') === 'week' ? weekGridMinWidth : dayGridMinWidth }}>
                     <div className="sticky left-0 z-30 w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 flex flex-col">
                       {dynamicTimeSlots.map(hour => (
                         <div key={hour} className="flex-1 border-b border-slate-200 dark:border-border-dark text-xs font-bold text-slate-400 flex items-start justify-center pt-2 tabular-nums tracking-[-0.02em]">
@@ -3613,7 +3613,7 @@ Podemos confirmar? 😄`;
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                   </div>
                 ) : (
-                  <div className="flex min-h-[2600px]" style={{ minWidth: viewMode === 'week' ? weekGridMinWidth : dayGridMinWidth }}>
+                  <div className="flex min-h-[2600px]" style={{ minWidth: (viewMode as 'day' | 'week') === 'week' ? weekGridMinWidth : dayGridMinWidth }}>
                     <div className="sticky left-0 z-30 w-20 shrink-0 border-r border-slate-200 dark:border-border-dark bg-slate-50 dark:bg-white/5 flex flex-col">
                       {dynamicTimeSlots.map(hour => (
                         <div key={hour} className="flex-1 border-b border-slate-200 dark:border-border-dark text-xs font-bold text-slate-400 flex items-start justify-center pt-2 relative tabular-nums tracking-[-0.02em]">
@@ -5701,7 +5701,7 @@ Podemos confirmar? 😄`;
         isOpen={showQuickWalkInModal}
         onClose={() => setShowQuickWalkInModal(false)}
         staffList={staffList}
-        servicesList={servicesList}
+        servicesList={servicesList.map((s) => ({ ...s, price: s.price ?? 0 }))}
         clientsList={clientsList}
         defaultStaffId={selectedQueueStaffId !== 'all' ? selectedQueueStaffId : currentUserStaff?.id || staffList[0]?.id}
         onSubmitWalkIn={handleQuickWalkIn}

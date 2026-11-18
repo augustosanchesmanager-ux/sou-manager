@@ -131,7 +131,7 @@ export const ChairSelfCheckoutModal: React.FC<ChairSelfCheckoutModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="📱 Self-Checkout na Cadeira" size="md">
+    <Modal isOpen={isOpen} onClose={onClose} title="📱 Self-Checkout na Cadeira" maxWidth="md">
       <div className="space-y-5 text-center p-2">
         {isPaid ? (
           <div className="py-8 space-y-4 animate-in fade-in zoom-in-95 duration-300">

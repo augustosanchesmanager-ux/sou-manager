@@ -11,7 +11,8 @@ export interface RecurringAppointmentInfo {
   client: string;
   clientPhone?: string;
   date: string;
-  startTime: string;
+  startTime?: string;
+  time?: string;
   service: string;
   staffName: string;
   status: string;

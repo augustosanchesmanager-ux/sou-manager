@@ -913,7 +913,7 @@ export const ClientAccount: React.FC = () => {
         isOpen={isLimitModalOpen}
         onClose={() => setIsLimitModalOpen(false)}
         title="Liberar Limite de Crédito Manual (Fiado)"
-        size="sm"
+        maxWidth="sm"
       >
         <div className="space-y-4 p-2 text-xs">
           <p className="text-slate-600 dark:text-slate-300">
@@ -948,7 +948,7 @@ export const ClientAccount: React.FC = () => {
         isOpen={isSettleModalOpen}
         onClose={() => setIsSettleModalOpen(false)}
         title="Receber / Quitar Débito"
-        size="sm"
+        maxWidth="sm"
       >
         <div className="space-y-4 p-2 text-xs">
           <div className="p-3 rounded-xl bg-slate-50 dark:bg-surface-dark border border-slate-200 dark:border-border-dark">
@@ -1005,7 +1005,7 @@ export const ClientAccount: React.FC = () => {
         isOpen={isDepositModalOpen}
         onClose={() => setIsDepositModalOpen(false)}
         title="Recarga de Saldo Pré-Pago"
-        size="sm"
+        maxWidth="sm"
       >
         <div className="space-y-4 p-2 text-xs">
           <p className="text-slate-600 dark:text-slate-300">
@@ -1041,7 +1041,7 @@ export const ClientAccount: React.FC = () => {
         isOpen={isHistoryModalOpen}
         onClose={() => setIsHistoryModalOpen(false)}
         title={`Extrato da Conta • ${selectedWallet?.client_name || ''}`}
-        size="md"
+        maxWidth="md"
       >
         <div className="space-y-4 p-1 text-xs">
           {loadingHistory ? (

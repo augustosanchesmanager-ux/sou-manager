@@ -1063,9 +1063,7 @@ const Payroll: React.FC = () => {
             <PendingAdvancesDrawer
                 isOpen={advancesDrawerRow !== null}
                 onClose={() => setAdvancesDrawerRow(null)}
-                staffId={advancesDrawerRow?.staffId ?? null}
-                staffName={advancesDrawerRow?.professionalName ?? ''}
-                staffAvatar={advancesDrawerRow?.avatar}
+                staff={advancesDrawerRow ? { id: advancesDrawerRow.staffId, name: advancesDrawerRow.professionalName } : null}
                 onChanged={() => {
                     setToast({
                         message: 'Vale estornado. Saldo de comissões recalculado.',
@@ -1073,7 +1071,7 @@ const Payroll: React.FC = () => {
                     });
                     fetchData();
                 }}
-                onRequestNewAdvance={(sid) => {
+                onNewAdvanceClick={(sid) => {
                     setAdvancesDrawerRow(null);
                     setAdvanceModalStaffId(sid);
                     setAdvanceModalOpen(true);

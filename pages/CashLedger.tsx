@@ -584,17 +584,17 @@ export const CashLedger: React.FC = () => {
                     <div className="flex items-center gap-2">
                         <div className="w-36">
                             <DatePickerInput
-                                label="Início"
+                                aria-label="Início"
                                 value={startDate}
-                                onChange={setStartDate}
+                                onChange={(e) => setStartDate(e.target.value)}
                             />
                         </div>
                         <span className="text-slate-400 text-xs mt-4">até</span>
                         <div className="w-36">
                             <DatePickerInput
-                                label="Fim"
+                                aria-label="Fim"
                                 value={endDate}
-                                onChange={setEndDate}
+                                onChange={(e) => setEndDate(e.target.value)}
                             />
                         </div>
                     </div>
@@ -986,7 +986,7 @@ export const CashLedger: React.FC = () => {
                                 </label>
                                 <DatePickerInput
                                     value={movementForm.due_date}
-                                    onChange={(val) => setMovementForm((p) => ({ ...p, due_date: val }))}
+                                    onChange={(e) => setMovementForm((p) => ({ ...p, due_date: e.target.value }))}
                                 />
                             </div>
 
@@ -1073,7 +1073,7 @@ export const CashLedger: React.FC = () => {
                             </label>
                             <DatePickerInput
                                 value={batchForm.paymentDate}
-                                onChange={(val) => setBatchForm((p) => ({ ...p, paymentDate: val }))}
+                                onChange={(e) => setBatchForm((p) => ({ ...p, paymentDate: e.target.value }))}
                             />
                         </div>
 
@@ -1170,7 +1170,7 @@ export const CashLedger: React.FC = () => {
                             </label>
                             <DatePickerInput
                                 value={valeForm.issuedAt}
-                                onChange={(val) => setValeForm((p) => ({ ...p, issuedAt: val }))}
+                                onChange={(e) => setValeForm((p) => ({ ...p, issuedAt: e.target.value }))}
                             />
                         </div>
 

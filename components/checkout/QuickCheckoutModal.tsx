@@ -328,7 +328,7 @@ export const QuickCheckoutModal: React.FC<QuickCheckoutModalProps> = ({
         isOpen={isOpen}
         onClose={handleCloseModal}
         title="Comanda Finalizada"
-        size="md"
+        maxWidth="md"
       >
         <div className="space-y-5 rounded-2xl bg-[#141414] border border-[#262626] p-5 text-[#F5F2EB]">
           <div className="flex flex-col items-center text-center gap-3">
@@ -406,7 +406,7 @@ export const QuickCheckoutModal: React.FC<QuickCheckoutModalProps> = ({
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={handleCloseModal} title="⚡ Modo Balcão Express (1 Toque)" size="md">
+      <Modal isOpen={isOpen} onClose={handleCloseModal} title="⚡ Modo Balcão Express (1 Toque)" maxWidth="md">
       <div className="space-y-5 p-1">
         {/* Header com resumo do atendimento */}
         <div className="p-4 rounded-2xl bg-slate-50 dark:bg-surface-dark border border-slate-200/70 dark:border-border-dark flex items-center justify-between">
@@ -636,7 +636,7 @@ export const QuickCheckoutModal: React.FC<QuickCheckoutModalProps> = ({
         }
       }}
       title="🔒 Autorização do Gestor (PIN)"
-      size="sm"
+      maxWidth="sm"
     >
       <div className="space-y-4 p-2 text-xs">
         <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-900 dark:text-amber-200">

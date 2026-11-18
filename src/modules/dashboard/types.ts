@@ -32,6 +32,7 @@ export interface DashboardAppointment {
   client_name: string;
   client_phone?: string | null;
   service_name: string;
+  staff_id?: string | null;
   staff_name: string;
   start_time: string;
   status: string;

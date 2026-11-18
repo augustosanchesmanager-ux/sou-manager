@@ -2976,7 +2976,7 @@ const Checkout: React.FC = () => {
             >
                 <div className="space-y-4">
                     <p className="text-sm text-slate-600 dark:text-slate-300">
-                        Informe o motivo gerencial para liberar esta {checkoutCopy.orderLabelLower} antes da data do agendamento. Essa ação fica registrada na auditoria.
+                        Informe o motivo gerencial para liberar esta {checkoutCopy.orderLabel.toLowerCase()} antes da data do agendamento. Essa ação fica registrada na auditoria.
                     </p>
                     <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
@@ -3347,7 +3347,7 @@ const Checkout: React.FC = () => {
             >
                 <div className="space-y-4">
                     <p className="text-sm text-slate-600 dark:text-slate-300">
-                        Informe o motivo gerencial para liberar esta {checkoutCopy.orderLabelLower} antes da data do agendamento. Essa ação fica registrada na auditoria.
+                        Informe o motivo gerencial para liberar esta {checkoutCopy.orderLabel.toLowerCase()} antes da data do agendamento. Essa ação fica registrada na auditoria.
                     </p>
                     <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
