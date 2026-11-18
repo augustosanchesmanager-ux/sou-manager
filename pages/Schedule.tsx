@@ -426,6 +426,7 @@ const Schedule: React.FC = () => {
   const [servicesList, setServicesList] = useState<DBService[]>([]);
   const [clientsList, setClientsList] = useState<DBClient[]>([]);
   const [appointments, setAppointments] = useState<CalendarAppointment[]>([]);
+  const [modalDateAppointments, setModalDateAppointments] = useState<CalendarAppointment[] | null>(null);
   const [scheduleBlocks, setScheduleBlocks] = useState<ScheduleBlock[]>([]);
   const [scheduleBlockHistory, setScheduleBlockHistory] = useState<ScheduleBlock[]>([]);
   const [activePromotions, setActivePromotions] = useState<any[]>([]);
@@ -630,6 +631,8 @@ const Schedule: React.FC = () => {
     [formData.serviceIds, servicesList],
   );
 
+  const appointmentsForModalDate = modalDateAppointments ?? appointments;
+
   const sameDayAppointmentForClient = React.useMemo(() => {
     if (!isModalOpen || editingAppointmentId || !formData.date || (!formData.client && !formData.clientPhone)) {
       return null;
@@ -637,7 +640,7 @@ const Schedule: React.FC = () => {
     const cleanPhone = (formData.clientPhone || '').replace(/\D/g, '');
     const cleanName = (formData.client || '').trim().toLowerCase();
 
-    return appointments.find((apt) => {
+    return appointmentsForModalDate.find((apt) => {
       if (apt.status === 'cancelled' || apt.status === 'no_show') return false;
       const aptDate = apt.date ? apt.date.split('T')[0] : '';
       if (aptDate !== formData.date) return false;
@@ -653,7 +656,7 @@ const Schedule: React.FC = () => {
 
       return phoneMatches || nameMatches;
     });
-  }, [isModalOpen, editingAppointmentId, formData.date, formData.client, formData.clientPhone, appointments]);
+  }, [isModalOpen, editingAppointmentId, formData.date, formData.client, formData.clientPhone, appointmentsForModalDate]);
   const filteredServicesForModal = React.useMemo(() => {
     const normalizedSearch = serviceSearchTerm.trim().toLowerCase();
     if (!normalizedSearch) return servicesList;
@@ -834,46 +837,9 @@ const Schedule: React.FC = () => {
     }
   }, [appSlug, tenantId]);
 
-  // Fetch appointments for the selected date (or week)
-  const fetchAppointments = useCallback(async () => {
+  const fetchAppointmentsInRange = useCallback(async (rangeStart: string, rangeEnd: string): Promise<CalendarAppointment[]> => {
     if (!tenantId) {
-      setAppointments([]);
-      setComandasByAppointment({});
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-
-    let rangeStart: string;
-    let rangeEnd: string;
-
-    if (displayMode === 'list') {
-      const listRange = getListRange();
-      rangeStart = listRange.start.toISOString();
-      rangeEnd = listRange.end.toISOString();
-    } else if (displayMode === 'chair') {
-      const dStart = new Date(selectedDate);
-      dStart.setHours(0, 0, 0, 0);
-      const dEnd = new Date(selectedDate);
-      dEnd.setHours(23, 59, 59, 999);
-      rangeStart = dStart.toISOString();
-      rangeEnd = dEnd.toISOString();
-    } else if (viewMode === 'week') {
-      const days = getWeekDays(selectedDate);
-      const first = new Date(days[0]);
-      first.setHours(0, 0, 0, 0);
-      const last = new Date(days[6]);
-      last.setHours(23, 59, 59, 999);
-      rangeStart = first.toISOString();
-      rangeEnd = last.toISOString();
-    } else {
-      const dStart = new Date(selectedDate);
-      dStart.setHours(0, 0, 0, 0);
-      const dEnd = new Date(selectedDate);
-      dEnd.setHours(23, 59, 59, 999);
-      rangeStart = dStart.toISOString();
-      rangeEnd = dEnd.toISOString();
+      return [];
     }
 
     const scheduleAppSlug = ensureAppSupportsModule(appSlug, 'schedule', ['barber']);
@@ -944,39 +910,86 @@ const Schedule: React.FC = () => {
       (first: any, second: any) => new Date(first.start_time).getTime() - new Date(second.start_time).getTime(),
     );
 
-    if (appointmentRows.length > 0) {
-      const mapped: CalendarAppointment[] = appointmentRows.map(apt => {
-        const d = new Date(apt.start_time);
-        const startHour = d.getHours() + d.getMinutes() / 60;
-        const resolvedMinutes = Number(apt.duration_minutes) || (Number(apt.duration) ? (Number(apt.duration) <= 12 ? Math.round(Number(apt.duration) * 60) : Math.round(Number(apt.duration))) : 60);
-        const resolvedDecimal = Math.round((resolvedMinutes / 60) * 100) / 100;
+    return appointmentRows.map(apt => {
+      const d = new Date(apt.start_time);
+      const startHour = d.getHours() + d.getMinutes() / 60;
+      const resolvedMinutes = Number(apt.duration_minutes) || (Number(apt.duration) ? (Number(apt.duration) <= 12 ? Math.round(Number(apt.duration) * 60) : Math.round(Number(apt.duration))) : 60);
+      const resolvedDecimal = Math.round((resolvedMinutes / 60) * 100) / 100;
 
-        return {
-          id: apt.id,
-          clientId: apt.client_id || null,
-          staffId: apt.staff_id,
-          serviceId: apt.service_id || null,
-          start: startHour,
-          duration: resolvedDecimal,
-          duration_minutes: resolvedMinutes,
-          client: apt.client_name || 'Cliente',
+      return {
+        id: apt.id,
+        clientId: apt.client_id || null,
+        staffId: apt.staff_id,
+        serviceId: apt.service_id || null,
+        start: startHour,
+        duration: resolvedDecimal,
+        duration_minutes: resolvedMinutes,
+        client: apt.client_name || 'Cliente',
         service: getEsteticaDemoServiceName(apt.service_name, appSlug) || serviceLabel,
-          status: apt.status,
-          color: statusColors[apt.status] || 'bg-sched-scheduled',
-          staffName: apt.staff_name || '',
-          clientPhone: apt.client_phone || '',
-          price: apt.price || 0,
-          startTime: apt.start_time,
-          notes: apt.notes || '',
-          date: apt.start_time,
-          source: apt.source || null,
-          channel: apt.channel || null,
-          isOverbooked: Boolean(apt.is_overbooked || apt.is_walk_in),
-          isRecurring: Boolean(apt.is_recurring),
-          attendedAt: apt.attended_at || null,
-          attendedAtSource: apt.attended_at_source || null,
-        };
-      });
+        status: apt.status,
+        color: statusColors[apt.status] || 'bg-sched-scheduled',
+        staffName: apt.staff_name || '',
+        clientPhone: apt.client_phone || '',
+        price: apt.price || 0,
+        startTime: apt.start_time,
+        notes: apt.notes || '',
+        date: apt.start_time,
+        source: apt.source || null,
+        channel: apt.channel || null,
+        isOverbooked: Boolean(apt.is_overbooked || apt.is_walk_in),
+        isRecurring: Boolean(apt.is_recurring),
+        attendedAt: apt.attended_at || null,
+        attendedAtSource: apt.attended_at_source || null,
+      };
+    });
+  }, [accessRole, appSlug, serviceLabel, tenantId, user?.id]);
+
+  // Fetch appointments for the selected date (or week)
+  const fetchAppointments = useCallback(async () => {
+    if (!tenantId) {
+      setAppointments([]);
+      setComandasByAppointment({});
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+
+    let rangeStart: string;
+    let rangeEnd: string;
+
+    if (displayMode === 'list') {
+      const listRange = getListRange();
+      rangeStart = listRange.start.toISOString();
+      rangeEnd = listRange.end.toISOString();
+    } else if (displayMode === 'chair') {
+      const dStart = new Date(selectedDate);
+      dStart.setHours(0, 0, 0, 0);
+      const dEnd = new Date(selectedDate);
+      dEnd.setHours(23, 59, 59, 999);
+      rangeStart = dStart.toISOString();
+      rangeEnd = dEnd.toISOString();
+    } else if (viewMode === 'week') {
+      const days = getWeekDays(selectedDate);
+      const first = new Date(days[0]);
+      first.setHours(0, 0, 0, 0);
+      const last = new Date(days[6]);
+      last.setHours(23, 59, 59, 999);
+      rangeStart = first.toISOString();
+      rangeEnd = last.toISOString();
+    } else {
+      const dStart = new Date(selectedDate);
+      dStart.setHours(0, 0, 0, 0);
+      const dEnd = new Date(selectedDate);
+      dEnd.setHours(23, 59, 59, 999);
+      rangeStart = dStart.toISOString();
+      rangeEnd = dEnd.toISOString();
+    }
+
+    const scheduleAppSlug = ensureAppSupportsModule(appSlug, 'schedule', ['barber']);
+    const mapped = await fetchAppointmentsInRange(rangeStart, rangeEnd);
+
+    if (mapped.length > 0) {
       setAppointments(mapped);
 
       const appointmentIds = mapped.map((apt) => apt.id);
@@ -991,7 +1004,7 @@ const Schedule: React.FC = () => {
       setComandasByAppointment({});
     }
     setLoading(false);
-  }, [appSlug, displayMode, getListRange, selectedDate, serviceLabel, tenantId, viewMode]);
+  }, [appSlug, displayMode, fetchAppointmentsInRange, getListRange, selectedDate, tenantId, viewMode]);
 
   const fetchScheduleBlocks = useCallback(async () => {
     if (!tenantId) {
@@ -1052,6 +1065,47 @@ const Schedule: React.FC = () => {
       setFormData(prev => ({ ...prev, date: `${year}-${month}-${day}`, staffId: prev.staffId || (staffList[0]?.id ?? '') }));
     }
   }, [isModalOpen, selectedDate, staffList]);
+
+  // Fetch appointments for the date selected inside the modal when it differs from the loaded view
+  useEffect(() => {
+    if (!isModalOpen || !tenantId || !/^\d{4}-\d{2}-\d{2}$/.test(formData.date)) {
+      setModalDateAppointments(null);
+      return;
+    }
+
+    const year = selectedDate.getFullYear();
+    const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+    const day = String(selectedDate.getDate()).padStart(2, '0');
+    const selectedDateKey = `${year}-${month}-${day}`;
+
+    if (formData.date === selectedDateKey && displayMode !== 'list') {
+      setModalDateAppointments(null);
+      return;
+    }
+
+    let cancelled = false;
+    setModalDateAppointments([]);
+
+    const dStart = new Date(`${formData.date}T00:00:00`);
+    const dEnd = new Date(`${formData.date}T23:59:59.999`);
+
+    fetchAppointmentsInRange(dStart.toISOString(), dEnd.toISOString())
+      .then((mapped) => {
+        if (!cancelled) {
+          setModalDateAppointments(mapped);
+        }
+      })
+      .catch((err) => {
+        console.warn('Falha ao carregar agendamentos para a data do modal:', err);
+        if (!cancelled) {
+          setModalDateAppointments(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [displayMode, fetchAppointmentsInRange, formData.date, isModalOpen, selectedDate, tenantId]);
 
   const handleNavigateToCheckout = async (apt: CalendarAppointment) => {
     try {
@@ -1996,7 +2050,7 @@ const Schedule: React.FC = () => {
           startDecimal: formData.start,
           durationDecimal: Number(formData.duration),
         },
-        appointments.map((apt) => ({
+        appointmentsForModalDate.map((apt) => ({
           id: apt.id,
           staffId: apt.staffId,
           dateKey: toDateKey(apt.date),
@@ -4374,7 +4428,7 @@ Podemos confirmar? 😄`;
                     >
                       {(() => {
                         const allSlots = dynamicTimeSlots;
-                        const aptsOnDay = appointments.filter(a => {
+                        const aptsOnDay = appointmentsForModalDate.filter(a => {
                           const aptDate = new Date(a.date);
                           const fDate = new Date(formData.date + 'T12:00:00');
                           return aptDate.getFullYear() === fDate.getFullYear() &&
