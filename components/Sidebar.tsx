@@ -161,6 +161,13 @@ export const buildRawSidebarMenu = ({
       { name: 'Profissionais', icon: UserCheck, path: '/team', module: 'team' },
       { name: labels.servicePlural, icon: Scissors, path: '/services', module: 'services' },
       { name: 'Promoções', icon: Gift, path: '/promotions', module: 'products', hideFromEsteticaMenu: true },
+    ],
+  },
+  {
+    name: 'CRM & Retenção',
+    icon: BrainCircuit,
+    type: 'group',
+    items: [
       { name: 'Motor de Retorno', icon: BrainCircuit, path: '/smart-return', module: 'clients', hideFromEsteticaMenu: true },
     ],
   },

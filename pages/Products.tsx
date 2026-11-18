@@ -63,6 +63,7 @@ export const Products: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('all');
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+    const [stockStatusFilter, setStockStatusFilter] = useState<'all' | 'low' | 'out'>('all');
 
     // Modais
     const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -171,8 +172,21 @@ export const Products: React.FC = () => {
             list = list.filter(p => p.category === categoryFilter);
         }
 
+        if (stockStatusFilter === 'out') {
+            list = list.filter(p => p.stock_quantity <= 0);
+        } else if (stockStatusFilter === 'low') {
+            list = list.filter(p => p.stock_quantity > 0 && isStockLow(p));
+        }
+
         return list;
-    }, [products, activeTab, searchTerm, categoryFilter]);
+    }, [products, activeTab, searchTerm, categoryFilter, stockStatusFilter]);
+
+    const potentialSaleValue = useMemo(() => {
+        return products.reduce((sum, p) => {
+            if (p.purpose === 'internal_use') return sum;
+            return sum + Math.max(0, p.stock_quantity) * Number(p.sale_price || 0);
+        }, 0);
+    }, [products]);
 
     // Métricas Resumo
     const metrics = useMemo(() => {
@@ -523,57 +537,70 @@ export const Products: React.FC = () => {
                 </div>
             </div>
 
-            {/* Cards de Métricas */}
+            {/* Cards de Métricas (Atelier Tech) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-                    <div className="flex items-center justify-between text-slate-400 text-sm mb-1">
+                <div className="bg-[#141210] border border-[#2D2A26] rounded-xl p-4">
+                    <div className="flex items-center justify-between text-stone-400 text-xs font-semibold uppercase tracking-wider mb-1">
                         <span>Total de Produtos</span>
-                        <Package className="w-4 h-4 text-amber-400" />
+                        <Package className="w-4 h-4 text-[#B88A44]" />
                     </div>
-                    <div className="text-2xl font-bold text-white">{metrics.totalItems}</div>
-                    <div className="text-xs text-slate-400 mt-1">Cadastrados no catálogo</div>
+                    <div className="text-2xl font-bold text-[#F5F5F0]">{metrics.totalItems}</div>
+                    <div className="text-xs text-stone-400 mt-1">Ativos no catálogo</div>
                 </div>
 
-                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-                    <div className="flex items-center justify-between text-slate-400 text-sm mb-1">
+                <div className="bg-[#141210] border border-[#2D2A26] rounded-xl p-4">
+                    <div className="flex items-center justify-between text-stone-400 text-xs font-semibold uppercase tracking-wider mb-1">
                         <span>Valor do Estoque (Custo)</span>
                         <Tag className="w-4 h-4 text-emerald-400" />
                     </div>
                     <div className="text-2xl font-bold text-emerald-400">
                         {formatCurrency(metrics.totalStockValue)}
                     </div>
-                    <div className="text-xs text-slate-400 mt-1">Custo médio ponderado</div>
+                    <div className="text-xs text-stone-400 mt-1">
+                        Potencial de venda: <strong className="text-[#F5F5F0]">{formatCurrency(potentialSaleValue)}</strong>
+                    </div>
                 </div>
 
-                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-                    <div className="flex items-center justify-between text-slate-400 text-sm mb-1">
+                <div className="bg-[#141210] border border-[#2D2A26] rounded-xl p-4">
+                    <div className="flex items-center justify-between text-stone-400 text-xs font-semibold uppercase tracking-wider mb-1">
                         <span>Insumos de Bancada</span>
-                        <Scissors className="w-4 h-4 text-blue-400" />
+                        <Scissors className="w-4 h-4 text-[#B88A44]" />
                     </div>
-                    <div className="text-2xl font-bold text-white">{metrics.internalUseCount}</div>
-                    <div className="text-xs text-slate-400 mt-1">Uso interno e híbridos</div>
+                    <div className="text-2xl font-bold text-[#F5F5F0]">{metrics.internalUseCount}</div>
+                    <div className="text-xs text-stone-400 mt-1">Uso interno e híbridos</div>
                 </div>
 
-                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-                    <div className="flex items-center justify-between text-slate-400 text-sm mb-1">
+                <button
+                    type="button"
+                    onClick={() => setStockStatusFilter((prev) => (prev === 'low' ? 'all' : 'low'))}
+                    title="Clique para filtrar itens com estoque baixo"
+                    className={`text-left rounded-xl p-4 border transition-all ${
+                        stockStatusFilter === 'low'
+                            ? 'bg-amber-500/10 border-amber-500/50'
+                            : 'bg-[#141210] border-[#2D2A26] hover:border-[#B88A44]/50'
+                    }`}
+                >
+                    <div className="flex items-center justify-between text-stone-400 text-xs font-semibold uppercase tracking-wider mb-1">
                         <span>Alerta de Reposição</span>
-                        <AlertTriangle className={`w-4 h-4 ${metrics.lowStockCount > 0 ? 'text-rose-400 animate-pulse' : 'text-slate-500'}`} />
+                        <AlertTriangle className={`w-4 h-4 ${metrics.lowStockCount > 0 ? 'text-amber-400' : 'text-stone-500'}`} />
                     </div>
-                    <div className={`text-2xl font-bold ${metrics.lowStockCount > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+                    <div className={`text-2xl font-bold ${metrics.lowStockCount > 0 ? 'text-amber-400' : 'text-stone-400'}`}>
                         {metrics.lowStockCount}
                     </div>
-                    <div className="text-xs text-slate-400 mt-1">Abaixo do estoque mínimo</div>
-                </div>
+                    <div className="text-xs text-stone-400 mt-1">
+                        {stockStatusFilter === 'low' ? 'Filtro ativo (clique p/ limpar)' : 'Abaixo do estoque mínimo'}
+                    </div>
+                </button>
             </div>
 
-            {/* Abas Superiores no padrão AppBarber */}
-            <div className="flex border-b border-slate-800 gap-1 overflow-x-auto pb-px">
+            {/* Abas Superiores (Atelier Tech) */}
+            <div className="flex border-b border-[#2D2A26] gap-1 overflow-x-auto pb-px">
                 <button
                     onClick={() => handleTabChange('sale')}
                     className={`px-5 py-3 text-sm font-semibold rounded-t-lg transition-all flex items-center gap-2 border-b-2 whitespace-nowrap ${
                         activeTab === 'sale'
-                            ? 'border-amber-500 text-amber-400 bg-slate-900/40'
-                            : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/20'
+                            ? 'border-[#B88A44] text-[#B88A44] bg-[#141210]'
+                            : 'border-transparent text-stone-400 hover:text-[#F5F5F0] hover:bg-[#141210]/60'
                     }`}
                 >
                     <ShoppingCart className="w-4 h-4" />
@@ -584,13 +611,13 @@ export const Products: React.FC = () => {
                     onClick={() => handleTabChange('internal_use')}
                     className={`px-5 py-3 text-sm font-semibold rounded-t-lg transition-all flex items-center gap-2 border-b-2 whitespace-nowrap ${
                         activeTab === 'internal_use'
-                            ? 'border-amber-500 text-amber-400 bg-slate-900/40'
-                            : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/20'
+                            ? 'border-[#B88A44] text-[#B88A44] bg-[#141210]'
+                            : 'border-transparent text-stone-400 hover:text-[#F5F5F0] hover:bg-[#141210]/60'
                     }`}
                 >
                     <Scissors className="w-4 h-4" />
                     Apenas para uso
-                    <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-300">
+                    <span className="ml-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-[#B88A44]/20 text-[#B88A44] border border-[#B88A44]/30">
                         Bancada
                     </span>
                 </button>
@@ -599,8 +626,8 @@ export const Products: React.FC = () => {
                     onClick={() => handleTabChange('combos')}
                     className={`px-5 py-3 text-sm font-semibold rounded-t-lg transition-all flex items-center gap-2 border-b-2 whitespace-nowrap ${
                         activeTab === 'combos'
-                            ? 'border-amber-500 text-amber-400 bg-slate-900/40'
-                            : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/20'
+                            ? 'border-[#B88A44] text-[#B88A44] bg-[#141210]'
+                            : 'border-transparent text-stone-400 hover:text-[#F5F5F0] hover:bg-[#141210]/60'
                     }`}
                 >
                     <Layers className="w-4 h-4" />
@@ -611,8 +638,8 @@ export const Products: React.FC = () => {
                     onClick={() => handleTabChange('audit')}
                     className={`px-5 py-3 text-sm font-semibold rounded-t-lg transition-all flex items-center gap-2 border-b-2 whitespace-nowrap ${
                         activeTab === 'audit'
-                            ? 'border-amber-500 text-amber-400 bg-slate-900/40'
-                            : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/20'
+                            ? 'border-[#B88A44] text-[#B88A44] bg-[#141210]'
+                            : 'border-transparent text-stone-400 hover:text-[#F5F5F0] hover:bg-[#141210]/60'
                     }`}
                 >
                     <ClipboardCheck className="w-4 h-4" />
@@ -627,39 +654,63 @@ export const Products: React.FC = () => {
 
             {/* Barra de Filtros e Busca (para abas normais) */}
             {activeTab !== 'audit' && (
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900/40 p-3 rounded-xl border border-slate-800">
+                <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-[#141210] p-3.5 rounded-xl border border-[#2D2A26]">
                     <div className="relative flex-1">
-                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
                         <input
                             type="text"
                             placeholder="Buscar por produto, marca ou fornecedor..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full pl-9 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-amber-500"
+                            className="w-full pl-9 pr-4 py-2 bg-[#0E0C0A] border border-[#2D2A26] rounded-lg text-sm text-[#F5F5F0] focus:outline-none focus:border-[#B88A44]"
                         />
                     </div>
 
-                    <div className="flex items-center gap-2">
-                        <Filter className="w-4 h-4 text-slate-400" />
-                        <select
-                            value={categoryFilter}
-                            onChange={e => setCategoryFilter(e.target.value)}
-                            className="bg-slate-950 border border-slate-800 rounded-lg text-sm text-slate-300 py-2 px-3 focus:outline-none focus:border-amber-500"
-                        >
-                            <option value="all">Todas as Categorias</option>
-                            {categories.map(cat => (
-                                <option key={cat} value={cat}>{cat}</option>
+                    <div className="flex flex-wrap items-center gap-2">
+                        {/* Pills rápidas de status de estoque */}
+                        <div className="inline-flex items-center rounded-lg bg-[#0E0C0A] border border-[#2D2A26] p-0.5">
+                            {[
+                                { key: 'all', label: 'Todos' },
+                                { key: 'low', label: 'Estoque Baixo' },
+                                { key: 'out', label: 'Sem Estoque' },
+                            ].map((pill) => (
+                                <button
+                                    key={pill.key}
+                                    type="button"
+                                    onClick={() => setStockStatusFilter(pill.key as any)}
+                                    className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                                        stockStatusFilter === pill.key
+                                            ? 'bg-[#B88A44] text-[#0E0C0A]'
+                                            : 'text-stone-400 hover:text-[#F5F5F0]'
+                                    }`}
+                                >
+                                    {pill.label}
+                                </button>
                             ))}
-                        </select>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                            <Filter className="w-4 h-4 text-stone-400" />
+                            <select
+                                value={categoryFilter}
+                                onChange={e => setCategoryFilter(e.target.value)}
+                                className="bg-[#0E0C0A] border border-[#2D2A26] rounded-lg text-xs text-[#F5F5F0] py-2 px-3 focus:outline-none focus:border-[#B88A44]"
+                            >
+                                <option value="all">Todas as Categorias</option>
+                                {categories.map(cat => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                            </select>
+                        </div>
 
                         {/* Botão de Retirada rápido na aba de Uso Interno */}
                         {activeTab === 'internal_use' && (
                             <Button
                                 variant="secondary"
                                 onClick={() => handleOpenConsumption()}
-                                className="bg-blue-600/20 text-blue-300 border border-blue-500/30 hover:bg-blue-600/30"
+                                className="bg-[#B88A44]/20 text-[#B88A44] border border-[#B88A44]/40 hover:bg-[#B88A44]/30"
                             >
-                                <Scissors className="w-4 h-4 mr-1 text-blue-400" />
+                                <Scissors className="w-4 h-4 mr-1 text-[#B88A44]" />
                                 Registrar Retirada / Consumo
                             </Button>
                         )}
@@ -669,94 +720,116 @@ export const Products: React.FC = () => {
 
             {/* Conteúdo da Aba 1: DISPONÍVEL PRA VENDA */}
             {activeTab === 'sale' && (
-                <div className="bg-slate-900/40 border border-slate-800 rounded-xl overflow-hidden">
+                <div className="bg-[#141210] border border-[#2D2A26] rounded-xl overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm text-slate-300">
-                            <thead className="bg-slate-950/80 text-xs uppercase text-slate-400 border-b border-slate-800">
+                        <table className="w-full text-left text-sm text-stone-300">
+                            <thead className="bg-[#0E0C0A] text-[10px] uppercase tracking-wider text-[#B88A44] border-b border-[#2D2A26]">
                                 <tr>
-                                    <th className="py-3 px-4">Produto</th>
-                                    <th className="py-3 px-4">Categoria</th>
-                                    <th className="py-3 px-4 text-right">Custo Médio</th>
-                                    <th className="py-3 px-4 text-right">Preço Venda</th>
-                                    <th className="py-3 px-4 text-center">Comissão</th>
-                                    <th className="py-3 px-4 text-center">Estoque Atual</th>
-                                    <th className="py-3 px-4 text-center">Finalidade</th>
-                                    <th className="py-3 px-4 text-right">Ações</th>
+                                    <th className="py-3 px-4 font-semibold">Produto</th>
+                                    <th className="py-3 px-4 font-semibold">Categoria</th>
+                                    <th className="py-3 px-4 font-semibold text-right">Custo / Margem</th>
+                                    <th className="py-3 px-4 font-semibold text-right">Preço Venda</th>
+                                    <th className="py-3 px-4 font-semibold text-center">Comissão</th>
+                                    <th className="py-3 px-4 font-semibold text-center">Estoque Atual</th>
+                                    <th className="py-3 px-4 font-semibold text-right">Ações Rápidas</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-800/60">
+                            <tbody className="divide-y divide-[#2D2A26]/60">
                                 {loading ? (
                                     <tr>
-                                        <td colSpan={8} className="py-8 text-center text-slate-500">
+                                        <td colSpan={7} className="py-8 text-center text-stone-400 text-xs">
                                             Carregando produtos...
                                         </td>
                                     </tr>
                                 ) : filteredProducts.length === 0 ? (
                                     <tr>
-                                        <td colSpan={8} className="py-8 text-center text-slate-500">
+                                        <td colSpan={7} className="py-8 text-center text-stone-400 text-xs">
                                             Nenhum produto para venda encontrado.
                                         </td>
                                     </tr>
                                 ) : (
                                     filteredProducts.map(prod => {
-                                        const lowStock = isStockLow(prod);
+                                        const isOut = prod.stock_quantity <= 0;
+                                        const lowStock = !isOut && isStockLow(prod);
+                                        const marginPct =
+                                            prod.cost_price > 0 && prod.sale_price > 0
+                                                ? Math.round(((prod.sale_price - prod.cost_price) / prod.sale_price) * 1000) / 10
+                                                : null;
+
                                         return (
-                                            <tr key={prod.id} className="hover:bg-slate-800/20 transition-colors">
+                                            <tr key={prod.id} className="hover:bg-[#1C1916] transition-colors">
                                                 <td className="py-3 px-4">
-                                                    <div className="font-medium text-white">{prod.name}</div>
-                                                    {prod.brand && <div className="text-xs text-slate-400">{prod.brand}</div>}
+                                                    <div className="font-medium text-[#F5F5F0]">{prod.name}</div>
+                                                    <div className="flex items-center gap-2 mt-0.5 text-[11px] text-stone-400">
+                                                        {prod.brand && <span>{prod.brand}</span>}
+                                                        <span className="px-1.5 py-0.2 rounded bg-[#B88A44]/10 text-[#B88A44] border border-[#B88A44]/20 text-[10px]">
+                                                            {prod.purpose === 'both' ? 'Híbrido' : 'Venda'}
+                                                        </span>
+                                                    </div>
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    <span className="px-2 py-0.5 rounded text-xs bg-slate-800 text-slate-300">
+                                                    <span className="px-2 py-0.5 rounded text-xs bg-[#0E0C0A] border border-[#2D2A26] text-stone-300">
                                                         {prod.category || 'Geral'}
                                                     </span>
                                                 </td>
-                                                <td className="py-3 px-4 text-right text-slate-300">
-                                                    {formatCurrency(prod.cost_price)}
+                                                <td className="py-3 px-4 text-right">
+                                                    <div className="text-stone-300 text-xs">{formatCurrency(prod.cost_price)}</div>
+                                                    {marginPct !== null && (
+                                                        <div className="text-[10px] font-semibold text-emerald-400">
+                                                            Margem {marginPct}%
+                                                        </div>
+                                                    )}
                                                 </td>
-                                                <td className="py-3 px-4 text-right font-semibold text-emerald-400">
+                                                <td className="py-3 px-4 text-right font-semibold text-[#F5F5F0]">
                                                     {formatCurrency(prod.sale_price)}
                                                 </td>
-                                                <td className="py-3 px-4 text-center text-amber-400">
+                                                <td className="py-3 px-4 text-center text-[#B88A44] font-medium text-xs">
                                                     {prod.commission_rate}%
                                                 </td>
                                                 <td className="py-3 px-4 text-center">
-                                                    <span className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded text-xs ${
-                                                        lowStock
-                                                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                                                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                                    }`}>
-                                                        {lowStock && <AlertTriangle className="w-3 h-3 text-rose-400" />}
-                                                        {prod.stock_quantity} un
-                                                    </span>
-                                                </td>
-                                                <td className="py-3 px-4 text-center">
-                                                    <span className="px-2 py-0.5 rounded text-xs bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                                                        {prod.purpose === 'both' ? 'Híbrido' : 'Venda'}
-                                                    </span>
+                                                    {isOut ? (
+                                                        <span className="inline-flex items-center gap-1 font-bold px-2.5 py-0.5 rounded text-[11px] bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                                                            <AlertTriangle className="w-3 h-3" />
+                                                            Esgotado ({prod.stock_quantity})
+                                                        </span>
+                                                    ) : lowStock ? (
+                                                        <span className="inline-flex items-center gap-1 font-bold px-2.5 py-0.5 rounded text-[11px] bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                                                            <AlertTriangle className="w-3 h-3" />
+                                                            Estoque Baixo ({prod.stock_quantity} un)
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 font-bold px-2.5 py-0.5 rounded text-[11px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                                            Normal ({prod.stock_quantity} un)
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="py-3 px-4 text-right">
-                                                    <div className="flex items-center justify-end gap-1">
+                                                    <div className="flex items-center justify-end gap-1.5">
                                                         <button
+                                                            type="button"
                                                             onClick={() => handleOpenPurchase(prod.id)}
-                                                            title="Dar entrada de compra"
-                                                            className="p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-emerald-400 transition-colors"
+                                                            title="Ajustar / Entrada de Estoque"
+                                                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-[#B88A44]/15 text-[#B88A44] border border-[#B88A44]/30 hover:bg-[#B88A44] hover:text-[#0E0C0A] transition-colors"
                                                         >
-                                                            <ShoppingCart className="w-4 h-4" />
+                                                            <ShoppingCart className="w-3.5 h-3.5" />
+                                                            Entrada
                                                         </button>
                                                         <button
+                                                            type="button"
                                                             onClick={() => handleOpenEditProduct(prod)}
                                                             title="Editar produto"
-                                                            className="p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-amber-400 transition-colors"
+                                                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-[#0E0C0A] text-stone-300 border border-[#2D2A26] hover:border-[#B88A44]/50 hover:text-[#F5F5F0] transition-colors"
                                                         >
-                                                            <Edit2 className="w-4 h-4" />
+                                                            <Edit2 className="w-3.5 h-3.5" />
+                                                            Editar
                                                         </button>
                                                         <button
+                                                            type="button"
                                                             onClick={() => handleDeleteProduct(prod)}
                                                             title="Remover produto"
-                                                            className="p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-rose-400 transition-colors"
+                                                            className="p-1.5 rounded-lg hover:bg-rose-500/15 text-stone-400 hover:text-rose-400 transition-colors"
                                                         >
-                                                            <Trash2 className="w-4 h-4" />
+                                                            <Trash2 className="w-3.5 h-3.5" />
                                                         </button>
                                                     </div>
                                                 </td>
@@ -773,10 +846,10 @@ export const Products: React.FC = () => {
             {/* Conteúdo da Aba 2: APENAS PARA USO (BANCADA & LAVATÓRIO) */}
             {activeTab === 'internal_use' && (
                 <div className="space-y-4">
-                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 flex items-start gap-3">
-                        <Scissors className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+                    <div className="bg-[#B88A44]/10 border border-[#B88A44]/30 rounded-xl p-4 flex items-start gap-3">
+                        <Scissors className="w-5 h-5 text-[#B88A44] shrink-0 mt-0.5" />
                         <div>
-                            <h3 className="font-semibold text-blue-300">Insumos de Bancada e Lavatório</h3>
+                            <h3 className="font-semibold text-[#B88A44]">Insumos de Bancada e Lavatório</h3>
                             <p className="text-xs text-slate-300 mt-0.5">
                                 Estes itens não geram comissão direta de venda ao cliente. Utilize o botão
                                 <strong> "Registrar Retirada / Consumo"</strong> para abater o estoque físico
@@ -844,7 +917,7 @@ export const Products: React.FC = () => {
                                                             <button
                                                                 onClick={() => handleOpenConsumption(prod.id)}
                                                                 title="Registrar retirada de bancada"
-                                                                className="p-1.5 rounded hover:bg-slate-800 text-blue-400 hover:text-blue-300 transition-colors"
+                                                                className="p-1.5 rounded hover:bg-[#1C1916] text-[#B88A44] hover:text-[#D4A359] transition-colors"
                                                             >
                                                                 <Scissors className="w-4 h-4" />
                                                             </button>
@@ -1025,7 +1098,7 @@ export const Products: React.FC = () => {
                                                     ) : (
                                                         <span className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded text-xs ${
                                                             isSurplus
-                                                                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                                                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                                                                 : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                                                         }`}>
                                                             {isSurplus ? `+${item.difference} un (Sobra)` : `${item.difference} un (Falta)`}
@@ -1036,7 +1109,7 @@ export const Products: React.FC = () => {
                                                     {item.divergence_value === 0 ? (
                                                         <span className="text-slate-500">R$ 0,00</span>
                                                     ) : (
-                                                        <span className={item.divergence_value > 0 ? 'text-blue-400' : 'text-rose-400'}>
+                                                        <span className={item.divergence_value > 0 ? 'text-emerald-400' : 'text-rose-400'}>
                                                             {formatCurrency(item.divergence_value)}
                                                         </span>
                                                     )}
@@ -1049,15 +1122,15 @@ export const Products: React.FC = () => {
                         </div>
 
                         {/* Barra de Totais da Conferência */}
-                        <div className="bg-slate-950 p-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-                            <div className="text-sm text-slate-400">
+                        <div className="bg-[#0E0C0A] p-4 border-t border-[#2D2A26] flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div className="text-sm text-stone-400">
                                 Divergências Identificadas:{' '}
-                                <strong className="text-white">{auditDiscrepancies.length} item(ns)</strong>
+                                <strong className="text-[#F5F5F0]">{auditDiscrepancies.length} item(ns)</strong>
                             </div>
                             <div className="flex items-center gap-6">
                                 <div className="text-right">
-                                    <div className="text-xs text-slate-400 uppercase">Impacto Líquido</div>
-                                    <div className={`text-lg font-bold ${totalAuditDifferenceValue >= 0 ? 'text-blue-400' : 'text-rose-400'}`}>
+                                    <div className="text-xs text-stone-400 uppercase">Impacto Líquido</div>
+                                    <div className={`text-lg font-bold ${totalAuditDifferenceValue >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                                         {formatCurrency(totalAuditDifferenceValue)}
                                     </div>
                                 </div>
@@ -1149,11 +1222,11 @@ export const Products: React.FC = () => {
                                 onClick={() => setProductForm({ ...productForm, purpose: 'internal_use' })}
                                 className={`p-2.5 rounded-lg border text-xs font-medium transition-all ${
                                     productForm.purpose === 'internal_use'
-                                        ? 'bg-blue-500/20 border-blue-500 text-blue-300'
-                                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                                        ? 'bg-[#B88A44]/20 border-[#B88A44] text-[#B88A44]'
+                                        : 'bg-[#0E0C0A] border-[#2D2A26] text-stone-400 hover:border-[#B88A44]/50'
                                 }`}
                             >
-                                <Scissors className="w-4 h-4 mx-auto mb-1 text-blue-400" />
+                                <Scissors className="w-4 h-4 mx-auto mb-1 text-[#B88A44]" />
                                 Uso Interno (Bancada)
                             </button>
 
@@ -1499,7 +1572,7 @@ export const Products: React.FC = () => {
                         <Button
                             type="submit"
                             variant="primary"
-                            className="bg-blue-600 hover:bg-blue-500 text-white font-semibold"
+                            className="bg-[#B88A44] hover:brightness-110 text-[#0E0C0A] font-semibold"
                         >
                             Confirmar Retirada
                         </Button>
@@ -1515,11 +1588,11 @@ export const Products: React.FC = () => {
                 maxWidth="sm"
             >
                 <form onSubmit={handleConfirmAuditWithPin} className="space-y-4">
-                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-xs text-slate-300">
+                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-xs text-stone-300">
                         Você está prestes a atualizar o saldo físico de{' '}
                         <strong className="text-amber-400">{auditDiscrepancies.length} produto(s)</strong>{' '}
                         com um impacto financeiro de{' '}
-                        <strong className={totalAuditDifferenceValue >= 0 ? 'text-blue-400' : 'text-rose-400'}>
+                        <strong className={totalAuditDifferenceValue >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
                             {formatCurrency(totalAuditDifferenceValue)}
                         </strong>.
                     </div>

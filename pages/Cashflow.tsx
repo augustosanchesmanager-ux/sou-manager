@@ -1,12 +1,24 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CalendarRange } from 'lucide-react';
+import {
+    CalendarRange,
+    PlusCircle,
+    MinusCircle,
+    Wallet,
+    ArrowUpCircle,
+    ArrowDownCircle,
+    Scale,
+    Loader2,
+} from 'lucide-react';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
-import MetricCard from '../components/ui/MetricCard';
-import CashFlowChart from '../components/financial/CashFlowChart';
+import DateRangeFilter from '../components/ui/DateRangeFilter';
+import ExportActionsDropdown from '../src/components/common/ExportActionsDropdown';
+import type { ExportPayload } from '../src/utils/export/types';
+import { useTenantOptional } from '../src/context/TenantContext';
 import EmptyStateFinance from '../components/financial/EmptyStateFinance';
+import CashFlowChart from '../components/financial/CashFlowChart';
 import { AuditAdjustmentButton } from '../components/audit';
 import { EnrichedCashFlowEntry } from '../components/financial/types';
 import { useAuth } from '../context/AuthContext';
@@ -142,6 +154,8 @@ const getReversalTypeLabel = (value?: string | null) => {
 
 const Cashflow: React.FC = () => {
     const { tenantId, accessRole, canAccessSuperAdmin } = useAuth();
+    const tenantCtx = useTenantOptional();
+    const tenantName = tenantCtx?.tenant?.name || 'Unidade SMG Barber';
     const hasTenantContext = Boolean(tenantId);
     const [searchParams, setSearchParams] = useSearchParams();
     const txParam = searchParams.get('tx');
@@ -155,10 +169,32 @@ const Cashflow: React.FC = () => {
     });
     const [highlightedTxId, setHighlightedTxId] = useState<string | null>(txParam);
     const handledTxParamRef = React.useRef<string | null>(null);
-    const [filterMonth, setFilterMonth] = useState(() => {
-        const d = new Date();
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+    const [dateFrom, setDateFrom] = useState(() => {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        return `${y}-${m}-01`;
     });
+    const [dateTo, setDateTo] = useState(() => {
+        const now = new Date();
+        const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        const y = last.getFullYear();
+        const m = String(last.getMonth() + 1).padStart(2, '0');
+        const d = String(last.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    });
+    const filterMonth = dateFrom.slice(0, 7);
+
+    const [previousBalance, setPreviousBalance] = useState(0);
+    const [paymentOriginFilter, setPaymentOriginFilter] = useState<'all' | 'cash' | 'pix' | 'cards'>('all');
+    const [manualModalType, setManualModalType] = useState<'income' | 'expense' | null>(null);
+    const [manualAmount, setManualAmount] = useState('');
+    const [manualDescription, setManualDescription] = useState('');
+    const [manualMethod, setManualMethod] = useState<'cash' | 'pix' | 'debit' | 'credit'>('cash');
+    const [manualCategory, setManualCategory] = useState('');
+    const [manualSubmitting, setManualSubmitting] = useState(false);
+
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -191,8 +227,9 @@ const Cashflow: React.FC = () => {
     };
 
     const fetchData = useCallback(async () => {
-        if (!tenantId || !filterMonth) {
+        if (!tenantId || !dateFrom || !dateTo) {
             setEntries([]);
+            setPreviousBalance(0);
             setLoadError(null);
             setLoading(false);
             return;
@@ -201,24 +238,37 @@ const Cashflow: React.FC = () => {
         setLoading(true);
         setLoadError(null);
 
-        const [yearStr, monthStr] = filterMonth.split('-');
-        const year = Number(yearStr);
-        const month = Number(monthStr);
-        const startOfMonth = new Date(year, month - 1, 1).toISOString();
-        const endOfMonth = new Date(year, month, 0, 23, 59, 59).toISOString();
+        const startIso = `${dateFrom}T00:00:00.000-03:00`;
+        const endIso = `${dateTo}T23:59:59.999-03:00`;
 
         try {
-            const { data, error } = await supabase
-                .from('transactions')
-                .select('id, tenant_id, type, category, amount, description, payment_method, date, created_at, status, source_type, source_id')
-                .eq('tenant_id', tenantId)
-                .gte('date', startOfMonth)
-                .lte('date', endOfMonth)
-                .order('date', { ascending: true });
+            const [prevRes, periodRes] = await Promise.all([
+                supabase
+                    .from('transactions')
+                    .select('type, amount')
+                    .eq('tenant_id', tenantId)
+                    .lt('date', startIso),
+                supabase
+                    .from('transactions')
+                    .select('id, tenant_id, type, category, amount, description, payment_method, date, created_at, status, source_type, source_id')
+                    .eq('tenant_id', tenantId)
+                    .gte('date', startIso)
+                    .lte('date', endIso)
+                    .order('date', { ascending: true }),
+            ]);
 
-            if (error) throw error;
+            if (periodRes.error) throw periodRes.error;
 
-            const transactions = (data || []) as TransactionRecord[];
+            let computedPrev = 0;
+            if (!prevRes.error && Array.isArray(prevRes.data)) {
+                for (const row of prevRes.data as any[]) {
+                    const amt = Number(row.amount || 0);
+                    computedPrev += row.type === 'income' ? amt : -amt;
+                }
+            }
+            setPreviousBalance(computedPrev);
+
+            const transactions = (periodRes.data || []) as TransactionRecord[];
             const transactionIds = transactions.map((transaction) => transaction.id).filter(Boolean);
             const reversedByTransactionId = new Map<string, number>();
             const reversalsByTransactionId = new Map<string, CashflowReversalSummary[]>();
@@ -276,7 +326,7 @@ const Cashflow: React.FC = () => {
                 }
             }
 
-            let runningBalance = 0;
+            let runningBalance = computedPrev;
             const mappedEntries: CashflowEntry[] = transactions.map((transaction) => {
                 const type = transaction.type === 'income' ? 'entrada' : 'saida';
                 const value = Number(transaction.amount || 0);
@@ -328,7 +378,7 @@ const Cashflow: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [filterMonth, tenantId]);
+    }, [dateFrom, dateTo, tenantId]);
 
     useEffect(() => {
         const view = searchParams.get('view');
@@ -401,7 +451,11 @@ const Cashflow: React.FC = () => {
             if (Number.isNaN(d.getTime())) return;
             const targetMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
             if (targetMonth !== filterMonth) {
-                setFilterMonth(targetMonth);
+                const startYmd = `${targetMonth}-01`;
+                const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+                const endYmd = `${targetMonth}-${String(lastDay.getDate()).padStart(2, '0')}`;
+                setDateFrom(startYmd);
+                setDateTo(endYmd);
             }
         })();
 
@@ -410,6 +464,63 @@ const Cashflow: React.FC = () => {
         };
     }, [txParam, actionParam, tenantId, loading, entries, filterMonth, isReversalEligible, openReversalModal]);
 
+    const handleOpenManualModal = (type: 'income' | 'expense') => {
+        setManualModalType(type);
+        setManualAmount('');
+        setManualDescription('');
+        setManualMethod('cash');
+        setManualCategory(type === 'income' ? 'Suprimento de Caixa' : 'Sangria / Retirada');
+    };
+
+    const handleConfirmManualEntry = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (manualSubmitting || !tenantId || !manualModalType) return;
+        const parsedAmount = Number(String(manualAmount).replace(',', '.'));
+        if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+            setToast({ message: 'Informe um valor válido maior que zero.', type: 'error' });
+            return;
+        }
+        if (!manualDescription.trim()) {
+            setToast({ message: 'Informe uma descrição para a movimentação.', type: 'error' });
+            return;
+        }
+
+        setManualSubmitting(true);
+        try {
+            const { error } = await supabase.from('transactions').insert({
+                tenant_id: tenantId,
+                type: manualModalType,
+                amount: parsedAmount,
+                description: manualDescription.trim(),
+                category: manualCategory.trim() || (manualModalType === 'income' ? 'Suprimento' : 'Sangria'),
+                payment_method: manualMethod,
+                date: new Date().toISOString(),
+                status: 'paid',
+                source_type: 'manual_cashflow',
+            });
+
+            if (error) throw error;
+
+            setToast({
+                message:
+                    manualModalType === 'income'
+                        ? 'Suprimento / Entrada registrado com sucesso!'
+                        : 'Sangria / Saída registrada com sucesso!',
+                type: 'success',
+            });
+            setManualModalType(null);
+            await fetchData();
+        } catch (err: any) {
+            console.error('Erro ao lançar movimentação manual:', err);
+            setToast({
+                message: err?.message || 'Não foi possível registrar a movimentação.',
+                type: 'error',
+            });
+        } finally {
+            setManualSubmitting(false);
+        }
+    };
+
     const totalEntradas = entries
         .filter((entry) => entry.type === 'entrada')
         .reduce((sum, entry) => sum + entry.value, 0);
@@ -417,15 +528,64 @@ const Cashflow: React.FC = () => {
         .filter((entry) => entry.type === 'saida')
         .reduce((sum, entry) => sum + entry.value, 0);
     const saldoAtual = totalEntradas - totalSaidas;
-    const ticketMedioEntrada = entries.filter((entry) => entry.type === 'entrada').length > 0
-        ? totalEntradas / entries.filter((entry) => entry.type === 'entrada').length
-        : 0;
+    const saldoFinal = previousBalance + totalEntradas - totalSaidas;
 
     const filteredEntries = entries.filter((entry) => {
-        if (activeTab === 'all') return true;
-        if (activeTab === 'income') return entry.type === 'entrada';
-        if (activeTab === 'expense') return entry.type === 'saida';
+        if (activeTab === 'income' && entry.type !== 'entrada') return false;
+        if (activeTab === 'expense' && entry.type !== 'saida') return false;
+
+        if (paymentOriginFilter !== 'all') {
+            const pm = String(entry.paymentMethod || '').toLowerCase();
+            if (paymentOriginFilter === 'cash' && !pm.includes('cash') && !pm.includes('dinheiro')) {
+                return false;
+            }
+            if (paymentOriginFilter === 'pix' && !pm.includes('pix')) {
+                return false;
+            }
+            if (
+                paymentOriginFilter === 'cards' &&
+                !pm.includes('credit') &&
+                !pm.includes('debit') &&
+                !pm.includes('crédito') &&
+                !pm.includes('credito') &&
+                !pm.includes('débito') &&
+                !pm.includes('debito') &&
+                !pm.includes('cartão')
+            ) {
+                return false;
+            }
+        }
         return true;
+    });
+
+    const getCashflowExportPayload = (): ExportPayload<CashflowEntry> => ({
+        metadata: {
+            title: 'Extrato de Fluxo de Caixa',
+            tenantName,
+            periodLabel: `${dateFrom.split('-').reverse().join('/')} a ${dateTo.split('-').reverse().join('/')}`,
+            generatedAt: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+            summaryCards: [
+                { label: 'Saldo Anterior', value: formatCurrency(previousBalance) },
+                { label: 'Entradas (+)', value: formatCurrency(totalEntradas) },
+                { label: 'Saídas (-)', value: formatCurrency(totalSaidas) },
+                { label: 'Saldo Final (=)', value: formatCurrency(saldoFinal) },
+            ],
+        },
+        orientation: 'landscape',
+        columns: [
+            { header: 'Data', key: 'date', format: (v) => formatCashflowDate(v) },
+            { header: 'Tipo', key: 'type', format: (v) => (v === 'entrada' ? 'Entrada' : 'Saída') },
+            { header: 'Meio Pgto', key: 'paymentMethod' },
+            { header: 'Descrição / Origem', key: 'description' },
+            { header: 'Categoria', key: 'category' },
+            {
+                header: 'Valor',
+                key: 'value',
+                format: (v, row) => `${row.type === 'entrada' ? '+' : '-'} ${formatCurrency(v)}`,
+            },
+            { header: 'Saldo Acumulado', key: 'runningBalance', format: (v) => formatCurrency(v) },
+        ],
+        data: filteredEntries,
     });
 
     const closeReversalModal = () => {
@@ -621,10 +781,26 @@ const Cashflow: React.FC = () => {
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                 <div>
                     <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{tabTitles[activeTab]}</h2>
-                    <p className="text-slate-500 mt-1">Leitura real das transações financeiras registradas no período.</p>
+                    <p className="text-slate-500 mt-1">Leitura real das transações financeiras registradas no período com saldo progressivo.</p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                    <button
+                        type="button"
+                        onClick={() => handleOpenManualModal('income')}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-colors"
+                    >
+                        <PlusCircle className="w-4 h-4" />
+                        Nova Entrada / Suprimento
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleOpenManualModal('expense')}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25 transition-colors"
+                    >
+                        <MinusCircle className="w-4 h-4" />
+                        Nova Saída / Sangria
+                    </button>
                     <AuditAdjustmentButton
                         context={{
                             sourceType: 'cashflow',
@@ -632,7 +808,7 @@ const Cashflow: React.FC = () => {
                             beforeSnapshot: {
                                 entradas: totalEntradas,
                                 saidas: totalSaidas,
-                                saldo: saldoAtual,
+                                saldo: saldoFinal,
                                 registros: filteredEntries.length,
                                 mes: filterMonth,
                                 aba: activeTab,
@@ -648,61 +824,88 @@ const Cashflow: React.FC = () => {
                         }}
                         defaultAdjustmentType="transaction_reclassification"
                     />
-                    <label className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-border-dark bg-white dark:bg-card-dark px-3 py-2.5">
-                        <CalendarRange className="h-4 w-4 text-slate-400" />
-                        <input
-                            type="month"
-                            value={filterMonth}
-                            onChange={(event) => setFilterMonth(event.target.value)}
-                            className="bg-transparent text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none [color-scheme:light] dark:[color-scheme:dark]"
-                        />
-                    </label>
-                    <Button variant="secondary" leftIcon="download" onClick={handleExport}>
-                        Exportar
-                    </Button>
+                    <ExportActionsDropdown
+                        getPayload={getCashflowExportPayload}
+                        baseFilename={`fluxo-caixa-${dateFrom}-a-${dateTo}`}
+                        disabled={loading}
+                    />
                     <Button leftIcon="sync" onClick={fetchData}>
                         Atualizar
                     </Button>
                 </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 p-1 bg-slate-100 dark:bg-white/5 rounded-xl w-fit">
+            {/* Barra de Controles: Período & Meio/Origem */}
+            <div className="bg-[#141210] border border-[#2D2A26] rounded-xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <DateRangeFilter
+                    startDate={dateFrom}
+                    endDate={dateTo}
+                    onStartDateChange={setDateFrom}
+                    onEndDateChange={setDateTo}
+                />
+                <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-stone-400 mr-1">
+                        Meio / Origem:
+                    </span>
+                    {[
+                        { key: 'all', label: 'Todos' },
+                        { key: 'cash', label: 'Dinheiro / Gaveta' },
+                        { key: 'pix', label: 'PIX / Banco' },
+                        { key: 'cards', label: 'Cartões' },
+                    ].map((opt) => (
+                        <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setPaymentOriginFilter(opt.key as any)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
+                                paymentOriginFilter === opt.key
+                                    ? 'bg-[#B88A44] text-[#0E0C0A] border-[#B88A44]'
+                                    : 'bg-[#0E0C0A] text-stone-300 border-[#2D2A26] hover:border-[#B88A44]/40'
+                            }`}
+                        >
+                            {opt.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 p-1 bg-[#141210] border border-[#2D2A26] rounded-xl w-fit">
                 <button
                     onClick={() => handleTabChange('all')}
-                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
                         activeTab === 'all'
-                            ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                            ? 'bg-[#B88A44] text-[#0E0C0A] shadow-sm'
+                            : 'text-stone-400 hover:text-[#F5F5F0]'
                     }`}
                 >
                     Todos
                 </button>
                 <button
                     onClick={() => handleTabChange('income')}
-                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
                         activeTab === 'income'
-                            ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm'
-                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
+                            : 'text-stone-400 hover:text-[#F5F5F0]'
                     }`}
                 >
                     Entradas
                 </button>
                 <button
                     onClick={() => handleTabChange('expense')}
-                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
                         activeTab === 'expense'
-                            ? 'bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-400 shadow-sm'
-                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                            ? 'bg-red-500/20 text-red-400 border border-red-500/40 shadow-sm'
+                            : 'text-stone-400 hover:text-[#F5F5F0]'
                     }`}
                 >
                     Saídas
                 </button>
                 <button
                     onClick={() => handleTabChange('ledger')}
-                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
                         activeTab === 'ledger'
-                            ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-400 shadow-sm'
-                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                            ? 'bg-[#B88A44] text-[#0E0C0A] shadow-sm'
+                            : 'text-stone-400 hover:text-[#F5F5F0]'
                     }`}
                 >
                     Livro Operacional & Vales
@@ -714,39 +917,63 @@ const Cashflow: React.FC = () => {
             ) : (
                 <>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <MetricCard
-                    label="Entradas"
-                    value={formatCurrency(totalEntradas)}
-                    trend={{ direction: 'up', label: `${entries.filter((entry) => entry.type === 'entrada').length} registros` }}
-                    tone="positive"
-                    helper="Total de receitas do período"
-                    icon="arrow_upward"
-                />
-                <MetricCard
-                    label="Saídas"
-                    value={formatCurrency(totalSaidas)}
-                    trend={{ direction: 'down', label: `${entries.filter((entry) => entry.type === 'saida').length} registros` }}
-                    tone="negative"
-                    helper="Total de despesas do período"
-                    icon="arrow_downward"
-                />
-                <MetricCard
-                    label="Saldo atual"
-                    value={formatCurrency(saldoAtual)}
-                    trend={{ direction: saldoAtual >= 0 ? 'up' : 'down', label: saldoAtual >= 0 ? 'Fechamento positivo' : 'Fechamento negativo' }}
-                    tone={saldoAtual >= 0 ? 'positive' : 'negative'}
-                    helper="Entradas menos saídas no período"
-                    icon="account_balance_wallet"
-                />
-                <MetricCard
-                    label="Ticket médio"
-                    value={formatCurrency(ticketMedioEntrada)}
-                    trend={{ direction: 'up', label: 'Receitas por lançamento' }}
-                    tone="neutral"
-                    helper="Média das entradas registradas"
-                    icon="receipt_long"
-                />
+            {/* 4 Cards Executivos Claros (Atelier Tech) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div className="bg-[#141210] border border-[#2D2A26] rounded-xl p-5 flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                            Saldo Anterior
+                        </span>
+                        <Wallet className="w-4 h-4 text-stone-400" />
+                    </div>
+                    <div className="mt-3 text-2xl font-bold text-[#F5F5F0]">
+                        {formatCurrency(previousBalance)}
+                    </div>
+                    <div className="mt-1 text-xs text-stone-500">Acumulado antes do período</div>
+                </div>
+
+                <div className="bg-[#141210] border border-emerald-500/30 rounded-xl p-5 flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">
+                            Entradas no Período (+)
+                        </span>
+                        <ArrowUpCircle className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <div className="mt-3 text-2xl font-bold text-emerald-400">
+                        + {formatCurrency(totalEntradas)}
+                    </div>
+                    <div className="mt-1 text-xs text-stone-400">
+                        {entries.filter((entry) => entry.type === 'entrada').length} lançamento(s)
+                    </div>
+                </div>
+
+                <div className="bg-[#141210] border border-red-500/30 rounded-xl p-5 flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-red-400">
+                            Saídas no Período (-)
+                        </span>
+                        <ArrowDownCircle className="w-4 h-4 text-red-400" />
+                    </div>
+                    <div className="mt-3 text-2xl font-bold text-red-400">
+                        - {formatCurrency(totalSaidas)}
+                    </div>
+                    <div className="mt-1 text-xs text-stone-400">
+                        {entries.filter((entry) => entry.type === 'saida').length} lançamento(s)
+                    </div>
+                </div>
+
+                <div className="bg-[#141210] border border-[#B88A44]/50 rounded-xl p-5 flex flex-col justify-between shadow-lg">
+                    <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-[#B88A44]">
+                            Saldo Final (=)
+                        </span>
+                        <Scale className="w-4 h-4 text-[#B88A44]" />
+                    </div>
+                    <div className={`mt-3 text-2xl font-bold ${saldoFinal >= 0 ? 'text-[#F5F5F0]' : 'text-red-400'}`}>
+                        {formatCurrency(saldoFinal)}
+                    </div>
+                    <div className="mt-1 text-xs text-stone-400">Saldo Anterior + Entradas - Saídas</div>
+                </div>
             </div>
 
             {loadError && (
@@ -1134,6 +1361,107 @@ const Cashflow: React.FC = () => {
                         )}
                     </div>
                 )}
+            </Modal>
+
+            {/* Modal Rápido de Suprimento (Entrada) ou Sangria (Saída) */}
+            <Modal
+                isOpen={Boolean(manualModalType)}
+                onClose={() => !manualSubmitting && setManualModalType(null)}
+                title={manualModalType === 'income' ? 'Nova Entrada / Suprimento' : 'Nova Saída / Sangria'}
+                maxWidth="sm"
+            >
+                <form onSubmit={handleConfirmManualEntry} className="space-y-4">
+                    <div>
+                        <label className="block text-[10px] font-semibold uppercase tracking-wider text-stone-400 mb-1">
+                            Valor (R$) *
+                        </label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            required
+                            disabled={manualSubmitting}
+                            value={manualAmount}
+                            onChange={(e) => setManualAmount(e.target.value)}
+                            placeholder="0,00"
+                            className="w-full rounded-lg border border-[#2D2A26] bg-[#0E0C0A] px-3 py-2 text-sm font-bold text-[#F5F5F0] focus:border-[#B88A44] focus:outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-semibold uppercase tracking-wider text-stone-400 mb-1">
+                            Descrição / Motivo *
+                        </label>
+                        <input
+                            type="text"
+                            required
+                            disabled={manualSubmitting}
+                            value={manualDescription}
+                            onChange={(e) => setManualDescription(e.target.value)}
+                            placeholder={manualModalType === 'income' ? 'Ex: Troco inicial da gaveta' : 'Ex: Retirada para pagamento motoboy'}
+                            className="w-full rounded-lg border border-[#2D2A26] bg-[#0E0C0A] px-3 py-2 text-xs text-[#F5F5F0] focus:border-[#B88A44] focus:outline-none"
+                        />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-[10px] font-semibold uppercase tracking-wider text-stone-400 mb-1">
+                                Meio
+                            </label>
+                            <select
+                                disabled={manualSubmitting}
+                                value={manualMethod}
+                                onChange={(e) => setManualMethod(e.target.value as any)}
+                                className="w-full rounded-lg border border-[#2D2A26] bg-[#0E0C0A] px-3 py-2 text-xs text-[#F5F5F0] focus:border-[#B88A44] focus:outline-none"
+                            >
+                                <option value="cash">Dinheiro (Gaveta)</option>
+                                <option value="pix">PIX / Banco</option>
+                                <option value="debit">Débito</option>
+                                <option value="credit">Crédito</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-semibold uppercase tracking-wider text-stone-400 mb-1">
+                                Categoria
+                            </label>
+                            <input
+                                type="text"
+                                disabled={manualSubmitting}
+                                value={manualCategory}
+                                onChange={(e) => setManualCategory(e.target.value)}
+                                className="w-full rounded-lg border border-[#2D2A26] bg-[#0E0C0A] px-3 py-2 text-xs text-[#F5F5F0] focus:border-[#B88A44] focus:outline-none"
+                            />
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2 border-t border-[#2D2A26]">
+                        <button
+                            type="button"
+                            disabled={manualSubmitting}
+                            onClick={() => setManualModalType(null)}
+                            className="px-4 py-2 rounded-lg text-xs font-semibold text-stone-300 bg-[#141210] border border-[#2D2A26] hover:bg-[#1E1B18] disabled:opacity-50"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={manualSubmitting}
+                            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all disabled:opacity-50 ${
+                                manualModalType === 'income'
+                                    ? 'bg-emerald-500 text-[#0E0C0A] hover:brightness-110'
+                                    : 'bg-red-500 text-white hover:brightness-110'
+                            }`}
+                        >
+                            {manualSubmitting ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Salvando...
+                                </>
+                            ) : manualModalType === 'income' ? (
+                                'Confirmar Entrada'
+                            ) : (
+                                'Confirmar Sangria'
+                            )}
+                        </button>
+                    </div>
+                </form>
             </Modal>
         </div>
     );

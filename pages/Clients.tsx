@@ -29,6 +29,7 @@ import {
 } from '../src/utils/clientReengagement';
 import { buildImportPreview, clientImportDefinition, phoneDuplicateKey, toPersistableRow, type ImportPreview } from '../src/modules/import-engine';
 import { requestAsyncExcelExport } from '../src/lib/export/excelExportService';
+import { sanitizeOptionalFields, sanitizeNullableString } from '../src/utils/sanitization';
 
 type SortKey = 'name' | 'last_visit' | 'total_spent';
 type SortDir = 'asc' | 'desc';
@@ -68,10 +69,26 @@ const Clients: React.FC = () => {
 
     // Filters
     const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 25;
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(search);
+            setCurrentPage(1);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [search]);
+
     const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
     const [inactivityFilter, setInactivityFilter] = useState<'all' | InactivityTier>('all');
     const [sortKey, setSortKey] = useState<SortKey>('name');
     const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [statusFilter, inactivityFilter, sortKey, sortDir]);
 
     // Reengajamento WhatsApp
     const [reengagementClient, setReengagementClient] = useState<Client | null>(null);
@@ -268,15 +285,15 @@ const Clients: React.FC = () => {
         loadingId = showLoading('CLIENTS');
         
         try {
-            const data = await clientRepository.listWithEffectiveLastVisit(tenantId);
+            const [data, planMap] = await Promise.all([
+                clientRepository.list(tenantId),
+                fetchActiveChefClubPlanMap(tenantId).catch((err) => {
+                    console.warn('Aviso ao carregar mapa do Club dos Chefes:', err);
+                    return {} as Record<string, string>;
+                }),
+            ]);
             setClients(data);
-
-            if (data.length === 0) {
-                setChefClubMap({});
-            } else {
-                const planMap = await fetchActiveChefClubPlanMap(tenantId);
-                setChefClubMap(planMap);
-            }
+            setChefClubMap(planMap || {});
         } catch (error) {
             console.error('Erro ao carregar clientes:', error);
             setToast({ message: 'Erro ao carregar clientes.', type: 'error' });
@@ -306,24 +323,33 @@ const Clients: React.FC = () => {
     }, [clients, location.pathname, location.state, navigate, openClientDetails]);
 
     // Filtering & Sorting
-    const processed = clients
-        .filter(c => {
-            const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search) || c.email.toLowerCase().includes(search.toLowerCase());
-            const matchStatus = statusFilter === 'all' || c.status === statusFilter;
-            let matchInactivity = true;
-            if (inactivityFilter !== 'all') {
-                const inact = getClientInactivityStatus(c.last_visit);
-                matchInactivity = inact.tier === inactivityFilter;
-            }
-            return matchSearch && matchStatus && matchInactivity;
-        })
-        .sort((a, b) => {
-            let cmp = 0;
-            if (sortKey === 'name') cmp = a.name.localeCompare(b.name);
-            else if (sortKey === 'last_visit') cmp = new Date(a.last_visit).getTime() - new Date(b.last_visit).getTime();
-            else if (sortKey === 'total_spent') cmp = (a.total_spent || 0) - (b.total_spent || 0);
-            return sortDir === 'asc' ? cmp : -cmp;
-        });
+    const processed = React.useMemo(() => {
+        const query = debouncedSearch.trim().toLowerCase();
+        return clients
+            .filter(c => {
+                const matchSearch = !query || c.name.toLowerCase().includes(query) || c.phone.includes(query) || c.email.toLowerCase().includes(query);
+                const matchStatus = statusFilter === 'all' || c.status === statusFilter;
+                let matchInactivity = true;
+                if (inactivityFilter !== 'all') {
+                    const inact = getClientInactivityStatus(c.last_visit);
+                    matchInactivity = inact.tier === inactivityFilter;
+                }
+                return matchSearch && matchStatus && matchInactivity;
+            })
+            .sort((a, b) => {
+                let cmp = 0;
+                if (sortKey === 'name') cmp = a.name.localeCompare(b.name);
+                else if (sortKey === 'last_visit') cmp = new Date(a.last_visit).getTime() - new Date(b.last_visit).getTime();
+                else if (sortKey === 'total_spent') cmp = (a.total_spent || 0) - (b.total_spent || 0);
+                return sortDir === 'asc' ? cmp : -cmp;
+            });
+    }, [clients, debouncedSearch, statusFilter, inactivityFilter, sortKey, sortDir]);
+
+    const totalPages = Math.ceil(processed.length / itemsPerPage) || 1;
+    const paginatedClients = React.useMemo(() => {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        return processed.slice(startIndex, startIndex + itemsPerPage);
+    }, [processed, currentPage, itemsPerPage]);
 
     const handleSort = (key: SortKey) => {
         if (sortKey === key) {
@@ -347,12 +373,13 @@ const Clients: React.FC = () => {
             return;
         }
         try {
-            await clientRepository.create({
-                name: newForm.name,
+            const sanitizedInput = sanitizeOptionalFields({
+                name: newForm.name.trim(),
                 email: newForm.email,
                 phone: newForm.phone,
                 birthday: newForm.birthday,
-            }, tenantId);
+            });
+            await clientRepository.create(sanitizedInput as any, tenantId);
             setShowModal(false);
             setNewForm({ name: '', email: '', phone: '', birthday: '' });
             setToast({ message: 'Cliente cadastrado com sucesso!', type: 'success' });
@@ -373,7 +400,8 @@ const Clients: React.FC = () => {
         e.preventDefault();
         if (!editingId || !tenantId) return;
         try {
-            await clientRepository.update(editingId, editForm, tenantId);
+            const sanitizedEdit = sanitizeOptionalFields(editForm);
+            await clientRepository.update(editingId, sanitizedEdit, tenantId);
             setEditingId(null);
             setEditForm({});
             setToast({ message: 'Cliente atualizado!', type: 'success' });
@@ -812,7 +840,7 @@ const Clients: React.FC = () => {
                                         </td>
                                     </tr>
                                 )}
-                                {processed.map(client => (
+                                {paginatedClients.map(client => (
                                     <tr key={client.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
                                         <td className="px-5 py-4">
                                             <div className="flex items-center gap-3">
@@ -865,34 +893,60 @@ const Clients: React.FC = () => {
                                             </span>
                                         </td>
                                         <td className="px-5 py-4">
-                                            <div className="flex items-center justify-end gap-1">
+                                            <div className="flex items-center justify-end gap-1.5">
+                                                {/* Ação Primária: Ver Perfil */}
                                                 <button
                                                     type="button"
-                                                    onClick={() => {
-                                                        setReengagementClient(client);
-                                                        setIsReengagementOpen(true);
-                                                    }}
-                                                    className="p-2.5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors"
-                                                    title="Reengajar via WhatsApp"
+                                                    onClick={() => void openClientDetails(client)}
+                                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[#B88A44]/10 text-[#B88A44] hover:bg-[#B88A44] hover:text-[#0E0C0A] border border-[#B88A44]/30 transition-all shadow-sm"
+                                                    title="Ver Perfil Completo (360°)"
                                                 >
-                                                    <span className="material-symbols-outlined text-lg">chat</span>
+                                                    <span className="material-symbols-outlined text-[15px]">visibility</span>
+                                                    <span className="hidden sm:inline">Perfil</span>
                                                 </button>
+
+                                                {/* Atalho Direto WhatsApp (quando houver telefone) */}
+                                                {client.phone && (
+                                                    <a
+                                                        href={`https://wa.me/55${client.phone.replace(/\D/g, '')}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="p-1.5 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg border border-transparent hover:border-emerald-500/30 transition-colors"
+                                                        title={`Abrir WhatsApp (${client.phone})`}
+                                                    >
+                                                        <span className="material-symbols-outlined text-lg">chat</span>
+                                                    </a>
+                                                )}
+
+                                                {/* Editar */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleEditClick(client)}
+                                                    className="p-1.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                                                    title="Editar Dados Básicos"
+                                                >
+                                                    <span className="material-symbols-outlined text-lg">edit</span>
+                                                </button>
+
+                                                {/* Virar Assinante */}
                                                 {!isEsteticaApp && (
                                                     <button
+                                                        type="button"
                                                         onClick={() => navigate(`/chef-club-subscriptions/new?from=clients&clientId=${client.id}`)}
-                                                        className="p-2.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
-                                                        title="Virar Assinante"
+                                                        className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 rounded-lg transition-colors"
+                                                        title="Assinatura Clube"
                                                     >
                                                         <span className="material-symbols-outlined text-lg">workspace_premium</span>
                                                     </button>
                                                 )}
-                                                <button onClick={() => void openClientDetails(client)} className="p-2.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Ver Detalhes">
-                                                    <span className="material-symbols-outlined text-lg">visibility</span>
-                                                </button>
-                                                <button onClick={() => handleEditClick(client)} className="p-2.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors" title="Editar">
-                                                    <span className="material-symbols-outlined text-lg">edit</span>
-                                                </button>
-                                                <button onClick={() => setDeleteTarget(client)} className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Excluir">
+
+                                                {/* Excluir */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDeleteTarget(client)}
+                                                    className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-400/10 rounded-lg transition-colors"
+                                                    title="Excluir"
+                                                >
                                                     <span className="material-symbols-outlined text-lg">delete</span>
                                                 </button>
                                             </div>
@@ -902,6 +956,45 @@ const Clients: React.FC = () => {
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Paginação */}
+                    {processed.length > 0 && (
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 border-t border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-[#141210] text-xs text-slate-500 dark:text-slate-400">
+                            <div>
+                                Mostrando <span className="font-bold text-slate-900 dark:text-white">{(currentPage - 1) * itemsPerPage + 1}</span> a{' '}
+                                <span className="font-bold text-slate-900 dark:text-white">{Math.min(currentPage * itemsPerPage, processed.length)}</span> de{' '}
+                                <span className="font-bold text-slate-900 dark:text-white">{processed.length}</span> clientes
+                            </div>
+
+                            {totalPages > 1 && (
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                                        disabled={currentPage === 1}
+                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#2D2A26] bg-white dark:bg-[#0E0C0A] font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                    >
+                                        <span className="material-symbols-outlined text-sm">chevron_left</span>
+                                        Anterior
+                                    </button>
+
+                                    <span className="px-2 py-1 font-bold text-slate-700 dark:text-slate-300">
+                                        Página {currentPage} de {totalPages}
+                                    </span>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                                        disabled={currentPage >= totalPages}
+                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#2D2A26] bg-white dark:bg-[#0E0C0A] font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                    >
+                                        Próxima
+                                        <span className="material-symbols-outlined text-sm">chevron_right</span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </LoadingBlock>
 

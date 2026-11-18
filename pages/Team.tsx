@@ -13,9 +13,10 @@ import { useBarberPayoutConfig } from '../src/hooks/usePayoutService';
 import type { PayoutFrequency } from '../domain/payout/types';
 import { PayoutCycleConfigFields } from '../components/payroll/PayoutCycleConfigModal';
 import { StaffScheduleModal } from '../components/staff/StaffScheduleModal';
-import type { StaffWorkingHours } from '../domain/staff/types';
+import type { StaffWorkingHours, StaffProfileDetails, PixKeyType } from '../domain/staff/types';
 import { cardFeeRepository } from '../domain/paymentTerminal/cardFeeRepository';
 import type { CardFeePolicy } from '../domain/paymentTerminal/cardFeeSplitEngine';
+import { sanitizeOptionalFields, sanitizeNullableString } from '../src/utils/sanitization';
 
 interface TeamMember {
     id: string;
@@ -77,20 +78,48 @@ const Team: React.FC = () => {
     };
 
     // Modal
+    type StaffModalTab = 'essential' | 'financial' | 'personal' | 'schedule';
+    const [modalTab, setModalTab] = useState<StaffModalTab>('essential');
     const [showModal, setShowModal] = useState(false);
     const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
     const [form, setForm] = useState({
+        // Aba 1: Essencial & Operação
         name: '',
+        nickname: '',
         email: '',
         phone: '',
-        role: 'manager',
-        commission_rate: String(getDefaultCommissionRateForRole('manager')),
+        role: 'barber',
+        commission_rate: String(getDefaultCommissionRateForRole('barber')),
         product_commission_rate: '0',
         comissiona_produtos: false,
         status: 'active',
         password: '',
+
+        // Aba 2: Financeiro & Repasse
+        pix_key: '',
+        pix_type: 'cpf' as PixKeyType,
+        bank: '',
+        fixed_salary: '',
+
+        // Aba 3: Dados Pessoais & Documento
+        cpf: '',
+        rg: '',
+        birth_date: '',
+        hire_date: '',
+        address: '',
+        notes: '',
+
+        // Aba 4: Agenda & Serviços
+        show_in_calendar: true,
     });
     const [commissionEditedManually, setCommissionEditedManually] = useState(false);
+
+    const isProfileComplete = (member: TeamMember): boolean => {
+        const profile = member.working_hours?._profile;
+        const hasPix = Boolean(profile?.pix_key && profile.pix_key.trim());
+        const hasDoc = Boolean(profile?.cpf && profile.cpf.trim());
+        return hasPix || hasDoc;
+    };
 
     // Política de Repasse & Vales (G2 — ADR-030)
     const { getConfigByStaff, upsertConfig } = useBarberPayoutConfig();
@@ -184,35 +213,66 @@ const Team: React.FC = () => {
     const openNewModal = () => {
         setEditingMember(null);
         setCommissionEditedManually(false);
+        setModalTab('essential');
         setForm({
             name: '',
+            nickname: '',
             email: '',
             phone: '',
-            role: 'manager',
-            commission_rate: String(getDefaultCommissionRateForRole('manager')),
+            role: 'barber',
+            commission_rate: String(getDefaultCommissionRateForRole('barber')),
             product_commission_rate: '0',
             comissiona_produtos: false,
             status: 'active',
             password: '',
+            pix_key: '',
+            pix_type: 'cpf',
+            bank: '',
+            fixed_salary: '',
+            cpf: '',
+            rg: '',
+            birth_date: '',
+            hire_date: '',
+            address: '',
+            notes: '',
+            show_in_calendar: true,
         });
         setCardFeePolicy('gross');
         setShowModal(true);
     };
 
-    const openEditModal = (member: TeamMember) => {
+    const openEditModal = (member: TeamMember, initialTab: StaffModalTab = 'essential') => {
         setEditingMember(member);
         setCommissionEditedManually(false);
+        setModalTab(initialTab);
         const prodRate = Number(member.product_commission_rate || 0);
+        const profile = member.working_hours?._profile || {};
+
         setForm({
-            name: member.name,
-            email: member.email,
-            phone: member.phone,
-            role: member.role,
-            commission_rate: member.commission_rate.toString(),
+            name: member.name || '',
+            nickname: profile.nickname || '',
+            email: member.email || '',
+            phone: member.phone || '',
+            role: member.role || 'barber',
+            commission_rate: (member.commission_rate ?? 40).toString(),
             product_commission_rate: prodRate.toString(),
             comissiona_produtos: prodRate > 0,
-            status: member.status,
-            password: '', // Não editamos senha por aqui
+            status: member.status || 'active',
+            password: '',
+
+            pix_key: profile.pix_key || '',
+            pix_type: (profile.pix_type as PixKeyType) || 'cpf',
+            bank: profile.bank || '',
+            fixed_salary: profile.fixed_salary != null ? String(profile.fixed_salary) : '',
+
+            cpf: profile.cpf || '',
+            rg: profile.rg || '',
+            birth_date: profile.birth_date || '',
+            hire_date: profile.hire_date || '',
+            address: profile.address || '',
+            notes: profile.notes || '',
+
+            show_in_calendar: profile.show_in_calendar !== false,
         });
         setPayoutForm({
             frequency: 'weekly',
@@ -263,15 +323,49 @@ const Team: React.FC = () => {
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!form.name.trim()) {
+            setToast({ message: 'O Nome Completo é obrigatório.', type: 'error' });
+            setModalTab('essential');
+            return;
+        }
+
+        const sanitizedProfile: StaffProfileDetails = sanitizeOptionalFields({
+            nickname: form.nickname,
+            pix_key: form.pix_key,
+            pix_type: form.pix_type,
+            bank: form.bank,
+            fixed_salary: form.fixed_salary ? parseFloat(form.fixed_salary) : null,
+            cpf: form.cpf,
+            rg: form.rg,
+            birth_date: form.birth_date,
+            hire_date: form.hire_date,
+            address: form.address,
+            notes: form.notes,
+            show_in_calendar: form.show_in_calendar,
+        });
+
+        const existingWorkingHours = (editingMember?.working_hours && typeof editingMember.working_hours === 'object')
+            ? editingMember.working_hours
+            : {};
+
+        const updatedWorkingHours: StaffWorkingHours = {
+            ...existingWorkingHours,
+            _profile: sanitizedProfile,
+        };
+
         const editableFields = {
-            name: form.name,
-            email: form.email,
-            phone: form.phone,
+            name: form.name.trim(),
+            email: sanitizeNullableString(form.email) || '',
+            phone: sanitizeNullableString(form.phone) || '',
             role: form.role,
             commission_rate: parseInt(form.commission_rate) || 0,
             product_commission_rate: form.comissiona_produtos ? (parseInt(form.product_commission_rate) || 0) : 0,
             status: form.status,
-            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(form.name)}&background=random`,
+            avatar: form.name
+                ? `https://ui-avatars.com/api/?name=${encodeURIComponent(form.name.trim())}&background=random`
+                : '',
+            working_hours: updatedWorkingHours,
         };
 
         if (editingMember) {
@@ -704,7 +798,24 @@ const Team: React.FC = () => {
                                                     <span className={`absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-white dark:border-card-dark ${member.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <span className="font-semibold text-slate-900 dark:text-white block truncate">{member.name}</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-semibold text-slate-900 dark:text-white block truncate">{member.name}</span>
+                                                        {isProfileComplete(member) ? (
+                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title="Cadastro Completo">
+                                                                Completo
+                                                            </span>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openEditModal(member, 'financial')}
+                                                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-colors"
+                                                                title="Cadastro Básico · Clique para adicionar PIX e documentos"
+                                                            >
+                                                                Básico
+                                                                <span className="material-symbols-outlined text-[10px]">edit</span>
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                     <span className="text-xs text-slate-400 block truncate sm:hidden">{member.email || 'Sem e-mail'}</span>
                                                 </div>
                                             </div>
@@ -771,7 +882,24 @@ const Team: React.FC = () => {
                                     <span className={`absolute -bottom-1 -right-1 size-4 rounded-full border-2 border-white dark:border-card-dark ${member.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors display-font">{member.name}</h4>
+                                    <div className="flex items-center gap-2">
+                                        <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors display-font truncate">{member.name}</h4>
+                                        {isProfileComplete(member) ? (
+                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title="Cadastro Completo">
+                                                Completo
+                                            </span>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={() => openEditModal(member, 'financial')}
+                                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-colors"
+                                                title="Cadastro Básico · Clique para adicionar PIX e documentos"
+                                            >
+                                                Básico
+                                                <span className="material-symbols-outlined text-[10px]">edit</span>
+                                            </button>
+                                        )}
+                                    </div>
                                     <div className="flex items-center gap-1.5 mt-0.5">
                                         <span className="material-symbols-outlined text-sm text-slate-400">{roleIcons[member.role] || 'person'}</span>
                                         <span className="text-xs text-slate-500 font-bold">{roleLabels[member.role] || member.role}</span>
@@ -831,162 +959,498 @@ const Team: React.FC = () => {
                 onSave={handleSaveStaffSchedule}
             />
 
-            {/* Add/Edit Modal */}
+            {/* Add/Edit Modal (Cadastro Progressivo Desbloqueado) */}
             <Modal
                 isOpen={showModal}
                 onClose={() => { setShowModal(false); setEditingMember(null); }}
                 title={editingMember ? `Editar ${memberLabel}` : `Novo ${memberLabel}`}
-                maxWidth="md"
+                maxWidth="2xl"
             >
-                <form onSubmit={handleSave} className="space-y-4">
-                    <div>
-                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Nome Completo</label>
-                        <input type="text" required={Boolean(editingMember) || !inviteRoles.includes(form.role)} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" placeholder="Ex: João Silva" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Email</label>
-                            <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
-                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" placeholder={isEsteticaApp ? 'email@studio.com' : 'email@barber.com'} />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Telefone</label>
-                            <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" placeholder="(11) 99999-0000" />
-                        </div>
-                    </div>
-                    {!editingMember && inviteRoles.includes(form.role) && (
-                        <div className="text-xs text-slate-500 dark:text-slate-400 bg-teal-50 dark:bg-teal-900/20 border border-teal-100 dark:border-teal-900/40 rounded-lg px-3 py-2">
-                            {isEsteticaApp ? 'O profissional' : 'O colaborador'} receberá um convite por e-mail e definirá a própria senha ao aceitar.
-                        </div>
-                    )}
-                    {!editingMember && !inviteRoles.includes(form.role) && (
-                        <div>
-                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Senha de Acesso (Inicial)</label>
-                            <input type="password" required autoComplete="new-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
-                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" placeholder="Mínimo 6 caracteres" />
-                            <p className="text-[10px] text-slate-400 mt-1">Essa será a senha que {isEsteticaApp ? 'o profissional' : 'o colaborador'} usará para logar no sistema.</p>
-                        </div>
-                    )}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Função</label>
-                            <select value={form.role} onChange={(e) => handleRoleChange(e.target.value)}
-                                className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none [color-scheme:light] dark:[color-scheme:dark]">
-                                {roleOptions.map(r => <option key={r} value={r} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">{roleLabels[r]}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">{commissionLabel} Serviços (%)</label>
-                            <input type="number" min="0" max="100" value={form.commission_rate} onChange={(e) => handleCommissionRateChange(e.target.value)}
-                                className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none" />
-                        </div>
-                    </div>
-
-                    {/* Bloco de Comissão de Produtos */}
-                    <div className="p-3.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/60 dark:bg-white/[0.02] space-y-2.5">
-                        <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                            <input
-                                type="checkbox"
-                                checked={form.comissiona_produtos}
-                                onChange={(e) => {
-                                    const checked = e.target.checked;
-                                    setForm((prev) => ({
-                                        ...prev,
-                                        comissiona_produtos: checked,
-                                        product_commission_rate: checked ? (prev.product_commission_rate !== '0' ? prev.product_commission_rate : '10') : '0',
-                                    }));
-                                }}
-                                className="size-4 rounded text-amber-500 focus:ring-amber-500 border-slate-300 dark:border-slate-600"
-                            />
-                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                Comissionar sobre Venda de Produtos
-                            </span>
-                        </label>
-                        {form.comissiona_produtos ? (
-                            <div className="pl-6 pt-1">
-                                <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">
-                                    Alíquota sobre Produtos (%)
-                                </label>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    value={form.product_commission_rate}
-                                    onChange={(e) => setForm((prev) => ({ ...prev, product_commission_rate: e.target.value }))}
-                                    className="w-full sm:w-48 bg-white dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-2.5 text-sm text-slate-900 dark:text-white outline-none"
-                                    placeholder="Ex: 10"
-                                />
-                            </div>
-                        ) : (
-                            <p className="text-[11px] text-slate-400 pl-6 leading-relaxed">
-                                Nenhum produto vendido gerará comissão para este colaborador (padrão Sanchez Barber).
-                            </p>
-                        )}
-                    </div>
-                    {/* Bloco de Política de Taxa de Maquininha / Cartão (Frente B) */}
-                    <div className="p-3.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/60 dark:bg-white/[0.02] space-y-2">
-                        <div className="flex items-center justify-between">
-                            <label className="block text-xs font-bold uppercase text-slate-500">
-                                Taxa da Maquininha de Cartão
-                            </label>
-                            <span className="text-[10px] text-amber-500 font-bold uppercase">
-                                Rateio Inteligente
-                            </span>
-                        </div>
-
-                        <select
-                            value={cardFeePolicy}
-                            onChange={(e) => setCardFeePolicy(e.target.value as CardFeePolicy)}
-                            className="w-full bg-white dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-2.5 text-xs text-slate-900 dark:text-white outline-none"
+                <form onSubmit={handleSave} className="flex flex-col gap-4">
+                    {/* Barra de Abas do Cadastro Progressivo */}
+                    <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-[#141210] border border-slate-200 dark:border-[#2D2A26] rounded-xl overflow-x-auto">
+                        <button
+                            type="button"
+                            onClick={() => setModalTab('essential')}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                                modalTab === 'essential'
+                                    ? 'bg-white dark:bg-[#0E0C0A] text-slate-900 dark:text-[#F5F5F0] border border-slate-200 dark:border-[#2D2A26] shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                            }`}
                         >
-                            <option value="gross">Bruto (Barbearia absorve 100% da taxa - Isento)</option>
-                            <option value="split">Dividido (Rateio proporcional à comissão)</option>
-                            <option value="deducted">Descontado (Taxa deduzida da comissão do barbeiro)</option>
-                        </select>
+                            <span className="material-symbols-outlined text-sm text-[#B88A44]">badge</span>
+                            1. Essencial & Operação <span className="text-[#B88A44] font-black">*</span>
+                        </button>
 
-                        <p className="text-[11px] text-slate-400 leading-relaxed">
-                            {cardFeePolicy === 'gross' && 'O profissional recebe a comissão integral. A barbearia absorve todas as taxas de maquininha (sinalizado como isento no extrato).'}
-                            {cardFeePolicy === 'split' && 'A taxa da máquina é dividida proporcionalmente com base na comissão (ex: 50% para a casa, 50% para o barbeiro).'}
-                            {cardFeePolicy === 'deducted' && 'O custo total da taxa da maquininha é deduzido da parcela do profissional no momento do fechamento.'}
-                        </p>
+                        <button
+                            type="button"
+                            onClick={() => setModalTab('financial')}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                                modalTab === 'financial'
+                                    ? 'bg-white dark:bg-[#0E0C0A] text-slate-900 dark:text-[#F5F5F0] border border-slate-200 dark:border-[#2D2A26] shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                            }`}
+                        >
+                            <span className="material-symbols-outlined text-sm text-slate-400">account_balance_wallet</span>
+                            2. Financeiro & Repasse
+                            {Boolean(form.pix_key) && <span className="size-1.5 rounded-full bg-emerald-500" />}
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setModalTab('personal')}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                                modalTab === 'personal'
+                                    ? 'bg-white dark:bg-[#0E0C0A] text-slate-900 dark:text-[#F5F5F0] border border-slate-200 dark:border-[#2D2A26] shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                            }`}
+                        >
+                            <span className="material-symbols-outlined text-sm text-slate-400">person</span>
+                            3. Dados & Documentos
+                            {Boolean(form.cpf) && <span className="size-1.5 rounded-full bg-emerald-500" />}
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setModalTab('schedule')}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                                modalTab === 'schedule'
+                                    ? 'bg-white dark:bg-[#0E0C0A] text-slate-900 dark:text-[#F5F5F0] border border-slate-200 dark:border-[#2D2A26] shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                            }`}
+                        >
+                            <span className="material-symbols-outlined text-sm text-slate-400">schedule</span>
+                            4. Agenda & Serviços
+                        </button>
                     </div>
 
-                    <div>
-                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Status</label>
-                        <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}
-                            className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none [color-scheme:light] dark:[color-scheme:dark]">
-                            <option value="active" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Ativo</option>
-                            <option value="inactive" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Inativo</option>
-                        </select>
-                    </div>
-                    {editingMember && (Number(form.commission_rate) > 0 || form.role === 'barber') && (
-                        <div className="pt-3 border-t border-slate-200 dark:border-border-dark space-y-3">
-                            <div className="flex items-center justify-between">
-                                <span className="text-xs font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
-                                    Política de Repasse & Vales (Lei Salão-Parceiro)
-                                </span>
-                                {loadingPayoutConfig && (
-                                    <span className="text-[11px] text-slate-400">Carregando...</span>
+                    {/* Conteúdo das Abas (Rolável com altura confortável) */}
+                    <div className="max-h-[62vh] overflow-y-auto px-1 py-1 space-y-4">
+                        {/* ======================================================== */}
+                        {/* ABA 1: ESSENCIAL & OPERAÇÃO (ÚNICA OBRIGATÓRIA)           */}
+                        {/* ======================================================== */}
+                        {modalTab === 'essential' && (
+                            <div className="space-y-4 animate-fade-in">
+                                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-base">info</span>
+                                    <span>
+                                        <strong>Balcão ágil:</strong> Apenas os campos marcados com <span className="font-bold">*</span> são necessários para salvar e começar a operar agora. Os demais são opcionais.
+                                    </span>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">
+                                            Nome Completo <span className="text-[#B88A44]">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={form.name}
+                                            onChange={(e) => setForm({ ...form, name: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                                            placeholder="Ex: João Silva"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">
+                                            Apelido / Nome de Exibição <span className="text-slate-400 font-normal lowercase">(opcional)</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={form.nickname}
+                                            onChange={(e) => setForm({ ...form, nickname: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                                            placeholder="Ex: Silva Barber, Dan"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">
+                                            Função / Cargo <span className="text-[#B88A44]">*</span>
+                                        </label>
+                                        <select
+                                            value={form.role}
+                                            onChange={(e) => handleRoleChange(e.target.value)}
+                                            className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none [color-scheme:light] dark:[color-scheme:dark]"
+                                        >
+                                            {roleOptions.map((r) => (
+                                                <option key={r} value={r} className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">
+                                                    {roleLabels[r]}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">
+                                            Telefone / WhatsApp <span className="text-[#B88A44]">*</span>
+                                        </label>
+                                        <input
+                                            type="tel"
+                                            required
+                                            value={form.phone}
+                                            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                                            placeholder="(11) 99999-0000"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">
+                                            {commissionLabel} de Serviços (%) <span className="text-[#B88A44]">*</span>
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            required
+                                            value={form.commission_rate}
+                                            onChange={(e) => handleCommissionRateChange(e.target.value)}
+                                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">
+                                            E-mail {inviteRoles.includes(form.role) && !editingMember ? <span className="text-[#B88A44]">* (Convite)</span> : <span className="text-slate-400 font-normal lowercase">(opcional)</span>}
+                                        </label>
+                                        <input
+                                            type="email"
+                                            value={form.email}
+                                            onChange={(e) => setForm({ ...form, email: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                                            placeholder={isEsteticaApp ? 'email@studio.com' : 'email@barber.com'}
+                                        />
+                                    </div>
+                                </div>
+
+                                {!editingMember && inviteRoles.includes(form.role) && (
+                                    <div className="text-xs text-slate-500 dark:text-slate-400 bg-teal-50 dark:bg-teal-900/20 border border-teal-100 dark:border-teal-900/40 rounded-lg px-3 py-2.5">
+                                        {isEsteticaApp ? 'O profissional' : 'O colaborador'} receberá um convite por e-mail e definirá a própria senha ao aceitar.
+                                    </div>
+                                )}
+
+                                {!editingMember && !inviteRoles.includes(form.role) && (
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Senha de Acesso (Inicial) *</label>
+                                        <input
+                                            type="password"
+                                            required
+                                            autoComplete="new-password"
+                                            value={form.password}
+                                            onChange={(e) => setForm({ ...form, password: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none"
+                                            placeholder="Mínimo 6 caracteres"
+                                        />
+                                        <p className="text-[10px] text-slate-400 mt-1">Essa será a senha inicial para login no painel.</p>
+                                    </div>
                                 )}
                             </div>
-                            <PayoutCycleConfigFields
-                                frequency={payoutForm.frequency}
-                                payoutWeekday={payoutForm.payoutWeekday}
-                                payoutMonthDay={payoutForm.payoutMonthDay}
-                                allowAdvances={payoutForm.allowAdvances}
-                                disabled={loadingPayoutConfig}
-                                onChange={(next) => setPayoutForm(next)}
-                            />
-                        </div>
-                    )}
-                    <div className="flex gap-3 pt-2">
-                        <button type="button" onClick={() => { setShowModal(false); setEditingMember(null); }}
-                            className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">Cancelar</button>
-                        <button type="submit"
-                            className="flex-1 py-3 rounded-lg text-sm font-bold text-night bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">
-                            {editingMember ? 'Salvar Alterações' : inviteRoles.includes(form.role) ? 'Enviar Convite' : 'Adicionar'}
+                        )}
+
+                        {/* ======================================================== */}
+                        {/* ABA 2: FINANCEIRO & REPASSE (OPCIONAL)                    */}
+                        {/* ======================================================== */}
+                        {modalTab === 'financial' && (
+                            <div className="space-y-4 animate-fade-in">
+                                <div className="p-3.5 rounded-xl border border-slate-200 dark:border-[#2D2A26] bg-slate-50/60 dark:bg-[#141210] space-y-3">
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
+                                        <span className="material-symbols-outlined text-sm text-[#B88A44]">credit_card</span>
+                                        Dados de Repasse & PIX (Opcional)
+                                    </h4>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <div>
+                                            <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">Tipo de Chave PIX</label>
+                                            <select
+                                                value={form.pix_type}
+                                                onChange={(e) => setForm({ ...form, pix_type: e.target.value as PixKeyType })}
+                                                className="w-full bg-white dark:bg-[#0E0C0A] border border-slate-200 dark:border-[#2D2A26] rounded-lg p-2.5 text-xs text-slate-900 dark:text-white outline-none"
+                                            >
+                                                <option value="cpf">CPF</option>
+                                                <option value="cnpj">CNPJ</option>
+                                                <option value="phone">Telefone / Celular</option>
+                                                <option value="email">E-mail</option>
+                                                <option value="random">Chave Aleatória</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="sm:col-span-2">
+                                            <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">Chave PIX</label>
+                                            <input
+                                                type="text"
+                                                value={form.pix_key}
+                                                onChange={(e) => setForm({ ...form, pix_key: e.target.value })}
+                                                className="w-full bg-white dark:bg-[#0E0C0A] border border-slate-200 dark:border-[#2D2A26] rounded-lg p-2.5 text-xs text-slate-900 dark:text-white outline-none"
+                                                placeholder="Informe a chave PIX do profissional"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">Banco / Instituição</label>
+                                            <input
+                                                type="text"
+                                                value={form.bank}
+                                                onChange={(e) => setForm({ ...form, bank: e.target.value })}
+                                                className="w-full bg-white dark:bg-[#0E0C0A] border border-slate-200 dark:border-[#2D2A26] rounded-lg p-2.5 text-xs text-slate-900 dark:text-white outline-none"
+                                                placeholder="Ex: Nubank, Inter, Itaú"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">Salário Fixo / Ajuda de Custo (R$)</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                value={form.fixed_salary}
+                                                onChange={(e) => setForm({ ...form, fixed_salary: e.target.value })}
+                                                className="w-full bg-white dark:bg-[#0E0C0A] border border-slate-200 dark:border-[#2D2A26] rounded-lg p-2.5 text-xs text-slate-900 dark:text-white outline-none"
+                                                placeholder="0,00 (se aplicável)"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Bloco de Comissão de Produtos */}
+                                <div className="p-3.5 rounded-xl border border-slate-200 dark:border-[#2D2A26] bg-slate-50/60 dark:bg-[#141210] space-y-2.5">
+                                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={form.comissiona_produtos}
+                                            onChange={(e) => {
+                                                const checked = e.target.checked;
+                                                setForm((prev) => ({
+                                                    ...prev,
+                                                    comissiona_produtos: checked,
+                                                    product_commission_rate: checked ? (prev.product_commission_rate !== '0' ? prev.product_commission_rate : '10') : '0',
+                                                }));
+                                            }}
+                                            className="size-4 rounded text-amber-500 focus:ring-amber-500 border-slate-300 dark:border-slate-600"
+                                        />
+                                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                            Comissionar sobre Venda de Produtos
+                                        </span>
+                                    </label>
+                                    {form.comissiona_produtos ? (
+                                        <div className="pl-6 pt-1">
+                                            <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">
+                                                Alíquota sobre Produtos (%)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                value={form.product_commission_rate}
+                                                onChange={(e) => setForm((prev) => ({ ...prev, product_commission_rate: e.target.value }))}
+                                                className="w-full sm:w-48 bg-white dark:bg-[#0E0C0A] border border-slate-200 dark:border-[#2D2A26] rounded-lg p-2 text-xs text-slate-900 dark:text-white outline-none"
+                                                placeholder="Ex: 10"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <p className="text-[11px] text-slate-400 pl-6 leading-relaxed">
+                                            Nenhum produto vendido gerará comissão para este colaborador.
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Bloco de Política de Taxa de Maquininha / Cartão */}
+                                <div className="p-3.5 rounded-xl border border-slate-200 dark:border-[#2D2A26] bg-slate-50/60 dark:bg-[#141210] space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <label className="block text-xs font-bold uppercase text-slate-500">
+                                            Taxa da Maquininha de Cartão
+                                        </label>
+                                        <span className="text-[10px] text-amber-500 font-bold uppercase">
+                                            Rateio Inteligente
+                                        </span>
+                                    </div>
+
+                                    <select
+                                        value={cardFeePolicy}
+                                        onChange={(e) => setCardFeePolicy(e.target.value as CardFeePolicy)}
+                                        className="w-full bg-white dark:bg-[#0E0C0A] border border-slate-200 dark:border-[#2D2A26] rounded-lg p-2.5 text-xs text-slate-900 dark:text-white outline-none"
+                                    >
+                                        <option value="gross">Bruto (Barbearia absorve 100% da taxa - Isento)</option>
+                                        <option value="split">Dividido (Rateio proporcional à comissão)</option>
+                                        <option value="deducted">Descontado (Taxa deduzida da comissão do barbeiro)</option>
+                                    </select>
+                                </div>
+
+                                {/* Política de Repasse & Vales */}
+                                {editingMember && (Number(form.commission_rate) > 0 || form.role === 'barber') && (
+                                    <div className="p-3.5 rounded-xl border border-slate-200 dark:border-[#2D2A26] bg-slate-50/60 dark:bg-[#141210] space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                                                Ciclo de Repasse & Vales (Lei Salão-Parceiro)
+                                            </span>
+                                            {loadingPayoutConfig && (
+                                                <span className="text-[11px] text-slate-400">Carregando...</span>
+                                            )}
+                                        </div>
+                                        <PayoutCycleConfigFields
+                                            frequency={payoutForm.frequency}
+                                            payoutWeekday={payoutForm.payoutWeekday}
+                                            payoutMonthDay={payoutForm.payoutMonthDay}
+                                            allowAdvances={payoutForm.allowAdvances}
+                                            disabled={loadingPayoutConfig}
+                                            onChange={(next) => setPayoutForm(next)}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* ======================================================== */}
+                        {/* ABA 3: DADOS PESSOAIS & DOCUMENTOS (OPCIONAL)            */}
+                        {/* ======================================================== */}
+                        {modalTab === 'personal' && (
+                            <div className="space-y-4 animate-fade-in">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">CPF</label>
+                                        <input
+                                            type="text"
+                                            value={form.cpf}
+                                            onChange={(e) => setForm({ ...form, cpf: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                                            placeholder="000.000.000-00"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">RG</label>
+                                        <input
+                                            type="text"
+                                            value={form.rg}
+                                            onChange={(e) => setForm({ ...form, rg: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                                            placeholder="Registro Geral"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data de Nascimento</label>
+                                        <input
+                                            type="date"
+                                            value={form.birth_date}
+                                            onChange={(e) => setForm({ ...form, birth_date: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data de Admissão / Início</label>
+                                        <input
+                                            type="date"
+                                            value={form.hire_date}
+                                            onChange={(e) => setForm({ ...form, hire_date: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Endereço Completo</label>
+                                    <input
+                                        type="text"
+                                        value={form.address}
+                                        onChange={(e) => setForm({ ...form, address: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                                        placeholder="Rua, número, complemento, bairro, cidade"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Observações / Notas Internas</label>
+                                    <textarea
+                                        rows={3}
+                                        value={form.notes}
+                                        onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary"
+                                        placeholder="Histórico, especialidades extras, termos acordados..."
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ======================================================== */}
+                        {/* ABA 4: AGENDA & SERVIÇOS (OPCIONAL)                       */}
+                        {/* ======================================================== */}
+                        {modalTab === 'schedule' && (
+                            <div className="space-y-4 animate-fade-in">
+                                <div>
+                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Status Cadastral</label>
+                                    <select
+                                        value={form.status}
+                                        onChange={(e) => setForm({ ...form, status: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-white/10 rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none [color-scheme:light] dark:[color-scheme:dark]"
+                                    >
+                                        <option value="active" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Ativo (Permitido operar e agendar)</option>
+                                        <option value="inactive" className="bg-white dark:bg-[#1A1A1A] text-slate-900 dark:text-white">Inativo (Bloqueado temporariamente)</option>
+                                    </select>
+                                </div>
+
+                                <div className="p-3.5 rounded-xl border border-slate-200 dark:border-[#2D2A26] bg-slate-50/60 dark:bg-[#141210] space-y-2">
+                                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={form.show_in_calendar}
+                                            onChange={(e) => setForm({ ...form, show_in_calendar: e.target.checked })}
+                                            className="size-4 rounded text-amber-500 focus:ring-amber-500 border-slate-300 dark:border-slate-600"
+                                        />
+                                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                            Exibir na Agenda & Agendamento Público Online
+                                        </span>
+                                    </label>
+                                    <p className="text-[11px] text-slate-400 pl-6 leading-relaxed">
+                                        Quando ativado, os clientes poderão escolher este profissional diretamente no portal de agendamento online.
+                                    </p>
+                                </div>
+
+                                {editingMember && (
+                                    <div className="p-4 rounded-xl border border-slate-200 dark:border-[#2D2A26] bg-slate-50/60 dark:bg-[#141210] flex items-center justify-between gap-3">
+                                        <div className="space-y-0.5">
+                                            <h5 className="text-xs font-bold text-slate-900 dark:text-white">Jornada Semanal e Horários</h5>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                {editingMember.working_hours && Object.keys(editingMember.working_hours).some((k) => k !== '_profile' && editingMember.working_hours?.[k])
+                                                    ? 'Jornada personalizada ativa para este profissional.'
+                                                    : 'Atualmente herda os horários gerais da barbearia.'}
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setScheduleModalMember(editingMember)}
+                                            className="px-3 py-2 bg-primary/10 text-primary hover:bg-primary hover:text-night rounded-lg text-xs font-bold transition-all shrink-0 flex items-center gap-1.5"
+                                        >
+                                            <span className="material-symbols-outlined text-sm">schedule</span>
+                                            Configurar Horários
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Rodapé Fixo com Botão de Salvar Desbloqueado */}
+                    <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-[#2D2A26]">
+                        <button
+                            type="button"
+                            onClick={() => { setShowModal(false); setEditingMember(null); }}
+                            className="px-5 py-2.5 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="submit"
+                            className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-xs font-bold text-night bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
+                        >
+                            <span className="material-symbols-outlined text-base">save</span>
+                            {editingMember ? 'Salvar Colaborador' : inviteRoles.includes(form.role) ? 'Enviar Convite' : 'Adicionar Colaborador'}
                         </button>
                     </div>
                 </form>

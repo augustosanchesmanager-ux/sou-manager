@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import type { Client, PreferredFrequency } from '../../domain/client/types';
 import { clientRepository } from '../../domain/client';
 import CustomerVouchersSection from './CustomerVouchersSection';
@@ -129,6 +130,20 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
   // Active sub-tab in drawer
   const [activeTab, setActiveTab] = useState<'overview' | 'vouchers'>('overview');
   const [crmAlert, setCrmAlert] = useState<ClientCrmFrictionAlert | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Trava scroll do body enquanto o drawer estiver aberto e restaura ao fechar
+  useEffect(() => {
+    if (!isOpen) {
+      setIsFullscreen(false);
+      return;
+    }
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -269,39 +284,39 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
 
   if (!isOpen || !client) return null;
 
-  return (
-    <div className="fixed inset-0 z-[90] overflow-hidden">
+  return createPortal(
+    <div className="fixed inset-0 z-50 overflow-hidden font-sans">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
 
-      <div className="fixed inset-y-0 right-0 flex max-w-full pl-10">
+      <div className={`fixed inset-y-0 right-0 flex max-w-full ${isFullscreen ? 'w-full' : 'w-full lg:w-[78vw] xl:max-w-6xl'}`}>
         <section
           aria-labelledby="drawer-client-name"
-          className="w-screen max-w-2xl bg-white dark:bg-[#151921] shadow-2xl flex flex-col border-l border-slate-200 dark:border-white/10"
+          className="w-full h-screen bg-[#0E0C0A] text-[#F5F5F0] shadow-2xl flex flex-col border-l border-[#2D2A26] transition-all duration-200"
         >
-          {/* Drawer Header */}
-          <div className="p-6 border-b border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02]">
+          {/* Drawer Header (Fixo) */}
+          <div className="shrink-0 p-5 sm:p-6 border-b border-[#2D2A26] bg-[#141210]">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="relative size-16 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border-2 border-primary/30 shadow-md shrink-0">
+                <div className="relative size-16 rounded-full bg-slate-800 overflow-hidden border-2 border-[#B88A44]/40 shadow-md shrink-0">
                   {client.avatar ? (
                     <img src={client.avatar} alt={client.name} className="size-full object-cover" />
                   ) : (
-                    <div className="size-full flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400">
+                    <div className="size-full flex items-center justify-center bg-slate-900 text-slate-400">
                       <span className="material-symbols-outlined text-3xl">person</span>
                     </div>
                   )}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 id="drawer-client-name" className="text-xl font-bold text-slate-900 dark:text-white leading-tight">
+                    <h2 id="drawer-client-name" className="text-xl font-bold text-white leading-tight">
                       {client.name}
                     </h2>
-                    <span className="text-xs font-mono text-slate-400 dark:text-slate-500">
+                    <span className="text-xs font-mono text-slate-500">
                       #{getDisplayId(client.id)}
                     </span>
                   </div>
@@ -309,15 +324,15 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                     <span
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                         client.status === 'active'
-                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                          : 'bg-slate-200 text-slate-600 dark:bg-white/10 dark:text-slate-400'
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          : 'bg-white/10 text-slate-400'
                       }`}
                     >
                       <span className="size-1.5 rounded-full bg-current" />
                       {client.status === 'active' ? 'Ativo' : 'Inativo'}
                     </span>
                     {client.preferred_frequency && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20">
                         <span className="material-symbols-outlined text-xs">chair</span>
                         Cadeira Cativa ({FREQUENCY_LABELS[client.preferred_frequency]})
                       </span>
@@ -331,15 +346,29 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                 </div>
               </div>
 
-              {/* Close Button */}
-              <button
-                type="button"
-                onClick={onClose}
-                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors"
-                title="Fechar (Esc)"
-              >
-                <span className="material-symbols-outlined text-2xl">close</span>
-              </button>
+              {/* Controles de Ação de Topo (Tela Inteira / Reduzir + Fechar) */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen((prev) => !prev)}
+                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#2D2A26] bg-[#0E0C0A] text-xs font-bold text-slate-300 hover:text-[#B88A44] hover:border-[#B88A44]/50 transition-colors"
+                  title={isFullscreen ? 'Reduzir para painel lateral' : 'Expandir para tela inteira (PC)'}
+                >
+                  <span className="material-symbols-outlined text-base">
+                    {isFullscreen ? 'fullscreen_exit' : 'fullscreen'}
+                  </span>
+                  <span>{isFullscreen ? 'Reduzir' : 'Tela Inteira'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+                  title="Fechar (Esc)"
+                >
+                  <span className="material-symbols-outlined text-2xl">close</span>
+                </button>
+              </div>
             </div>
 
             {/* Quick Action Buttons */}
@@ -872,7 +901,8 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
           </div>
         </section>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
