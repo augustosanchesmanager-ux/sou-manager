@@ -128,10 +128,10 @@ export const ActivityTimelineModal: React.FC<ActivityTimelineModalProps> = ({ is
               </p>
             </div>
           ) : (
-            filteredLogs.map((entry) => {
+            filteredLogs.map((entry, idx) => {
               const catSpec = CATEGORY_ICONS[entry.category] || CATEGORY_ICONS.system;
               return (
-                <div key={entry.id} className="py-3 flex items-start gap-3.5 first:pt-0 last:pb-0">
+                <div key={`${entry.timestamp}-${entry.event}-${idx}`} className="py-3 flex items-start gap-3.5 first:pt-0 last:pb-0">
                   <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-sm ${catSpec.tone}`}>
                     <span className="material-symbols-outlined text-base">{catSpec.icon}</span>
                   </div>
@@ -146,9 +146,11 @@ export const ActivityTimelineModal: React.FC<ActivityTimelineModalProps> = ({ is
                       </span>
                     </div>
 
-                    <p className="text-[11px] text-ink-soft mt-0.5 line-clamp-1">
-                      {entry.message}
-                    </p>
+                    {entry.error?.message && (
+                      <p className="text-[11px] text-ink-soft mt-0.5 line-clamp-1">
+                        {entry.error.message}
+                      </p>
+                    )}
 
                     {entry.data && Object.keys(entry.data).length > 0 && (
                       <div className="mt-1 flex flex-wrap gap-1.5">

@@ -155,6 +155,7 @@ export interface BarberClosingDetail {
     totalReceived: number;
     /** Parcela liquidada e pendente somadas: producao bruta do dia. */
     pendingReceived: number;
+    openTotal?: number;
     commission: number;
     /** Comissao retida sobre a parcela ainda nao liquidada. */
     pendingCommission: number;

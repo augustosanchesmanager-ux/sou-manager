@@ -234,8 +234,8 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
     if (!client || !tenantId) return;
     setIsSavingNotes(true);
     try {
-      const updated = await clientRepository.update(client.id, { notes }, tenantId);
-      onClientUpdated?.(updated);
+      await clientRepository.update(client.id, { notes }, tenantId);
+      onClientUpdated?.({ ...client, notes });
       setNotesSavedFeedback(true);
       setTimeout(() => setNotesSavedFeedback(false), 2500);
       onToast({ message: 'Notas salvas com sucesso.', type: 'success' });
@@ -252,17 +252,18 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
     if (!client || !tenantId) return;
     setIsSavingSchedule(true);
     try {
-      const updated = await clientRepository.update(
+      const scheduleFields = {
+        preferred_frequency: preferredFrequency ? (preferredFrequency as PreferredFrequency) : undefined,
+        preferred_weekday: preferredWeekday !== '' ? Number(preferredWeekday) : undefined,
+        preferred_time: preferredTime || undefined,
+        preferred_staff_id: preferredStaffId || undefined,
+      };
+      await clientRepository.update(
         client.id,
-        {
-          preferred_frequency: preferredFrequency ? (preferredFrequency as PreferredFrequency) : undefined,
-          preferred_weekday: preferredWeekday !== '' ? Number(preferredWeekday) : undefined,
-          preferred_time: preferredTime || undefined,
-          preferred_staff_id: preferredStaffId || undefined,
-        },
+        scheduleFields,
         tenantId
       );
-      onClientUpdated?.(updated);
+      onClientUpdated?.({ ...client, ...scheduleFields });
       setIsEditingSchedule(false);
       onToast({ message: 'Preferência de horário fixo atualizada.', type: 'success' });
     } catch (error) {

@@ -93,7 +93,7 @@ const SmartReturn: React.FC = () => {
 
     const [data, setData] = useState<SmartReturnData>({
         records: [],
-        kpis: { totalClients: 0, upToDate: 0, attention: 0, risk: 0, inactive: 0 },
+        kpis: { totalClients: 0, upToDate: 0, attention: 0, risk: 0, inactive: 0, championsCount: 0, atRiskRevenue: 0 },
         publicBookingUrl: null,
         shopName: tenant?.name?.trim() || 'Barbearia',
     });
