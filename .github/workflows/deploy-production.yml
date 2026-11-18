@@ -269,9 +269,16 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Smoke E2E contra o CANDIDATO (antes de mover o alias)
+        # O projeto tem ssoProtection=all_except_custom_domains: a URL do
+        # deployment responde 200 mas serve a tela de login da Vercel, nao o
+        # app. Sem o header de bypass o smoke testa a Vercel em vez do produto
+        # (sintoma: input[type="password"] not found, 10/10 falhas).
+        # `tests/e2e/fixtures/auth.fixture.ts` ja aplica o header em requests
+        # same-origin quando esta variavel existe — aqui apenas a fornecemos.
         env:
           CI: "true"
           PLAYWRIGHT_BASE_URL: ${{ steps.resolve.outputs.candidate_url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -447,9 +454,13 @@ jobs:
 
       - name: Smoke E2E contra producao (somente apos promocao real)
         if: needs.promote.result == 'success'
+        # Bypass tambem aqui: o dominio custom nao esta protegido hoje, mas se
+        # um dia estiver (ou o alvo virar URL de deployment) o header evita
+        # que o smoke valide a tela de login da Vercel.
         env:
           CI: "true"
           PLAYWRIGHT_BASE_URL: ${{ needs.resolve-validate.outputs.domain }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
