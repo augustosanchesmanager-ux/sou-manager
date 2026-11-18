@@ -10,6 +10,7 @@ import {
 import { usePortalAuth } from '../../components/PortalAuthProvider';
 import { ChevronLeft, Scissors, User, Calendar as CalendarIcon, Clock, CheckCircle } from 'lucide-react';
 import { shouldAppearOnSchedule } from '../../src/lib/staff/roles';
+import { getLocalDayRangeIso, getTodayDateKey, toLocalDateKey } from '../../src/utils/dateTimezone';
 
 interface Service { id: string; name: string; price: number; duration_minutes: number; }
 interface Barber { id: string; name: string; role?: string; }
@@ -113,14 +114,15 @@ const PortalSchedule: React.FC = () => {
 
         try {
             const duration = selectedService.duration_minutes || 30;
-            const dateStr = selectedDate.toISOString().split('T')[0];
+            const dateStr = toLocalDateKey(selectedDate);
+            const { startIso, endIso } = getLocalDayRangeIso(dateStr);
 
             let query = supabase
                 .from('appointments')
                 .select('start_time, end_time')
                 .eq('tenant_id', tenant.id)
-                .gte('start_time', `${dateStr}T00:00:00`)
-                .lt('start_time', `${dateStr}T23:59:59`)
+                .gte('start_time', startIso)
+                .lte('start_time', endIso)
                 .in('status', ['confirmed', 'pending']);
 
             if (selectedBarber && selectedBarber.id !== 'any') {
@@ -144,7 +146,7 @@ const PortalSchedule: React.FC = () => {
                 return;
             }
 
-            const isToday = dateStr === new Date().toISOString().split('T')[0];
+            const isToday = dateStr === getTodayDateKey();
             const startHour = isToday ? Math.max(SCHEDULE_START_HOUR, new Date().getHours() + 1) : SCHEDULE_START_HOUR;
             const endHour = SCHEDULE_END_HOUR;
 
@@ -184,7 +186,7 @@ const PortalSchedule: React.FC = () => {
 
             const start = new Date(selectedSlot.datetime);
             const end = addMinutes(start, selectedService.duration_minutes);
-            const dateKey = start.toISOString().split('T')[0];
+            const dateKey = toLocalDateKey(start);
             const blocks = await scheduleBlocksApi.listByRange(tenant.id, { startDate: dateKey, endDate: dateKey });
             const blocksForDate = getBlocksForDate(
                 blocks,

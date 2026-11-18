@@ -22,6 +22,7 @@
 import { scheduleBlocksApi, detectBlockConflicts, type ScheduleBlock, type ScheduleBlockInput } from '../services/scheduleBlocksApi';
 import { appointmentRepository } from '../domain/appointment/repository';
 import { cancelAppointment } from './appointment/lifecycle';
+import { getLocalDayRangeIso } from '../src/utils/dateTimezone';
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -143,9 +144,11 @@ class ScheduleBlockApplicationServiceImpl {
         tenantId: string,
         draft: ScheduleBlockInput,
     ): Promise<ImpactedAppointmentsResult> {
+        const { startIso } = getLocalDayRangeIso(draft.start_date);
+        const { endIso } = getLocalDayRangeIso(draft.end_date);
         const appointments = await appointmentRepository.list(tenantId, {
-            startTimeFrom: draft.start_date,
-            startTimeTo: draft.end_date,
+            startTimeFrom: startIso,
+            startTimeTo: endIso,
         });
 
         const impacted = appointments.filter(apt => {
