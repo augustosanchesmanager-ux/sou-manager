@@ -1,20 +1,20 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import { useTenantOptional } from '../../src/context/TenantContext';
-import { staffRepository } from '../../domain/staff/repository';
-import type { StaffMember } from '../../domain/staff/types';
-import { stockRepository } from '../../domain/stock/stockRepository';
+import { useAuth } from '../context/AuthContext';
+import { useTenantOptional } from '../src/context/TenantContext';
+import { staffRepository } from '../domain/staff/repository';
+import type { StaffMember } from '../domain/staff/types';
+import { stockRepository } from '../domain/stock/stockRepository';
 import {
     calculateWeightedAverageCost,
     calculateInventoryDiscrepancy,
     filterStockByTab,
     isStockLow,
-} from '../../domain/stock/stockEngine';
+} from '../domain/stock/stockEngine';
 import type {
     ProductStockItem,
     InventoryAuditItem,
-} from '../../domain/stock/types';
+} from '../domain/stock/types';
 import type {
     StockTab,
     StockStatusFilter,
@@ -22,7 +22,7 @@ import type {
     ProductFormState,
     PurchaseFormState,
     ConsumptionFormState,
-} from './types';
+} from '../components/products/types';
 
 export interface ToastMessage {
     message: string;

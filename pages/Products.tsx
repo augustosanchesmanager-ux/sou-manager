@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Toast from '../components/Toast';
-import { useProductsController } from '../components/products/useProductsController';
+import { useProductsController } from '../hooks/useProductsController';
 import { ProductsKpiCards } from '../components/products/ProductsKpiCards';
 import { ProductsToolbar } from '../components/products/ProductsToolbar';
 import { ProductFormModal } from '../components/products/modals/ProductFormModal';
