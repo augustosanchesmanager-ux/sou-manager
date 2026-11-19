@@ -5,6 +5,7 @@ import { StrategicKPICards } from '../components/strategic/StrategicKPICards';
 import { RevenueEvolutionChart } from '../components/strategic/RevenueEvolutionChart';
 import { TopProfessionalsRanking } from '../components/strategic/TopProfessionalsRanking';
 import { StrategicAlerts, type StrategicAlert } from '../components/strategic/StrategicAlerts';
+import { BarberIntelligencePanel } from '../components/strategic/BarberIntelligencePanel';
 import { ClubMacroWidget } from '../src/components/club/ClubMacroWidget';
 import MetricCard, { type MetricTone } from '../components/ui/MetricCard';
 import Toast from '../components/Toast';
@@ -229,6 +230,8 @@ const StrategicDashboard: React.FC = () => {
         appointmentCount={data.appointmentCount}
         onKpiClick={handleKPIClick}
       />
+
+      <BarberIntelligencePanel />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
         <RevenueEvolutionChart
