@@ -75,7 +75,12 @@ export const RevenueEvolutionChart: React.FC<RevenueEvolutionChartProps> = ({ da
             />
             <Tooltip 
               formatter={(value: number) => [formatCurrency(value), 'Receita']}
-              labelFormatter={(label) => new Date(label).toLocaleDateString('pt-BR')}
+              labelFormatter={(label) => {
+                if (typeof label === 'string' || typeof label === 'number') {
+                  return new Date(label).toLocaleDateString('pt-BR');
+                }
+                return label ?? '';
+              }}
               contentStyle={{ 
                 backgroundColor: '#FFFFFF',
                 border: '1px solid #E8DFC9',
