@@ -7,6 +7,7 @@ import {
   Wallet,
   Award,
   RefreshCw,
+  AlertTriangle,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTenantOptional } from '../src/context/TenantContext';
@@ -124,6 +125,7 @@ const Reports: React.FC = () => {
 
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const [loadIssues, setLoadIssues] = useState<string[]>([]);
 
   // Dados Carregados
   const [paidComandas, setPaidComandas] = useState<PaidComandaDetail[]>([]);
@@ -151,63 +153,119 @@ const Reports: React.FC = () => {
   const [selectedBarberId, setSelectedBarberId] = useState('all');
   const [dateFieldMode, setDateFieldMode] = useState<'due_date' | 'paid_at'>('due_date');
 
-  // Carregar dados consolidados
+  // Carregar dados consolidados.
+  // Cada bloco é isolado (allSettled): falha em uma seção não zera as demais.
   const loadReportData = useCallback(async () => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
+
+    const issues: string[] = [];
+    const fail = (label: string, err: unknown) => {
+      console.error(`[reports] falha ao carregar ${label}:`, err);
+      issues.push(label);
+    };
+    const unwrap = <T,>(result: PromiseSettledResult<T>, label: string): T | null => {
+      if (result.status === 'fulfilled') return result.value;
+      fail(label, result.reason);
+      return null;
+    };
+
     try {
       const clubSupabase = getScopedClient('barber');
 
-      const [comandasRes, apptsRes, advancesRes, titlesRes, subsRes] = await Promise.all([
+      // Clube dos Chefes: assinaturas + saldo real de créditos (customer_credits).
+      const loadChefClub = async () => {
+        const [subsRes, creditsRes] = await Promise.all([
+          clubSupabase
+            .from('customer_subscriptions')
+            .select('id, status, plan_id, customer_plans(name)')
+            .eq('tenant_id', tenantId)
+            .eq('status', 'active'),
+          clubSupabase
+            .from('customer_credits')
+            .select('available_credits, used_credits')
+            .eq('tenant_id', tenantId),
+        ]);
+        if (subsRes.error) throw subsRes.error;
+        if (creditsRes.error) throw creditsRes.error;
+        return {
+          subscriptions: (subsRes.data || []) as any[],
+          credits: (creditsRes.data || []) as any[],
+        };
+      };
+
+      const [comandasRes, apptsRes, advancesRes, titlesRes, clubRes] = await Promise.allSettled([
         fetchPaidComandasReport(tenantId, dateFrom, dateTo),
         fetchAppointmentsReport(tenantId, dateFrom, dateTo),
         fetchBarberAdvancesInPeriod(tenantId, dateFrom, dateTo),
         fetchFinancialTitlesReport(tenantId, dateFrom, dateTo, dateFieldMode),
-        clubSupabase
-          .from('customer_subscriptions')
-          .select('id, status, available_credits, used_credits, customer_plans(name)')
-          .eq('tenant_id', tenantId)
-          .eq('status', 'active'),
+        loadChefClub(),
       ]);
 
-      setPaidComandas(comandasRes.comandas);
-      setAllocatedItems(comandasRes.allocatedItems);
-      setAppointments(apptsRes);
-      setBarberAdvances(advancesRes);
-      setReceivables(titlesRes.receivables);
-      setPayables(titlesRes.payables);
+      const comandas = unwrap(comandasRes, 'Vendas & Faturamento');
+      const appts = unwrap(apptsRes, 'Atendimentos');
+      const advances = unwrap(advancesRes, 'Vales e adiantamentos');
+      const titles = unwrap(titlesRes, 'Financeiro');
+      const club = unwrap(clubRes, 'Clube dos Chefes');
 
-      // Produtos (cruza catálogo real + itens rateados das comandas pagas)
-      const productsRes = await fetchProductsReport(tenantId, comandasRes.allocatedItems);
-      setProductSales(productsRes.salesRows);
-      setProductCatalog(productsRes.catalogItems);
+      if (comandas) {
+        setPaidComandas(comandas.comandas);
+        setAllocatedItems(comandas.allocatedItems);
+      }
+      if (appts) setAppointments(appts);
+      if (advances) setBarberAdvances(advances);
+      if (titles) {
+        setReceivables(titles.receivables);
+        setPayables(titles.payables);
+      }
 
-      // Clube dos Chefes stats
-      if (!subsRes.error && Array.isArray(subsRes.data)) {
-        const activeSubs = subsRes.data;
-        let totalAvail = 0;
-        let totalUsed = 0;
-        const planCounts: Record<string, number> = {};
-
-        for (const sub of activeSubs as any[]) {
-          totalAvail += Number(sub.available_credits || 0);
-          totalUsed += Number(sub.used_credits || 0);
-          const pName = sub.customer_plans?.name || 'Plano Padrão';
-          planCounts[pName] = (planCounts[pName] || 0) + 1;
+      // Produtos depende dos itens rateados das comandas pagas.
+      if (comandas) {
+        try {
+          const productsRes = await fetchProductsReport(tenantId, comandas.allocatedItems);
+          setProductSales(productsRes.salesRows);
+          setProductCatalog(productsRes.catalogItems);
+        } catch (err) {
+          fail('Produtos & Estoque', err);
         }
+      }
 
+      if (club) {
+        const planCounts: Record<string, number> = {};
+        for (const sub of club.subscriptions) {
+          const planName = sub.customer_plans?.name || 'Plano Padrão';
+          planCounts[planName] = (planCounts[planName] || 0) + 1;
+        }
         const popularPlan =
           Object.entries(planCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 
         setChefClubStats({
-          activeSubscriptions: activeSubs.length,
-          totalCreditsAvailable: totalAvail,
-          totalCreditsUsed: totalUsed,
+          activeSubscriptions: club.subscriptions.length,
+          totalCreditsAvailable: club.credits.reduce(
+            (acc, c) => acc + Number(c.available_credits || 0),
+            0
+          ),
+          totalCreditsUsed: club.credits.reduce(
+            (acc, c) => acc + Number(c.used_credits || 0),
+            0
+          ),
           popularPlan,
+        });
+      }
+
+      setLoadIssues(issues);
+      if (issues.length > 0) {
+        setToast({
+          msg: `Não foi possível carregar: ${issues.join(', ')}.`,
+          type: 'error',
         });
       }
     } catch (err: any) {
       console.error('Erro ao carregar relatórios:', err);
+      setLoadIssues(['Relatórios']);
       setToast({
         msg: err?.message || 'Não foi possível carregar os dados do relatório.',
         type: 'error',
@@ -483,6 +541,23 @@ const Reports: React.FC = () => {
           })}
         </div>
       </div>
+
+      {/* Aviso persistente de carga parcial (não depende do toast de 4s) */}
+      {loadIssues.length > 0 && (
+        <div
+          role="alert"
+          className="rounded-xl border border-red-900/60 bg-red-950/40 px-4 py-3 text-xs text-red-200"
+        >
+          <div className="flex items-center gap-2 font-semibold text-red-300">
+            <AlertTriangle className="w-4 h-4" />
+            Alguns dados não puderam ser carregados
+          </div>
+          <p className="mt-1 text-red-200/90">
+            Seções afetadas: <strong>{loadIssues.join(' · ')}</strong>. Os demais blocos abaixo
+            continuam exibindo os dados disponíveis. Use “Atualizar” para tentar novamente.
+          </p>
+        </div>
+      )}
 
       {/* Conteúdo da Aba Selecionada */}
       <div className="pt-2">

@@ -178,7 +178,12 @@ async function fetchInChunks<T>(
       .select(select)
       .eq('tenant_id', tenantId)
       .in(column, batch);
-    if (!error && Array.isArray(data)) {
+    if (error) {
+      // Falha de query não pode virar lista vazia silenciosa: o relatório passaria a
+      // exibir zeros como se não houvesse dados.
+      throw new Error(`Falha ao consultar ${table}: ${error.message}`);
+    }
+    if (Array.isArray(data)) {
       results.push(...data);
     }
   }
@@ -239,7 +244,7 @@ export async function fetchPaidComandasReport(
       'comanda_items',
       'comanda_id',
       comandaIds,
-      'id, comanda_id, item_type, item_id, name, price, quantity, discount, staff_id, commission_rate',
+      'id, comanda_id, service_id, product_id, product_name, quantity, unit_price, staff_id',
       tenantId
     ),
     fetchInChunks<any>(
@@ -331,40 +336,38 @@ export async function fetchPaidComandasReport(
     const primaryCategory = classifyPaymentMethod(c.payment_method, isLegacyClub).category;
 
     // Montar RawComandaItem[] para passar no motor determinístico
+    // Schema real de `comanda_items`: service_id/product_id, product_name, unit_price.
+    // Não existem colunas item_type, name, price, discount nem commission_rate por linha.
     const rawInputs: RawComandaItem[] = rawItemsForComanda.map((item: any) => {
       const effectiveStaffId = item.staff_id || c.staff_id || '';
       const staffMember = staffMap.get(effectiveStaffId);
       const barberName = staffMember?.name || 'Sem profissional';
 
-      const itemType: 'service' | 'product' | 'club_service' =
-        item.item_type === 'product'
-          ? 'product'
-          : isLegacyClub && Number(item.price || 0) === 0
-          ? 'club_service'
-          : 'service';
-
-      let commRate = Number(item.commission_rate ?? -1);
-      if (commRate < 0 || !Number.isFinite(commRate)) {
-        if (staffMember) {
-          commRate = getEffectiveCommissionRateForItem(
-            staffMember,
-            { item_type: itemType === 'product' ? 'product' : 'service' }
-          );
-        } else {
-          commRate = 0;
-        }
+      let itemType: 'service' | 'product' | 'club_service' = 'service';
+      if (item.product_id) {
+        itemType = 'product';
+      } else if (isLegacyClub && Number(item.unit_price || 0) === 0) {
+        itemType = 'club_service';
       }
+
+      // A taxa efetiva vem do cadastro do profissional (não há taxa por item no schema).
+      const commRate = staffMember
+        ? getEffectiveCommissionRateForItem(staffMember, {
+            item_type: itemType === 'product' ? 'product' : 'service',
+          })
+        : 0;
 
       return {
         id: item.id,
         comanda_id: c.id,
-        item_name: item.name || 'Item',
+        item_name: item.product_name || 'Item',
         item_type: itemType,
         barber_id: effectiveStaffId,
         barber_name: barberName,
         quantity: Number(item.quantity ?? 1),
-        unit_price: Number(item.price ?? 0),
-        item_discount: Number(item.discount ?? 0),
+        // `unit_price` é o preço de tabela da linha; desconto por item não existe no schema.
+        unit_price: Number(item.unit_price ?? 0),
+        item_discount: 0,
         commission_rate: commRate,
       };
     });
@@ -531,7 +534,7 @@ export async function fetchProductsReport(
 
   const { data: productsData, error } = await barberSupabase
     .from('products')
-    .select('id, name, category, price, cost_price, stock_quantity, min_stock, supplier_name, active')
+    .select('id, name, category, price, cost_price, stock_quantity, minimum_stock, min_stock_alert, active')
     .eq('tenant_id', tenantId)
     .order('name');
 
@@ -541,7 +544,8 @@ export async function fetchProductsReport(
 
   const catalogItems: ProductCatalogItem[] = (productsData || []).map((p: any) => {
     const stock = Number(p.stock_quantity ?? 0);
-    const minStock = Number(p.min_stock ?? 0);
+    // Schema real: `minimum_stock` (o campo `min_stock` não existe em produção).
+    const minStock = Number(p.minimum_stock ?? p.min_stock_alert ?? 0);
     return {
       id: p.id,
       name: p.name || 'Produto',
@@ -551,7 +555,7 @@ export async function fetchProductsReport(
       stockQuantity: stock,
       minStock,
       isCriticalStock: p.active !== false && stock <= minStock,
-      supplierName: p.supplier_name || '-',
+      supplierName: '-',
       active: p.active !== false,
     };
   });
@@ -621,7 +625,7 @@ export async function fetchBarberAdvancesInPeriod(
 
   const { data, error } = await barberSupabase
     .from('barber_advances')
-    .select('id, staff_id, amount, issued_at, reason, reversed_at')
+    .select('id, staff_id, amount, issued_at, notes, reversed_at')
     .eq('tenant_id', tenantId)
     .is('reversed_at', null)
     .gte('issued_at', startIso)
@@ -638,7 +642,8 @@ export async function fetchBarberAdvancesInPeriod(
     staffId: row.staff_id,
     amount: Number(row.amount || 0),
     issuedAt: row.issued_at,
-    reason: row.reason || 'Vale / Adiantamento',
+    // Schema real: o motivo do vale está em `notes` (não existe coluna `reason`).
+    reason: row.notes || 'Vale / Adiantamento',
   }));
 }
 
