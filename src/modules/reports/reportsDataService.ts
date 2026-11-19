@@ -208,7 +208,7 @@ export async function fetchPaidComandasReport(
   const { data: rawComandas, error: comandasError } = await barberSupabase
     .from('comandas')
     .select(
-      'id, client_id, staff_id, status, total, discount, payment_method, closure_mode, financial_effect, closed_at, paid_at, updated_at, created_at'
+      'id, client_id, staff_id, status, total, discount, payment_method, closure_mode, financial_effect, closed_at, settled_at, payment_date_real, created_at'
     )
     .eq('tenant_id', tenantId)
     .in('status', ['paid', 'closed'])
@@ -220,9 +220,9 @@ export async function fetchPaidComandasReport(
     throw comandasError;
   }
 
-  // Filtrar estritamente por closed_at / paid_at no range BRT (fallback seguro apenas se nulo em legado)
+  // Filtrar estritamente por closed_at / settled_at no range BRT (fallback seguro apenas se nulo em legado)
   const paidComandas = (rawComandas || []).filter((c: any) => {
-    const effectiveDate = c.closed_at || c.paid_at || c.updated_at || c.created_at;
+    const effectiveDate = c.closed_at || c.settled_at || c.payment_date_real || c.created_at;
     return isTimestampInRange(effectiveDate, startMs, endMs);
   });
 
@@ -291,7 +291,7 @@ export async function fetchPaidComandasReport(
   const allAllocatedItems: AllocatedComandaItemDetail[] = [];
 
   for (const c of paidComandas) {
-    const closedAt = c.closed_at || c.paid_at || c.updated_at || c.created_at;
+    const closedAt = c.closed_at || c.settled_at || c.payment_date_real || c.created_at;
     const shortId = `#${String(c.id).slice(0, 6).toUpperCase()}`;
     const clientName = (c.client_id && clientMap.get(c.client_id)) || 'Cliente Balcão';
 
@@ -669,7 +669,7 @@ export async function fetchFinancialTitlesReport(
       .eq('tenant_id', tenantId),
     barberSupabase
       .from('comandas')
-      .select('id, client_id, total, discount, status, is_fiado, fiado_due_date, fiado_marked_at, closed_at, paid_at, created_at, clients(name)')
+      .select('id, client_id, total, discount, status, is_fiado, fiado_due_date, fiado_marked_at, closed_at, settled_at, payment_date_real, created_at, clients(name)')
       .eq('tenant_id', tenantId)
       .eq('is_fiado', true),
     barberSupabase
@@ -709,7 +709,7 @@ export async function fetchFinancialTitlesReport(
   if (!fiadoRes.error && Array.isArray(fiadoRes.data)) {
     for (const c of fiadoRes.data as any[]) {
       const dueDate = c.fiado_due_date || (c.fiado_marked_at || c.created_at || '').slice(0, 10);
-      const paidAt = c.status === 'paid' || c.status === 'closed' ? c.paid_at || c.closed_at : null;
+      const paidAt = c.status === 'paid' || c.status === 'closed' ? c.settled_at || c.payment_date_real || c.closed_at : null;
       const targetDate = dateField === 'paid_at' ? paidAt : dueDate;
       if (!isTimestampInRange(targetDate, startMs, endMs)) continue;
 
