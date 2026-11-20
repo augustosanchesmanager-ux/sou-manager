@@ -25,7 +25,7 @@ const toPositiveNumber = (value: unknown, fallback: number) => {
 };
 
 const getAppointmentDurationHours = (service: any) =>
-  Math.round((toPositiveNumber(service?.duration ?? service?.duration_minutes, 30) / 60) * 10) / 10;
+  Math.round((toPositiveNumber(service?.duration ?? service?.duration_minutes, 30) / 60) * 100) / 100;
 
 const fetchServiceSafe = async (servicesClient: any, serviceId: string, tenantId: string) => {
   const primaryRes = await servicesClient

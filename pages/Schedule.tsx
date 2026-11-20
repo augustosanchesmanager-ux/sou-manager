@@ -622,7 +622,7 @@ const Schedule: React.FC = () => {
     staffId: '',
     date: getTodayDateKey(),
     start: SCHEDULE_START_HOUR,
-    duration: 1,
+    duration: 0,
     notes: '',
     isRecurring: false,
     recurrenceFrequency: 'weekly',
@@ -726,7 +726,7 @@ const Schedule: React.FC = () => {
   };
 
   const getServicesDurationHours = (services: DBService[]) => {
-    if (services.length === 0) return 1;
+    if (services.length === 0) return 0;
     const totalMinutes = services.reduce(
       (sum, service) => sum + Number(service.duration || 0) + Number(service.buffer || 0),
       0,
@@ -763,7 +763,7 @@ const Schedule: React.FC = () => {
       start: typeof navState.start === 'number' ? navState.start : prev.start,
       service: '',
       serviceIds: [],
-      duration: 1,
+      duration: 0,
       notes: '',
     }));
     setServiceSearchTerm('');
@@ -1974,8 +1974,17 @@ const Schedule: React.FC = () => {
     }
   };
 
-  const handleOpenCreateBlockModal = () => {
+  const handleOpenCreateBlockModal = (staffId?: string) => {
     resetBlockForm();
+    if (staffId) {
+      setBlockForm((prev) => ({
+        ...prev,
+        professionalScope: 'specific',
+        professionalId: staffId,
+        startDate: selectedDateKey || prev.startDate,
+        endDate: selectedDateKey || prev.endDate,
+      }));
+    }
     setIsBlockModalOpen(true);
   };
 
@@ -2107,6 +2116,11 @@ const Schedule: React.FC = () => {
 
     if (!formData.client || selectedServices.length === 0) {
       setError(`Por favor, preencha o nome do cliente e selecione ao menos um ${serviceLabelLower}.`);
+      return;
+    }
+
+    if (!formData.duration || Number(formData.duration) <= 0) {
+      setError('Defina uma duração maior que 0 minutos para o agendamento.');
       return;
     }
 
@@ -2497,7 +2511,7 @@ const Schedule: React.FC = () => {
       staffId: staffList[0]?.id ?? '',
       date: formData.date,
       start: SCHEDULE_START_HOUR,
-      duration: 1,
+      duration: 0,
       notes: '',
       isRecurring: false,
       recurrenceFrequency: 'weekly',
@@ -3325,7 +3339,7 @@ Podemos confirmar? 😄`;
               onClick={() => {
                 setEditingAppointmentId(null);
                 setEditingComandaStatus(null);
-                setFormData((prev) => ({ ...prev, client: '', clientPhone: '', service: '', serviceIds: [], duration: 1, notes: '' }));
+                setFormData((prev) => ({ ...prev, client: '', clientPhone: '', service: '', serviceIds: [], duration: 0, notes: '' }));
                 setChefClubInfo(null);
                 setIsModalOpen(true);
               }}
@@ -3731,7 +3745,7 @@ Podemos confirmar? 😄`;
                                 className="fixed inset-0 z-40"
                                 onClick={() => setActiveQuickBlockMenuStaffId(null)}
                               />
-                              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-44 bg-white dark:bg-card-dark border border-slate-200 dark:border-white/10 rounded-2xl shadow-xl p-1.5 z-50 flex flex-col gap-1 text-left">
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-48 bg-white dark:bg-card-dark border border-slate-200 dark:border-white/10 rounded-2xl shadow-xl p-1.5 z-50 flex flex-col gap-1 text-left">
                                 <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-white/5">
                                   Bloquear {resource.name.split(' ')[0]}
                                 </div>
@@ -3751,6 +3765,18 @@ Podemos confirmar? 😄`;
                                     </span>
                                   </button>
                                 ))}
+                                <div className="my-0.5 border-t border-slate-100 dark:border-white/5" />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveQuickBlockMenuStaffId(null);
+                                    handleOpenCreateBlockModal(resource.id);
+                                  }}
+                                  className="w-full px-2 py-1.5 rounded-lg text-xs font-bold text-[#B88A44] hover:bg-[#B88A44]/10 flex items-center gap-1.5 transition-colors"
+                                >
+                                  <Plus size={13} strokeWidth={2.5} />
+                                  <span>Bloqueio personalizado</span>
+                                </button>
                               </div>
                             </>
                           )}
@@ -4692,16 +4718,35 @@ Podemos confirmar? 😄`;
                         const blocksOnDay = getBlocksForDate(activeBlocks, formData.date, formData.staffId);
 
                         return allSlots.map(slot => {
-                          const slotEnd = slot + formData.duration;
-                          const hasConflict = aptsOnDay.some(apt =>
+                          const durationHours = Number(formData.duration || 0);
+                          const slotEnd = slot + durationHours;
+                          const isOccupied = aptsOnDay.some(apt =>
+                            slot >= apt.start && slot < (apt.start + apt.duration)
+                          );
+                          const hasDurationConflict = durationHours > 0 && aptsOnDay.some(apt =>
                             slot < (apt.start + apt.duration) && slotEnd > apt.start
                           );
-                          const hasBlock = blocksOnDay.some((block) => blockOverlapsTimeRange(block, slot, slotEnd));
+                          const isBlocked = blocksOnDay.some((block) =>
+                            blockOverlapsTimeRange(block, slot, slot + 0.01)
+                          );
+                          const hasBlockDurationConflict = durationHours > 0 && blocksOnDay.some((block) =>
+                            blockOverlapsTimeRange(block, slot, slotEnd)
+                          );
+                          const hasInsufficientSpace = !isOccupied && !isBlocked && (hasDurationConflict || hasBlockDurationConflict);
+                          const hasConflict = isOccupied || hasDurationConflict;
+                          const hasBlock = isBlocked || hasBlockDurationConflict;
                           const isDisabled = hasBlock || (hasConflict && !forceOverbook);
+                          const statusLabel = isOccupied
+                            ? '(Ocupado)'
+                            : isBlocked
+                              ? '(Bloqueado)'
+                              : hasInsufficientSpace
+                                ? '(Sem espaço suficiente)'
+                                : '';
 
                           return (
                             <option key={slot} value={slot} disabled={isDisabled} className={hasConflict || hasBlock ? 'text-red-400 bg-red-50 dark:bg-red-900/10' : ''}>
-                              {getDecimalTimeLabel(slot)} {hasConflict ? '(Ocupado)' : hasBlock ? '(Bloqueado)' : ''}
+                              {getDecimalTimeLabel(slot)} {statusLabel}
                             </option>
                           );
                         });
@@ -4767,13 +4812,14 @@ Podemos confirmar? 😄`;
                   <div className="relative">
                     <input
                       type="number"
-                      min="5"
+                      min="0"
                       max="720"
                       step="5"
-                      value={Math.round(Number(formData.duration) * 60) || 30}
+                      value={Math.round(Number(formData.duration || 0) * 60)}
                       onChange={(e) => {
-                        const val = Math.max(5, Number(e.target.value) || 5);
-                        handleInputChange('duration', Math.round((val / 60) * 100) / 100);
+                        const raw = Number(e.target.value);
+                        const val = Number.isFinite(raw) ? Math.max(0, Math.min(720, raw)) : 0;
+                        handleInputChange('duration', val === 0 ? 0 : Math.round((val / 60) * 100) / 100);
                       }}
                       className="w-full bg-white dark:bg-[#121214] border border-slate-200 dark:border-white/10 rounded-lg py-1.5 pl-2.5 pr-8 text-xs font-bold text-slate-900 dark:text-zinc-100 focus:ring-1 focus:ring-[#B88A44] outline-none"
                     />
@@ -4784,7 +4830,9 @@ Podemos confirmar? 😄`;
 
                   <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg text-xs font-bold text-slate-900 dark:text-zinc-100">
                     <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Término:</span>
-                    <span className="font-black text-[#B88A44]">{getDecimalTimeLabel(formData.start + formData.duration)}</span>
+                    <span className="font-black text-[#B88A44]">
+                      {Number(formData.duration) > 0 ? getDecimalTimeLabel(formData.start + formData.duration) : '00:00'}
+                    </span>
                   </div>
                 </div>
               </div>
