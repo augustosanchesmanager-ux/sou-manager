@@ -144,4 +144,91 @@ describe('clientCreditCheck (Eixo C - Baixa Automática Clube dos Chefes)', () =
       }),
     );
   });
+
+  it('should_inherit_club_eligibility_and_credits_from_parent_client_when_dependent_has_no_own_subscription', async () => {
+    const childId = 'child-samuel';
+    const parentId = 'parent-israel';
+
+    (supabaseClientModule.getClientForTable as any).mockImplementation((tableName: string) => {
+      if (tableName === 'customer_subscriptions') {
+        let queriedClientId: string | null = null;
+        return {
+          from: vi.fn(() => ({
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn((col: string, val: string) => {
+              if (col === 'client_id') queriedClientId = val;
+              return {
+                eq: vi.fn((col2: string, val2: string) => {
+                  if (col2 === 'client_id') queriedClientId = val2;
+                  return {
+                    eq: vi.fn().mockReturnThis(),
+                    order: vi.fn().mockReturnThis(),
+                    limit: vi.fn().mockReturnThis(),
+                    maybeSingle: vi.fn().mockImplementation(async () => ({
+                      data:
+                        queriedClientId === parentId
+                          ? { id: 'sub-parent', plan_id: 'plan-1', status: 'active', plan: { name: 'Plano Família Chefes' } }
+                          : null,
+                      error: null,
+                    })),
+                  };
+                }),
+                order: vi.fn().mockReturnThis(),
+                limit: vi.fn().mockReturnThis(),
+                maybeSingle: vi.fn().mockImplementation(async () => ({
+                  data:
+                    queriedClientId === parentId
+                      ? { id: 'sub-parent', plan_id: 'plan-1', status: 'active', plan: { name: 'Plano Família Chefes' } }
+                      : null,
+                  error: null,
+                })),
+              };
+            }),
+          })),
+        };
+      }
+      if (tableName === 'clients') {
+        return {
+          from: vi.fn(() => ({
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { parent_client_id: parentId },
+              error: null,
+            }),
+          })),
+        };
+      }
+      if (tableName === 'customer_credits') {
+        return {
+          from: vi.fn(() => ({
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: {
+                available_credits: 3,
+                used_credits: 1,
+                service_balance_map: [
+                  { service_id: 'srv-corte', service_name: 'Corte', available: 3, used: 1 },
+                ],
+              },
+              error: null,
+            }),
+          })),
+        };
+      }
+      return { from: vi.fn() };
+    });
+
+    const result = await checkClientCreditEligibility(tenantId, childId, [
+      { id: 'item-1', service_id: 'srv-corte', name: 'Corte', quantity: 1 },
+    ]);
+
+    expect(result.isClubMember).toBe(true);
+    expect(result.isInheritedFromParent).toBe(true);
+    expect(result.holderClientId).toBe(parentId);
+    expect(result.planName).toBe('Plano Família Chefes');
+    expect(result.totalAvailableCredits).toBe(3);
+    expect(result.isFullyCoveredByCredits).toBe(true);
+  });
 });

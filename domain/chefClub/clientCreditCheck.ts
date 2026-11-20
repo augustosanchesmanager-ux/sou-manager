@@ -27,12 +27,15 @@ export interface ClientCreditEligibility {
   isFullyCoveredByCredits: boolean;
   hasServicesToCover: boolean;
   serviceBalances: ServiceBalanceEntry[];
+  holderClientId?: string | null;
+  isInheritedFromParent?: boolean;
   reason?: string;
 }
 
 /**
  * Consulta a elegibilidade do cliente no Clube dos Chefes e verifica
  * se os itens da comanda podem ser 100% cobertos pelos créditos do plano.
+ * Suporta fallback para a assinatura ativa do responsável (parent_client_id).
  */
 export const checkClientCreditEligibility = async (
   tenantId: string,
@@ -57,8 +60,11 @@ export const checkClientCreditEligibility = async (
   try {
     const client = getClientForTable('customer_subscriptions');
 
-    // 1. Buscar assinatura ativa do cliente
-    const { data: subData, error: subError } = await client
+    // 1. Buscar assinatura ativa do próprio cliente
+    let effectiveHolderId = clientId;
+    let isInheritedFromParent = false;
+
+    let { data: subData, error: subError } = await client
       .from('customer_subscriptions')
       .select('id, plan_id, status, plan:customer_plans(name)')
       .eq('tenant_id', tenantId)
@@ -67,6 +73,39 @@ export const checkClientCreditEligibility = async (
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    // 1b. Fallback: se não possui assinatura própria, verifica se é filho/dependente (parent_client_id)
+    if (!subError && !subData) {
+      const clientsDb = getClientForTable('clients');
+      const clientsTable = clientsDb?.from?.('clients');
+      if (clientsTable?.select) {
+        const { data: childClientData } = await clientsTable
+          .select('parent_client_id')
+          .eq('tenant_id', tenantId)
+          .eq('id', clientId)
+          .maybeSingle();
+
+        const parentClientId = (childClientData as { parent_client_id?: string | null } | null)?.parent_client_id;
+        if (parentClientId) {
+          const parentSubRes = await client
+            .from('customer_subscriptions')
+            .select('id, plan_id, status, plan:customer_plans(name)')
+            .eq('tenant_id', tenantId)
+            .eq('client_id', parentClientId)
+            .eq('status', 'active')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (!parentSubRes.error && parentSubRes.data) {
+            subData = parentSubRes.data;
+            subError = null;
+            effectiveHolderId = parentClientId;
+            isInheritedFromParent = true;
+          }
+        }
+      }
+    }
 
     if (subError || !subData) {
       return fallback;
@@ -147,6 +186,8 @@ export const checkClientCreditEligibility = async (
       isFullyCoveredByCredits: isFullyCovered,
       hasServicesToCover,
       serviceBalances,
+      holderClientId: effectiveHolderId,
+      isInheritedFromParent,
       reason,
     };
   } catch (err) {

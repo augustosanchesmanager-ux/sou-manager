@@ -11,7 +11,14 @@ import type { QuickOpenComandaPayload } from '@/src/components/comandas/QuickOpe
 
 export interface QuickAuxiliaryData {
   catalogItems: CatalogItem[];
-  clients: Array<{ id: string; name: string; avatar?: string; phone?: string }>;
+  clients: Array<{
+    id: string;
+    name: string;
+    avatar?: string;
+    phone?: string;
+    parent_client_id?: string | null;
+    is_shared_phone?: boolean | null;
+  }>;
   staff: Array<{ id: string; name: string; role?: string }>;
 }
 
@@ -24,7 +31,7 @@ export const comandaQuickService = {
     const [servicesRes, productsRes, clientsRes, staffRes] = await Promise.all([
       client.from('services').select('id, name, price').eq('tenant_id', tenantId).or('active.is.null,active.eq.true'),
       client.from('products').select('id, name, price').eq('tenant_id', tenantId).or('active.is.null,active.eq.true'),
-      client.from('clients').select('id, name, avatar, phone').eq('tenant_id', tenantId).order('name').limit(100),
+      client.from('clients').select('*').eq('tenant_id', tenantId).order('name').limit(300),
       client.from('staff').select('id, name, role').eq('tenant_id', tenantId).eq('status', 'active').order('name'),
     ]);
 

@@ -329,4 +329,70 @@ describe('BookingService — Front-end to Supabase RPC integration', () => {
       expect(lookup.existing_staff_name).toBe('Marcos');
     }
   });
+
+  it('should_return_dependents_in_lookup_and_pass_dependent_client_id_on_create_booking', async () => {
+    const mockRpc = vi.fn().mockImplementation(async (fnName: string) => {
+      if (fnName === 'lookup_public_booking_client') {
+        return {
+          data: {
+            found: true,
+            client_name: 'Israel Oliveira',
+            masked_name: 'Isr***',
+            has_same_day_booking: false,
+            dependents: [{ id: 'child-samuel', name: 'Samuel', masked_name: 'Sam***' }],
+          },
+          error: null,
+        };
+      }
+      return {
+        data: {
+          appointment_id: 'apt-child-1',
+          client_id: 'child-samuel',
+          status: 'confirmed',
+          public_token: 'tok-child-1',
+          public_token_id: 'tokid-child-1',
+          expires_at: '2026-12-31T23:59:59Z',
+          services: [],
+          staff: { id: 'staff-1', name: 'Barbeiro' },
+          start_time: '2026-11-20T15:00:00Z',
+          end_time: '2026-11-20T15:45:00Z',
+          idempotent: false,
+        },
+        error: null,
+      };
+    });
+
+    vi.spyOn(clientModule, 'getPublicAnonymousClient').mockReturnValue({
+      rpc: mockRpc,
+    } as any);
+
+    if (!isUsingMock()) {
+      const lookup = await lookupPublicBookingClient('sanchez', '11958713888', '2026-11-20');
+      expect(lookup.dependents).toEqual([
+        { id: 'child-samuel', name: 'Samuel', masked_name: 'Sam***' },
+      ]);
+
+      const booking = await createPublicBooking({
+        tenant_identifier: 'sanchez',
+        staff_id: 'staff-1',
+        service_ids: ['svc-1'],
+        start_time: '2026-11-20T15:00:00Z',
+        client_name: 'Israel Oliveira',
+        client_phone: '11958713888',
+        is_for_other: true,
+        beneficiary_name: 'Samuel',
+        dependent_client_id: 'child-samuel',
+      });
+
+      expect(mockRpc).toHaveBeenCalledWith(
+        'create_public_booking',
+        expect.objectContaining({
+          p_is_for_other: true,
+          p_beneficiary_name: 'Samuel',
+          p_dependent_client_id: 'child-samuel',
+        }),
+      );
+      expect(booking.client_id).toBe('child-samuel');
+    }
+  });
 });

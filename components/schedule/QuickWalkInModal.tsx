@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Modal from '../ui/Modal';
 import { validateWalkInForm } from '../../src/utils/barberQueue';
+import {
+  searchClientsWithDependents,
+  type FamilyEnrichedClient,
+  type SearchableFamilyClient,
+} from '../../src/utils/clientFamilySearch';
 
 export interface QuickWalkInPayload {
   clientName: string;
@@ -18,7 +23,7 @@ export interface QuickWalkInModalProps {
   onClose: () => void;
   staffList: Array<{ id: string; name: string }>;
   servicesList: Array<{ id: string; name: string; price: number; duration: number }>;
-  clientsList: Array<{ id: string; name: string; phone?: string }>;
+  clientsList: Array<SearchableFamilyClient>;
   defaultStaffId?: string;
   onSubmitWalkIn: (payload: QuickWalkInPayload) => Promise<void>;
   isSubmitting?: boolean;
@@ -55,19 +60,17 @@ export const QuickWalkInModal: React.FC<QuickWalkInModalProps> = ({
     }
   }, [isOpen, defaultStaffId, staffList, servicesList]);
 
-  // Busca filtrada de clientes com debounce implícito por render
+  // Busca filtrada de clientes (Pai <-> Filhos/Dependentes)
   const filteredClients = useMemo(() => {
-    const term = clientSearch.trim().toLowerCase();
+    const term = clientSearch.trim();
     if (!term || selectedClientId) return [];
-    return clientsList
-      .filter((c) => c.name.toLowerCase().includes(term) || (c.phone && c.phone.includes(term)))
-      .slice(0, 5);
+    return searchClientsWithDependents(clientsList, term, { limit: 8 });
   }, [clientSearch, clientsList, selectedClientId]);
 
-  const handleSelectClient = (client: { id: string; name: string; phone?: string }) => {
+  const handleSelectClient = (client: FamilyEnrichedClient) => {
     setSelectedClientId(client.id);
     setClientSearch(client.name);
-    setClientPhone(client.phone || '');
+    setClientPhone(client.effectivePhone || client.phone || '');
     setShowSuggestions(false);
     setFormError(null);
   };
@@ -180,17 +183,28 @@ export const QuickWalkInModal: React.FC<QuickWalkInModalProps> = ({
 
           {/* Sugestões de Clientes Cadastrados */}
           {showSuggestions && filteredClients.length > 0 && (
-            <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1A1A1A] p-1 shadow-lg">
+            <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1A1A1A] p-1 shadow-lg">
               <div className="px-2 py-1 text-[10px] font-black uppercase text-slate-400">Clientes encontrados</div>
               {filteredClients.map((client) => (
                 <button
                   key={client.id}
                   type="button"
                   onClick={() => handleSelectClient(client)}
-                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors text-left"
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors text-left ${
+                    client.isDependent && client.matchedViaParent ? 'pl-5 bg-slate-50/60 dark:bg-white/[0.02]' : ''
+                  }`}
                 >
-                  <span className="font-bold">{client.name}</span>
-                  <span className="text-[10px] text-slate-400">{client.phone || 'Sem telefone'}</span>
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold">{client.name}</span>
+                      {client.isDependent && (
+                        <span className="px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-600 dark:text-sky-300 text-[10px] font-bold">
+                          Filho(a) de {client.parentName || 'Responsável'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-slate-400">{client.effectivePhone || client.phone || 'Sem telefone'}</span>
                 </button>
               ))}
             </div>

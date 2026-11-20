@@ -30,6 +30,10 @@ import {
 import { buildImportPreview, clientImportDefinition, phoneDuplicateKey, toPersistableRow, type ImportPreview } from '../src/modules/import-engine';
 import { requestAsyncExcelExport } from '../src/lib/export/excelExportService';
 import { sanitizeOptionalFields, sanitizeNullableString } from '../src/utils/sanitization';
+import {
+    enrichClientsWithFamilyContext,
+    searchClientsWithDependents,
+} from '../src/utils/clientFamilySearch';
 
 type SortKey = 'name' | 'last_visit' | 'total_spent';
 type SortDir = 'asc' | 'desc';
@@ -244,7 +248,14 @@ const Clients: React.FC = () => {
         }
     }, [barberSupabase, tenantId]);
 
-    const handleBookAppointment = useCallback((params?: { date?: string; time?: string; staffId?: string }) => {
+    const handleBookAppointment = useCallback((params?: {
+        date?: string;
+        time?: string;
+        staffId?: string;
+        clientId?: string;
+        clientName?: string;
+        clientPhone?: string;
+    }) => {
         if (!detailClient) return;
         let decimalStart: number | undefined;
         if (params?.time) {
@@ -257,8 +268,9 @@ const Clients: React.FC = () => {
         navigate('/schedule', {
             state: {
                 openNewAppointment: true,
-                client: detailClient.name,
-                clientPhone: detailClient.phone,
+                clientId: params?.clientId || detailClient.id,
+                client: params?.clientName || detailClient.name,
+                clientPhone: params?.clientPhone ?? detailClient.phone,
                 staffId: params?.staffId || detailClient.preferred_staff_id,
                 date: params?.date,
                 start: decimalStart,
@@ -322,27 +334,35 @@ const Clients: React.FC = () => {
         }
     }, [clients, location.pathname, location.state, navigate, openClientDetails]);
 
-    // Filtering & Sorting
+    // Filtering & Sorting (com busca familiar Pai <-> Filhos/Dependentes)
     const processed = React.useMemo(() => {
-        const query = debouncedSearch.trim().toLowerCase();
-        return clients
-            .filter(c => {
-                const matchSearch = !query || c.name.toLowerCase().includes(query) || c.phone.includes(query) || c.email.toLowerCase().includes(query);
-                const matchStatus = statusFilter === 'all' || c.status === statusFilter;
-                let matchInactivity = true;
-                if (inactivityFilter !== 'all') {
-                    const inact = getClientInactivityStatus(c.last_visit);
-                    matchInactivity = inact.tier === inactivityFilter;
-                }
-                return matchSearch && matchStatus && matchInactivity;
-            })
-            .sort((a, b) => {
-                let cmp = 0;
-                if (sortKey === 'name') cmp = a.name.localeCompare(b.name);
-                else if (sortKey === 'last_visit') cmp = new Date(a.last_visit).getTime() - new Date(b.last_visit).getTime();
-                else if (sortKey === 'total_spent') cmp = (a.total_spent || 0) - (b.total_spent || 0);
-                return sortDir === 'asc' ? cmp : -cmp;
-            });
+        const query = debouncedSearch.trim();
+        const baseList = query
+            ? searchClientsWithDependents(clients, query)
+            : enrichClientsWithFamilyContext(clients);
+
+        const filtered = baseList.filter((c) => {
+            const matchStatus = statusFilter === 'all' || c.status === statusFilter;
+            let matchInactivity = true;
+            if (inactivityFilter !== 'all') {
+                const inact = getClientInactivityStatus(c.last_visit);
+                matchInactivity = inact.tier === inactivityFilter;
+            }
+            return matchStatus && matchInactivity;
+        });
+
+        if (query) {
+            // Preserva agrupamento familiar (titular seguido imediatamente de seus filhos) durante busca ativa
+            return filtered;
+        }
+
+        return [...filtered].sort((a, b) => {
+            let cmp = 0;
+            if (sortKey === 'name') cmp = a.name.localeCompare(b.name);
+            else if (sortKey === 'last_visit') cmp = new Date(a.last_visit).getTime() - new Date(b.last_visit).getTime();
+            else if (sortKey === 'total_spent') cmp = (a.total_spent || 0) - (b.total_spent || 0);
+            return sortDir === 'asc' ? cmp : -cmp;
+        });
     }, [clients, debouncedSearch, statusFilter, inactivityFilter, sortKey, sortDir]);
 
     const totalPages = Math.ceil(processed.length / itemsPerPage) || 1;
@@ -854,7 +874,7 @@ const Clients: React.FC = () => {
                                                     )}
                                                 </div>
                                                 <div>
-                                                    <div className="flex items-center gap-2">
+                                                    <div className="flex flex-wrap items-center gap-2">
                                                         <p className="text-sm font-bold text-slate-900 dark:text-white">{client.name}</p>
                                                         {!isEsteticaApp && chefClubMap[client.id] && (
                                                             <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-500/10 text-amber-600 rounded text-[9px] font-black uppercase tracking-tighter" title={`Club dos Chefes: ${chefClubMap[client.id]}`}>
@@ -862,13 +882,29 @@ const Clients: React.FC = () => {
                                                                 Membro
                                                             </span>
                                                         )}
+                                                        {client.isDependent && (
+                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 rounded text-[10px] font-bold">
+                                                                <span className="material-symbols-outlined text-[11px]">family_restroom</span>
+                                                                Filho(a) de {client.parentName || 'Responsável'}
+                                                            </span>
+                                                        )}
+                                                        {!client.isDependent && client.dependentsCount > 0 && (
+                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#B88A44]/10 text-[#B88A44] border border-[#B88A44]/25 rounded text-[10px] font-bold">
+                                                                <span className="material-symbols-outlined text-[11px]">family_restroom</span>
+                                                                {client.dependentsCount} {client.dependentsCount === 1 ? 'filho' : 'filhos'}
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                    <p className="text-[10px] text-slate-500 hidden sm:block">{client.email || 'Sem e-mail'}</p>
+                                                    <p className="text-[10px] text-slate-500 hidden sm:block">
+                                                        {client.isDependent && client.parentName
+                                                            ? `Resp.: ${client.parentName} • ${client.effectivePhone || 'Sem telefone'}`
+                                                            : client.email || 'Sem e-mail'}
+                                                    </p>
                                                 </div>
                                             </div>
                                         </td>
                                         <td className="px-5 py-4 hidden md:table-cell">
-                                            <span className="text-sm text-slate-700 dark:text-slate-300">{client.phone || '-'}</span>
+                                            <span className="text-sm text-slate-700 dark:text-slate-300">{client.effectivePhone || client.phone || '-'}</span>
                                         </td>
                                         <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-300 hidden lg:table-cell">
                                             {(() => {
@@ -1027,6 +1063,9 @@ const Clients: React.FC = () => {
                     navigate(`/checkout/${comandaId}`);
                 }}
                 onBookAppointment={handleBookAppointment}
+                allClients={clients}
+                onClientsChanged={fetchClients}
+                onSelectClient={(target) => void openClientDetails(target)}
             />
 
             {/* Modal de Edição (Novo!) */}

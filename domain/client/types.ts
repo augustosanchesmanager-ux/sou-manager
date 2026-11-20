@@ -23,6 +23,8 @@ export interface Client {
   preferred_weekday?: number | null;
   preferred_time?: string | null;
   preferred_staff_id?: string | null;
+  parent_client_id?: string | null;
+  is_shared_phone?: boolean;
 }
 
 export interface CreateClientInput {
@@ -34,6 +36,15 @@ export interface CreateClientInput {
   preferred_frequency?: PreferredFrequency | null;
   preferred_weekday?: number | null;
   preferred_time?: string | null;
+  preferred_staff_id?: string | null;
+  parent_client_id?: string | null;
+  is_shared_phone?: boolean;
+}
+
+export interface CreateDependentInput {
+  name: string;
+  birthday?: string;
+  notes?: string;
   preferred_staff_id?: string | null;
 }
 
@@ -48,6 +59,8 @@ export interface UpdateClientInput {
   preferred_weekday?: number | null;
   preferred_time?: string | null;
   preferred_staff_id?: string | null;
+  parent_client_id?: string | null;
+  is_shared_phone?: boolean;
 }
 
 export interface ClientImportRow {

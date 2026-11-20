@@ -24,7 +24,14 @@ import { SupabaseRepository } from '../shared/supabase-repository';
 import { createSupabaseClient } from '../shared/supabase-client-factory';
 import type { DatabaseClient } from '../shared/database-client';
 import type { IRepository } from '../shared/repository';
-import type { Client, ClientImportRow, CreateClientInput, ImportJobResult, UpdateClientInput } from './types';
+import type {
+  Client,
+  ClientImportRow,
+  CreateClientInput,
+  CreateDependentInput,
+  ImportJobResult,
+  UpdateClientInput,
+} from './types';
 import type { AppSlug } from '../shared/app';
 import { findClientByCanonicalPhone, getCanonicalBrPhone } from '../../src/lib/utils/phone';
 
@@ -46,6 +53,8 @@ const toClient = (row: Record<string, unknown>): Client => ({
   preferred_weekday: typeof row.preferred_weekday === 'number' ? row.preferred_weekday : null,
   preferred_time: (row.preferred_time as string) || null,
   preferred_staff_id: (row.preferred_staff_id as string) || null,
+  parent_client_id: (row.parent_client_id as string) || null,
+  is_shared_phone: Boolean(row.is_shared_phone),
 });
 
 class ClientRepositoryImpl extends SupabaseRepository {
@@ -177,6 +186,8 @@ class ClientRepositoryImpl extends SupabaseRepository {
       if (input.preferred_weekday !== undefined) payload.preferred_weekday = input.preferred_weekday;
       if (input.preferred_time !== undefined) payload.preferred_time = input.preferred_time;
       if (input.preferred_staff_id !== undefined) payload.preferred_staff_id = input.preferred_staff_id;
+      if (input.parent_client_id !== undefined) payload.parent_client_id = input.parent_client_id;
+      if (input.is_shared_phone !== undefined) payload.is_shared_phone = input.is_shared_phone;
 
       const result = await this.from()
         .insert(payload)
@@ -184,7 +195,7 @@ class ClientRepositoryImpl extends SupabaseRepository {
         .single();
       return toClient(this.extractData(result, 'Erro ao criar cliente') as Record<string, unknown>);
     } catch (err) {
-      if (canonicalPhone && (err as { code?: string })?.code === '23505') {
+      if (canonicalPhone && !input.parent_client_id && !input.is_shared_phone && (err as { code?: string })?.code === '23505') {
         const existingAfterConflict = await this.findByCanonicalPhone(canonicalPhone, tenantId);
         if (existingAfterConflict) {
           return existingAfterConflict;
@@ -192,6 +203,148 @@ class ClientRepositoryImpl extends SupabaseRepository {
       }
       this.throwOnError(err, 'Erro ao criar cliente');
     }
+  }
+
+  async listDependents(parentClientId: string, tenantId: string): Promise<Client[]> {
+    if (!parentClientId || !tenantId) return [];
+    try {
+      const result = await this.from()
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('parent_client_id', parentClientId)
+        .order('name');
+      return this.extractData<Record<string, unknown>[]>(result, 'Erro ao listar dependentes').map(toClient);
+    } catch (err) {
+      this.throwOnError(err, 'Erro ao listar dependentes');
+    }
+  }
+
+  async createDependent(
+    parentClient: { id: string; phone: string; parent_client_id?: string | null },
+    input: CreateDependentInput,
+    tenantId: string,
+  ): Promise<Client> {
+    if (!parentClient?.id) {
+      this.throwOnError(new Error('Responsável inválido para cadastro de dependente.'), 'Erro ao cadastrar dependente');
+    }
+    if (parentClient.parent_client_id) {
+      this.throwOnError(
+        new Error('Um dependente não pode ser responsável de outro dependente (limite de 1 nível).'),
+        'Erro ao cadastrar dependente',
+      );
+    }
+    const cleanName = input.name?.trim();
+    if (!cleanName) {
+      this.throwOnError(new Error('O nome do dependente é obrigatório.'), 'Erro ao cadastrar dependente');
+    }
+
+    const inheritedPhone = getCanonicalBrPhone(parentClient.phone) ?? (parentClient.phone || '');
+    return this.create(
+      {
+        name: cleanName,
+        email: '',
+        phone: inheritedPhone,
+        birthday: input.birthday || '',
+        notes: input.notes,
+        preferred_staff_id: input.preferred_staff_id ?? null,
+        parent_client_id: parentClient.id,
+        is_shared_phone: true,
+      },
+      tenantId,
+    );
+  }
+
+  async linkExistingAsDependent(
+    childClientId: string,
+    parentClient: { id: string; phone: string; parent_client_id?: string | null },
+    tenantId: string,
+  ): Promise<void> {
+    if (!childClientId || !parentClient?.id) {
+      this.throwOnError(new Error('IDs de dependente e responsável são obrigatórios.'), 'Erro ao vincular dependente');
+    }
+    if (childClientId === parentClient.id) {
+      this.throwOnError(new Error('Um cliente não pode ser dependente de si mesmo.'), 'Erro ao vincular dependente');
+    }
+    if (parentClient.parent_client_id) {
+      this.throwOnError(
+        new Error('Um dependente não pode ser responsável de outro dependente (limite de 1 nível).'),
+        'Erro ao vincular dependente',
+      );
+    }
+
+    const childHasDependents = await this.listDependents(childClientId, tenantId);
+    if (childHasDependents.length > 0) {
+      this.throwOnError(
+        new Error('Um cliente que possui dependentes vinculados não pode se tornar dependente.'),
+        'Erro ao vincular dependente',
+      );
+    }
+
+    const existingChild = await this.get(childClientId, tenantId);
+    if (!existingChild) {
+      this.throwOnError(new Error('Cliente dependente não encontrado neste tenant.'), 'Erro ao vincular dependente');
+    }
+
+    const inheritedPhone = getCanonicalBrPhone(parentClient.phone) ?? (parentClient.phone || '');
+    const effectivePhone = existingChild.phone?.trim() ? existingChild.phone.trim() : inheritedPhone;
+
+    await this.update(
+      childClientId,
+      {
+        parent_client_id: parentClient.id,
+        phone: effectivePhone,
+        is_shared_phone: true,
+      },
+      tenantId,
+    );
+  }
+
+  async unlinkDependent(
+    childClientId: string,
+    tenantId: string,
+    options?: { newPhone?: string | null },
+  ): Promise<void> {
+    if (!childClientId) {
+      this.throwOnError(new Error('ID do dependente é obrigatório.'), 'Erro ao desvincular dependente');
+    }
+
+    const existingChild = await this.get(childClientId, tenantId);
+    if (!existingChild) {
+      this.throwOnError(new Error('Cliente dependente não encontrado neste tenant.'), 'Erro ao desvincular dependente');
+    }
+
+    const updates: UpdateClientInput = {
+      parent_client_id: null,
+    };
+
+    if (options && options.newPhone !== undefined) {
+      const rawPhone = (options.newPhone || '').trim();
+      if (!rawPhone) {
+        updates.phone = '';
+        updates.is_shared_phone = false;
+      } else {
+        const canonical = getCanonicalBrPhone(rawPhone);
+        const existingTitular = canonical ? await this.findByCanonicalPhone(canonical, tenantId) : null;
+        const collidesWithOtherTitular = Boolean(
+          existingTitular && existingTitular.id !== childClientId && !existingTitular.is_shared_phone,
+        );
+        updates.phone = canonical ?? rawPhone;
+        updates.is_shared_phone = collidesWithOtherTitular;
+      }
+    } else {
+      const currentCanonical = getCanonicalBrPhone(existingChild.phone);
+      if (!currentCanonical) {
+        updates.is_shared_phone = false;
+      } else {
+        const existingTitular = await this.findByCanonicalPhone(currentCanonical, tenantId);
+        const collidesWithOtherTitular = Boolean(
+          existingTitular && existingTitular.id !== childClientId && !existingTitular.is_shared_phone,
+        );
+        updates.is_shared_phone = collidesWithOtherTitular;
+      }
+    }
+
+    await this.update(childClientId, updates, tenantId);
   }
 
   async update(id: string, input: UpdateClientInput, tenantId: string): Promise<void> {
@@ -306,6 +459,22 @@ export interface ClientRepository extends IRepository<Client> {
   create(input: CreateClientInput, tenantId: string): Promise<Client>;
   update(id: string, input: UpdateClientInput, tenantId: string): Promise<void>;
   delete(id: string, tenantId: string): Promise<void>;
+  listDependents(parentClientId: string, tenantId: string): Promise<Client[]>;
+  createDependent(
+    parentClient: { id: string; phone: string; parent_client_id?: string | null },
+    input: CreateDependentInput,
+    tenantId: string,
+  ): Promise<Client>;
+  linkExistingAsDependent(
+    childClientId: string,
+    parentClient: { id: string; phone: string; parent_client_id?: string | null },
+    tenantId: string,
+  ): Promise<void>;
+  unlinkDependent(
+    childClientId: string,
+    tenantId: string,
+    options?: { newPhone?: string | null },
+  ): Promise<void>;
   importViaJob(jobId: string, rows: ClientImportRow[]): Promise<ImportJobResult>;
   getByIds(ids: string[], tenantId: string): Promise<Record<string, { id: string; name: string; phone: string }>>;
   getNameMap(ids: string[], tenantId: string): Promise<Record<string, string>>;

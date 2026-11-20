@@ -5,6 +5,9 @@ import { clientRepository } from '../../domain/client';
 import CustomerVouchersSection from './CustomerVouchersSection';
 import { formatCurrency } from '../../shared/format/currency';
 import {
+  getEligibleDependentCandidates,
+} from '../../src/utils/clientFamilySearch';
+import {
   fetchClientCrmFrictionAlert,
   type ClientCrmFrictionAlert,
 } from '../../src/lib/reviews/qualityService';
@@ -63,7 +66,17 @@ interface ClientProfile360DrawerProps {
   isEsteticaApp: boolean;
   onToast: (toast: { message: string; type: 'success' | 'error' | 'info' | 'warning' }) => void;
   onOpenComanda: (comandaId: string) => void;
-  onBookAppointment: (params?: { date?: string; time?: string; staffId?: string }) => void;
+  onBookAppointment: (params?: {
+    date?: string;
+    time?: string;
+    staffId?: string;
+    clientId?: string;
+    clientName?: string;
+    clientPhone?: string;
+  }) => void;
+  allClients?: Client[];
+  onClientsChanged?: () => Promise<void> | void;
+  onSelectClient?: (targetClient: Client) => void;
 }
 
 const getDisplayId = (id: string) => {
@@ -113,6 +126,9 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
   onToast,
   onOpenComanda,
   onBookAppointment,
+  allClients = [],
+  onClientsChanged,
+  onSelectClient,
 }) => {
   // Notes state
   const [notes, setNotes] = useState('');
@@ -131,6 +147,15 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
   const [activeTab, setActiveTab] = useState<'overview' | 'vouchers'>('overview');
   const [crmAlert, setCrmAlert] = useState<ClientCrmFrictionAlert | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Filhos / Dependentes state
+  const [dependents, setDependents] = useState<Client[]>([]);
+  const [dependentsLoading, setDependentsLoading] = useState(false);
+  const [dependentMode, setDependentMode] = useState<'idle' | 'create' | 'link'>('idle');
+  const [newDependentName, setNewDependentName] = useState('');
+  const [newDependentBirthday, setNewDependentBirthday] = useState('');
+  const [linkSearchQuery, setLinkSearchQuery] = useState('');
+  const [isMutatingDependent, setIsMutatingDependent] = useState(false);
 
   // Trava scroll do body enquanto o drawer estiver aberto e restaura ao fechar
   useEffect(() => {
@@ -171,8 +196,128 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
       setPreferredStaffId(client.preferred_staff_id || '');
       setIsEditingSchedule(false);
       setNotesSavedFeedback(false);
+      setDependentMode('idle');
+      setNewDependentName('');
+      setNewDependentBirthday('');
+      setLinkSearchQuery('');
     }
   }, [client]);
+
+  // Resolve parent client when viewing a dependent
+  const parentClient = useMemo(() => {
+    if (!client?.parent_client_id) return null;
+    return allClients.find((c) => c.id === client.parent_client_id) || null;
+  }, [client?.parent_client_id, allClients]);
+
+  // Load dependents of current client
+  const refreshDependents = useCallback(async () => {
+    if (!isOpen || !client || !tenantId || client.parent_client_id) {
+      setDependents([]);
+      return;
+    }
+    if (allClients.length > 0) {
+      setDependents(
+        allClients
+          .filter((c) => c.parent_client_id === client.id)
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      );
+      return;
+    }
+    setDependentsLoading(true);
+    try {
+      const list = await clientRepository.listDependents(client.id, tenantId);
+      setDependents(list);
+    } catch {
+      setDependents([]);
+    } finally {
+      setDependentsLoading(false);
+    }
+  }, [isOpen, client, tenantId, allClients]);
+
+  useEffect(() => {
+    void refreshDependents();
+  }, [refreshDependents]);
+
+  const eligibleCandidatesToLink = useMemo(() => {
+    if (!client || client.parent_client_id) return [];
+    return getEligibleDependentCandidates(allClients, client.id, linkSearchQuery, 6);
+  }, [allClients, client, linkSearchQuery]);
+
+  const handleCreateDependent = useCallback(async () => {
+    if (!client || !tenantId) return;
+    const cleanName = newDependentName.trim();
+    if (!cleanName) {
+      onToast({ message: 'Informe o nome do filho/dependente.', type: 'warning' });
+      return;
+    }
+    setIsMutatingDependent(true);
+    try {
+      const created = await clientRepository.createDependent(
+        { id: client.id, phone: client.phone, parent_client_id: client.parent_client_id },
+        { name: cleanName, birthday: newDependentBirthday || undefined },
+        tenantId,
+      );
+      setDependents((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+      setNewDependentName('');
+      setNewDependentBirthday('');
+      setDependentMode('idle');
+      await onClientsChanged?.();
+      onToast({ message: `${created.name} vinculado(a) como dependente de ${client.name}.`, type: 'success' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao cadastrar dependente.';
+      onToast({ message, type: 'error' });
+    } finally {
+      setIsMutatingDependent(false);
+    }
+  }, [client, tenantId, newDependentName, newDependentBirthday, onClientsChanged, onToast]);
+
+  const handleLinkExistingDependent = useCallback(
+    async (candidate: Client) => {
+      if (!client || !tenantId) return;
+      setIsMutatingDependent(true);
+      try {
+        await clientRepository.linkExistingAsDependent(
+          candidate.id,
+          { id: client.id, phone: client.phone, parent_client_id: client.parent_client_id },
+          tenantId,
+        );
+        setDependentMode('idle');
+        setLinkSearchQuery('');
+        await onClientsChanged?.();
+        await refreshDependents();
+        onToast({ message: `${candidate.name} vinculado(a) a ${client.name}.`, type: 'success' });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Erro ao vincular dependente.';
+        onToast({ message, type: 'error' });
+      } finally {
+        setIsMutatingDependent(false);
+      }
+    },
+    [client, tenantId, onClientsChanged, refreshDependents, onToast],
+  );
+
+  const handleUnlinkDependent = useCallback(
+    async (targetChild: Client) => {
+      if (!tenantId) return;
+      setIsMutatingDependent(true);
+      try {
+        await clientRepository.unlinkDependent(targetChild.id, tenantId);
+        if (client && targetChild.id === client.id) {
+          onClientUpdated?.({ ...client, parent_client_id: null });
+        } else {
+          setDependents((prev) => prev.filter((item) => item.id !== targetChild.id));
+        }
+        await onClientsChanged?.();
+        onToast({ message: `Vínculo de ${targetChild.name} removido.`, type: 'info' });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Erro ao desvincular dependente.';
+        onToast({ message, type: 'error' });
+      } finally {
+        setIsMutatingDependent(false);
+      }
+    },
+    [tenantId, client, onClientUpdated, onClientsChanged, onToast],
+  );
 
   // Close on Escape key
   useEffect(() => {
@@ -341,6 +486,34 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                     {crmAlert?.isVip && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#B88A44] text-neutral-950">
                         VIP · LTV {formatCurrency(crmAlert.lifetimeValue)}
+                      </span>
+                    )}
+                    {client.parent_client_id && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                        <span className="material-symbols-outlined text-xs">family_restroom</span>
+                        <span>
+                          Dependente de{' '}
+                          {parentClient && onSelectClient ? (
+                            <button
+                              type="button"
+                              onClick={() => onSelectClient(parentClient)}
+                              className="underline font-black hover:text-white transition-colors"
+                            >
+                              {parentClient.name}
+                            </button>
+                          ) : (
+                            parentClient?.name || 'Responsável'
+                          )}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={isMutatingDependent}
+                          onClick={() => void handleUnlinkDependent(client)}
+                          className="ml-1 text-sky-200/80 hover:text-red-400 transition-colors"
+                          title="Desvincular do responsável"
+                        >
+                          ×
+                        </button>
                       </span>
                     )}
                   </div>
@@ -609,6 +782,232 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                     </div>
                   </div>
                 </div>
+
+                {/* Seção Filhos / Dependentes (Apenas para Clientes Titulares — Limite de 1 Nível) */}
+                {!client.parent_client_id && (
+                  <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02] p-4.5 space-y-3.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="size-9 rounded-lg bg-[#B88A44]/15 text-[#B88A44] flex items-center justify-center border border-[#B88A44]/30">
+                          <span className="material-symbols-outlined text-xl">family_restroom</span>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                              Filhos / Dependentes
+                            </h4>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#B88A44]/15 text-[#B88A44]">
+                              {dependents.length}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Perfis próprios vinculados ao WhatsApp de {client.name.split(' ')[0]}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDependentMode((prev) => (prev === 'create' ? 'idle' : 'create'))
+                          }
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold bg-[#B88A44]/15 text-[#B88A44] hover:bg-[#B88A44]/25 border border-[#B88A44]/30 rounded-lg transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-sm">person_add</span>
+                          + Cadastrar Filho
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDependentMode((prev) => (prev === 'link' ? 'idle' : 'link'))
+                          }
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold border border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5 text-slate-700 dark:text-slate-200 rounded-lg transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-sm">link</span>
+                          Vincular Existente
+                        </button>
+                      </div>
+                    </div>
+
+                    {dependentMode === 'create' && (
+                      <div className="pt-3 border-t border-slate-200 dark:border-white/10 space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
+                              Nome do Filho / Dependente *
+                            </label>
+                            <input
+                              type="text"
+                              value={newDependentName}
+                              onChange={(e) => setNewDependentName(e.target.value)}
+                              placeholder="Ex: Samuel Oliveira"
+                              className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg text-slate-900 dark:text-white font-medium focus:ring-1 focus:ring-primary outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
+                              Data de Nascimento (Opcional)
+                            </label>
+                            <input
+                              type="date"
+                              value={newDependentBirthday}
+                              onChange={(e) => setNewDependentBirthday(e.target.value)}
+                              className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg text-slate-900 dark:text-white font-medium focus:ring-1 focus:ring-primary outline-none"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] text-slate-400">
+                            Herdará automaticamente o telefone {client.phone || 'do responsável'}.
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setDependentMode('idle')}
+                              className="px-3 py-1.5 text-xs font-bold text-slate-400 hover:text-white"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isMutatingDependent || !newDependentName.trim()}
+                              onClick={() => void handleCreateDependent()}
+                              className="px-3.5 py-1.5 bg-primary text-night rounded-lg text-xs font-bold hover:bg-primary/90 transition disabled:opacity-50"
+                            >
+                              {isMutatingDependent ? 'Salvando...' : 'Salvar Filho'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {dependentMode === 'link' && (
+                      <div className="pt-3 border-t border-slate-200 dark:border-white/10 space-y-2.5">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
+                            Buscar cliente já cadastrado para vincular como filho
+                          </label>
+                          <input
+                            type="text"
+                            value={linkSearchQuery}
+                            onChange={(e) => setLinkSearchQuery(e.target.value)}
+                            placeholder="Digite o nome ou telefone..."
+                            className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg text-slate-900 dark:text-white font-medium focus:ring-1 focus:ring-primary outline-none"
+                          />
+                        </div>
+                        {eligibleCandidatesToLink.length === 0 ? (
+                          <p className="text-xs text-slate-400 py-1">
+                            Nenhum cadastro elegível encontrado para o filtro informado.
+                          </p>
+                        ) : (
+                          <div className="max-h-40 overflow-y-auto divide-y divide-slate-200/60 dark:divide-white/5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20">
+                            {eligibleCandidatesToLink.map((candidate) => (
+                              <div
+                                key={candidate.id}
+                                className="flex items-center justify-between px-3 py-2 text-xs"
+                              >
+                                <div>
+                                  <p className="font-bold text-slate-900 dark:text-white">
+                                    {candidate.name}
+                                  </p>
+                                  <p className="text-[11px] text-slate-400">
+                                    {candidate.phone || 'Sem telefone'}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={isMutatingDependent}
+                                  onClick={() => void handleLinkExistingDependent(candidate)}
+                                  className="px-2.5 py-1 rounded bg-[#B88A44]/20 text-[#B88A44] hover:bg-[#B88A44]/30 font-bold text-[11px] transition-colors disabled:opacity-50"
+                                >
+                                  Vincular
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {dependentsLoading ? (
+                      <div className="py-3 text-center text-xs text-slate-400 animate-pulse">
+                        Carregando dependentes...
+                      </div>
+                    ) : dependents.length === 0 ? (
+                      <p className="text-xs text-slate-400">
+                        Nenhum filho/dependente vinculado a este cliente.
+                      </p>
+                    ) : (
+                      <div className="space-y-2 pt-1">
+                        {dependents.map((dep) => (
+                          <div
+                            key={dep.id}
+                            className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div className="size-8 rounded-full bg-[#B88A44]/15 text-[#B88A44] flex items-center justify-center font-bold text-xs border border-[#B88A44]/30">
+                                {dep.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  {onSelectClient ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => onSelectClient(dep)}
+                                      className="text-xs font-bold text-slate-900 dark:text-white hover:text-[#B88A44] transition-colors text-left"
+                                    >
+                                      {dep.name}
+                                    </button>
+                                  ) : (
+                                    <p className="text-xs font-bold text-slate-900 dark:text-white">
+                                      {dep.name}
+                                    </p>
+                                  )}
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#B88A44]/15 text-[#B88A44] font-bold">
+                                    Filho(a)
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-400">
+                                  {dep.birthday ? `Aniv.: ${formatDate(dep.birthday)} • ` : ''}
+                                  WhatsApp: {dep.phone || client.phone || '-'}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onClose();
+                                  onBookAppointment({
+                                    clientId: dep.id,
+                                    clientName: dep.name,
+                                    clientPhone: dep.phone || client.phone,
+                                    staffId: dep.preferred_staff_id || undefined,
+                                  });
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary text-night rounded text-[11px] font-bold hover:bg-primary/90 transition"
+                              >
+                                <span className="material-symbols-outlined text-xs">calendar_add_on</span>
+                                Agendar
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isMutatingDependent}
+                                onClick={() => void handleUnlinkDependent(dep)}
+                                className="px-2 py-1 text-[11px] font-bold text-slate-400 hover:text-red-400 transition-colors"
+                                title="Desvincular dependente"
+                              >
+                                Desvincular
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Seção Cadeira Cativa / Horário Fixo */}
                 <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02] p-4.5 space-y-4">
