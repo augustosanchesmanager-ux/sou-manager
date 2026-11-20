@@ -9,12 +9,17 @@ import {
   type HistoricalItemUsage,
 } from '@/src/utils/comandaQuickActions';
 import { formatBrlCurrency } from '@/src/utils/checkoutQuickPay';
+import {
+  searchClientsWithDependents,
+} from '@/src/utils/clientFamilySearch';
 
 export interface QuickOpenClient {
   id: string;
   name: string;
   avatar?: string;
   phone?: string;
+  parent_client_id?: string | null;
+  is_shared_phone?: boolean | null;
 }
 
 export interface QuickOpenStaff {
@@ -114,13 +119,10 @@ export const QuickOpenComandaModal: React.FC<QuickOpenComandaModalProps> = ({
     return findActiveOpenComanda(existingOpenComandas, selectedClient.id);
   }, [isFinalConsumer, selectedClient, existingOpenComandas]);
 
-  // Filtro de clientes
+  // Filtro de clientes (com busca familiar Pai <-> Filhos/Dependentes)
   const filteredClients = useMemo(() => {
     if (!searchTerm.trim()) return [];
-    const term = searchTerm.toLowerCase();
-    return clients
-      .filter((c) => c.name.toLowerCase().includes(term) || (c.phone && c.phone.includes(term)))
-      .slice(0, 5);
+    return searchClientsWithDependents(clients, searchTerm, { limit: 8 });
   }, [clients, searchTerm]);
 
   // Manipulação de itens rápidos
@@ -271,19 +273,28 @@ export const QuickOpenComandaModal: React.FC<QuickOpenComandaModalProps> = ({
               />
 
               {filteredClients.length > 0 && (
-                <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-card-dark border border-slate-200 dark:border-white/10 rounded-xl shadow-xl z-20 overflow-hidden divide-y divide-slate-100 dark:divide-white/5">
+                <div className="absolute left-0 right-0 top-full mt-1 max-h-56 overflow-y-auto bg-white dark:bg-card-dark border border-slate-200 dark:border-white/10 rounded-xl shadow-xl z-20 divide-y divide-slate-100 dark:divide-white/5">
                   {filteredClients.map((client) => (
                     <button
                       key={client.id}
                       type="button"
                       onClick={() => handleSelectClient(client)}
-                      className="w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                      className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-slate-50 dark:hover:bg-white/5 transition-colors ${
+                        client.isDependent && client.matchedViaParent ? 'pl-6 bg-slate-50/60 dark:bg-white/[0.02]' : ''
+                      }`}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="material-symbols-outlined text-slate-400 text-sm">person</span>
                         <span className="font-bold text-slate-800 dark:text-slate-200">{client.name}</span>
+                        {client.isDependent && (
+                          <span className="px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-600 dark:text-sky-300 text-[10px] font-bold">
+                            Filho(a) de {client.parentName || 'Responsável'}
+                          </span>
+                        )}
                       </div>
-                      {client.phone && <span className="text-[11px] text-slate-400">{client.phone}</span>}
+                      {(client.effectivePhone || client.phone) && (
+                        <span className="text-[11px] text-slate-400">{client.effectivePhone || client.phone}</span>
+                      )}
                     </button>
                   ))}
                 </div>

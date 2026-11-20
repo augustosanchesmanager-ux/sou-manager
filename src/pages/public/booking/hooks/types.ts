@@ -122,6 +122,7 @@ export interface CreatePublicBookingRequest {
   idempotency_key?: string | null;
   is_for_other?: boolean;
   beneficiary_name?: string | null;
+  dependent_client_id?: string | null;
 }
 
 export interface CreatePublicBookingResult {
@@ -171,6 +172,12 @@ export interface CancelPublicBookingResult {
 // RPC 5 & 6: Masked client lookup & promotional lead registration (LGPD-safe)
 // ============================================================================
 
+export interface PublicBookingDependent {
+  id: string;
+  name: string;
+  masked_name?: string | null;
+}
+
 export interface PublicClientLookupResult {
   found: boolean;
   masked_name: string | null;
@@ -179,6 +186,7 @@ export interface PublicClientLookupResult {
   existing_booking_time?: string | null;
   existing_staff_name?: string | null;
   existing_appointment_id?: string | null;
+  dependents?: PublicBookingDependent[];
 }
 
 export interface PromoLeadRegistrationRequest {

@@ -217,6 +217,9 @@ export async function createPublicBooking(
     if (request.beneficiary_name !== undefined) {
       rpcPayload.p_beneficiary_name = request.beneficiary_name;
     }
+    if (request.dependent_client_id !== undefined) {
+      rpcPayload.p_dependent_client_id = request.dependent_client_id;
+    }
 
     const { data, error } = await client.rpc(RPC_NAMES.CREATE_BOOKING, rpcPayload);
 
@@ -374,6 +377,7 @@ export async function lookupPublicBookingClient(
       existing_booking_time: parsed?.existing_booking_time ?? null,
       existing_staff_name: parsed?.existing_staff_name ?? null,
       existing_appointment_id: parsed?.existing_appointment_id ?? null,
+      ...(Array.isArray(parsed?.dependents) ? { dependents: parsed.dependents } : {}),
     };
   } catch {
     return { found: false, masked_name: null };

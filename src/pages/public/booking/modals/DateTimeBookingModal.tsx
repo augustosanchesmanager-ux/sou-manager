@@ -51,7 +51,7 @@ interface DateTimeBookingModalProps {
   totalPrice: number;
   totalDuration: number;
   isSubmitting: boolean;
-  onConfirmBooking: (isForOther?: boolean, beneficiaryName?: string) => void;
+  onConfirmBooking: (isForOther?: boolean, beneficiaryName?: string, dependentClientId?: string | null) => void;
   onBack: () => void;
   onClose: () => void;
   formatPriceBRL: (price: number) => string;
@@ -91,14 +91,18 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
 }) => {
   const [isForOther, setIsForOther] = useState(false);
   const [beneficiaryName, setBeneficiaryName] = useState('');
+  const [selectedDependentId, setSelectedDependentId] = useState<string | null>(null);
+  const [lookupInfo, setLookupInfo] = useState<PublicClientLookupResult | null>(null);
   const [sameDayBookingInfo, setSameDayBookingInfo] = useState<PublicClientLookupResult | null>(null);
 
-  // Reconciliação / verificação de agendamento existente no mesmo dia
+  // Reconciliação / verificação de agendamento existente no mesmo dia e filhos vinculados
   useEffect(() => {
     if (!isOpen || !selectedDate || !clientPhone || !onLookupPhone) {
+      setLookupInfo(null);
       setSameDayBookingInfo(null);
       setIsForOther(false);
       setBeneficiaryName('');
+      setSelectedDependentId(null);
       return;
     }
 
@@ -110,15 +114,20 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
       try {
         const res = await onLookupPhone(phoneDigits, selectedDate);
         if (!cancelled) {
+          setLookupInfo(res || null);
           if (res?.has_same_day_booking) {
             setSameDayBookingInfo(res);
           } else {
             setSameDayBookingInfo(null);
             setIsForOther(false);
+            setSelectedDependentId(null);
           }
         }
       } catch {
-        if (!cancelled) setSameDayBookingInfo(null);
+        if (!cancelled) {
+          setLookupInfo(null);
+          setSameDayBookingInfo(null);
+        }
       }
     };
 
@@ -553,6 +562,82 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
 
         {/* Modal Action Footer */}
         <div className="p-4 bg-neutral-950 border-t border-neutral-800 flex-shrink-0 space-y-3">
+          {/* Seletor rápido de filhos vinculados (quando titular não tem colisão no mesmo dia) */}
+          {!sameDayBookingInfo?.has_same_day_booking && (lookupInfo?.dependents?.length || 0) > 0 && (
+            <div className="p-3 rounded-2xl bg-neutral-900/90 border border-neutral-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-neutral-300 flex items-center gap-1.5">
+                  <Users size={12} className="text-amber-400" />
+                  <span>Para quem é o atendimento?</span>
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForOther(false);
+                    setSelectedDependentId(null);
+                    setBeneficiaryName('');
+                  }}
+                  className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    !isForOther
+                      ? 'bg-amber-400 text-neutral-950 shadow-sm'
+                      : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
+                  }`}
+                >
+                  Para mim ({(clientName || lookupInfo?.client_name || 'Titular').split(' ')[0]})
+                </button>
+                {lookupInfo?.dependents?.map((dep) => {
+                  const isSelectedDep = isForOther && selectedDependentId === dep.id;
+                  return (
+                    <button
+                      key={dep.id}
+                      type="button"
+                      onClick={() => {
+                        setIsForOther(true);
+                        setSelectedDependentId(dep.id);
+                        setBeneficiaryName(dep.name);
+                      }}
+                      className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        isSelectedDep
+                          ? 'bg-amber-400 text-neutral-950 shadow-sm'
+                          : 'bg-neutral-800 text-neutral-200 hover:bg-neutral-700'
+                      }`}
+                    >
+                      Para {dep.name}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForOther(true);
+                    setSelectedDependentId(null);
+                    setBeneficiaryName('');
+                  }}
+                  className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    isForOther && !selectedDependentId
+                      ? 'bg-amber-400 text-neutral-950 shadow-sm'
+                      : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700'
+                  }`}
+                >
+                  + Outro filho
+                </button>
+              </div>
+              {isForOther && !selectedDependentId && (
+                <div className="pt-1">
+                  <input
+                    type="text"
+                    value={beneficiaryName}
+                    onChange={(e) => setBeneficiaryName(e.target.value)}
+                    placeholder="Nome do filho ou dependente..."
+                    className="w-full px-3 py-2 bg-neutral-950 border border-neutral-700 focus:border-amber-400 rounded-xl text-xs text-white placeholder:text-neutral-500 outline-none"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Alerta interativo: Mesmo cliente com agendamento no mesmo dia */}
           {sameDayBookingInfo?.has_same_day_booking && (
             <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 space-y-2.5 animate-in fade-in duration-200">
@@ -584,7 +669,10 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsForOther(false)}
+                  onClick={() => {
+                    setIsForOther(false);
+                    setSelectedDependentId(null);
+                  }}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     !isForOther
                       ? 'bg-neutral-800 text-neutral-300 border border-neutral-700'
@@ -596,7 +684,34 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
               </div>
 
               {isForOther ? (
-                <div className="pt-1.5 space-y-1">
+                <div className="pt-1.5 space-y-2">
+                  {(lookupInfo?.dependents?.length || 0) > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[10px] font-bold uppercase text-amber-300/90">
+                        Filhos cadastrados:
+                      </span>
+                      {lookupInfo?.dependents?.map((dep) => {
+                        const isSelectedDep = selectedDependentId === dep.id;
+                        return (
+                          <button
+                            key={dep.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedDependentId(dep.id);
+                              setBeneficiaryName(dep.name);
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                              isSelectedDep
+                                ? 'bg-amber-400 text-neutral-950'
+                                : 'bg-neutral-900 text-neutral-200 border border-neutral-700 hover:border-amber-400/50'
+                            }`}
+                          >
+                            {dep.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                   <label htmlFor="beneficiary-name-input" className="block text-[11px] font-bold text-neutral-200 flex items-center gap-1.5">
                     <Users size={12} className="text-amber-400" />
                     <span>Nome de quem será atendido: <strong className="text-amber-400">*</strong></span>
@@ -605,7 +720,10 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
                     id="beneficiary-name-input"
                     type="text"
                     value={beneficiaryName}
-                    onChange={(e) => setBeneficiaryName(e.target.value)}
+                    onChange={(e) => {
+                      setBeneficiaryName(e.target.value);
+                      setSelectedDependentId(null);
+                    }}
                     placeholder="Ex: Enzo (filho) ou Pedro"
                     className="w-full px-3 py-2 bg-neutral-900 border border-neutral-700 focus:border-amber-400 rounded-xl text-xs text-white placeholder:text-neutral-500 outline-none"
                   />
@@ -623,7 +741,8 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
 
           {(() => {
             const isSameDayBlocked = Boolean(
-              sameDayBookingInfo?.has_same_day_booking && (!isForOther || beneficiaryName.trim().length < 3)
+              (sameDayBookingInfo?.has_same_day_booking && (!isForOther || beneficiaryName.trim().length < 3)) ||
+              (isForOther && beneficiaryName.trim().length < 3)
             );
 
             return (
@@ -631,7 +750,11 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
                 type="button"
                 onClick={() => {
                   if (isSameDayBlocked || !selectedSlot || isSubmitting) return;
-                  onConfirmBooking(isForOther, isForOther ? beneficiaryName.trim() : undefined);
+                  onConfirmBooking(
+                    isForOther,
+                    isForOther ? beneficiaryName.trim() : undefined,
+                    isForOther ? selectedDependentId : null,
+                  );
                 }}
                 disabled={!selectedSlot || isSubmitting || isSameDayBlocked}
                 className={`w-full py-3.5 px-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 active:scale-[0.99] shadow-lg ${

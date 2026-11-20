@@ -56,9 +56,37 @@ const runCustomerQueryWithFallback = async <T>(
   };
 };
 
+const resolveParentClientId = async (
+  clientId: string,
+  tenantId?: string | null,
+): Promise<string | null> => {
+  try {
+    const parentResult = await runCustomerQueryWithFallback<{ parent_client_id?: string | null }>((client) => {
+      let query = client
+        .from('clients')
+        .select('parent_client_id')
+        .eq('id', clientId);
+
+      if (tenantId) {
+        query = query.eq('tenant_id', tenantId);
+      }
+
+      return query.maybeSingle();
+    });
+
+    if (parentResult.error || !parentResult.data?.parent_client_id) {
+      return null;
+    }
+    return parentResult.data.parent_client_id;
+  } catch {
+    return null;
+  }
+};
+
 export const fetchChefClubSummaryByClient = async (
   clientId: string,
   tenantId?: string | null,
+  allowParentFallback = true,
 ): Promise<ChefClubClientSummary | null> => {
   const subscriptionResult = await runCustomerQueryWithFallback<{
     id: string;
@@ -84,6 +112,12 @@ export const fetchChefClubSummaryByClient = async (
 
   const subscription = subscriptionResult.data;
   if (!subscription) {
+    if (allowParentFallback) {
+      const parentId = await resolveParentClientId(clientId, tenantId);
+      if (parentId && parentId !== clientId) {
+        return fetchChefClubSummaryByClient(parentId, tenantId, false);
+      }
+    }
     return null;
   }
 
@@ -163,6 +197,7 @@ export const fetchActiveChefClubPlanMap = async (
 export const fetchChefClubCreditsByClient = async (
   clientId: string,
   tenantId?: string | null,
+  allowParentFallback = true,
 ): Promise<ChefClubClientCredits | null> => {
   const subscriptionResult = await runCustomerQueryWithFallback<{
     id: string;
@@ -189,6 +224,12 @@ export const fetchChefClubCreditsByClient = async (
 
   const subscription = subscriptionResult.data;
   if (!subscription) {
+    if (allowParentFallback) {
+      const parentId = await resolveParentClientId(clientId, tenantId);
+      if (parentId && parentId !== clientId) {
+        return fetchChefClubCreditsByClient(parentId, tenantId, false);
+      }
+    }
     return null;
   }
 
@@ -249,6 +290,37 @@ export const fetchChefClubCreditsByClients = async (
     return resultMap;
   }
 
+  const parentByChildMap = new Map<string, string>();
+  try {
+    const clientsResult = await runCustomerQueryWithFallback<Array<{
+      id: string;
+      parent_client_id?: string | null;
+    }>>((client) => {
+      let query = client
+        .from('clients')
+        .select('id, parent_client_id')
+        .in('id', clientIds);
+
+      if (tenantId) {
+        query = query.eq('tenant_id', tenantId);
+      }
+
+      return query;
+    });
+
+    if (!clientsResult.error && Array.isArray(clientsResult.data)) {
+      for (const row of clientsResult.data) {
+        if (row.parent_client_id) {
+          parentByChildMap.set(row.id, row.parent_client_id);
+        }
+      }
+    }
+  } catch {
+    // Fallback silencioso se parent_client_id não estiver disponível
+  }
+
+  const allSubscriberIds = Array.from(new Set([...clientIds, ...parentByChildMap.values()]));
+
   const subscriptionResult = await runCustomerQueryWithFallback<Array<{
     id: string;
     client_id: string;
@@ -259,7 +331,7 @@ export const fetchChefClubCreditsByClients = async (
       .from('customer_subscriptions')
       .select('id, client_id, status, plan_id')
       .eq('status', 'active')
-      .in('client_id', clientIds);
+      .in('client_id', allSubscriberIds);
 
     if (tenantId) {
       query = query.eq('tenant_id', tenantId);
@@ -329,6 +401,16 @@ export const fetchChefClubCreditsByClients = async (
       usedCredits,
       serviceBalances,
     });
+  }
+
+  // Propaga elegibilidade do responsável para dependentes sem assinatura própria
+  for (const [childId, parentId] of parentByChildMap.entries()) {
+    if (!resultMap.has(childId) && resultMap.has(parentId)) {
+      const parentCredits = resultMap.get(parentId);
+      if (parentCredits) {
+        resultMap.set(childId, parentCredits);
+      }
+    }
   }
 
   return resultMap;

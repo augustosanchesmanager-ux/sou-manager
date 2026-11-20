@@ -495,6 +495,7 @@ export function usePublicBooking() {
   const submitBooking = useCallback(async (extraParams?: {
     is_for_other?: boolean;
     beneficiary_name?: string | null;
+    dependent_client_id?: string | null;
   }): Promise<CreatePublicBookingResult | null> => {
     const { tenantProfile, selectedServiceIds, selectedStaffId, selectedSlot, clientName, clientPhone, clientNotes, idempotencyKey } = state;
 
@@ -534,6 +535,7 @@ export function usePublicBooking() {
         idempotency_key: idempotencyKey,
         is_for_other: extraParams?.is_for_other ?? false,
         beneficiary_name: extraParams?.beneficiary_name ?? null,
+        dependent_client_id: extraParams?.dependent_client_id ?? null,
       };
 
       const result = await createPublicBooking(request);

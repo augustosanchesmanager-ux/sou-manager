@@ -430,7 +430,11 @@ const PublicBookingPage: React.FC = () => {
   }, []);
 
   // Final booking submission with automatic WhatsApp dispatch
-  const handleConfirmBooking = useCallback(async (isForOther?: boolean, beneficiaryName?: string) => {
+  const handleConfirmBooking = useCallback(async (
+    isForOther?: boolean,
+    beneficiaryName?: string,
+    dependentClientId?: string | null,
+  ) => {
     if (!tenantProfile || !selectedSlot || selectedServiceIds.length === 0 || !selectedStaffId) {
       return;
     }
@@ -441,6 +445,7 @@ const PublicBookingPage: React.FC = () => {
       const result = await submitBooking({
         is_for_other: isForOther,
         beneficiary_name: beneficiaryName,
+        dependent_client_id: dependentClientId ?? null,
       });
 
       if (result) {

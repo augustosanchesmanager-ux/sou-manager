@@ -90,6 +90,11 @@ import {
   parseLocalDate,
   type RecurrenceFrequency,
 } from '../src/utils/recurringSchedule';
+import {
+  enrichClientsWithFamilyContext,
+  searchClientsWithDependents,
+  type FamilyEnrichedClient,
+} from '../src/utils/clientFamilySearch';
 
 interface DBStaff {
   id: string;
@@ -111,6 +116,8 @@ interface DBClient {
   id: string;
   name: string;
   phone: string;
+  parent_client_id?: string | null;
+  is_shared_phone?: boolean | null;
 }
 
 interface CalendarAppointment {
@@ -634,6 +641,37 @@ const Schedule: React.FC = () => {
 
   const appointmentsForModalDate = modalDateAppointments ?? appointments;
 
+  // Client Autocomplete & Family Dependent State
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [showClientSuggestions, setShowClientSuggestions] = useState(false);
+  const [filteredClients, setFilteredClients] = useState<FamilyEnrichedClient<DBClient>[]>([]);
+  const [isNewClientMode, setIsNewClientMode] = useState(false);
+  const [chefClubInfo, setChefClubInfo] = useState<{ planName: string; credits: number; status: string } | null>(null);
+  const [isAddingChildInline, setIsAddingChildInline] = useState(false);
+  const [inlineChildName, setInlineChildName] = useState('');
+  const [inlineChildBirthday, setInlineChildBirthday] = useState('');
+  const [isSavingInlineChild, setIsSavingInlineChild] = useState(false);
+  const [showOverbookModal, setShowOverbookModal] = useState(false);
+  const [overbookConflicts, setOverbookConflicts] = useState<CalendarAppointment[]>([]);
+  const [forceOverbook, setForceOverbook] = useState(false);
+  const searchWrapperRef = useRef<HTMLDivElement>(null);
+  const overbookModalRef = useRef<HTMLDivElement>(null);
+
+  const enrichedClientsList = React.useMemo(
+    () => enrichClientsWithFamilyContext(clientsList),
+    [clientsList],
+  );
+
+  const selectedClientRecord = React.useMemo(() => {
+    if (!selectedClientId) return null;
+    return enrichedClientsList.find((c) => c.id === selectedClientId) || null;
+  }, [selectedClientId, enrichedClientsList]);
+
+  const selectedClientDependents = React.useMemo(() => {
+    if (!selectedClientRecord || selectedClientRecord.isDependent) return [];
+    return enrichedClientsList.filter((c) => c.parent_client_id === selectedClientRecord.id);
+  }, [selectedClientRecord, enrichedClientsList]);
+
   const sameDayAppointmentForClient = React.useMemo(() => {
     if (!isModalOpen || editingAppointmentId || !formData.date || (!formData.client && !formData.clientPhone)) {
       return null;
@@ -646,10 +684,15 @@ const Schedule: React.FC = () => {
       const aptDate = apt.date ? toLocalDateKey(apt.date) : '';
       if (aptDate !== formData.date) return false;
 
+      if (selectedClientId && apt.clientId) {
+        return apt.clientId === selectedClientId;
+      }
+
       const aptPhone = (apt.clientPhone || '').replace(/\D/g, '');
       const aptName = (apt.client || '').trim().toLowerCase();
 
       const phoneMatches =
+        !selectedClientRecord?.isDependent &&
         cleanPhone.length >= 10 &&
         aptPhone.length >= 10 &&
         (cleanPhone === aptPhone || cleanPhone.endsWith(aptPhone) || aptPhone.endsWith(cleanPhone));
@@ -657,7 +700,16 @@ const Schedule: React.FC = () => {
 
       return phoneMatches || nameMatches;
     });
-  }, [isModalOpen, editingAppointmentId, formData.date, formData.client, formData.clientPhone, appointmentsForModalDate]);
+  }, [
+    isModalOpen,
+    editingAppointmentId,
+    formData.date,
+    formData.client,
+    formData.clientPhone,
+    appointmentsForModalDate,
+    selectedClientId,
+    selectedClientRecord,
+  ]);
   const filteredServicesForModal = React.useMemo(() => {
     const normalizedSearch = serviceSearchTerm.trim().toLowerCase();
     if (!normalizedSearch) return servicesList;
@@ -689,6 +741,7 @@ const Schedule: React.FC = () => {
   useEffect(() => {
     const navState = location.state as {
       openNewAppointment?: boolean;
+      clientId?: string;
       client?: string;
       clientPhone?: string;
       staffId?: string;
@@ -699,6 +752,8 @@ const Schedule: React.FC = () => {
 
     setEditingAppointmentId(null);
     setEditingComandaStatus(null);
+    setSelectedClientId(navState.clientId ?? null);
+    setIsAddingChildInline(false);
     setFormData(prev => ({
       ...prev,
       client: navState.client ?? '',
@@ -716,17 +771,6 @@ const Schedule: React.FC = () => {
 
     navigate(location.pathname, { replace: true, state: null });
   }, [location.pathname, location.state, navigate]);
-
-  // Client Autocomplete State
-  const [showClientSuggestions, setShowClientSuggestions] = useState(false);
-  const [filteredClients, setFilteredClients] = useState<DBClient[]>([]);
-  const [isNewClientMode, setIsNewClientMode] = useState(false);
-  const [chefClubInfo, setChefClubInfo] = useState<{ planName: string; credits: number; status: string } | null>(null);
-  const [showOverbookModal, setShowOverbookModal] = useState(false);
-  const [overbookConflicts, setOverbookConflicts] = useState<CalendarAppointment[]>([]);
-  const [forceOverbook, setForceOverbook] = useState(false);
-  const searchWrapperRef = useRef<HTMLDivElement>(null);
-  const overbookModalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (showOverbookModal && overbookModalRef.current) {
@@ -748,13 +792,12 @@ const Schedule: React.FC = () => {
 
     const scheduleAppSlug = ensureAppSupportsModule(appSlug, 'schedule', ['barber']);
     const servicesClient = getClientForTable('services', scheduleAppSlug);
-    const clientsClient = getClientForTable('clients', scheduleAppSlug);
     const promotionsClient = getClientForTable('promotions', scheduleAppSlug);
 
-    const [staffRes, servicesRes, clientsRes, promoRes] = await Promise.all([
+    const [staffRes, servicesRes, loadedClients, promoRes] = await Promise.all([
       supabase.from('staff').select('id, name, role, avatar, commission_rate').eq('tenant_id', tenantId).eq('status', 'active'),
       servicesClient.from('services').select('id, name, duration, buffer, price').eq('tenant_id', tenantId).eq('active', true),
-      clientsClient.from('clients').select('id, name, phone').eq('tenant_id', tenantId).order('name'),
+      clientRepository.list(tenantId).catch(() => [] as DBClient[]),
       promotionsClient.from('promotions').select('*').eq('tenant_id', tenantId).eq('active', true),
     ]);
 
@@ -825,7 +868,10 @@ const Schedule: React.FC = () => {
       }
     }
 
-    if (clientsRes.data) { setClientsList(clientsRes.data); setFilteredClients(clientsRes.data); }
+    if (loadedClients) {
+      setClientsList(loadedClients);
+      setFilteredClients(enrichClientsWithFamilyContext(loadedClients));
+    }
     if (promoRes.data) {
       const now = new Date();
       const validPromos = promoRes.data.filter((p: any) => {
@@ -1204,9 +1250,11 @@ const Schedule: React.FC = () => {
     }
 
     if (field === 'client') {
-      const filtered = clientsList.filter(c =>
-        c.name.toLowerCase().includes(value.toLowerCase())
-      );
+      setSelectedClientId(null);
+      setIsAddingChildInline(false);
+      const filtered = searchClientsWithDependents(clientsList, String(value || ''), {
+        includeAllOnEmpty: true,
+      });
       setFilteredClients(filtered);
       setShowClientSuggestions(true);
       setIsNewClientMode(false);
@@ -1229,21 +1277,40 @@ const Schedule: React.FC = () => {
     });
   };
 
-  const loadChefClubInfo = async (clientName: string) => {
-    const client = clientsList.find(c => c.name === clientName);
+  const loadChefClubInfo = async (clientName: string, explicitClientId?: string | null) => {
+    const client = explicitClientId
+      ? clientsList.find((c) => c.id === explicitClientId)
+      : clientsList.find((c) => c.name === clientName);
     if (!client) {
       setChefClubInfo(null);
       return;
     }
 
     const barberClient = getScopedClient('barber');
-    const { data: subscription, error: subError } = await barberClient
+    let { data: subscription, error: subError } = await barberClient
       .from('customer_subscriptions')
       .select('id, plan_id, status, tenant_id')
       .eq('tenant_id', tenantId)
       .eq('client_id', client.id)
       .eq('status', 'active')
       .maybeSingle();
+
+    let inheritedHolderName: string | null = null;
+    if (!subError && !subscription && client.parent_client_id) {
+      const parentClient = clientsList.find((c) => c.id === client.parent_client_id);
+      const parentSubRes = await barberClient
+        .from('customer_subscriptions')
+        .select('id, plan_id, status, tenant_id')
+        .eq('tenant_id', tenantId)
+        .eq('client_id', client.parent_client_id)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (!parentSubRes.error && parentSubRes.data) {
+        subscription = parentSubRes.data;
+        inheritedHolderName = parentClient?.name || 'Responsável';
+      }
+    }
 
     if (subError) {
       console.warn('[loadChefClubInfo] Falha ao buscar subscription:', subError);
@@ -1266,7 +1333,9 @@ const Schedule: React.FC = () => {
       console.warn('[loadChefClubInfo] Falha ao buscar plano:', planError);
     }
     if (plan?.name) {
-      planName = plan.name;
+      planName = inheritedHolderName ? `${plan.name} (Titular: ${inheritedHolderName})` : plan.name;
+    } else if (inheritedHolderName) {
+      planName = `Plano ativo (Titular: ${inheritedHolderName})`;
     }
 
     let availableCredits = 0;
@@ -1298,14 +1367,92 @@ const Schedule: React.FC = () => {
     });
   };
 
-  const selectClient = async (clientName: string) => {
-    setFormData(prev => ({ ...prev, client: clientName, clientPhone: '' }));
+  const selectClient = async (target: DBClient | FamilyEnrichedClient<DBClient> | string) => {
+    const resolved =
+      typeof target === 'string'
+        ? enrichedClientsList.find((c) => c.name === target)
+        : enrichedClientsList.find((c) => c.id === target.id) || target;
+
+    const resolvedId = typeof target === 'string' ? resolved?.id || null : target.id;
+    const resolvedName = typeof target === 'string' ? target : target.name;
+    const resolvedPhone: string =
+      resolved && 'effectivePhone' in resolved && typeof resolved.effectivePhone === 'string'
+        ? resolved.effectivePhone
+        : resolved?.phone || '';
+
+    setSelectedClientId(resolvedId);
+    setIsAddingChildInline(false);
+    setInlineChildName('');
+    setInlineChildBirthday('');
+    setFormData((prev) => ({
+      ...prev,
+      client: resolvedName,
+      clientPhone: resolvedPhone || prev.clientPhone,
+    }));
     setShowClientSuggestions(false);
     setIsNewClientMode(false);
-    await loadChefClubInfo(clientName);
+    await loadChefClubInfo(resolvedName, resolvedId);
+  };
+
+  const handleCreateInlineDependent = async () => {
+    if (!tenantId || !selectedClientRecord || selectedClientRecord.isDependent) return;
+    const cleanName = inlineChildName.trim();
+    if (!cleanName) {
+      setError('Informe o nome do filho/dependente.');
+      return;
+    }
+
+    setIsSavingInlineChild(true);
+    setError(null);
+    try {
+      const created = await clientRepository.createDependent(
+        {
+          id: selectedClientRecord.id,
+          phone: selectedClientRecord.effectivePhone || selectedClientRecord.phone,
+          parent_client_id: selectedClientRecord.parent_client_id,
+        },
+        {
+          name: cleanName,
+          birthday: inlineChildBirthday || undefined,
+        },
+        tenantId,
+      );
+
+      const newEntry: DBClient = {
+        id: created.id,
+        name: created.name,
+        phone: created.phone,
+        parent_client_id: created.parent_client_id,
+        is_shared_phone: created.is_shared_phone,
+      };
+
+      const nextList = [...clientsList, newEntry];
+      setClientsList(nextList);
+      setFilteredClients(enrichClientsWithFamilyContext(nextList));
+      setSelectedClientId(created.id);
+      setFormData((prev) => ({
+        ...prev,
+        client: created.name,
+        clientPhone: created.phone || selectedClientRecord.effectivePhone || selectedClientRecord.phone,
+      }));
+      setIsAddingChildInline(false);
+      setInlineChildName('');
+      setInlineChildBirthday('');
+      setToast({
+        message: `${created.name} vinculado(a) a ${selectedClientRecord.name} e selecionado(a) para o agendamento.`,
+        type: 'success',
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao cadastrar filho/dependente.';
+      setError(message);
+    } finally {
+      setIsSavingInlineChild(false);
+    }
   };
 
   const enableNewClientMode = () => {
+    setSelectedClientId(null);
+    setIsAddingChildInline(false);
     setIsNewClientMode(true);
     setShowClientSuggestions(false);
     setChefClubInfo(null);
@@ -1314,6 +1461,8 @@ const Schedule: React.FC = () => {
   const handleEditAppointment = (apt: CalendarAppointment) => {
     setEditingAppointmentId(apt.id);
     setEditingComandaStatus(null);
+    setSelectedClientId(apt.clientId || null);
+    setIsAddingChildInline(false);
 
     if (tenantId) {
       void comandaRepository
@@ -1350,7 +1499,7 @@ const Schedule: React.FC = () => {
       notes: apt.notes || '',
     });
 
-    void loadChefClubInfo(apt.client);
+    void loadChefClubInfo(apt.client, apt.clientId);
     setIsDetailDrawerOpen(false);
     setIsModalOpen(true);
   };
@@ -2015,8 +2164,13 @@ const Schedule: React.FC = () => {
         }
       }
     } else {
-      const existing = clientsList.find(c => c.name.toLowerCase() === formData.client.toLowerCase());
-      if (existing) clientId = existing.id;
+      const existing =
+        (selectedClientId ? clientsList.find((c) => c.id === selectedClientId) : undefined) ||
+        clientsList.find((c) => c.name.toLowerCase() === formData.client.toLowerCase());
+      if (existing) {
+        clientId = existing.id;
+        canonicalClientName = existing.name;
+      }
     }
 
     const startHours = Math.floor(formData.start);
@@ -4227,17 +4381,33 @@ Podemos confirmar? 😄`;
                 )}
 
                 {showClientSuggestions && (
-                  <div className="absolute z-50 left-0 right-0 mt-1 bg-white dark:bg-[#18181B] border border-slate-200 dark:border-white/10 rounded-lg shadow-xl max-h-48 overflow-y-auto custom-scrollbar">
+                  <div className="absolute z-50 left-0 right-0 mt-1 bg-white dark:bg-[#18181B] border border-slate-200 dark:border-white/10 rounded-lg shadow-xl max-h-56 overflow-y-auto custom-scrollbar">
                     {filteredClients.length > 0 ? (
                       filteredClients.map(c => (
                         <button
                           key={c.id}
                           type="button"
-                          onClick={() => selectClient(c.name)}
-                          className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-white/5 flex flex-col border-b border-slate-100 dark:border-white/5 last:border-0"
+                          onClick={() => selectClient(c)}
+                          className={`w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-white/5 flex flex-col border-b border-slate-100 dark:border-white/5 last:border-0 ${
+                            c.isDependent && c.matchedViaParent ? 'pl-6 bg-slate-50/60 dark:bg-white/[0.02]' : ''
+                          }`}
                         >
-                          <span className="text-xs font-bold text-slate-900 dark:text-zinc-100">{c.name}</span>
-                          <span className="text-[10px] text-slate-500 dark:text-zinc-400">{c.phone}</span>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-xs font-bold text-slate-900 dark:text-zinc-100">{c.name}</span>
+                            {c.isDependent && (
+                              <span className="px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-600 dark:text-sky-300 text-[10px] font-bold">
+                                Filho(a) de {c.parentName || 'Responsável'}
+                              </span>
+                            )}
+                            {!c.isDependent && c.dependentsCount > 0 && (
+                              <span className="px-1.5 py-0.5 rounded bg-[#B88A44]/15 text-[#B88A44] text-[10px] font-bold">
+                                {c.dependentsCount} {c.dependentsCount === 1 ? 'filho' : 'filhos'}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-slate-500 dark:text-zinc-400">
+                            {c.effectivePhone || c.phone || 'Sem telefone'}
+                          </span>
                         </button>
                       ))
                     ) : (
@@ -4250,6 +4420,89 @@ Podemos confirmar? 😄`;
                         >
                           Cadastrar "{formData.client}"
                         </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {selectedClientRecord?.isDependent && (
+                  <div className="mt-2 px-2.5 py-1.5 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-between text-[11px]">
+                    <span className="font-bold text-sky-700 dark:text-sky-300 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-xs">family_restroom</span>
+                      Filho(a) de {selectedClientRecord.parentName || 'Responsável'}
+                    </span>
+                    <span className="text-slate-500 dark:text-zinc-400">
+                      WhatsApp: {selectedClientRecord.effectivePhone || '—'}
+                    </span>
+                  </div>
+                )}
+
+                {selectedClientRecord && !selectedClientRecord.isDependent && !editingAppointmentId && (
+                  <div className="mt-2 p-2.5 rounded-lg bg-slate-100/80 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      {selectedClientDependents.length > 0 ? (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-zinc-400">
+                            Agendar para filho:
+                          </span>
+                          {selectedClientDependents.map((dep) => (
+                            <button
+                              key={dep.id}
+                              type="button"
+                              onClick={() => void selectClient(dep)}
+                              className="px-2 py-0.5 rounded-md bg-sky-500/15 hover:bg-sky-500/25 text-sky-700 dark:text-sky-300 border border-sky-500/30 text-[11px] font-bold transition-colors"
+                            >
+                              {dep.name}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-slate-500 dark:text-zinc-400">
+                          Agendando para um filho de {selectedClientRecord.name.split(' ')[0]}?
+                        </span>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingChildInline((prev) => !prev)}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#B88A44]/15 hover:bg-[#B88A44]/25 text-[#B88A44] text-[10px] font-bold uppercase tracking-wider transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-xs">person_add</span>
+                        {isAddingChildInline ? 'Cancelar' : '+ Adicionar filho'}
+                      </button>
+                    </div>
+
+                    {isAddingChildInline && (
+                      <div className="pt-2 border-t border-slate-200 dark:border-white/10 space-y-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <input
+                            type="text"
+                            placeholder="Nome do filho(a) *"
+                            value={inlineChildName}
+                            onChange={(e) => setInlineChildName(e.target.value)}
+                            className="w-full bg-white dark:bg-[#1A1A1E] border border-slate-200 dark:border-white/10 rounded-lg p-2 text-xs text-slate-900 dark:text-zinc-100 focus:ring-1 focus:ring-[#B88A44] outline-none"
+                          />
+                          <input
+                            type="date"
+                            title="Data de nascimento (opcional)"
+                            value={inlineChildBirthday}
+                            onChange={(e) => setInlineChildBirthday(e.target.value)}
+                            className="w-full bg-white dark:bg-[#1A1A1E] border border-slate-200 dark:border-white/10 rounded-lg p-2 text-xs text-slate-900 dark:text-zinc-100 focus:ring-1 focus:ring-[#B88A44] outline-none"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] text-slate-500 dark:text-zinc-400">
+                            Usa o WhatsApp de {selectedClientRecord.name.split(' ')[0]} ({selectedClientRecord.effectivePhone || 'sem telefone'})
+                          </span>
+                          <button
+                            type="button"
+                            disabled={isSavingInlineChild || !inlineChildName.trim()}
+                            onClick={() => void handleCreateInlineDependent()}
+                            className="px-3 py-1.5 rounded-lg bg-[#B88A44] text-zinc-950 text-[11px] font-bold hover:bg-[#B88A44]/90 transition disabled:opacity-50"
+                          >
+                            {isSavingInlineChild ? 'Salvando...' : 'Salvar e Selecionar Filho'}
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
