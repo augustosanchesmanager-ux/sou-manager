@@ -1,4 +1,5 @@
 import { supabase, getClientForTable } from '../../../services/supabaseClient';
+import { toLocalDateKey } from '../../utils/dateTimezone';
 
 export interface BiCockpitMetrics {
   grossRevenue: number;
@@ -314,7 +315,7 @@ export async function fetchBiCockpitData(tenantId: string, period: BiPeriod = '3
 
       timeline.push({
         label,
-        date: pStart.toISOString().split('T')[0],
+        date: toLocalDateKey(pStart),
         grossRevenue: Math.round(g),
         netRevenue: Math.round(Math.max(0, g * 0.48 - exp)),
         expenses: Math.round(exp),
