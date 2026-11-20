@@ -85,13 +85,15 @@ export function findClientByCanonicalPhone<
 export function buildWhatsAppUrl(
   name: string,
   phone: string | null | undefined,
-  message: string
+  message: string,
+  shopName?: string | null
 ): string | null {
   const { digits, isValid } = normalizePhone(phone);
   if (!isValid) return null;
 
   const firstName = name.split(' ')[0];
-  const template = message || `Olá, ${firstName}! Aqui é da Sanchez Barber. Faz um tempinho que você não aparece por aqui. Que tal agendar seu próximo atendimento essa semana?`;
+  const senderLabel = shopName?.trim() || 'sua barbearia';
+  const template = message || `Olá, ${firstName}! Aqui é da ${senderLabel}. Faz um tempinho que você não aparece por aqui. Que tal agendar seu próximo atendimento essa semana?`;
   const encoded = encodeURIComponent(template);
 
   if (digits.length === 10 || digits.length === 11) {
