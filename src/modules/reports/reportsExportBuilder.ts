@@ -14,6 +14,7 @@ import type {
   FinancialTitleRow,
   PaidComandaDetail,
   ProductCatalogItem,
+  ProductSalesByStaffRow,
   ProductSalesReportRow,
 } from './reportsDataService';
 
@@ -160,6 +161,57 @@ export function buildProductsSalesExportPayload(
       { header: 'Estoque', key: 'currentStock' },
     ],
     data: rows,
+  };
+}
+
+export function buildProductsByStaffExportPayload(
+  rows: ProductSalesByStaffRow[],
+  tenantName: string,
+  periodLabel: string
+): ExportPayload<{
+  staffName: string;
+  staffRole: string;
+  quantitySold: number;
+  appliedTotal: number;
+  standardCommission: number;
+  achievedTierLabel: string;
+  bonusAmount: number;
+}> {
+  const totalSold = roundCurrency(rows.reduce((s, r) => s + r.appliedTotal, 0));
+  const totalComm = roundCurrency(rows.reduce((s, r) => s + r.standardCommission, 0));
+  const totalBonus = roundCurrency(rows.reduce((s, r) => s + r.goalEvaluation.bonusAmount, 0));
+
+  return {
+    metadata: {
+      title: 'Vendas de Produtos por Profissional',
+      tenantName,
+      periodLabel,
+      generatedAt: fmtDateTime(new Date().toISOString()),
+      summaryCards: [
+        { label: 'Total Vendido', value: fmtBRL(totalSold) },
+        { label: 'Comissões Padrão', value: fmtBRL(totalComm) },
+        { label: 'Bonificações de Meta', value: fmtBRL(totalBonus) },
+      ],
+    },
+    orientation: 'landscape',
+    columns: [
+      { header: 'Profissional', key: 'staffName' },
+      { header: 'Cargo', key: 'staffRole' },
+      { header: 'Qtd', key: 'quantitySold' },
+      { header: 'Vl. Aplicado', key: 'appliedTotal', format: (v) => fmtBRL(v) },
+      { header: 'Comissão Padrão', key: 'standardCommission', format: (v) => fmtBRL(v) },
+      { header: 'Faixa Atingida', key: 'achievedTierLabel' },
+      { header: 'Bonificação', key: 'bonusAmount', format: (v) => fmtBRL(v) },
+    ],
+    data: rows.map((r) => ({
+      staffName: r.staffName,
+      staffRole: r.staffRole,
+      quantitySold: r.quantitySold,
+      appliedTotal: r.appliedTotal,
+      standardCommission: r.standardCommission,
+      achievedTierLabel: r.goalEvaluation.achievedTier?.label || '-',
+      bonusAmount: r.goalEvaluation.bonusAmount,
+    })),
   };
 }
 

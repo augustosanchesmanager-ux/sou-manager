@@ -2,27 +2,33 @@ import React, { useMemo, useState } from 'react';
 import { Package, DollarSign, TrendingUp, AlertOctagon } from 'lucide-react';
 import type {
   ProductCatalogItem,
+  ProductSalesByStaffRow,
   ProductSalesReportRow,
 } from '../../src/modules/reports/reportsDataService';
 import { roundCurrency } from '../../src/utils/financial/discountAllocation';
+import { ReportsProductsByStaffView } from './ReportsProductsByStaffView';
 
 const fmtBRL = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
 interface ReportsProductsTabProps {
   salesRows: ProductSalesReportRow[];
+  staffRows: ProductSalesByStaffRow[];
   catalogItems: ProductCatalogItem[];
   loading: boolean;
-  subView: 'sales' | 'stock';
-  onChangeSubView: (view: 'sales' | 'stock') => void;
+  subView: 'sales' | 'by_staff' | 'stock';
+  onChangeSubView: (view: 'sales' | 'by_staff' | 'stock') => void;
+  onSendBonusToPayroll?: (row: ProductSalesByStaffRow) => void;
 }
 
 export const ReportsProductsTab: React.FC<ReportsProductsTabProps> = ({
   salesRows,
+  staffRows,
   catalogItems,
   loading,
   subView,
   onChangeSubView,
+  onSendBonusToPayroll,
 }) => {
   const [onlyCritical, setOnlyCritical] = useState(false);
 
@@ -105,6 +111,17 @@ export const ReportsProductsTab: React.FC<ReportsProductsTabProps> = ({
           </button>
           <button
             type="button"
+            onClick={() => onChangeSubView('by_staff')}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+              subView === 'by_staff'
+                ? 'bg-[#B88A44] text-[#0E0C0A] shadow'
+                : 'text-stone-400 hover:text-[#F5F5F0]'
+            }`}
+          >
+            Por Profissional ({staffRows.length})
+          </button>
+          <button
+            type="button"
             onClick={() => onChangeSubView('stock')}
             className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
               subView === 'stock'
@@ -130,7 +147,13 @@ export const ReportsProductsTab: React.FC<ReportsProductsTabProps> = ({
       </div>
 
       {/* Tabela Ativa */}
-      {subView === 'sales' ? (
+      {subView === 'by_staff' ? (
+        <ReportsProductsByStaffView
+          rows={staffRows}
+          loading={loading}
+          onSendBonusToPayroll={onSendBonusToPayroll}
+        />
+      ) : subView === 'sales' ? (
         <div className="bg-[#141210] border border-[#2D2A26] rounded-xl overflow-hidden">
           <div className="px-5 py-4 border-b border-[#2D2A26] flex items-center justify-between">
             <h3 className="text-sm font-semibold text-[#F5F5F0]">

@@ -16,6 +16,20 @@ import {
   type RawComandaItem,
 } from '../../utils/financial/discountAllocation';
 import { getEffectiveCommissionRateForItem } from '../../lib/staff/roles';
+import {
+  evaluateProductGoalTiers,
+  resolveEffectiveProductGoal,
+} from '../../../domain/productGoals/evaluateProductGoalTiers';
+import {
+  fetchProductGoalTemplates,
+  fetchStaffProductGoals,
+} from '../../../domain/productGoals/productGoalsRepository';
+import type {
+  ProductGoalEvaluationResult,
+  ProductGoalPeriod,
+  ProductGoalTemplate,
+  StaffProductGoal,
+} from '../../../domain/productGoals/types';
 
 export type PaymentCategoryKey = 'pix' | 'credit' | 'debit' | 'cash' | 'club' | 'other';
 
@@ -73,6 +87,29 @@ export interface ProductSalesReportRow {
   minStock: number;
   isCriticalStock: boolean;
   supplierName: string;
+}
+
+export interface ProductSalesByStaffItem {
+  productName: string;
+  quantitySold: number;
+  appliedTotal: number;
+  standardCommission: number;
+}
+
+export interface ProductSalesByStaffRow {
+  staffId: string;
+  staffName: string;
+  staffRole: string;
+  quantitySold: number;
+  catalogTotal: number;
+  discountTotal: number;
+  appliedTotal: number;
+  standardCommission: number;
+  goalSource: 'individual' | 'template_override' | 'role_template' | null;
+  goalTemplateName: string | null;
+  goalPeriodType: ProductGoalPeriod | null;
+  goalEvaluation: ProductGoalEvaluationResult;
+  productsBreakdown: ProductSalesByStaffItem[];
 }
 
 export interface ProductCatalogItem {
@@ -612,6 +649,174 @@ export async function fetchProductsReport(
   );
 
   return { salesRows, catalogItems };
+}
+
+export interface StaffBasicInfo {
+  id: string;
+  name: string;
+  role: string;
+  active?: boolean;
+}
+
+export function buildProductSalesByStaffRows(params: {
+  allocatedItems: AllocatedComandaItemDetail[];
+  staffList: StaffBasicInfo[];
+  templates: ProductGoalTemplate[];
+  staffGoals: StaffProductGoal[];
+}): ProductSalesByStaffRow[] {
+  const { allocatedItems, staffList, templates, staffGoals } = params;
+  const staffById = new Map<string, StaffBasicInfo>();
+  staffList.forEach((s) => staffById.set(s.id, s));
+
+  type MutableStaffAgg = {
+    staffId: string;
+    staffName: string;
+    staffRole: string;
+    quantitySold: number;
+    catalogTotal: number;
+    discountTotal: number;
+    appliedTotal: number;
+    standardCommission: number;
+    productsMap: Map<string, ProductSalesByStaffItem>;
+  };
+
+  const aggMap = new Map<string, MutableStaffAgg>();
+
+  const ensureAgg = (staffId: string, fallbackName?: string): MutableStaffAgg => {
+    const existing = aggMap.get(staffId);
+    if (existing) return existing;
+    const staff = staffById.get(staffId);
+    const created: MutableStaffAgg = {
+      staffId,
+      staffName: staff?.name || fallbackName || 'Sem profissional',
+      staffRole: staff?.role || 'other',
+      quantitySold: 0,
+      catalogTotal: 0,
+      discountTotal: 0,
+      appliedTotal: 0,
+      standardCommission: 0,
+      productsMap: new Map(),
+    };
+    aggMap.set(staffId, created);
+    return created;
+  };
+
+  for (const item of allocatedItems) {
+    if (item.item_type !== 'product') continue;
+    const staffId = item.barber_id || '__unassigned__';
+    const agg = ensureAgg(staffId, item.barber_name);
+
+    agg.quantitySold += item.quantity;
+    agg.catalogTotal = roundCurrency(agg.catalogTotal + item.catalog_price);
+    agg.discountTotal = roundCurrency(agg.discountTotal + item.total_discount);
+    agg.appliedTotal = roundCurrency(agg.appliedTotal + item.applied_amount);
+    agg.standardCommission = roundCurrency(agg.standardCommission + item.commission_amount);
+
+    const pKey = item.item_name.toLowerCase().trim();
+    const pExisting = agg.productsMap.get(pKey) || {
+      productName: item.item_name,
+      quantitySold: 0,
+      appliedTotal: 0,
+      standardCommission: 0,
+    };
+    pExisting.quantitySold += item.quantity;
+    pExisting.appliedTotal = roundCurrency(pExisting.appliedTotal + item.applied_amount);
+    pExisting.standardCommission = roundCurrency(
+      pExisting.standardCommission + item.commission_amount
+    );
+    agg.productsMap.set(pKey, pExisting);
+  }
+
+  // Garantir que colaboradores ativos com meta configurada apareçam mesmo com 0 vendas no período
+  for (const staff of staffList) {
+    if (staff.active === false) continue;
+    const resolved = resolveEffectiveProductGoal({
+      staffId: staff.id,
+      staffRole: staff.role,
+      staffGoals,
+      templates,
+    });
+    if (resolved) {
+      ensureAgg(staff.id, staff.name);
+    }
+  }
+
+  const rows: ProductSalesByStaffRow[] = [];
+  for (const agg of aggMap.values()) {
+    const resolvedGoal =
+      agg.staffId !== '__unassigned__'
+        ? resolveEffectiveProductGoal({
+            staffId: agg.staffId,
+            staffRole: agg.staffRole,
+            staffGoals,
+            templates,
+          })
+        : null;
+
+    const goalEvaluation = evaluateProductGoalTiers({
+      soldAmount: agg.appliedTotal,
+      baseGoalAmount: resolvedGoal?.baseGoalAmount ?? 0,
+      tiers: resolvedGoal?.tiers ?? [],
+    });
+
+    const productsBreakdown = Array.from(agg.productsMap.values()).sort(
+      (a, b) => b.appliedTotal - a.appliedTotal
+    );
+
+    rows.push({
+      staffId: agg.staffId,
+      staffName: agg.staffName,
+      staffRole: agg.staffRole,
+      quantitySold: agg.quantitySold,
+      catalogTotal: agg.catalogTotal,
+      discountTotal: agg.discountTotal,
+      appliedTotal: agg.appliedTotal,
+      standardCommission: agg.standardCommission,
+      goalSource: resolvedGoal?.source ?? null,
+      goalTemplateName: resolvedGoal?.templateName ?? null,
+      goalPeriodType: resolvedGoal?.periodType ?? null,
+      goalEvaluation,
+      productsBreakdown,
+    });
+  }
+
+  return rows.sort((a, b) => {
+    if (b.appliedTotal !== a.appliedTotal) return b.appliedTotal - a.appliedTotal;
+    return a.staffName.localeCompare(b.staffName, 'pt-BR');
+  });
+}
+
+export async function fetchProductSalesByStaffReport(
+  tenantId: string,
+  allocatedItems: AllocatedComandaItemDetail[]
+): Promise<ProductSalesByStaffRow[]> {
+  const sharedSupabase = getSharedClient();
+  const [staffRes, templates, staffGoals] = await Promise.all([
+    sharedSupabase
+      .from('staff')
+      .select('id, name, role, active')
+      .eq('tenant_id', tenantId),
+    fetchProductGoalTemplates(tenantId),
+    fetchStaffProductGoals(tenantId),
+  ]);
+
+  if (staffRes.error) {
+    throw new Error(`Falha ao consultar equipe: ${staffRes.error.message}`);
+  }
+
+  const staffList: StaffBasicInfo[] = (staffRes.data ?? []).map((row: any) => ({
+    id: row.id,
+    name: row.name || 'Colaborador',
+    role: row.role || 'other',
+    active: row.active !== false,
+  }));
+
+  return buildProductSalesByStaffRows({
+    allocatedItems,
+    staffList,
+    templates,
+    staffGoals,
+  });
 }
 
 /**

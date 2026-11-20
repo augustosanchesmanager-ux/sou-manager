@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Modal from '../components/ui/Modal';
 import MetricCard from '../components/ui/MetricCard';
 import DateRangeFilter from '../components/ui/DateRangeFilter';
@@ -78,12 +79,26 @@ const Payroll: React.FC = () => {
     const toLocalDateStr = (d: Date) =>
         `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
+    const location = useLocation();
+    const navigate = useNavigate();
+    const suggestedBonus = (location.state as any)?.suggestedBonus as
+        | {
+              staffId: string;
+              staffName: string;
+              amount: number;
+              tierLabel?: string;
+              periodFrom?: string;
+              periodTo?: string;
+          }
+        | undefined;
+
     const [startDate, setStartDate] = useState(() => {
+        if (suggestedBonus?.periodFrom) return suggestedBonus.periodFrom;
         const now = new Date();
         const start = new Date(now.getFullYear(), now.getMonth(), 1);
         return toLocalDateStr(start);
     });
-    const [endDate, setEndDate] = useState(() => toLocalDateStr(new Date()));
+    const [endDate, setEndDate] = useState(() => suggestedBonus?.periodTo || toLocalDateStr(new Date()));
     const [searchName, setSearchName] = useState('');
 
     const [busyStaffId, setBusyStaffId] = useState<string | null>(null);
@@ -212,6 +227,26 @@ const Payroll: React.FC = () => {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    useEffect(() => {
+        if (!suggestedBonus || rows.length === 0) return;
+        const target = rows.find((r) => r.staffId === suggestedBonus.staffId);
+        if (target && target.status === 'unsettled') {
+            setBonusInput(suggestedBonus.amount.toFixed(2).replace('.', ','));
+            setLiveDraftPreview(target.preview);
+            setGenerateModalRow(target);
+            setToast({
+                message: `Bonificação sugerida (${suggestedBonus.tierLabel || 'Meta de Produtos'}) para ${suggestedBonus.staffName}. Confirme o valor para gerar o repasse.`,
+                type: 'info',
+            });
+        } else if (target) {
+            setToast({
+                message: `${suggestedBonus.staffName} já possui repasse ${target.status} neste período. Valor da bonificação sugerida: R$ ${suggestedBonus.amount.toFixed(2)}.`,
+                type: 'info',
+            });
+        }
+        navigate(location.pathname, { replace: true, state: {} });
+    }, [suggestedBonus, rows, navigate, location.pathname]);
 
     const withBusy = async (staffId: string, fn: () => Promise<void>) => {
         setBusyStaffId(staffId);

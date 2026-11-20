@@ -17,6 +17,18 @@ import type { StaffWorkingHours, StaffProfileDetails, PixKeyType } from '../doma
 import { cardFeeRepository } from '../domain/paymentTerminal/cardFeeRepository';
 import type { CardFeePolicy } from '../domain/paymentTerminal/cardFeeSplitEngine';
 import { sanitizeOptionalFields, sanitizeNullableString } from '../src/utils/sanitization';
+import { ProductGoalTemplatesModal } from '../components/staff/ProductGoalTemplatesModal';
+import {
+    StaffProductGoalSection,
+    type StaffProductGoalFormState,
+} from '../components/staff/StaffProductGoalSection';
+import {
+    deleteStaffProductGoal,
+    fetchProductGoalTemplates,
+    fetchStaffProductGoals,
+    upsertStaffProductGoal,
+} from '../domain/productGoals/productGoalsRepository';
+import type { ProductGoalTemplate, StaffProductGoal } from '../domain/productGoals/types';
 
 interface TeamMember {
     id: string;
@@ -137,6 +149,34 @@ const Team: React.FC = () => {
     const [loadingPayoutConfig, setLoadingPayoutConfig] = useState(false);
     const [cardFeePolicy, setCardFeePolicy] = useState<CardFeePolicy>('gross');
     const [scheduleModalMember, setScheduleModalMember] = useState<TeamMember | null>(null);
+    const [showGoalTemplatesModal, setShowGoalTemplatesModal] = useState(false);
+    const [goalTemplates, setGoalTemplates] = useState<ProductGoalTemplate[]>([]);
+    const [staffGoals, setStaffGoals] = useState<StaffProductGoal[]>([]);
+    const [staffGoalForm, setStaffGoalForm] = useState<StaffProductGoalFormState>({
+        mode: 'inherit_role',
+        templateId: '',
+        periodType: 'monthly',
+        baseGoalAmount: '',
+        customTiers: [],
+    });
+
+    const loadProductGoalsConfig = useCallback(async () => {
+        if (!tenantId) return;
+        try {
+            const [tpls, goals] = await Promise.all([
+                fetchProductGoalTemplates(tenantId),
+                fetchStaffProductGoals(tenantId),
+            ]);
+            setGoalTemplates(tpls);
+            setStaffGoals(goals);
+        } catch (err) {
+            console.warn('Aviso ao carregar metas de produtos:', err);
+        }
+    }, [tenantId]);
+
+    useEffect(() => {
+        loadProductGoalsConfig();
+    }, [loadProductGoalsConfig]);
 
     const handleSaveStaffSchedule = async (workingHours: StaffWorkingHours) => {
         if (!scheduleModalMember || !tenantId) return;
@@ -285,6 +325,25 @@ const Team: React.FC = () => {
                 .then((pol) => setCardFeePolicy(pol))
                 .catch(() => setCardFeePolicy('gross'));
         }
+        const existingGoal = staffGoals.find((g) => g.staffId === member.id && g.active);
+        if (existingGoal) {
+            const hasCustom = Array.isArray(existingGoal.customTiers) && existingGoal.customTiers.length > 0;
+            setStaffGoalForm({
+                mode: hasCustom ? 'custom' : 'template',
+                templateId: existingGoal.templateId || '',
+                periodType: existingGoal.periodType || 'monthly',
+                baseGoalAmount: existingGoal.baseGoalAmount ? String(existingGoal.baseGoalAmount) : '',
+                customTiers: hasCustom ? existingGoal.customTiers! : [],
+            });
+        } else {
+            setStaffGoalForm({
+                mode: 'inherit_role',
+                templateId: '',
+                periodType: 'monthly',
+                baseGoalAmount: '',
+                customTiers: [],
+            });
+        }
         setShowModal(true);
         setLoadingPayoutConfig(true);
         getConfigByStaff(member.id)
@@ -396,6 +455,32 @@ const Team: React.FC = () => {
                     } catch (feeErr) {
                         console.warn('Aviso ao salvar política de taxa de cartão:', feeErr);
                     }
+                }
+                try {
+                    if (staffGoalForm.mode === 'inherit_role') {
+                        await deleteStaffProductGoal(tenantId, editingMember.id);
+                    } else if (staffGoalForm.mode === 'template') {
+                        await upsertStaffProductGoal(tenantId, {
+                            staffId: editingMember.id,
+                            templateId: staffGoalForm.templateId || null,
+                            periodType: staffGoalForm.periodType,
+                            baseGoalAmount: parseFloat(staffGoalForm.baseGoalAmount) || 0,
+                            customTiers: null,
+                            active: true,
+                        });
+                    } else {
+                        await upsertStaffProductGoal(tenantId, {
+                            staffId: editingMember.id,
+                            templateId: null,
+                            periodType: staffGoalForm.periodType,
+                            baseGoalAmount: parseFloat(staffGoalForm.baseGoalAmount) || 0,
+                            customTiers: staffGoalForm.customTiers,
+                            active: true,
+                        });
+                    }
+                    await loadProductGoalsConfig();
+                } catch (goalErr) {
+                    console.warn('Aviso ao salvar meta de produtos:', goalErr);
                 }
                 setToast({ message: 'Colaborador e política de repasse atualizados!', type: 'success' });
             } catch (error) {
@@ -642,11 +727,21 @@ const Team: React.FC = () => {
                     <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight display-font">{memberPluralLabel}</h2>
                     <p className="text-slate-500 text-sm">{team.filter(m => m.status === 'active').length} {memberPluralLower} ativo(s)</p>
                 </div>
-                <button onClick={openNewModal}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-primary text-night rounded-xl text-sm font-bold hover:bg-primary-dark shadow-lg shadow-primary/20 transition-all">
-                    <span className="material-symbols-outlined text-lg">person_add</span>
-                    {isEsteticaApp ? `Novo ${labels.professional}` : 'Novo Colaborador'}
-                </button>
+                <div className="flex flex-wrap items-center gap-2.5">
+                    <button
+                        type="button"
+                        onClick={() => setShowGoalTemplatesModal(true)}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-[#141210] border border-slate-200 dark:border-[#2D2A26] text-slate-800 dark:text-[#F5F5F0] rounded-xl text-sm font-bold hover:border-[#B88A44] transition-all"
+                    >
+                        <span className="material-symbols-outlined text-lg text-[#B88A44]">emoji_events</span>
+                        Metas de Produtos
+                    </button>
+                    <button onClick={openNewModal}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-primary text-night rounded-xl text-sm font-bold hover:bg-primary-dark shadow-lg shadow-primary/20 transition-all">
+                        <span className="material-symbols-outlined text-lg">person_add</span>
+                        {isEsteticaApp ? `Novo ${labels.professional}` : 'Novo Colaborador'}
+                    </button>
+                </div>
             </div>
 
             {/* Convites pendentes */}
@@ -1259,6 +1354,15 @@ const Team: React.FC = () => {
                                     )}
                                 </div>
 
+                                {editingMember && (
+                                    <StaffProductGoalSection
+                                        role={form.role}
+                                        templates={goalTemplates}
+                                        value={staffGoalForm}
+                                        onChange={setStaffGoalForm}
+                                    />
+                                )}
+
                                 {/* Bloco de Política de Taxa de Maquininha / Cartão */}
                                 <div className="p-3.5 rounded-xl border border-slate-200 dark:border-[#2D2A26] bg-slate-50/60 dark:bg-[#141210] space-y-2">
                                     <div className="flex items-center justify-between">
@@ -1455,6 +1559,16 @@ const Team: React.FC = () => {
                     </div>
                 </form>
             </Modal>
+
+            {tenantId && (
+                <ProductGoalTemplatesModal
+                    isOpen={showGoalTemplatesModal}
+                    onClose={() => setShowGoalTemplatesModal(false)}
+                    tenantId={tenantId}
+                    onChanged={(tpls) => setGoalTemplates(tpls)}
+                    onNotify={(message, type) => setToast({ message, type })}
+                />
+            )}
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </div>

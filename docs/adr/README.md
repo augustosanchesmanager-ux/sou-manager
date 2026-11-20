@@ -55,6 +55,8 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | [ADR-048](./ADR-048-cd-supabase-migrations-gate.md) | Accepted | Gate Controlado para Aplicação de Migrations Supabase em Produção (2026-11-12) |
 | [ADR-049](./ADR-049-deploy-gate-pre-atribuicao.md) | Accepted | Gate de Deploy Pré-Atribuição — Smoke antes do Promote; proveniência P1; item 1a rejeitado (2026-11-17) |
 | [ADR-050](./ADR-050-smg-barber-intelligence-phase-1.md) | Accepted | SMG Barber Intelligence — Fase 1 (Diagnóstico Inteligente de Gestão) (2026-11-19) |
+| [ADR-051](./ADR-051-po-copilot-chief-of-staff.md) | Proposed | PO Copilot — SMG Chief of Staff (Arquitetura e Governança do Agente) (2026-11-19) |
+| [ADR-052](./ADR-052-product-sales-by-staff-and-flexible-goals.md) | Accepted | Venda de Produtos por Profissional & Metas Flexíveis de Produtos (2026-11-20) |
 
 ---
 
