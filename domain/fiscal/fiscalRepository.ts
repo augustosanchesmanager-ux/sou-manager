@@ -6,11 +6,17 @@
  */
 
 import { getClientForTable } from '../../services/supabaseClient';
+import { hasSupabaseEnv } from '../../src/lib/supabase/client';
 import type { ComandaFiscalInvoice, FiscalDashboardKPIs, FiscalSettings } from './types';
 
 // Fallback in-memory para testes e demo mode
 const inMemoryFiscalSettings = new Map<string, FiscalSettings>();
 const inMemoryFiscalInvoices = new Map<string, ComandaFiscalInvoice>();
+
+const isDemoOrTestMode = (): boolean =>
+  !hasSupabaseEnv ||
+  import.meta.env.MODE === 'test' ||
+  (typeof process !== 'undefined' && Boolean(process.env?.VITEST));
 
 export class FiscalRepository {
   /**
@@ -29,6 +35,10 @@ export class FiscalRepository {
 
     if (inMemoryFiscalSettings.has(tenantId)) {
       return inMemoryFiscalSettings.get(tenantId)!;
+    }
+
+    if (isDemoOrTestMode()) {
+      return null;
     }
 
     try {
@@ -78,6 +88,10 @@ export class FiscalRepository {
 
     inMemoryFiscalSettings.set(tenantId, enriched);
 
+    if (isDemoOrTestMode()) {
+      return enriched;
+    }
+
     try {
       const client = getClientForTable('tenant_settings');
       const { data, error } = await client
@@ -101,6 +115,10 @@ export class FiscalRepository {
    */
   async saveInvoice(invoice: ComandaFiscalInvoice): Promise<ComandaFiscalInvoice> {
     inMemoryFiscalInvoices.set(invoice.id, invoice);
+
+    if (isDemoOrTestMode()) {
+      return invoice;
+    }
 
     try {
       const client = getClientForTable('comandas');
@@ -130,6 +148,10 @@ export class FiscalRepository {
       }
     }
 
+    if (isDemoOrTestMode()) {
+      return null;
+    }
+
     try {
       const client = getClientForTable('comandas');
       const { data, error } = await client
@@ -157,19 +179,21 @@ export class FiscalRepository {
       (inv) => inv.tenant_id === tenantId,
     );
 
-    try {
-      const client = getClientForTable('comandas');
-      const { data, error } = await client
-        .from('comanda_fiscal_invoices')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .order('created_at', { ascending: false });
+    if (!isDemoOrTestMode()) {
+      try {
+        const client = getClientForTable('comandas');
+        const { data, error } = await client
+          .from('comanda_fiscal_invoices')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .order('created_at', { ascending: false });
 
-      if (!error && data && data.length > 0) {
-        return data as ComandaFiscalInvoice[];
+        if (!error && data && data.length > 0) {
+          return data as ComandaFiscalInvoice[];
+        }
+      } catch {
+        // Fallback
       }
-    } catch {
-      // Fallback
     }
 
     return memoryItems.sort(
