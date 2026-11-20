@@ -534,7 +534,7 @@ export async function fetchProductsReport(
 
   const { data: productsData, error } = await barberSupabase
     .from('products')
-    .select('id, name, category, price, cost_price, stock_quantity, minimum_stock, min_stock_alert, active')
+    .select('id, name, category, price, sale_price, cost_price, stock_quantity, minimum_stock, min_stock_alert, active')
     .eq('tenant_id', tenantId)
     .order('name');
 
@@ -546,11 +546,13 @@ export async function fetchProductsReport(
     const stock = Number(p.stock_quantity ?? 0);
     // Schema real: `minimum_stock` (o campo `min_stock` não existe em produção).
     const minStock = Number(p.minimum_stock ?? p.min_stock_alert ?? 0);
+    // Produtos criados pelo módulo Estoque 360 gravam `sale_price` (com `price = 0.00`).
+    const effectivePrice = Number(p.sale_price) > 0 ? Number(p.sale_price) : Number(p.price ?? 0);
     return {
       id: p.id,
       name: p.name || 'Produto',
       category: p.category || 'Geral',
-      price: Number(p.price ?? 0),
+      price: effectivePrice,
       costPrice: Number(p.cost_price ?? 0),
       stockQuantity: stock,
       minStock,
