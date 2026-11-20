@@ -222,15 +222,17 @@ const Reports: React.FC = () => {
         setPayables(titles.payables);
       }
 
-      // Produtos depende dos itens rateados das comandas pagas.
-      if (comandas) {
-        try {
-          const productsRes = await fetchProductsReport(tenantId, comandas.allocatedItems);
-          setProductSales(productsRes.salesRows);
-          setProductCatalog(productsRes.catalogItems);
-        } catch (err) {
-          fail('Produtos & Estoque', err);
-        }
+      // Catálogo de produtos é carregado mesmo se comandas falhar (com fallback []),
+      // garantindo a aba de Posição Atual de Estoque independente.
+      try {
+        const productsRes = await fetchProductsReport(
+          tenantId,
+          comandas ? comandas.allocatedItems : []
+        );
+        setProductSales(productsRes.salesRows);
+        setProductCatalog(productsRes.catalogItems);
+      } catch (err) {
+        fail('Produtos & Estoque', err);
       }
 
       if (club) {
