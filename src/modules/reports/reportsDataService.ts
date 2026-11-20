@@ -666,7 +666,9 @@ export function buildProductSalesByStaffRows(params: {
 }): ProductSalesByStaffRow[] {
   const { allocatedItems, staffList, templates, staffGoals } = params;
   const staffById = new Map<string, StaffBasicInfo>();
-  staffList.forEach((s) => staffById.set(s.id, s));
+  for (const s of staffList) {
+    staffById.set(s.id, s);
+  }
 
   type MutableStaffAgg = {
     staffId: string;
@@ -794,7 +796,7 @@ export async function fetchProductSalesByStaffReport(
   const [staffRes, templates, staffGoals] = await Promise.all([
     sharedSupabase
       .from('staff')
-      .select('id, name, role, active')
+      .select('id, name, role, status')
       .eq('tenant_id', tenantId),
     fetchProductGoalTemplates(tenantId),
     fetchStaffProductGoals(tenantId),
@@ -808,7 +810,7 @@ export async function fetchProductSalesByStaffReport(
     id: row.id,
     name: row.name || 'Colaborador',
     role: row.role || 'other',
-    active: row.active !== false,
+    active: row.status ? row.status === 'active' : true,
   }));
 
   return buildProductSalesByStaffRows({
