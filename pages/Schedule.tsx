@@ -4706,6 +4706,9 @@ Podemos confirmar? 😄`;
                       {(() => {
                         const allSlots = dynamicTimeSlots;
                         const aptsOnDay = appointmentsForModalDate.filter(a => {
+                          if (['cancelled', 'canceled', 'no_show'].includes(normalizeAppointmentStatus(a.status))) {
+                            return false;
+                          }
                           const aptDate = new Date(a.date);
                           const fDate = new Date(formData.date + 'T12:00:00');
                           return aptDate.getFullYear() === fDate.getFullYear() &&
