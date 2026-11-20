@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   TrendingUp,
   Calendar,
@@ -21,6 +21,7 @@ import {
   fetchBarberAdvancesInPeriod,
   fetchFinancialTitlesReport,
   fetchPaidComandasReport,
+  fetchProductSalesByStaffReport,
   fetchProductsReport,
   type AllocatedComandaItemDetail,
   type AppointmentReportRow,
@@ -29,12 +30,14 @@ import {
   type PaidComandaDetail,
   type PaymentCategoryKey,
   type ProductCatalogItem,
+  type ProductSalesByStaffRow,
   type ProductSalesReportRow,
 } from '../src/modules/reports/reportsDataService';
 import {
   buildAppointmentsExportPayload,
   buildCommissionsExportPayload,
   buildFinancialTitlesExportPayload,
+  buildProductsByStaffExportPayload,
   buildProductsSalesExportPayload,
   buildProductsStockExportPayload,
   buildSalesExportPayload,
@@ -131,7 +134,9 @@ const Reports: React.FC = () => {
   const [paidComandas, setPaidComandas] = useState<PaidComandaDetail[]>([]);
   const [allocatedItems, setAllocatedItems] = useState<AllocatedComandaItemDetail[]>([]);
   const [appointments, setAppointments] = useState<AppointmentReportRow[]>([]);
+  const navigate = useNavigate();
   const [productSales, setProductSales] = useState<ProductSalesReportRow[]>([]);
+  const [productSalesByStaff, setProductSalesByStaff] = useState<ProductSalesByStaffRow[]>([]);
   const [productCatalog, setProductCatalog] = useState<ProductCatalogItem[]>([]);
   const [barberAdvances, setBarberAdvances] = useState<BarberAdvanceRecord[]>([]);
   const [receivables, setReceivables] = useState<FinancialTitleRow[]>([]);
@@ -148,7 +153,7 @@ const Reports: React.FC = () => {
   const [salesPaymentFilter, setSalesPaymentFilter] = useState<'all' | PaymentCategoryKey>('all');
   const [apptStaffFilter, setApptStaffFilter] = useState('all');
   const [apptStatusFilter, setApptStatusFilter] = useState<AppointmentStatusFilter>('all');
-  const [productsSubView, setProductsSubView] = useState<'sales' | 'stock'>('sales');
+  const [productsSubView, setProductsSubView] = useState<'sales' | 'by_staff' | 'stock'>('sales');
   const [financialSubTab, setFinancialSubTab] = useState<FinancialSubTab>('commissions');
   const [selectedBarberId, setSelectedBarberId] = useState('all');
   const [dateFieldMode, setDateFieldMode] = useState<'due_date' | 'paid_at'>('due_date');
@@ -225,12 +230,13 @@ const Reports: React.FC = () => {
       // Catálogo de produtos é carregado mesmo se comandas falhar (com fallback []),
       // garantindo a aba de Posição Atual de Estoque independente.
       try {
-        const productsRes = await fetchProductsReport(
-          tenantId,
-          comandas ? comandas.allocatedItems : []
-        );
+        const [productsRes, staffProductsRes] = await Promise.all([
+          fetchProductsReport(tenantId, comandas ? comandas.allocatedItems : []),
+          fetchProductSalesByStaffReport(tenantId, comandas ? comandas.allocatedItems : []),
+        ]);
         setProductSales(productsRes.salesRows);
         setProductCatalog(productsRes.catalogItems);
+        setProductSalesByStaff(staffProductsRes);
       } catch (err) {
         fail('Produtos & Estoque', err);
       }
@@ -349,6 +355,9 @@ const Reports: React.FC = () => {
       if (productsSubView === 'sales') {
         return buildProductsSalesExportPayload(productSales, tenantName, periodLabel);
       }
+      if (productsSubView === 'by_staff') {
+        return buildProductsByStaffExportPayload(productSalesByStaff, tenantName, periodLabel);
+      }
       return buildProductsStockExportPayload(productCatalog, tenantName, periodLabel);
     }
 
@@ -439,9 +448,9 @@ const Reports: React.FC = () => {
     if (activeTab === 'sales') return `vendas-faturamento-${suffix}`;
     if (activeTab === 'appointments') return `atendimentos-${suffix}`;
     if (activeTab === 'products') {
-      return productsSubView === 'sales'
-        ? `produtos-vendas-${suffix}`
-        : `produtos-estoque-${dateTo}`;
+      if (productsSubView === 'sales') return `produtos-vendas-${suffix}`;
+      if (productsSubView === 'by_staff') return `produtos-por-profissional-${suffix}`;
+      return `produtos-estoque-${dateTo}`;
     }
     if (activeTab === 'financial') {
       if (financialSubTab === 'commissions') return `extrato-comissoes-${suffix}`;
@@ -590,10 +599,25 @@ const Reports: React.FC = () => {
         {activeTab === 'products' && (
           <ReportsProductsTab
             salesRows={productSales}
+            staffRows={productSalesByStaff}
             catalogItems={productCatalog}
             loading={loading}
             subView={productsSubView}
             onChangeSubView={setProductsSubView}
+            onSendBonusToPayroll={(row) => {
+              navigate('/payroll', {
+                state: {
+                  suggestedBonus: {
+                    staffId: row.staffId,
+                    staffName: row.staffName,
+                    amount: row.goalEvaluation.bonusAmount,
+                    tierLabel: row.goalEvaluation.achievedTier?.label || 'Meta de Produtos',
+                    periodFrom: dateFrom,
+                    periodTo: dateTo,
+                  },
+                },
+              });
+            }}
           />
         )}
 
