@@ -47,12 +47,13 @@ describe('FASE 8.11: SaaS Certification (Certificação Master dos 7 Pilares de 
       expect(content).toContain('setSubmitted');
     });
 
-    it('CERT-SAAS-P2-002: deve integrar canais de agendamento de demonstração guiada na Landing Page', () => {
+    it('CERT-SAAS-P2-002: deve integrar canais de trial self-serve e consultoria na Landing Page', () => {
       const landingPath = path.join(rootDir, 'pages', 'Landing.tsx');
       expect(fs.existsSync(landingPath), 'Landing.tsx deve existir').toBe(true);
 
       const content = fs.readFileSync(landingPath, 'utf-8');
-      expect(content).toContain('AGENDAR DEMONSTRAÇÃO GUIADA');
+      expect(content).toContain('COMEÇAR TRIAL PRO (7 DIAS)');
+      expect(content).toContain('/register?plan=pro');
       expect(content).toContain('wa.me');
       expect(content).toContain('contato@soumanager.com');
     });
