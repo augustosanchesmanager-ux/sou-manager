@@ -102,16 +102,17 @@ const ServiceCatalogStep: React.FC<ServiceCatalogStepProps> = ({
             const isOpen = Boolean(operational.week[day.key]);
             return (
               <div key={day.key} className="flex items-center justify-between gap-3 px-5 py-3">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   <button
+                    type="button"
                     onClick={() => onToggleDay(day.key)}
-                    className={`relative w-11 h-6 rounded-full transition-colors ${
+                    className={`relative inline-flex items-center shrink-0 w-11 h-6 rounded-full transition-colors ${
                       isOpen ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-white/10'
                     }`}
                     aria-pressed={isOpen}
                   >
                     <span
-                      className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform ${
+                      className={`inline-block size-5 rounded-full bg-white shadow transition-transform ${
                         isOpen ? 'translate-x-[22px]' : 'translate-x-0.5'
                       }`}
                     />

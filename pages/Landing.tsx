@@ -89,14 +89,15 @@ const MATURITY_PLANS = [
     badge: 'ESTRUTURAÇÃO',
     desc: 'Para barbearias que desejam profissionalizar o atendimento, eliminar comandas de papel e controlar o caixa com segurança.',
     features: [
-      'Agenda multiprofissional com visão diária e semanal em tempo real',
-      'Ponto de Venda (PDV) ágil integrado a comandas digitais',
-      'Cadastro detalhado e histórico completo de consumo dos clientes',
-      'Controle de estoque de produtos e insumos de bancada',
-      'Portal web exclusivo para agendamento online do cliente',
-      'Relatórios de fechamento de caixa e conferência de turnos',
+      'Link público de agendamento (bio e WhatsApp) para seus clientes',
+      'Agenda multiprofissional integrada diretamente à comanda digital',
+      'PDV ágil e fechamento diário de caixa com conferência de turnos',
+      'Cadastros completos de clientes, serviços, profissionais e estoque',
+      'Controle de contas a pagar e contas a receber da barbearia',
+      'Acesso completo via mobile e desktop sem instalação',
     ],
-    cta: 'SOLICITAR DEMONSTRAÇÃO',
+    cta: 'TESTAR 7 DIAS GRÁTIS',
+    to: '/register?plan=essencial',
     highlight: false,
   },
   {
@@ -105,31 +106,32 @@ const MATURITY_PLANS = [
     badge: 'RECOMENDADO',
     desc: 'O motor operacional completo para barbearias consolidadas que buscam receita previsível e retenção contínua.',
     features: [
-      'Todos os recursos do plano Operação Essencial',
-      'Módulo Clube dos Chefes completo (Planos Recorrentes no Cartão)',
-      'Fechamento de caixa avançado com conferência cega e sangria',
-      'Cálculo automatizado de rateio de comissões (norma canônica ADR-001)',
-      'Controle dinâmico de fila de espera e atendimento por cadeira',
-      'Notificações de lembretes e confirmações automáticas via WhatsApp',
-      'Suporte prioritário na implantação e treinamento da equipe',
+      'Tudo do Operação Essencial para até 5 profissionais ativos',
+      'Clube de assinaturas (Clube dos Chefes) com créditos vinculados ao pagamento',
+      'Vitrine de produtos e upsell inteligente no agendamento público',
+      'Financeiro e cálculo de comissões em regime de caixa (norma ADR-001)',
+      'Conciliação bancária via importação de extrato OFX',
+      'PIN de gerente, controle de permissões por perfil e trilha de auditoria',
     ],
-    cta: 'AGENDAR DEMONSTRAÇÃO GUIADA',
+    cta: 'COMEÇAR TRIAL PRO (7 DIAS)',
+    to: '/register?plan=pro',
     highlight: true,
   },
   {
     code: 'PLANO 03',
     name: 'Atelier Multi-Unidade',
     badge: 'ESCALA CORPORATIVA',
-    desc: 'Tecnologia de ponta com inteligência artificial preditiva e totem de autoatendimento para operações em expansão.',
+    desc: 'Capacidade expandida, inteligência analítica e governança sob medida para operações em crescimento.',
     features: [
-      'Todos os recursos do plano Gestão & Clube Pro',
-      'BI Preditivo com IA Gemini (Previsão de churn e horários ociosos)',
-      'Módulo Totem / Kiosk de autoatendimento para a recepção',
-      'Painel consolidado para gestão de múltiplas filiais',
-      'API pública e webhooks para integrações contábeis e externas',
-      'Acompanhamento executivo contínuo e parametrização personalizada',
+      'Capacidade expandida acima de 5 profissionais ativos',
+      'BI Executivo e Insights estratégicos com I.A. (Gemini)',
+      'Ambientes isolados por unidade e gestão de permissões avançada',
+      'Totem / Kiosk de autoatendimento e API pública para integrações',
+      'Implantação assistida e governança sob medida para sua operação',
+      'Suporte prioritário no acompanhamento da equipe',
     ],
     cta: 'FALAR COM CONSULTOR',
+    to: null as string | null,
     highlight: false,
   },
 ];
@@ -867,20 +869,33 @@ const Landing: React.FC = () => {
                   ))}
                 </div>
 
-                <a
-                  href={`https://wa.me/5511978496799?text=Ol%C3%A1%2C%20tenho%20interesse%20no%20plano%20${encodeURIComponent(
-                    plan.name
-                  )}%20do%20SMG%20Barber%20Intelligence.`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`w-full py-3 rounded-full font-code-mono font-bold text-xs uppercase tracking-widest text-center transition-all ${
-                    plan.highlight
-                      ? 'bg-primary hover:bg-primary-light text-night shadow-smg-glow'
-                      : 'bg-white/5 hover:bg-white/10 text-white border border-white/10'
-                  }`}
-                >
-                  {plan.cta}
-                </a>
+                {plan.to ? (
+                  <Link
+                    to={plan.to}
+                    className={`w-full py-3 rounded-full font-code-mono font-bold text-xs uppercase tracking-widest text-center transition-all ${
+                      plan.highlight
+                        ? 'bg-primary hover:bg-primary-light text-night shadow-smg-glow'
+                        : 'bg-white/5 hover:bg-white/10 text-white border border-white/10'
+                    }`}
+                  >
+                    {plan.cta}
+                  </Link>
+                ) : (
+                  <a
+                    href={`https://wa.me/5511978496799?text=Ol%C3%A1%2C%20tenho%20interesse%20no%20plano%20${encodeURIComponent(
+                      plan.name
+                    )}%20do%20SMG%20Barber%20Intelligence.`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`w-full py-3 rounded-full font-code-mono font-bold text-xs uppercase tracking-widest text-center transition-all ${
+                      plan.highlight
+                        ? 'bg-primary hover:bg-primary-light text-night shadow-smg-glow'
+                        : 'bg-white/5 hover:bg-white/10 text-white border border-white/10'
+                    }`}
+                  >
+                    {plan.cta}
+                  </a>
+                )}
               </ElectricModal>
             ))}
           </div>

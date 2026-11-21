@@ -1,6 +1,7 @@
 import type React from 'react';
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { AppSlug } from '../lib/supabase/schemas';
+import { getSharedClient, hasSupabaseEnv } from '../lib/supabase/client';
 import {
   resolveTenantForUser,
   type TenantRecord,
@@ -60,11 +61,25 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     try {
       const resolved = await resolveTenantForUser(authSession.user, appSlug);
       if (thisRequest !== requestCounterRef.current) return;
-      setTenant(resolved.tenant);
-      setRole(resolved.role);
-      setMemberships(resolved.memberships);
+      let effectiveResolved = resolved;
 
-      if (!resolved.tenant && resolved.role !== 'superadmin') {
+      if (hasSupabaseEnv && resolved.tenant?.status === 'trial') {
+        try {
+          const { data: syncResult } = await getSharedClient().rpc('sync_expired_trial_for_current_tenant');
+          if (syncResult && typeof syncResult === 'object' && (syncResult as { expired?: boolean }).expired) {
+            effectiveResolved = await resolveTenantForUser(authSession.user, appSlug);
+            if (thisRequest !== requestCounterRef.current) return;
+          }
+        } catch {
+          // Non-blocking if migration is not yet applied in the target environment
+        }
+      }
+
+      setTenant(effectiveResolved.tenant);
+      setRole(effectiveResolved.role);
+      setMemberships(effectiveResolved.memberships);
+
+      if (!effectiveResolved.tenant && effectiveResolved.role !== 'superadmin') {
         setError(`Nenhum tenant compativel com o app ${appSlug} foi encontrado para o usuario atual.`);
       }
     } catch (err) {
