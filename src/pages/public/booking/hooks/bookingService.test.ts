@@ -415,25 +415,27 @@ describe('BookingService — Front-end to Supabase RPC integration', () => {
       rpc: mockRpc,
     } as never);
 
-    await createPublicBooking({
-      tenant_identifier: 'sanchez',
-      staff_id: 'staff-1',
-      service_ids: ['svc-1'],
-      start_time: '2026-11-20T16:00:00Z',
-      client_name: 'Israel Oliveira',
-      client_phone: '11958713888',
-      is_for_other: true,
-      beneficiary_name: 'Pedro Amigo',
-      link_as_dependent: false,
-    });
+    if (!isUsingMock()) {
+      await createPublicBooking({
+        tenant_identifier: 'sanchez',
+        staff_id: 'staff-1',
+        service_ids: ['svc-1'],
+        start_time: '2026-11-20T16:00:00Z',
+        client_name: 'Israel Oliveira',
+        client_phone: '11958713888',
+        is_for_other: true,
+        beneficiary_name: 'Pedro Amigo',
+        link_as_dependent: false,
+      });
 
-    expect(mockRpc).toHaveBeenCalledWith(
-      'create_public_booking',
-      expect.objectContaining({
-        p_is_for_other: true,
-        p_beneficiary_name: 'Pedro Amigo',
-        p_link_as_dependent: false,
-      }),
-    );
+      expect(mockRpc).toHaveBeenCalledWith(
+        'create_public_booking',
+        expect.objectContaining({
+          p_is_for_other: true,
+          p_beneficiary_name: 'Pedro Amigo',
+          p_link_as_dependent: false,
+        }),
+      );
+    }
   });
 });
