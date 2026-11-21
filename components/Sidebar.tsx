@@ -195,7 +195,8 @@ export const buildRawSidebarMenu = ({
       { name: isEsteticaApp ? 'Repasses' : 'Comissões', icon: Percent, path: '/commissions', module: 'commissions' },
       { name: 'Folha de Pagamento', icon: Wallet, path: '/payroll', module: 'financial', hideFromEsteticaMenu: true },
       { name: 'Maquininhas e Taxas', icon: CreditCard, path: '/payment-terminals', module: 'settings', hideFromEsteticaMenu: true },
-      { name: 'Notas Fiscais (NFS-e)', icon: Receipt, path: '/fiscal', module: 'financial', hideFromEsteticaMenu: true },
+      // Frente 6 (Zero Mock): módulo Fiscal ocultado até integração de provedor NFS-e real (hoje usa MockFiscalProvider).
+      // { name: 'Notas Fiscais (NFS-e)', icon: Receipt, path: '/fiscal', module: 'financial', hideFromEsteticaMenu: true },
     ],
   },
   {
