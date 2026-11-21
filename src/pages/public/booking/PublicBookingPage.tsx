@@ -13,6 +13,7 @@
 
 import type React from 'react';
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import {
   Clock,
@@ -434,6 +435,7 @@ const PublicBookingPage: React.FC = () => {
     isForOther?: boolean,
     beneficiaryName?: string,
     dependentClientId?: string | null,
+    linkAsDependent?: boolean,
   ) => {
     if (!tenantProfile || !selectedSlot || selectedServiceIds.length === 0 || !selectedStaffId) {
       return;
@@ -446,6 +448,7 @@ const PublicBookingPage: React.FC = () => {
         is_for_other: isForOther,
         beneficiary_name: beneficiaryName,
         dependent_client_id: dependentClientId ?? null,
+        link_as_dependent: linkAsDependent,
       });
 
       if (result) {
@@ -598,19 +601,21 @@ const PublicBookingPage: React.FC = () => {
     >
       {/* Container Mobile Card */}
       <div className="w-full max-w-sm sm:max-w-md bg-neutral-900 text-white rounded-none sm:rounded-3xl overflow-hidden shadow-2xl border-0 sm:border border-neutral-800 flex flex-col min-h-screen sm:min-h-0 sm:my-6">
-        {/* Error Toast notification */}
-        {error && (
-          <div className="fixed top-4 left-4 right-4 z-50 px-4 pointer-events-none">
-            <div className="max-w-sm mx-auto pointer-events-auto">
-              <Toast
-                message={error.message}
-                variant="error"
-                onClose={dismissError}
-                autoCloseMs={5000}
-              />
-            </div>
-          </div>
-        )}
+        {/* Error Toast notification (Portaled above all L1/L2 modals) */}
+        {error &&
+          createPortal(
+            <div className="fixed top-4 left-4 right-4 z-[9999] px-4 pointer-events-none">
+              <div className="max-w-sm mx-auto pointer-events-auto">
+                <Toast
+                  message={error.message}
+                  variant="error"
+                  onClose={dismissError}
+                  autoCloseMs={5000}
+                />
+              </div>
+            </div>,
+            document.body,
+          )}
 
         {/* Demo Mode Badge */}
         {isUsingMock && (
@@ -914,6 +919,8 @@ const PublicBookingPage: React.FC = () => {
         whatsappFitInUrl={whatsappFitInUrl}
         clientName={clientName}
         clientPhone={clientPhoneDisplay}
+        bookingError={error}
+        onDismissError={dismissError}
         onLookupPhone={
           tenantProfile?.slug
             ? (phoneDigits, targetDate) => lookupPublicBookingClient(tenantProfile.slug, phoneDigits, targetDate)

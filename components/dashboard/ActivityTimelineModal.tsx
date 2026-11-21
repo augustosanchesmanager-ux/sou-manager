@@ -62,7 +62,7 @@ export const ActivityTimelineModal: React.FC<ActivityTimelineModalProps> = ({ is
     : logs.filter((l) => l.category === filter);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-night/70 backdrop-blur-xs animate-fade-in">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-night/70 backdrop-blur-xs animate-fade-in">
       <div
         role="dialog"
         aria-modal="true"

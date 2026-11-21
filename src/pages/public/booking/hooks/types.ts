@@ -123,6 +123,7 @@ export interface CreatePublicBookingRequest {
   is_for_other?: boolean;
   beneficiary_name?: string | null;
   dependent_client_id?: string | null;
+  link_as_dependent?: boolean;
 }
 
 export interface CreatePublicBookingResult {

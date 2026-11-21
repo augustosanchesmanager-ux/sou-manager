@@ -395,4 +395,45 @@ describe('BookingService — Front-end to Supabase RPC integration', () => {
       expect(booking.client_id).toBe('child-samuel');
     }
   });
+
+  it('should_pass_p_link_as_dependent_false_when_booking_for_unlinked_guest', async () => {
+    const mockRpc = vi.fn().mockResolvedValueOnce({
+      data: {
+        appointment_id: 'apt-guest-1',
+        client_id: 'holder-1',
+        status: 'confirmed',
+        public_token: 'tok-guest',
+        services: [{ service_id: 'svc-1', name: 'Corte', duration: 30, price: 50 }],
+        staff: { id: 'staff-1', name: 'Lucas' },
+        start_time: '2026-11-20T16:00:00Z',
+        end_time: '2026-11-20T16:30:00Z',
+      },
+      error: null,
+    });
+
+    vi.spyOn(clientModule, 'getPublicAnonymousClient').mockReturnValue({
+      rpc: mockRpc,
+    } as never);
+
+    await createPublicBooking({
+      tenant_identifier: 'sanchez',
+      staff_id: 'staff-1',
+      service_ids: ['svc-1'],
+      start_time: '2026-11-20T16:00:00Z',
+      client_name: 'Israel Oliveira',
+      client_phone: '11958713888',
+      is_for_other: true,
+      beneficiary_name: 'Pedro Amigo',
+      link_as_dependent: false,
+    });
+
+    expect(mockRpc).toHaveBeenCalledWith(
+      'create_public_booking',
+      expect.objectContaining({
+        p_is_for_other: true,
+        p_beneficiary_name: 'Pedro Amigo',
+        p_link_as_dependent: false,
+      }),
+    );
+  });
 });

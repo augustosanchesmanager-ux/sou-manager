@@ -219,6 +219,9 @@ export async function createPublicBooking(
     if (request.dependent_client_id !== undefined) {
       rpcPayload.p_dependent_client_id = request.dependent_client_id;
     }
+    if (request.link_as_dependent !== undefined) {
+      rpcPayload.p_link_as_dependent = request.link_as_dependent;
+    }
 
     const { data, error } = await client.rpc(RPC_NAMES.CREATE_BOOKING, rpcPayload);
 

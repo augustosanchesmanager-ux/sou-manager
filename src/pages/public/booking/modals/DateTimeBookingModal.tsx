@@ -4,6 +4,7 @@
  */
 
 import React, { useMemo, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ArrowLeft,
   X,
@@ -19,8 +20,9 @@ import {
   MessageCircle,
   AlertCircle,
   Users,
+  UserPlus,
 } from 'lucide-react';
-import type { PublicSlot, TimePeriodGroup, PublicClientLookupResult } from '../hooks/types';
+import type { PublicSlot, TimePeriodGroup, PublicClientLookupResult, PublicBookingError } from '../hooks/types';
 import { groupSlotsByPeriod } from '../hooks/usePublicBooking';
 
 export function buildFitInWhatsAppMessage(params: {
@@ -51,7 +53,12 @@ interface DateTimeBookingModalProps {
   totalPrice: number;
   totalDuration: number;
   isSubmitting: boolean;
-  onConfirmBooking: (isForOther?: boolean, beneficiaryName?: string, dependentClientId?: string | null) => void;
+  onConfirmBooking: (
+    isForOther?: boolean,
+    beneficiaryName?: string,
+    dependentClientId?: string | null,
+    linkAsDependent?: boolean,
+  ) => void;
   onBack: () => void;
   onClose: () => void;
   formatPriceBRL: (price: number) => string;
@@ -60,6 +67,8 @@ interface DateTimeBookingModalProps {
   whatsappFitInUrl?: string | null;
   clientName?: string;
   clientPhone?: string;
+  bookingError?: PublicBookingError | null;
+  onDismissError?: () => void;
   onLookupPhone?: (phoneDigits: string, targetDate?: string | null) => Promise<PublicClientLookupResult>;
 }
 
@@ -87,11 +96,16 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
   whatsappFitInUrl,
   clientName,
   clientPhone,
+  bookingError,
+  onDismissError,
   onLookupPhone,
 }) => {
   const [isForOther, setIsForOther] = useState(false);
   const [beneficiaryName, setBeneficiaryName] = useState('');
   const [selectedDependentId, setSelectedDependentId] = useState<string | null>(null);
+  const [linkAsDependent, setLinkAsDependent] = useState(true);
+  const [otherRelationType, setOtherRelationType] = useState<'dependent' | 'guest'>('dependent');
+  const [isSameDayConflictModalOpen, setIsSameDayConflictModalOpen] = useState(false);
   const [lookupInfo, setLookupInfo] = useState<PublicClientLookupResult | null>(null);
   const [sameDayBookingInfo, setSameDayBookingInfo] = useState<PublicClientLookupResult | null>(null);
 
@@ -103,6 +117,9 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
       setIsForOther(false);
       setBeneficiaryName('');
       setSelectedDependentId(null);
+      setLinkAsDependent(true);
+      setOtherRelationType('dependent');
+      setIsSameDayConflictModalOpen(false);
       return;
     }
 
@@ -117,10 +134,12 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
           setLookupInfo(res || null);
           if (res?.has_same_day_booking) {
             setSameDayBookingInfo(res);
+            setIsSameDayConflictModalOpen(true);
           } else {
             setSameDayBookingInfo(null);
             setIsForOther(false);
             setSelectedDependentId(null);
+            setIsSameDayConflictModalOpen(false);
           }
         }
       } catch {
@@ -137,6 +156,30 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
       cancelled = true;
     };
   }, [isOpen, selectedDate, clientPhone, onLookupPhone]);
+
+  // Se o submit retornar erro de limite no mesmo dia, abre o Modal Nível 2 automaticamente
+  useEffect(() => {
+    if (!isOpen || !bookingError) return;
+    if (
+      bookingError.code === 'same_day_booking_limit' ||
+      bookingError.code === 'same_day_beneficiary_required'
+    ) {
+      setIsSameDayConflictModalOpen(true);
+    }
+  }, [isOpen, bookingError]);
+
+  // Escape fecha primeiro o Modal Nível 2 se estiver aberto
+  useEffect(() => {
+    if (!isOpen || !isSameDayConflictModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation();
+        setIsSameDayConflictModalOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen, isSameDayConflictModalOpen]);
   const periodGroups = useMemo(() => {
     if (groupedSlots && groupedSlots.length > 0) {
       return groupedSlots.filter((group) => group.slots.length > 0);
@@ -275,9 +318,13 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  const isSameDayError =
+    bookingError?.code === 'same_day_booking_limit' ||
+    bookingError?.code === 'same_day_beneficiary_required';
+
+  const modalMarkup = (
     <div
-      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
       aria-labelledby="datetime-modal-title"
@@ -638,110 +685,65 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
             </div>
           )}
 
-          {/* Alerta interativo: Mesmo cliente com agendamento no mesmo dia */}
-          {sameDayBookingInfo?.has_same_day_booking && (
-            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 space-y-2.5 animate-in fade-in duration-200">
-              <div className="flex items-start gap-2.5">
-                <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                <div className="text-xs space-y-1">
-                  <p className="font-bold text-amber-300">
-                    Você já possui um agendamento nesta data
-                    {sameDayBookingInfo.existing_booking_time ? ` às ${sameDayBookingInfo.existing_booking_time}` : ''}
-                    {sameDayBookingInfo.existing_staff_name ? ` com ${sameDayBookingInfo.existing_staff_name}` : ''}.
-                  </p>
-                  <p className="text-[11px] text-neutral-300">
-                    Deseja agendar este novo horário para outra pessoa (filho, amigo ou parente)?
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 pt-0.5">
-                <button
-                  type="button"
-                  onClick={() => setIsForOther(true)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    isForOther
-                      ? 'bg-amber-400 text-neutral-950 shadow-md shadow-amber-400/20'
-                      : 'bg-neutral-800 text-neutral-200 hover:bg-neutral-700'
-                  }`}
-                >
-                  Sim, é para outra pessoa
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsForOther(false);
-                    setSelectedDependentId(null);
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    !isForOther
-                      ? 'bg-neutral-800 text-neutral-300 border border-neutral-700'
-                      : 'bg-neutral-900 text-neutral-400 hover:bg-neutral-800'
-                  }`}
-                >
-                  Não, era para mim
-                </button>
-              </div>
-
-              {isForOther ? (
-                <div className="pt-1.5 space-y-2">
-                  {(lookupInfo?.dependents?.length || 0) > 0 && (
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-[10px] font-bold uppercase text-amber-300/90">
-                        Filhos cadastrados:
-                      </span>
-                      {lookupInfo?.dependents?.map((dep) => {
-                        const isSelectedDep = selectedDependentId === dep.id;
-                        return (
-                          <button
-                            key={dep.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedDependentId(dep.id);
-                              setBeneficiaryName(dep.name);
-                            }}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                              isSelectedDep
-                                ? 'bg-amber-400 text-neutral-950'
-                                : 'bg-neutral-900 text-neutral-200 border border-neutral-700 hover:border-amber-400/50'
-                            }`}
-                          >
-                            {dep.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                  <label htmlFor="beneficiary-name-input" className="block text-[11px] font-bold text-neutral-200 flex items-center gap-1.5">
-                    <Users size={12} className="text-amber-400" />
-                    <span>Nome de quem será atendido: <strong className="text-amber-400">*</strong></span>
-                  </label>
-                  <input
-                    id="beneficiary-name-input"
-                    type="text"
-                    value={beneficiaryName}
-                    onChange={(e) => {
-                      setBeneficiaryName(e.target.value);
-                      setSelectedDependentId(null);
-                    }}
-                    placeholder="Ex: Enzo (filho) ou Pedro"
-                    className="w-full px-3 py-2 bg-neutral-900 border border-neutral-700 focus:border-amber-400 rounded-xl text-xs text-white placeholder:text-neutral-500 outline-none"
-                  />
-                  {beneficiaryName.trim().length > 0 && beneficiaryName.trim().length < 3 && (
-                    <p className="text-[10px] text-red-400">Informe pelo menos 3 letras para o nome.</p>
+          {/* Resumo inline quando há agendamento no mesmo dia (permite reabrir Modal Nível 2) */}
+          {(sameDayBookingInfo?.has_same_day_booking || isSameDayError) && (
+            <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 flex items-center justify-between gap-2.5 animate-in fade-in duration-200">
+              <div className="flex items-start gap-2 min-w-0">
+                <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div className="text-xs min-w-0">
+                  {isForOther && beneficiaryName.trim().length >= 3 ? (
+                    <p className="font-semibold text-amber-200 truncate">
+                      Atendimento para: <strong className="text-amber-300">{beneficiaryName.trim()}</strong>
+                      {!selectedDependentId && (
+                        <span className="text-[10px] text-neutral-300 ml-1">
+                          ({linkAsDependent ? 'vincular ao cadastro' : 'sem vincular'})
+                        </span>
+                      )}
+                    </p>
+                  ) : (
+                    <p className="font-bold text-amber-300">
+                      Você já possui agendamento nesta data
+                      {sameDayBookingInfo?.existing_booking_time ? ` às ${sameDayBookingInfo.existing_booking_time}` : ''}.
+                    </p>
                   )}
                 </div>
-              ) : (
-                <p className="text-[11px] text-amber-400/90 font-medium">
-                  Só é permitido 1 horário por dia para a mesma pessoa. Escolha outro dia ou fale com a barbearia.
-                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSameDayConflictModalOpen(true)}
+                className="px-2.5 py-1.5 rounded-xl bg-amber-400 text-neutral-950 text-[11px] font-bold shrink-0 hover:bg-amber-300 transition-colors cursor-pointer"
+              >
+                {isForOther && beneficiaryName.trim().length >= 3 ? 'Alterar' : 'Resolver'}
+              </button>
+            </div>
+          )}
+
+          {/* Erro inline de submissão (visível dentro do modal mesmo se o toast expirar) */}
+          {bookingError && !isSameDayError && (
+            <div
+              role="alert"
+              className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-200 flex items-start justify-between gap-2 text-xs"
+            >
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <span>{bookingError.message}</span>
+              </div>
+              {onDismissError && (
+                <button
+                  type="button"
+                  onClick={onDismissError}
+                  className="text-red-300 hover:text-white p-0.5 shrink-0"
+                  aria-label="Fechar aviso"
+                >
+                  <X size={14} />
+                </button>
               )}
             </div>
           )}
 
           {(() => {
             const isSameDayBlocked = Boolean(
-              (sameDayBookingInfo?.has_same_day_booking && (!isForOther || beneficiaryName.trim().length < 3)) ||
+              ((sameDayBookingInfo?.has_same_day_booking || isSameDayError) && (!isForOther || beneficiaryName.trim().length < 3)) ||
               (isForOther && beneficiaryName.trim().length < 3)
             );
 
@@ -749,24 +751,36 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  if (isSameDayBlocked || !selectedSlot || isSubmitting) return;
+                  if (isSameDayBlocked) {
+                    setIsSameDayConflictModalOpen(true);
+                    return;
+                  }
+                  if (!selectedSlot || isSubmitting) return;
                   onConfirmBooking(
                     isForOther,
                     isForOther ? beneficiaryName.trim() : undefined,
                     isForOther ? selectedDependentId : null,
+                    isForOther ? linkAsDependent : undefined,
                   );
                 }}
-                disabled={!selectedSlot || isSubmitting || isSameDayBlocked}
+                disabled={!selectedSlot || isSubmitting}
                 className={`w-full py-3.5 px-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 active:scale-[0.99] shadow-lg ${
                   selectedSlot && !isSubmitting && !isSameDayBlocked
                     ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-neutral-950 shadow-amber-500/25 cursor-pointer'
-                    : 'bg-neutral-800 text-neutral-500 border border-neutral-700 cursor-not-allowed'
+                    : selectedSlot && !isSubmitting && isSameDayBlocked
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 cursor-pointer'
+                      : 'bg-neutral-800 text-neutral-500 border border-neutral-700 cursor-not-allowed'
                 }`}
               >
                 {isSubmitting ? (
                   <>
                     <Loader2 className="size-4 animate-spin" />
                     <span>Garantindo seu horário...</span>
+                  </>
+                ) : isSameDayBlocked && selectedSlot ? (
+                  <>
+                    <AlertCircle size={16} />
+                    <span>Definir quem será atendido</span>
                   </>
                 ) : (
                   <>
@@ -783,5 +797,214 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
         </div>
       </div>
     </div>
+  );
+
+  const level2ModalMarkup = isSameDayConflictModalOpen ? (
+    <div
+      className="fixed inset-0 z-[120] bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-150"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="sameday-conflict-title"
+    >
+      <div
+        className="fixed inset-0 -z-10"
+        onClick={() => setIsSameDayConflictModalOpen(false)}
+        aria-hidden="true"
+      />
+
+      <div className="w-full max-w-md bg-neutral-900 border-t sm:border border-amber-500/35 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
+        <div className="p-4 sm:p-5 border-b border-neutral-800 flex items-start justify-between gap-3 bg-amber-500/10">
+          <div className="flex items-start gap-2.5">
+            <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <h4 id="sameday-conflict-title" className="text-sm font-bold text-white">
+                Você já possui um agendamento nesta data
+              </h4>
+              <p className="text-xs text-amber-200/90 mt-0.5">
+                {sameDayBookingInfo?.existing_booking_time
+                  ? `Horário reservado às ${sameDayBookingInfo.existing_booking_time}${sameDayBookingInfo.existing_staff_name ? ` com ${sameDayBookingInfo.existing_staff_name}` : ''}.`
+                  : 'Só é permitido 1 horário por dia para a mesma pessoa.'}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsSameDayConflictModalOpen(false)}
+            className="p-1.5 rounded-full text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+            aria-label="Fechar alerta"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-4 sm:p-5 space-y-4 overflow-y-auto">
+          <p className="text-xs text-neutral-300 leading-relaxed">
+            Este novo horário é para <strong className="text-white">um filho ou amigo</strong>? Escolha uma opção abaixo:
+          </p>
+
+          {(lookupInfo?.dependents?.length || 0) > 0 && (
+            <div className="space-y-2">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-amber-300">
+                Filhos / Dependentes já cadastrados
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {lookupInfo?.dependents?.map((dep) => {
+                  const isSelectedDep = isForOther && selectedDependentId === dep.id;
+                  return (
+                    <button
+                      key={dep.id}
+                      type="button"
+                      onClick={() => {
+                        setIsForOther(true);
+                        setOtherRelationType('dependent');
+                        setSelectedDependentId(dep.id);
+                        setBeneficiaryName(dep.name);
+                        setLinkAsDependent(true);
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        isSelectedDep
+                          ? 'bg-amber-400 text-neutral-950 shadow-md shadow-amber-400/20'
+                          : 'bg-neutral-800 text-neutral-200 border border-neutral-700 hover:border-amber-400/50'
+                      }`}
+                    >
+                      {dep.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setIsForOther(true);
+                setOtherRelationType('dependent');
+                setLinkAsDependent(true);
+                if (selectedDependentId) {
+                  setSelectedDependentId(null);
+                  setBeneficiaryName('');
+                }
+              }}
+              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                isForOther && otherRelationType === 'dependent'
+                  ? 'bg-amber-500/15 border-amber-400 text-white'
+                  : 'bg-neutral-800/60 border-neutral-800 text-neutral-300 hover:border-neutral-700'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 text-xs font-bold">
+                <UserPlus size={14} className="text-amber-400" />
+                <span>Filho / Dependente</span>
+              </div>
+              <p className="text-[11px] text-neutral-400 mt-1">
+                Cadastrar ou selecionar filho
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsForOther(true);
+                setOtherRelationType('guest');
+                setSelectedDependentId(null);
+                setLinkAsDependent(false);
+              }}
+              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                isForOther && otherRelationType === 'guest'
+                  ? 'bg-amber-500/15 border-amber-400 text-white'
+                  : 'bg-neutral-800/60 border-neutral-800 text-neutral-300 hover:border-neutral-700'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 text-xs font-bold">
+                <Users size={14} className="text-amber-400" />
+                <span>Amigo / Parente</span>
+              </div>
+              <p className="text-[11px] text-neutral-400 mt-1">
+                Agendamento pontual
+              </p>
+            </button>
+          </div>
+
+          {isForOther && (
+            <div className="space-y-3 pt-1">
+              <div>
+                <label htmlFor="level2-beneficiary-name" className="block text-xs font-bold text-neutral-200 mb-1.5">
+                  Nome de quem será atendido <strong className="text-amber-400">*</strong>
+                </label>
+                <input
+                  id="level2-beneficiary-name"
+                  type="text"
+                  value={beneficiaryName}
+                  onChange={(e) => {
+                    setBeneficiaryName(e.target.value);
+                    setSelectedDependentId(null);
+                  }}
+                  placeholder={otherRelationType === 'dependent' ? 'Ex: Enzo (filho)' : 'Ex: Pedro (amigo)'}
+                  className="w-full px-3 py-2.5 bg-neutral-950 border border-neutral-700 focus:border-amber-400 rounded-xl text-sm text-white placeholder:text-neutral-500 outline-none"
+                />
+                {beneficiaryName.trim().length > 0 && beneficiaryName.trim().length < 3 && (
+                  <p className="text-[11px] text-red-400 mt-1">Informe pelo menos 3 letras para o nome.</p>
+                )}
+              </div>
+
+              {!selectedDependentId && (
+                <label className="flex items-start gap-2.5 p-3 rounded-xl bg-neutral-950/80 border border-neutral-800 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={linkAsDependent}
+                    onChange={(e) => setLinkAsDependent(e.target.checked)}
+                    className="mt-0.5 accent-amber-400 w-4 h-4 rounded cursor-pointer"
+                  />
+                  <span className="text-xs text-neutral-200 leading-snug">
+                    <strong className="block text-white">Vincular ao meu cadastro</strong>
+                    <span className="text-[11px] text-neutral-400">
+                      Salva como dependente no seu perfil para facilitar os próximos agendamentos.
+                    </span>
+                  </span>
+                </label>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 sm:p-5 border-t border-neutral-800 bg-neutral-950/60 flex flex-col sm:flex-row gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setIsForOther(false);
+              setSelectedDependentId(null);
+              setBeneficiaryName('');
+              setIsSameDayConflictModalOpen(false);
+            }}
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-bold transition-colors cursor-pointer"
+          >
+            Era para mim (trocar data)
+          </button>
+          <button
+            type="button"
+            disabled={!isForOther || beneficiaryName.trim().length < 3}
+            onClick={() => {
+              setIsSameDayConflictModalOpen(false);
+              if (onDismissError) onDismissError();
+            }}
+            className={`w-full sm:flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all ${
+              isForOther && beneficiaryName.trim().length >= 3
+                ? 'bg-amber-400 hover:bg-amber-300 text-neutral-950 cursor-pointer'
+                : 'bg-neutral-800 text-neutral-500 border border-neutral-700 cursor-not-allowed'
+            }`}
+          >
+            Continuar para {beneficiaryName.trim() || 'esta pessoa'}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  return (
+    <>
+      {typeof document !== 'undefined' ? createPortal(modalMarkup, document.body) : modalMarkup}
+      {level2ModalMarkup && (typeof document !== 'undefined' ? createPortal(level2ModalMarkup, document.body) : level2ModalMarkup)}
+    </>
   );
 };
