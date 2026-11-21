@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import DateRangeFilter from '../components/ui/DateRangeFilter';
+import { getTodayDateKey, toLocalDateKey } from '../src/utils/dateTimezone';
 import { AuditAdjustmentButton } from '../components/audit';
 import {
     BarberCommissionStatementModal,
@@ -391,9 +392,9 @@ const Commissions: React.FC = () => {
     const [startDate, setStartDate] = useState(() => {
         const now = new Date();
         const start = new Date(now.getFullYear(), now.getMonth(), 1);
-        return start.toISOString().split('T')[0];
+        return toLocalDateKey(start);
     });
-    const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const [endDate, setEndDate] = useState(getTodayDateKey);
 
     const loadCommissionLines = useCallback(async () => {
         if (!tenantId || !startDate || !endDate) return [];

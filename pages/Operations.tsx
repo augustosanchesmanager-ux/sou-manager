@@ -4,6 +4,7 @@ import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
+import { getTodayDateKey } from '../src/utils/dateTimezone';
 
 interface Appointment {
     id: string;
@@ -49,7 +50,7 @@ const Operations: React.FC = () => {
     const [staffList, setStaffList] = useState<{id: string; name: string}[]>([]);
     const [stats, setStats] = useState({ attended: 0, avgTicket: 0, total: 0, confirmed: 0, pending: 0, inProgress: 0, cancelled: 0, revenue: 0 });
     const [loading, setLoading] = useState(true);
-    const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+    const [selectedDate, setSelectedDate] = useState<string>(getTodayDateKey);
     
     // Modal states
     const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
@@ -267,7 +268,7 @@ const Operations: React.FC = () => {
                 <DatePickerInput
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    max={new Date().toISOString().split('T')[0]}
+                    max={getTodayDateKey()}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900 cursor-pointer dark:border-white/10 dark:bg-[#1A1A1A] dark:text-white sm:w-auto"
                 />
             </section>

@@ -18,6 +18,7 @@ import {
   Legend,
 } from 'recharts';
 import { formatCurrency } from '../../shared/format/currency';
+import { useAuth } from '../../context/AuthContext';
 import type { BiCockpitData } from '../../src/modules/bi/biCockpitService';
 import {
   TrendingUp,
@@ -82,6 +83,9 @@ const CustomDonutTooltip = ({ active, payload }: any) => {
 };
 
 export const BiExecutiveCockpit: React.FC<BiExecutiveCockpitProps> = ({ data, loading }) => {
+  const { tenant } = useAuth();
+  const unitName = tenant?.name?.trim() || 'Unidade';
+
   if (loading) {
     return (
       <div className="py-24 flex flex-col items-center justify-center gap-3">
@@ -335,7 +339,7 @@ export const BiExecutiveCockpit: React.FC<BiExecutiveCockpitProps> = ({ data, lo
             <div>
               <h3 className="text-base font-bold text-stone-100 flex items-center gap-2">
                 <Target size={18} className="text-[#B88A44]" />
-                Metas Mensais da Sanchez Barber
+                Metas Mensais — {unitName}
               </h3>
               <p className="text-xs text-stone-400 mt-0.5">
                 Atingimento real e projeção de fechamento (*run-rate*) com base na cadência atual.
