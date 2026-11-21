@@ -4,6 +4,7 @@ import Button from '../components/ui/Button';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
+import { getTodayDateKey, toLocalDateKey } from '../src/utils/dateTimezone';
 import { useAuth } from '../context/AuthContext';
 
 interface Promotion {
@@ -39,8 +40,8 @@ const Promotions: React.FC = () => {
         target_id: '',
         discount_type: 'percentage',
         discount_value: 0,
-        start_date: new Date().toISOString().split('T')[0],
-        end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        start_date: getTodayDateKey(),
+        end_date: toLocalDateKey(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
         active: true
     });
 
@@ -83,8 +84,8 @@ const Promotions: React.FC = () => {
             setForm({
                 title: '', target_type: 'all', target_id: '', discount_type: 'percentage',
                 discount_value: 0,
-                start_date: new Date().toISOString().split('T')[0],
-                end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                start_date: getTodayDateKey(),
+                end_date: toLocalDateKey(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
                 active: true
             });
             fetchData();

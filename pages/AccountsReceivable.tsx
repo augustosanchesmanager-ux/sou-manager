@@ -12,6 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTenantOptional } from '../src/context/TenantContext';
 import { supabase, getScopedClient } from '../services/supabaseClient';
 import { formatCurrency } from '../shared/format/currency';
+import { getTodayDateKey } from '../src/utils/dateTimezone';
 import {
     settleCheckoutComanda,
     settleCheckoutComandaAndEnqueue,
@@ -969,7 +970,7 @@ const AccountsReceivable: React.FC = () => {
             });
         });
 
-        const today = new Date().toISOString().split('T')[0];
+        const today = getTodayDateKey();
         clubReceivables.forEach(r => {
             if (r.transaction_id) return;
             const displayStatus = r.status === 'pending' && r.due_date < today ? 'overdue' : r.status;
