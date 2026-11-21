@@ -47,7 +47,7 @@ export const StaffProfitabilityTable: React.FC<StaffProfitabilityTableProps> = (
             Produtividade & Lucratividade por Barbeiro
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Volume de cortes, ticket médio real, custo de comissão líquida e margem retida para a casa (Rubens, Heron, Lucas).
+            Volume de cortes, ticket médio real, custo de comissão líquida e margem retida para a casa por profissional.
           </p>
         </div>
 

@@ -84,9 +84,8 @@ export async function getPublicTenantProfile(
     });
 
     if (error) {
-      // If function doesn't exist, fall back to mock
-      if (isFunctionNotFoundError(error)) {
-        console.warn('[BookingService] RPC not found, falling back to mock:', error.message);
+      if (allowMockFallback() && isFunctionNotFoundError(error)) {
+        console.warn('[BookingService] RPC not found (mock mode), falling back to mock:', error.message);
         return mockGetPublicTenantProfile(tenantIdentifier);
       }
       throw error;
@@ -171,8 +170,8 @@ export async function getPublicAvailableSlots(
     });
 
     if (error) {
-      if (isFunctionNotFoundError(error)) {
-        console.warn('[BookingService] RPC not found, falling back to mock:', error.message);
+      if (allowMockFallback() && isFunctionNotFoundError(error)) {
+        console.warn('[BookingService] RPC not found (mock mode), falling back to mock:', error.message);
         return mockGetPublicAvailableSlots(tenantIdentifier, staffId, serviceIds, date);
       }
       throw error;
@@ -224,8 +223,8 @@ export async function createPublicBooking(
     const { data, error } = await client.rpc(RPC_NAMES.CREATE_BOOKING, rpcPayload);
 
     if (error) {
-      if (isFunctionNotFoundError(error)) {
-        console.warn('[BookingService] RPC not found, falling back to mock:', error.message);
+      if (allowMockFallback() && isFunctionNotFoundError(error)) {
+        console.warn('[BookingService] RPC not found (mock mode), falling back to mock:', error.message);
         return mockCreatePublicBooking(request);
       }
       // Map Postgres error codes to our error types
@@ -265,8 +264,8 @@ export async function cancelPublicBooking(
     });
 
     if (error) {
-      if (isFunctionNotFoundError(error)) {
-        console.warn('[BookingService] RPC not found, falling back to mock:', error.message);
+      if (allowMockFallback() && isFunctionNotFoundError(error)) {
+        console.warn('[BookingService] RPC not found (mock mode), falling back to mock:', error.message);
         return mockCancelPublicBooking(tenantIdentifier, normalizedToken);
       }
       const bookingError = mapPostgresError(error);
@@ -405,7 +404,7 @@ export async function registerPublicBookingPromoLead(
   const { data, error } = await client.rpc(RPC_NAMES.REGISTER_PROMO_LEAD, rpcArgs);
 
   if (error) {
-    if (isFunctionNotFoundError(error)) {
+    if (allowMockFallback() && isFunctionNotFoundError(error)) {
       return mockRegisterPublicBookingPromoLead(request);
     }
     throw mapPostgresError(error);

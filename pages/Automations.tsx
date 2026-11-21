@@ -45,8 +45,8 @@ import type {
 
 export const Automations: React.FC = () => {
   const { tenant } = useAuth();
-  const tenantId = tenant?.id || 'sanchez-barber-default';
-  const tenantName = tenant?.name || 'Sanchez Barber';
+  const tenantId = tenant?.id || '';
+  const tenantName = tenant?.name || 'Sua Barbearia';
 
   const [activeTab, setActiveTab] = useState<'rules' | 'templates' | 'queue' | 'connections'>('rules');
   const [loading, setLoading] = useState<boolean>(true);

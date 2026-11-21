@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import {
   AreaChart,
   Area,
@@ -48,6 +49,8 @@ export const StrategicForecastCard: React.FC<StrategicForecastCardProps> = ({
   recentDailyAverage,
   staffList,
 }) => {
+  const { tenant } = useAuth();
+  const unitName = tenant?.name?.trim() || 'Unidade';
   const [horizon, setHorizon] = useState<ForecastHorizon>('7d');
 
   const horizonDays = horizon === '7d' ? 7 : horizon === '15d' ? 15 : 30;
@@ -173,7 +176,7 @@ export const StrategicForecastCard: React.FC<StrategicForecastCardProps> = ({
           </div>
           <h2 className="text-xl font-bold text-stone-100 mt-2 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-[#B88A44]" />
-            Análise & Previsão Estratégica da Sanchez Barber
+            Análise & Previsão Estratégica — {unitName}
           </h2>
           <p className="text-xs text-stone-400 mt-1 max-w-2xl">
             Projeção algorítmica de faturamento, margem e ocupação cruzando a grade futura já agendada com a velocidade histórica de caixa da barbearia.
