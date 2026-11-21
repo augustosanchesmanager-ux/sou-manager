@@ -117,7 +117,7 @@ export const ServiceSpecificationModal: React.FC<ServiceSpecificationModalProps>
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
       aria-labelledby="spec-modal-title"

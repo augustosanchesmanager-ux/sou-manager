@@ -5729,7 +5729,7 @@ Podemos confirmar? 😄`;
       </Modal>
 
       {showCancelModal && appointmentToCancel && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowCancelModal(false)} />
           <div ref={cancelModalRef} className="relative bg-white dark:bg-surface-dark rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
             <div>
@@ -5841,7 +5841,7 @@ Podemos confirmar? 😄`;
       )}
 
       {showPaymentDecisionModal && appointmentToCancel && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowPaymentDecisionModal(false)} />
           <div className="relative bg-white dark:bg-surface-dark rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
             <div>

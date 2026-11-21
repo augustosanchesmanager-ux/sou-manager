@@ -965,7 +965,7 @@ export const Automations: React.FC = () => {
       {/* MODAL 1: PAREAMENTO WHATSAPP VIA QR CODE                                */}
       {/* ======================================================================= */}
       {isQrModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#12100E] border border-[#E8DFC9] dark:border-[#29241D] p-6 shadow-2xl space-y-5">
             <div className="flex items-center justify-between border-b border-stone-200 dark:border-[#29241D] pb-3">
               <div className="flex items-center gap-2.5">
@@ -1054,7 +1054,7 @@ export const Automations: React.FC = () => {
       {/* MODAL 2: DISPARO DE TESTE REAL NO WHATSAPP                              */}
       {/* ======================================================================= */}
       {isTestModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#12100E] border border-[#E8DFC9] dark:border-[#29241D] p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-stone-200 dark:border-[#29241D] pb-3">
               <div className="flex items-center gap-2.5">

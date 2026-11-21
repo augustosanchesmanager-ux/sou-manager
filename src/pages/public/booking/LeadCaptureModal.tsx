@@ -140,7 +140,7 @@ export const LeadCaptureModal: React.FC<LeadCaptureModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all duration-300"
+      className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all duration-300"
       role="dialog"
       aria-modal="true"
       aria-labelledby="lead-modal-title"

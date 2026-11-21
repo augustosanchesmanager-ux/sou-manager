@@ -8,6 +8,8 @@ interface ModalProps {
     children: React.ReactNode;
     footer?: React.ReactNode;
     maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl';
+    /** Stacking level: 1 = standard modal (z-[100]), 2 = nested alert/dialog over another modal (z-[120]) */
+    level?: 1 | 2;
 }
 
 const Modal: React.FC<ModalProps> = ({
@@ -16,7 +18,8 @@ const Modal: React.FC<ModalProps> = ({
     title,
     children,
     footer,
-    maxWidth = 'md'
+    maxWidth = 'md',
+    level = 1
 }) => {
     const modalCardRef = useRef<HTMLDivElement>(null);
     const onCloseRef = useRef(onClose);
@@ -28,15 +31,20 @@ const Modal: React.FC<ModalProps> = ({
         document.body.classList.add('modal-open');
 
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onCloseRef.current();
+            if (e.key === 'Escape') {
+                if (level === 2) {
+                    e.stopImmediatePropagation();
+                }
+                onCloseRef.current();
+            }
         };
-        document.addEventListener('keydown', handleKeyDown);
+        document.addEventListener('keydown', handleKeyDown, level === 2);
 
         return () => {
             document.body.classList.remove('modal-open');
-            document.removeEventListener('keydown', handleKeyDown);
+            document.removeEventListener('keydown', handleKeyDown, level === 2);
         };
-    }, [isOpen]);
+    }, [isOpen, level]);
 
     if (!isOpen) return null;
 
@@ -51,8 +59,10 @@ const Modal: React.FC<ModalProps> = ({
         '5xl': 'max-w-5xl',
     };
 
+    const zIndexClass = level === 2 ? 'z-[120]' : 'z-[100]';
+
     const modalContent = (
-        <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-4 py-6 sm:p-6 sm:py-8 animate-fade-in pointer-events-auto">
+        <div className={`fixed inset-0 ${zIndexClass} flex items-start justify-center overflow-y-auto p-4 py-6 sm:p-6 sm:py-8 animate-fade-in pointer-events-auto`}>
             {/* Backdrop */}
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-0" onClick={onClose}></div>
 
