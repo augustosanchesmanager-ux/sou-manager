@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Logo from '../components/Logo';
 import { supabase } from '../services/supabaseClient';
 import { tenantProvisioningService } from '../application/tenantProvisioning';
@@ -7,6 +7,14 @@ import { useAuth } from '../context/AuthContext';
 
 const Register: React.FC = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const selectedPlanParam = searchParams.get('plan');
+    const selectedPlanLabel =
+        selectedPlanParam === 'essencial'
+            ? 'Operação Essencial'
+            : selectedPlanParam === 'pro'
+                ? 'Gestão & Clube Pro'
+                : null;
     const { refreshAccessContext, refreshTenant } = useAuth();
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
@@ -94,6 +102,11 @@ const Register: React.FC = () => {
 
                         {/* Title Header */}
                         <div className="mb-6">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-400 text-[11px] font-semibold mb-3">
+                                <span className="size-1.5 rounded-full bg-amber-400" />
+                                Trial gratuito de 7 dias · Plano Pro liberado
+                                {selectedPlanLabel ? ` (${selectedPlanLabel})` : ''}
+                            </div>
                             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
                                 Crie sua conta
                             </h1>

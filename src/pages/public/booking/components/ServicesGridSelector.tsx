@@ -52,7 +52,9 @@ export const ServicesGridSelector: React.FC<ServicesGridSelectorProps> = ({
         type="button"
         onClick={() => onToggleService(service)}
         aria-pressed={isSelected}
-        className={`w-full text-left p-3 rounded-2xl border transition-all duration-150 cursor-pointer flex flex-col justify-between min-h-[125px] active:scale-[0.98] relative ${
+        className={`${
+          isPopularHighlight ? 'w-full' : 'min-w-[200px] sm:min-w-[220px] shrink-0 snap-start'
+        } text-left p-3 rounded-2xl border transition-all duration-150 cursor-pointer flex flex-col justify-between min-h-[125px] active:scale-[0.98] relative ${
           isSelected
             ? 'bg-amber-500/15 border-amber-500 ring-1 ring-amber-500 shadow-md'
             : isPopularHighlight
@@ -141,8 +143,8 @@ export const ServicesGridSelector: React.FC<ServicesGridSelectorProps> = ({
         </div>
       )}
 
-      {/* 3. Grelha de 2 Colunas com Todos os Serviços */}
-      <div className="grid grid-cols-2 gap-2.5">
+      {/* 3. Carrossel Horizontal com Todos os Serviços */}
+      <div className="flex overflow-x-auto snap-x snap-mandatory gap-2.5 pb-2 -mx-1 px-1">
         {services.map((service) => renderServiceCard(service, false))}
       </div>
     </fieldset>

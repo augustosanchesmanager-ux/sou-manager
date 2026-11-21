@@ -325,35 +325,25 @@ const ShopSetup: React.FC = () => {
     );
 
     return (
-        <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col lg:flex-row">
-            <div className="hidden lg:flex lg:w-1/2 bg-slate-900 relative items-center justify-center overflow-hidden">
-                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1585747860715-2ba37e788b70?q=80&w=2074&auto=format&fit=crop')] bg-cover bg-center opacity-40"></div>
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/50 to-transparent"></div>
-                <div className="relative z-10 p-12 max-w-lg">
-                    <div className="inline-flex items-center gap-2 mb-6 bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/20">
-                        <span className="material-symbols-outlined text-emerald-400 text-sm">rocket_launch</span>
-                        <span className="text-sm font-bold text-white tracking-wide">PASSO {step} DE 3</span>
+        <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col items-center justify-center p-6 sm:p-8 lg:p-12 relative">
+            <div className="w-full max-w-2xl mx-auto animate-fade-in">
+                <div className="flex items-center justify-between mb-8">
+                    <button
+                        onClick={handleBack}
+                        className="flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors text-sm font-bold"
+                    >
+                        <span className="material-symbols-outlined">arrow_back</span> Voltar
+                    </button>
+
+                    <div className="inline-flex items-center gap-2 bg-primary/10 px-3.5 py-1.5 rounded-full border border-primary/25">
+                        <span className="material-symbols-outlined text-primary text-sm">rocket_launch</span>
+                        <span className="text-xs font-bold text-primary tracking-wide">PASSO {step} DE 3</span>
                     </div>
-                    <h2 className="text-3xl font-black text-white tracking-tight leading-tight mb-6">
-                        Leve sua barbearia para o próximo nível.
-                    </h2>
-                    <p className="text-slate-300 text-lg leading-relaxed">
-                        Configure seu ambiente de trabalho digital e comece a ter controle total sobre seu faturamento e equipe em poucos minutos.
-                    </p>
                 </div>
-            </div>
 
-            <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-12 relative">
-                <button
-                    onClick={handleBack}
-                    className="absolute top-6 left-6 lg:top-12 lg:left-12 flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors text-sm font-bold"
-                >
-                    <span className="material-symbols-outlined">arrow_back</span> Voltar
-                </button>
-
-                <div className="w-full max-w-lg animate-fade-in">
+                <div className="w-full">
                     <div className="mb-8">
-                        <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight mb-2">
+                        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight mb-2">
                             {STEP_COPY[step].title}
                         </h1>
                         <p className="text-slate-500 dark:text-slate-400">{STEP_COPY[step].subtitle}</p>
