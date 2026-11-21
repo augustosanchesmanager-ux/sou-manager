@@ -5,6 +5,7 @@ import { getScopedClient, supabase } from '../services/supabaseClient';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
+import { getTodayDateKey } from '../src/utils/dateTimezone';
 import { LoadingBlock } from '../components/ui/Loading';
 import ClientProfile360Drawer, {
     type UpcomingAppointmentSummary,
@@ -563,7 +564,7 @@ const Clients: React.FC = () => {
 
         setExportingExcel(true);
         try {
-            const todayIso = new Date().toISOString().split('T')[0];
+            const todayIso = getTodayDateKey();
             const result = await requestAsyncExcelExport({
                 tenantId: tenantId || undefined,
                 reportType: 'clients',

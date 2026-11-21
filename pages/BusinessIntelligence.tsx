@@ -12,6 +12,7 @@ import MetricCard from '../components/ui/MetricCard';
 import { getClientForTable, getScopedClient, supabase } from '../services/supabaseClient';
 import { staffRepository } from '../domain/staff/repository';
 import { formatCurrency } from '../shared/format/currency';
+import { getTodayDateKey } from '../src/utils/dateTimezone';
 
 // Novos componentes dedicados de BI Avançado
 import { BiExecutiveCockpit } from '../components/bi/BiExecutiveCockpit';
@@ -46,7 +47,7 @@ const BusinessIntelligence: React.FC = () => {
     const initialPeriod = (searchParams.get('period') as any) || '30d';
     const [period, setPeriod] = useState<string>(initialPeriod);
     const [activeTab, setActiveTab] = useState<ActiveBiTab>('cockpit');
-    const [referenceDate, setReferenceDate] = useState<string>(new Date().toISOString().split('T')[0]);
+    const [referenceDate, setReferenceDate] = useState<string>(getTodayDateKey);
 
     // Estado do Cockpit Executivo
     const [cockpitData, setCockpitData] = useState<BiCockpitData | null>(null);

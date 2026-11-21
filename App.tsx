@@ -290,7 +290,7 @@ const AppRoutes: React.FC = () => {
             <Route path="/offline-sync" element={<OfflineSync />} />
             <Route path="/support" element={<Support />} />
 
-            <Route path="/admin" element={<ManagerRoute><Admin /></ManagerRoute>} />
+            <Route path="/admin" element={<SuperAdminRoute><Admin /></SuperAdminRoute>} />
             {/* PO 2026-10-06: rota mockada desativada (dados ficticios). Ver ADR-031. */}
             {/* <Route path="/admin/supabase-monitoring" element={<ManagerRoute><SupabaseMonitoring /></ManagerRoute>} /> */}
             <Route path="/access-control" element={<ManagerRoute><AccessControl /></ManagerRoute>} />
