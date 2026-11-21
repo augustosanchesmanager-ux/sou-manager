@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { PERMISSION_DEFINITIONS } from './definitions';
+import { getPresetsByRole } from './presets';
 import { fetchRolePermissions, saveRolePermissions, resetRolePermissions } from './service';
 import type { PermissionRole } from './types';
 
@@ -51,13 +52,27 @@ export function usePermissions(): UsePermissionsReturn {
         return result;
       };
 
-      const normalizedBarber = normalize(barberData);
-      const normalizedReceptionist = normalize(receptionistData);
+      const buildPresetFallback = (role: PermissionRole): Record<string, boolean> => {
+        const defaultPreset = getPresetsByRole(role)[0];
+        const result: Record<string, boolean> = {};
+        for (const key of ALL_KEYS) {
+          result[key] = defaultPreset ? defaultPreset.permissions.includes(key) : false;
+        }
+        return result;
+      };
+
+      const hasBarberSaved = Object.keys(barberData).length > 0;
+      const hasReceptionistSaved = Object.keys(receptionistData).length > 0;
+
+      const normalizedBarber = hasBarberSaved ? normalize(barberData) : buildPresetFallback('Barber');
+      const normalizedReceptionist = hasReceptionistSaved
+        ? normalize(receptionistData)
+        : buildPresetFallback('Receptionist');
 
       setBarberPerms(normalizedBarber);
       setReceptionistPerms(normalizedReceptionist);
-      setOriginalBarber(normalizedBarber);
-      setOriginalReceptionist(normalizedReceptionist);
+      setOriginalBarber(hasBarberSaved ? normalizedBarber : normalize(barberData));
+      setOriginalReceptionist(hasReceptionistSaved ? normalizedReceptionist : normalize(receptionistData));
       loadedRef.current = true;
     } catch (err) {
       setError('Erro ao carregar permissoes.');

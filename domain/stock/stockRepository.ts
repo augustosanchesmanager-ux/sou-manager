@@ -7,6 +7,7 @@
  */
 
 import { supabase, getClientForTable } from '../../services/supabaseClient';
+import { hasSupabaseEnv } from '../../src/lib/supabase/client';
 import { isAuditPinFormatValid, normalizeAuditPin } from '../../src/lib/audit/competence';
 import { calculateWeightedAverageCost, calculateInventoryDiscrepancy } from './stockEngine';
 import type {
@@ -21,6 +22,11 @@ import type {
 // Armazenamento em memória para testes e modo offline/demo
 const inMemoryProducts = new Map<string, ProductStockItem[]>();
 const inMemoryMovements = new Map<string, StockMovement[]>();
+
+const isDemoOrTestMode = (): boolean =>
+    !hasSupabaseEnv ||
+    import.meta.env.MODE === 'test' ||
+    (typeof process !== 'undefined' && Boolean(process.env?.VITEST));
 
 export class StockRepository {
     clearInMemory(): void {
@@ -182,6 +188,10 @@ export class StockRepository {
             return inMemoryProducts.get(tenantId)!;
         }
 
+        if (isDemoOrTestMode()) {
+            return this.getProductsFromMemory(tenantId);
+        }
+
         try {
             const client = getClientForTable('products', 'barber');
             if (!client) {
@@ -247,6 +257,10 @@ export class StockRepository {
         list.unshift(newItem);
         this.saveProductsToMemory(tenantId, list);
 
+        if (isDemoOrTestMode()) {
+            return newItem;
+        }
+
         try {
             const client = getClientForTable('products', 'barber');
             if (client) {
@@ -292,6 +306,10 @@ export class StockRepository {
         };
         list[index] = updated;
         this.saveProductsToMemory(tenantId, list);
+
+        if (isDemoOrTestMode()) {
+            return updated;
+        }
 
         try {
             const client = getClientForTable('products', 'barber');
@@ -342,6 +360,10 @@ export class StockRepository {
         const list = this.getProductsFromMemory(tenantId);
         const filtered = list.filter((p) => p.id !== id);
         this.saveProductsToMemory(tenantId, filtered);
+
+        if (isDemoOrTestMode()) {
+            return true;
+        }
 
         try {
             const client = getClientForTable('products', 'barber');
@@ -487,7 +509,7 @@ export class StockRepository {
             return false;
         }
 
-        if (supabase) {
+        if (!isDemoOrTestMode() && supabase) {
             try {
                 const { data, error } = await supabase.rpc('validate_audit_pin', {
                     p_pin: normalized,
