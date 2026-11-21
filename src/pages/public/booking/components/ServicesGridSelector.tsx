@@ -115,10 +115,10 @@ export const ServicesGridSelector: React.FC<ServicesGridSelectorProps> = ({
   };
 
   return (
-    <fieldset className="space-y-4 border-0 p-0 m-0" aria-label="Seleção de serviços">
+    <fieldset className="space-y-4 border-0 p-0 m-0 min-w-0 w-full" aria-label="Seleção de serviços">
       {/* 1. Destaque dos Mais Pedidos (se houver catálogo com 3+ itens) */}
       {popularServices.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-2 min-w-0">
           <div className="flex items-center justify-between">
             <span className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-amber-400">
               <Flame size={14} className="text-amber-400 fill-amber-400/20" />
@@ -127,7 +127,7 @@ export const ServicesGridSelector: React.FC<ServicesGridSelectorProps> = ({
             <span className="text-[10px] text-neutral-400">Mais escolhidos</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-2 gap-2.5 w-full min-w-0">
             {popularServices.map((service) => renderServiceCard(service, true))}
           </div>
         </div>
@@ -144,7 +144,7 @@ export const ServicesGridSelector: React.FC<ServicesGridSelectorProps> = ({
       )}
 
       {/* 3. Carrossel Horizontal com Todos os Serviços */}
-      <div className="flex overflow-x-auto snap-x snap-mandatory gap-2.5 pb-2 -mx-1 px-1">
+      <div className="flex w-full min-w-0 overflow-x-auto snap-x snap-mandatory gap-2.5 pb-2">
         {services.map((service) => renderServiceCard(service, false))}
       </div>
     </fieldset>
