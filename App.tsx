@@ -315,7 +315,8 @@ const AppRoutes: React.FC = () => {
             <Route path="/cashflow" element={<ManagerRoute><FeatureRoute feature="finance"><Cashflow /></FeatureRoute></ManagerRoute>} />
             <Route path="/cash-closing" element={<ManagerRoute><FeatureRoute feature="cash_closing"><CashClosingPage /></FeatureRoute></ManagerRoute>} />
             <Route path="/bank-reconciliation" element={<ManagerRoute><FeatureRoute feature="finance"><BankReconciliation /></FeatureRoute></ManagerRoute>} />
-            <Route path="/fiscal" element={<ManagerRoute><FiscalPage /></ManagerRoute>} />
+            {/* Frente 6 (Zero Mock): rota /fiscal ocultada até integração de provedor NFS-e real. */}
+            {/* <Route path="/fiscal" element={<ManagerRoute><FiscalPage /></ManagerRoute>} /> */}
             <Route path="/expenses" element={<ManagerRoute><FeatureRoute feature="expenses"><Expenses /></FeatureRoute></ManagerRoute>} />
             <Route path="/receipts" element={<EsteticaBlockedRoute><ManagerRoute><FeatureRoute feature="finance"><Receipts /></FeatureRoute></ManagerRoute></EsteticaBlockedRoute>} />
             <Route path="/accounts-receivable" element={<ManagerRoute><FeatureRoute feature="receivables"><AccountsReceivable /></FeatureRoute></ManagerRoute>} />
