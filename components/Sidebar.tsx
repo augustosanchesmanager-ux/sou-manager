@@ -218,7 +218,8 @@ export const buildRawSidebarMenu = ({
     items: [
       { name: 'Dados da Unidade', icon: Settings, path: '/settings', module: 'settings' },
       { name: 'Agendamento Online', icon: Globe, path: '/booking-settings', module: 'portal' },
-      { name: 'Central de Automações', icon: Bot, path: '/automations', module: 'settings' },
+      // Frente 1 (Zero Mock): rota /automations ocultada até integração real de disparos.
+      // { name: 'Central de Automações', icon: Bot, path: '/automations', module: 'settings' },
       { name: 'Permissões e Perfis', icon: ShieldCheck, path: '/access-control' },
       { name: 'Sincronização Offline', icon: RefreshCw, path: '/offline-sync', operationalAllowed: true },
     ],

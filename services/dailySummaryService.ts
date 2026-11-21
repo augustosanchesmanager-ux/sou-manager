@@ -49,7 +49,7 @@ export const dailySummaryService = {
   async getDailySummary(
     tenantId: string,
     targetDateStr: string,
-    tenantName = 'Sanchez Barber'
+    tenantName = 'Sua Barbearia'
   ): Promise<DailySummaryPayload> {
     const settings = await this.getAutomationSettings(tenantId);
     const recentLogs = await this.listDispatchLogs(tenantId, targetDateStr);

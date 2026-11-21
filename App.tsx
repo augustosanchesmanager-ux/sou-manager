@@ -300,7 +300,8 @@ const AppRoutes: React.FC = () => {
             <Route path="/booking-settings" element={<ModuleRoute moduleName="portal"><ManagerRoute><OnlineBookingSettings /></ManagerRoute></ModuleRoute>} />
             <Route path="/quality" element={<ManagerRoute><QualityDashboard /></ManagerRoute>} />
             <Route path="/settings" element={<ManagerRoute><Settings /></ManagerRoute>} />
-            <Route path="/automations" element={<ManagerRoute><Automations /></ManagerRoute>} />
+            {/* Frente 1 (Zero Mock): rota /automations desativada até integração real de disparos. */}
+            {/* <Route path="/automations" element={<ManagerRoute><Automations /></ManagerRoute>} /> */}
             <Route path="/clients" element={<ManagerRoute><Clients /></ManagerRoute>} />
             <Route path="/bi" element={<ManagerRoute><FeatureRoute feature="bi"><BusinessIntelligence /></FeatureRoute></ManagerRoute>} />
             <Route path="/smart-return" element={<ManagerRoute><SmartReturn /></ManagerRoute>} />
