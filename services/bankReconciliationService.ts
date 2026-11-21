@@ -9,6 +9,7 @@ import {
   ReconciliationSummary,
 } from '../src/types/reconciliation';
 import { ParsedTransaction } from '../src/lib/banking/ofxParser';
+import { toLocalDateKey } from '../src/utils/dateTimezone';
 
 export const bankReconciliationService = {
   /**
@@ -169,8 +170,8 @@ export const bankReconciliationService = {
     const endDate = new Date(txDate);
     endDate.setDate(endDate.getDate() + daysTolerance);
 
-    const startStr = startDate.toISOString().split('T')[0];
-    const endStr = endDate.toISOString().split('T')[0];
+    const startStr = toLocalDateKey(startDate);
+    const endStr = toLocalDateKey(endDate);
 
     const { data, error } = await supabase
       .from('transactions')

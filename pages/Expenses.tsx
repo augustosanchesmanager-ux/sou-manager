@@ -5,6 +5,7 @@ import DatePickerInput from '../components/ui/DatePickerInput';
 import { transactionRepository } from '../domain/transaction';
 import { useAuth } from '../context/AuthContext';
 import AccountsPayableWidget from '../components/AccountsPayableWidget';
+import { getTodayDateKey } from '../src/utils/dateTimezone';
 
 interface Expense {
     id: string;
@@ -16,7 +17,7 @@ interface Expense {
     receipt_url?: string;
 }
 
-const getTodayIsoDate = () => new Date().toISOString().split('T')[0];
+const getTodayIsoDate = () => getTodayDateKey();
 
 const normalizeDateForInput = (value?: string | null) => {
     if (!value) return getTodayIsoDate();

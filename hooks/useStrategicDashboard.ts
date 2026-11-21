@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getScopedClient, supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import { getTodayDateKey, toLocalDateKey } from '../src/utils/dateTimezone';
 
 export interface StrategicDashboardData {
   loading: boolean;
@@ -114,7 +115,7 @@ export const useStrategicDashboard = (period: Period = 'month') => {
     try {
       const { start: currentStart, end: currentEnd, previousStart, previousEnd } = getPeriodDates(period);
       const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().split('T')[0];
+      const today = toLocalDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
       
       // Fetch all data in parallel
       const [
@@ -244,7 +245,7 @@ export const useStrategicDashboard = (period: Period = 'month') => {
       
       // Club metrics
       const planMap = new Map((clubPlansRes.data || []).map(p => [p.id, Number(p.monthly_price) || 0]));
-      const todayStr = now.toISOString().split('T')[0];
+      const todayStr = getTodayDateKey();
       let clubMrr = 0;
       let clubOverdue = 0;
       let clubPending = 0;
