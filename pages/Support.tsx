@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
+import { supportRepository, type SupportTicket, type TicketMessage as RepoTicketMessage } from '../domain/support/repository';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
@@ -8,22 +9,8 @@ import Toast from '../components/Toast';
 import { GraduationCap, Headset } from 'lucide-react';
 import AcademyHub from '../components/academy/AcademyHub';
 
-interface Ticket {
-    id: string;
-    subject: string;
-    description: string;
-    status: 'open' | 'responded' | 'closed';
-    priority: 'low' | 'medium' | 'high';
-    created_at: string;
-}
-
-interface TicketMessage {
-    id: string;
-    ticket_id: string;
-    sender_id: string;
-    message: string;
-    created_at: string;
-}
+type Ticket = SupportTicket;
+type TicketMessage = RepoTicketMessage;
 
 const Support: React.FC = () => {
     const { user, tenantId, accessRole } = useAuth();
@@ -73,29 +60,26 @@ const Support: React.FC = () => {
     const fetchTickets = async () => {
         if (!user) return;
         setIsLoading(true);
-        let query = supabase
-            .from('support_tickets')
-            .select('*')
-            .order('created_at', { ascending: false });
-
-        if (accessRole === 'barber') {
-            query = query.eq('user_id', user.id);
+        try {
+            const data = await supportRepository.listTickets({
+                userId: accessRole === 'barber' ? user.id : undefined,
+                tenantId: tenantId ?? undefined,
+            });
+            setTickets(data);
+        } catch {
+            // mantém lista atual em caso de falha
+        } finally {
+            setIsLoading(false);
         }
-
-        const { data, error } = await query;
-
-        if (!error) setTickets(data || []);
-        setIsLoading(false);
     };
 
     const fetchMessages = async (ticketId: string) => {
-        const { data, error } = await supabase
-            .from('ticket_messages')
-            .select('*')
-            .eq('ticket_id', ticketId)
-            .order('created_at', { ascending: true });
-
-        if (!error) setMessages(data || []);
+        try {
+            const data = await supportRepository.listMessages(ticketId);
+            setMessages(data);
+        } catch {
+            // mantém mensagens atuais em caso de falha
+        }
     };
 
     useEffect(() => {
@@ -147,25 +131,19 @@ const Support: React.FC = () => {
         e.preventDefault();
         if (!user) return;
 
-        const { data, error } = await supabase
-            .from('support_tickets')
-            .insert({
+        try {
+            const data = await supportRepository.createTicket({
                 user_id: user.id,
                 subject: formData.subject,
                 description: formData.description,
                 priority: formData.priority,
-                status: 'open',
-                tenant_id: tenantId
-            })
-            .select()
-            .single();
-
-        if (!error) {
+                tenant_id: tenantId,
+            });
             setTickets([data, ...tickets]);
             setIsNewTicketModalOpen(false);
             setFormData({ subject: '', description: '', priority: 'medium' });
             setToast({ message: 'Chamado aberto com sucesso!', type: 'success' });
-        } else {
+        } catch {
             setToast({ message: 'Erro ao abrir chamado.', type: 'error' });
         }
     };
@@ -180,37 +158,32 @@ const Support: React.FC = () => {
         e.preventDefault();
         if (!user || !selectedTicket || !newMessage.trim()) return;
 
-        const { data, error } = await supabase
-            .from('ticket_messages')
-            .insert({
+        try {
+            const data = await supportRepository.createMessage({
                 ticket_id: selectedTicket.id,
                 sender_id: user.id,
                 message: newMessage,
-                tenant_id: tenantId
-            })
-            .select()
-            .single();
-
-        if (!error) {
+                tenant_id: tenantId,
+            });
             setMessages([...messages, data]);
             setNewMessage('');
 
             // Update local ticket status if user is replying to a 'responded' ticket
             if (selectedTicket.status === 'responded') {
-                await supabase
-                    .from('support_tickets')
-                    .update({ status: 'open' })
-                    .eq('id', selectedTicket.id);
-
+                await supportRepository.updateTicketStatus(selectedTicket.id, 'open');
                 setTickets(prev => prev.map(t => t.id === selectedTicket.id ? { ...t, status: 'open' } : t));
             }
+        } catch {
+            // erro silencioso preservando comportamento anterior
         }
     };
 
     const getStatusBadge = (status: Ticket['status']) => {
         switch (status) {
             case 'open': return <span className="px-2 py-1 rounded-md bg-amber-500/10 text-amber-500 text-[10px] font-bold uppercase tracking-wider border border-amber-500/20">Aberto</span>;
-            case 'responded': return <span className="px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-500 text-[10px] font-bold uppercase tracking-wider border border-emerald-500/20">Respondido</span>;
+            case 'responded':
+            case 'awaiting_response':
+                return <span className="px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-500 text-[10px] font-bold uppercase tracking-wider border border-emerald-500/20">Respondido</span>;
             case 'closed': return <span className="px-2 py-1 rounded-md bg-slate-100 dark:bg-white/10 text-slate-500 text-[10px] font-bold uppercase tracking-wider border border-transparent">Fechado</span>;
         }
     };

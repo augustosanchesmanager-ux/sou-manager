@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../services/supabaseClient';
+import { promotionRepository, type PromotionRecord } from '../domain/promotion/repository';
+import { serviceRepository } from '../domain/service/repository';
+import { supplyRepository } from '../domain/supply/repository';
 import Button from '../components/ui/Button';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
@@ -7,18 +9,7 @@ import DatePickerInput from '../components/ui/DatePickerInput';
 import { getTodayDateKey, toLocalDateKey } from '../src/utils/dateTimezone';
 import { useAuth } from '../context/AuthContext';
 
-interface Promotion {
-    id: string;
-    title: string;
-    target_type: 'service' | 'product' | 'all';
-    target_id: string | null;
-    discount_type: 'percentage' | 'fixed';
-    discount_value: number;
-    start_date: string;
-    end_date: string;
-    active: boolean;
-    created_at: string;
-}
+type Promotion = PromotionRecord;
 
 interface ItemOption {
     id: string;
@@ -47,38 +38,48 @@ const Promotions: React.FC = () => {
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [tenantId]);
 
     const fetchData = async () => {
+        if (!tenantId) {
+            setPromotions([]);
+            setServices([]);
+            setProducts([]);
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
-        const [promoRes, servRes, prodRes] = await Promise.all([
-            supabase.from('promotions').select('*').order('created_at', { ascending: false }),
-            supabase.from('services').select('id, name').eq('active', true),
-            supabase.from('products').select('id, name')
-        ]);
+        try {
+            const [promoData, servData, prodData] = await Promise.all([
+                promotionRepository.list(tenantId),
+                serviceRepository.listActive(tenantId),
+                supplyRepository.listProductOptions(tenantId)
+            ]);
 
-        if (promoRes.data) setPromotions(promoRes.data);
-        if (servRes.data) setServices(servRes.data);
-        if (prodRes.data) setProducts(prodRes.data);
-
-        setLoading(false);
+            setPromotions(promoData);
+            setServices(servData);
+            setProducts(prodData);
+        } catch (err: any) {
+            setToast({ message: `Erro ao carregar promoções: ${err?.message || 'Erro desconhecido'}`, type: 'error' });
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!tenantId) return;
 
-        const payload = { ...form, tenant_id: tenantId } as any;
+        const payload = { ...form } as Record<string, unknown>;
         if (payload.target_type === 'all') payload.target_id = null;
         if ((payload.target_type === 'service' || payload.target_type === 'product') && !payload.target_id) {
             setToast({ message: 'Selecione um item alvo', type: 'error' });
             return;
         }
 
-        const { error } = await supabase.from('promotions').insert([payload]);
-
-        if (error) {
-            setToast({ message: `Erro: ${error.message}`, type: 'error' });
-        } else {
+        try {
+            await promotionRepository.create(tenantId, payload);
             setToast({ message: 'Promoção criada com sucesso!', type: 'success' });
             setIsModalOpen(false);
             setForm({
@@ -89,20 +90,30 @@ const Promotions: React.FC = () => {
                 active: true
             });
             fetchData();
+        } catch (err: any) {
+            setToast({ message: `Erro: ${err?.message || 'Erro ao criar promoção'}`, type: 'error' });
         }
     };
 
     const toggleActive = async (id: string, current: boolean) => {
-        const { error } = await supabase.from('promotions').update({ active: !current }).eq('id', id);
-        if (!error) fetchData();
+        if (!tenantId) return;
+        try {
+            await promotionRepository.setActive(id, tenantId, !current);
+            fetchData();
+        } catch (err: any) {
+            setToast({ message: `Erro ao atualizar promoção: ${err?.message || 'Erro desconhecido'}`, type: 'error' });
+        }
     };
 
     const deletePromo = async (id: string) => {
+        if (!tenantId) return;
         if (!confirm('Deseja excluir esta promoção?')) return;
-        const { error } = await supabase.from('promotions').delete().eq('id', id);
-        if (!error) {
+        try {
+            await promotionRepository.remove(id, tenantId);
             setToast({ message: 'Promoção excluída', type: 'info' });
             fetchData();
+        } catch (err: any) {
+            setToast({ message: `Erro ao excluir promoção: ${err?.message || 'Erro desconhecido'}`, type: 'error' });
         }
     };
 

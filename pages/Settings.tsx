@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
+import { tenantGoalsRepository } from '../domain/tenantGoals/repository';
 import { useNotificationPreferences } from '../src/hooks/useNotificationPreferences';
 import { useViaCep } from '../src/hooks/useViaCep';
 import { PaymentTerminalsSection } from '../components/settings/PaymentTerminalsSection';
@@ -237,17 +238,7 @@ const Settings: React.FC = () => {
 
         const fetchGoals = async () => {
             try {
-                const { data, error } = await supabase
-                    .from('tenant_goals')
-                    .select('revenue_goal, appointments_goal, clients_goal')
-                    .eq('tenant_id', tenantId)
-                    .eq('active', true)
-                    .maybeSingle();
-
-                if (error && error.code !== 'PGRST116') {
-                    console.error('Error fetching goals:', error);
-                    return;
-                }
+                const data = await tenantGoalsRepository.getActiveByTenantId(tenantId);
 
                 if (data) {
                     setGoals({
@@ -317,38 +308,11 @@ const Settings: React.FC = () => {
             const appointmentsGoal = parseInt(goals.appointments_goal, 10) || 0;
             const clientsGoal = parseInt(goals.clients_goal, 10) || 0;
 
-            const { data: existing } = await supabase
-                .from('tenant_goals')
-                .select('id')
-                .eq('tenant_id', tenantId)
-                .eq('active', true)
-                .maybeSingle();
-
-            if (existing) {
-                const { error } = await supabase
-                    .from('tenant_goals')
-                    .update({
-                        revenue_goal: revenueGoal,
-                        appointments_goal: appointmentsGoal,
-                        clients_goal: clientsGoal,
-                    })
-                    .eq('id', existing.id);
-
-                if (error) throw error;
-            } else {
-                const { error } = await supabase
-                    .from('tenant_goals')
-                    .insert({
-                        tenant_id: tenantId,
-                        period: 'monthly',
-                        revenue_goal: revenueGoal,
-                        appointments_goal: appointmentsGoal,
-                        clients_goal: clientsGoal,
-                        active: true,
-                    });
-
-                if (error) throw error;
-            }
+            await tenantGoalsRepository.saveActiveGoals(tenantId, {
+                revenue_goal: revenueGoal,
+                appointments_goal: appointmentsGoal,
+                clients_goal: clientsGoal,
+            });
 
             setGoalsMessage({ type: 'success', text: 'Metas salvas com sucesso!' });
         } catch (err: any) {

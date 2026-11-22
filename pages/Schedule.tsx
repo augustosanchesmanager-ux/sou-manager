@@ -18,7 +18,7 @@ import {
   QrCode
 } from 'lucide-react';
 import { BookingQrCodePanel } from '../src/components/qrcode/BookingQrCodePanel';
-import { supabase, getClientForTable, getScopedClient, ensureAppSupportsModule } from '../services/supabaseClient';
+import { supabase, getScopedClient, ensureAppSupportsModule } from '../services/supabaseClient';
 import { generateIdempotencyKey } from '@/src/utils/idempotency';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
@@ -33,6 +33,7 @@ import { comandaItemRepository } from '../domain/comanda/item-repository';
 import { serviceExecutionParticipantRepository } from '../domain/comanda/participant-repository';
 import { staffRepository } from '../domain/staff';
 import { serviceRepository } from '../domain/service/repository';
+import { promotionRepository } from '../domain/promotion/repository';
 import { chefClubSubscriptionRepository } from '../domain/chefClub/subscription-repository';
 import { chefClubPlanRepository } from '../domain/chefClub/plan-repository';
 import { chefClubCreditRepository } from '../domain/chefClub/credit-repository';
@@ -799,16 +800,15 @@ const Schedule: React.FC = () => {
     }
 
     const scheduleAppSlug = ensureAppSupportsModule(appSlug, 'schedule', ['barber']);
-    const promotionsClient = getClientForTable('promotions', scheduleAppSlug);
 
-    const [loadedStaff, loadedServices, loadedClients, promoRes] = await Promise.all([
+    const [loadedStaff, loadedServices, loadedClients, activePromos] = await Promise.all([
       staffRepository.list(tenantId).catch(() => []),
       serviceRepository.listFull(tenantId).catch((err) => {
         console.error('Erro ao buscar serviços:', err);
         return [] as any[];
       }),
       clientRepository.list(tenantId).catch(() => [] as DBClient[]),
-      promotionsClient.from('promotions').select('*').eq('tenant_id', tenantId).eq('active', true),
+      promotionRepository.listActive(tenantId, scheduleAppSlug).catch(() => []),
     ]);
 
     setStaffList(
@@ -836,9 +836,9 @@ const Schedule: React.FC = () => {
       setClientsList(loadedClients);
       setFilteredClients(enrichClientsWithFamilyContext(loadedClients));
     }
-    if (promoRes.data) {
+    if (activePromos) {
       const now = new Date();
-      const validPromos = promoRes.data.filter((p: any) => {
+      const validPromos = activePromos.filter((p: any) => {
         const start = new Date(p.start_date);
         const end = new Date(p.end_date);
         end.setHours(23, 59, 59, 999);

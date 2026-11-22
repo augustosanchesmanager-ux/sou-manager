@@ -13,7 +13,8 @@ import AuditDrawer from '../components/superadmin/AuditDrawer';
 import AdminActionMenu from '../components/superadmin/AdminActionMenu';
 import { AdminActivity, AdminFilterState, AdminKpi, AdminStatus, AdminTab, AuditEntry, ManagedUserRow, QuickAction, RiskAlert, SubscriptionRequestRow } from '../components/superadmin/types';
 import Button from '../components/ui/Button';
-import { supabase } from '../services/supabaseClient';
+import { profileRepository } from '../domain/profile/repository';
+import { supportRepository } from '../domain/support/repository';
 import { formatCurrency } from '../shared/format/currency';
 
 type TenantRow = { id: string; name: string; slug: string; status: string; created_at: string };
@@ -104,21 +105,21 @@ const SuperAdmin: React.FC = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     const results = await Promise.allSettled([
-      supabase.from('tenants').select('id, name, slug, status, created_at').order('created_at', { ascending: false }),
-      supabase.from('profiles').select('id, tenant_id, full_name, role, created_at, updated_at').order('created_at', { ascending: false }),
-      supabase.from('plan_change_requests').select('id, user_id, current_plan, requested_plan, status, created_at').order('created_at', { ascending: false }).limit(100),
-      supabase.from('support_tickets').select('id, user_id, subject, description, status, priority, created_at').order('created_at', { ascending: false }).limit(100),
-      supabase.from('alerts').select('id, resource_type, message, level, usage_pct, resolved_at, created_at').order('created_at', { ascending: false }).limit(100),
-      supabase.from('audit_logs').select('id, table_name, record_id, action, old_data, new_data, changed_by, changed_at, tenant_id').order('changed_at', { ascending: false }).limit(100),
-      supabase.from('access_requests').select('id, tenant_name, owner_name, email, phone, status, created_at').order('created_at', { ascending: false }).limit(100),
-      supabase.from('transactions').select('id, type, amount, date, tenant_id').order('date', { ascending: false }).limit(500),
+      profileRepository.listTenants(),
+      profileRepository.listAllProfiles(),
+      profileRepository.listPlanChangeRequests(100),
+      supportRepository.listTickets({ limit: 100 }),
+      profileRepository.listAlerts(100),
+      profileRepository.listAuditLogs(100),
+      profileRepository.listAccessRequests(100),
+      profileRepository.listRecentTransactionsCrossTenant(500),
     ]);
 
-    const failedSources = results.filter((result) => result.status !== 'fulfilled' || Boolean(result.value?.error)).length;
+    const failedSources = results.filter((result) => result.status !== 'fulfilled').length;
 
     const unwrap = <T,>(result: PromiseSettledResult<any>): T[] => {
-      if (result.status !== 'fulfilled' || result.value?.error) return [];
-      return (result.value.data || []) as T[];
+      if (result.status !== 'fulfilled') return [];
+      return (result.value || []) as T[];
     };
 
     setTenants(unwrap<TenantRow>(results[0]));

@@ -33,6 +33,8 @@ import {
     type ComandaPaymentSummary,
 } from '../src/lib/finance/payment';
 import { usePaymentTerminals } from '../src/hooks/usePaymentTerminals';
+import { supplyRepository } from '../domain/supply/repository';
+import { promotionRepository } from '../domain/promotion/repository';
 import { PaymentTerminalSelector } from '../components/checkout/PaymentTerminalSelector';
 import { VoucherInput } from '../components/checkout/VoucherInput';
 import type { CustomerVoucher, VoucherDiscountBearer } from '../src/types/vouchers';
@@ -74,6 +76,7 @@ import { staffRepository } from '../domain/staff';
 import { serviceRepository } from '../domain/service/repository';
 import { comandaRepository } from '../domain/comanda';
 import { comandaItemRepository } from '../domain/comanda/item-repository';
+import { serviceExecutionParticipantRepository } from '../domain/comanda/participant-repository';
 import { appointmentRepository } from '../domain/appointment';
 
 type ExecutionRole = 'primary' | 'assistant' | 'co_executor';
@@ -619,26 +622,21 @@ const Checkout: React.FC = () => {
                 table: 'comandas',
                 operation: 'load checkout data',
             });
-            const client = getScopedClient('barber');
-
-            const [clientsData, staffData, servicesData, productsRes, promoRes] = await Promise.all([
+            const [clientsData, staffData, servicesData, productsData, promoData] = await Promise.all([
                 clientRepository.list(resolvedTenantId),
                 staffRepository.list(resolvedTenantId).then((rows) => rows.filter((s) => s.status === 'active')),
                 serviceRepository.listFull(resolvedTenantId).then((rows) => rows.filter((s: any) => s.active !== false)),
-                client.from('products').select('*').eq('tenant_id', resolvedTenantId).or('active.is.null,active.eq.true'),
-                client.from('promotions').select('*').eq('tenant_id', resolvedTenantId).eq('active', true),
+                supplyRepository.listActiveProducts(resolvedTenantId),
+                promotionRepository.listActive(resolvedTenantId),
             ]);
-
-            if (productsRes.error) throw productsRes.error;
-            if (promoRes.error) throw promoRes.error;
 
             setClients(clientsData as Client[]);
             setStaff(staffData as Staff[]);
             setServices(servicesData || []);
-            setProducts(productsRes.data || []);
+            setProducts(productsData || []);
 
             const now = new Date();
-            const validPromos = (promoRes.data || []).filter((p: any) => {
+            const validPromos = (promoData || []).filter((p: any) => {
                 const start = new Date(p.start_date);
                 const end = new Date(p.end_date);
                 end.setHours(23, 59, 59, 999);
@@ -647,19 +645,11 @@ const Checkout: React.FC = () => {
             setActivePromotions(validPromos);
 
             if (comandaId) {
-                let comandaQuery = client
-                    .from('comandas')
-                    .select('*')
-                    .eq('id', comandaId)
-                    .eq('tenant_id', resolvedTenantId);
-
-                if (accessRole === 'barber' && user?.id) {
-                    comandaQuery = comandaQuery.eq('staff_id', user.id);
-                }
-
-                const { data: comanda, error: comError } = await comandaQuery.single();
-
-                if (comError) throw comError;
+                const comanda = await comandaRepository.getDetail(
+                    comandaId,
+                    resolvedTenantId,
+                    accessRole === 'barber' && user?.id ? { staffId: user.id } : undefined,
+                );
 
                 if (comanda) {
                     const [selectedClientData, comandaItems] = await Promise.all([
@@ -683,7 +673,7 @@ const Checkout: React.FC = () => {
                                 comandaId: comanda.id,
                                 status: comanda.status,
                                 appointmentStartTime: linkedAppointment?.start_time || null,
-                                supabase: client,
+                                supabase: getScopedClient('barber'),
                             });
                             if (unblockResult.unblocked) {
                                 resolvedStatus = 'open';
@@ -704,15 +694,9 @@ const Checkout: React.FC = () => {
                     setRelatedAppointmentId(comanda.appointment_id || null);
 
                     const itemIds = (comandaItems || []).map((item: any) => item.id);
-                    const { data: participantRows, error: participantsError } = itemIds.length > 0
-                        ? await client
-                            .from('service_execution_participants')
-                            .select('*')
-                            .eq('tenant_id', resolvedTenantId)
-                            .in('comanda_item_id', itemIds)
-                        : { data: [] as any[], error: null };
-
-                    if (participantsError) throw participantsError;
+                    const participantRows = itemIds.length > 0
+                        ? await serviceExecutionParticipantRepository.listByComandaItemIds(itemIds, resolvedTenantId)
+                        : [];
 
                     const participantProfessionalIds = Array.from(new Set(
                         ((participantRows || []) as any[])
@@ -1201,13 +1185,7 @@ const Checkout: React.FC = () => {
                 active: true,
             };
 
-            const { data: createdProduct, error } = await client
-                .from('products')
-                .insert([payload])
-                .select('*')
-                .single();
-
-            if (error) throw error;
+            const createdProduct = await supplyRepository.createProductAndReturn(payload);
 
             setProducts(prev => {
                 const nextProducts = [...prev, createdProduct];
@@ -1245,7 +1223,6 @@ const Checkout: React.FC = () => {
                 table: 'services',
                 operation: 'create service during checkout',
             });
-            const client = getScopedClient('barber');
 
             const payload = {
                 tenant_id: resolvedTenantId,
@@ -1258,13 +1235,7 @@ const Checkout: React.FC = () => {
                 active: quickServiceForm.active,
             };
 
-            const { data: createdService, error } = await client
-                .from('services')
-                .insert([payload])
-                .select('*')
-                .single();
-
-            if (error) throw error;
+            const createdService = await serviceRepository.createAndReturn(payload);
 
             setServices(prev => {
                 const nextServices = [...prev, createdService];

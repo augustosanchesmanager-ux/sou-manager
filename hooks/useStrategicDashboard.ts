@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getScopedClient, supabase } from '../services/supabaseClient';
+import { biService } from '../services/biService';
 import { useAuth } from '../context/AuthContext';
 import { getTodayDateKey, toLocalDateKey } from '../src/utils/dateTimezone';
 
@@ -80,7 +80,6 @@ const getPeriodDates = (period: Period) => {
 
 export const useStrategicDashboard = (period: Period = 'month') => {
   const { tenantId } = useAuth();
-  const barberSupabase = getScopedClient('barber');
   const [data, setData] = useState<StrategicDashboardData>({
     loading: true,
     error: null,
@@ -118,89 +117,35 @@ export const useStrategicDashboard = (period: Period = 'month') => {
       const today = toLocalDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
       
       // Fetch all data in parallel
-      const [
-        currentTransactions,
-        previousTransactions,
-        currentAppointments,
-        clientsRes,
-        staffRes,
-        productsRes,
-        clubSubsRes,
-        clubPlansRes,
-      ] = await Promise.all([
-        // Current period transactions
-        supabase
-          .from('transactions')
-          .select('id, amount, date')
-          .eq('tenant_id', tenantId)
-          .eq('type', 'income')
-          .gte('date', currentStart.split('T')[0])
-          .lte('date', currentEnd.split('T')[0]),
-        
-        // Previous period transactions
-        supabase
-          .from('transactions')
-          .select('id, amount, date')
-          .eq('tenant_id', tenantId)
-          .eq('type', 'income')
-          .gte('date', previousStart.split('T')[0])
-          .lt('date', previousEnd.split('T')[0]),
-        
-        // Current appointments
-        supabase
-          .from('appointments')
-          .select('id, status, start_time, staff_id, staff_name')
-          .eq('tenant_id', tenantId)
-          .gte('start_time', currentStart)
-          .lte('start_time', currentEnd),
-        
-        // Clients
-        supabase
-          .from('clients')
-          .select('id, created_at, last_visit')
-          .eq('tenant_id', tenantId),
-        
-        // Staff
-        supabase
-          .from('staff')
-          .select('id, name, avatar')
-          .eq('tenant_id', tenantId)
-          .eq('status', 'active'),
-        
-        // Products for alerts
-        supabase
-          .from('products')
-          .select('id, name, stock_quantity, minimum_stock')
-          .eq('tenant_id', tenantId),
-        
-        // Club subscriptions
-        barberSupabase
-          .from('customer_subscriptions')
-          .select('id, status, next_billing_date, plan_id')
-          .eq('tenant_id', tenantId)
-          .eq('status', 'active'),
-        
-        // Club plans
-        barberSupabase
-          .from('customer_plans')
-          .select('id, name, monthly_price')
-          .eq('tenant_id', tenantId),
-      ]);
+      const {
+        currentTransactions: currentTxList,
+        previousTransactions: previousTxList,
+        currentAppointments: allAppointments,
+        clients: allClients,
+        staff: activeStaff,
+        products: productList,
+        clubSubscriptions,
+        clubPlans,
+      } = await biService.fetchStrategicDashboardRaw(tenantId, {
+        currentStart,
+        currentEnd,
+        previousStart,
+        previousEnd,
+      });
 
       // Calculate revenue
-      const currentRevenue = (currentTransactions.data || []).reduce((sum, t) => sum + Number(t.amount || 0), 0);
-      const previousRevenue = (previousTransactions.data || []).reduce((sum, t) => sum + Number(t.amount || 0), 0);
+      const currentRevenue = currentTxList.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+      const previousRevenue = previousTxList.reduce((sum, t) => sum + Number(t.amount || 0), 0);
       const revenueGrowth = previousRevenue > 0 ? ((currentRevenue - previousRevenue) / previousRevenue) * 100 : 0;
       
       // Calculate ticket average
-      const currentTxCount = (currentTransactions.data || []).length;
-      const previousTxCount = (previousTransactions.data || []).length;
+      const currentTxCount = currentTxList.length;
+      const previousTxCount = previousTxList.length;
       const currentAvgTicket = currentTxCount > 0 ? currentRevenue / currentTxCount : 0;
       const previousAvgTicket = previousTxCount > 0 ? previousRevenue / previousTxCount : 0;
       const avgTicketGrowth = previousAvgTicket > 0 ? ((currentAvgTicket - previousAvgTicket) / previousAvgTicket) * 100 : 0;
       
       // Calculate clients
-      const allClients = clientsRes.data || [];
       const totalClients = allClients.length;
       const newClients = allClients.filter(c => {
         const created = new Date(c.created_at);
@@ -209,15 +154,14 @@ export const useStrategicDashboard = (period: Period = 'month') => {
       const returningClients = allClients.filter(c => c.last_visit && new Date(c.last_visit) >= new Date(currentStart)).length;
       
       // Calculate appointments
-      const allAppointments = currentAppointments.data || [];
       const appointmentCount = allAppointments.filter(a => !['canceled', 'cancelled'].includes(a.status)).length;
-      const staffCount = (staffRes.data || []).length;
+      const staffCount = activeStaff.length;
       const appointmentSlots = staffCount > 0 ? staffCount * 12 * 30 : 0;
       const occupationRate = appointmentSlots > 0 ? (appointmentCount / appointmentSlots) * 100 : 0;
       
       // Revenue evolution chart
       const revenueByDayMap: Record<string, number> = {};
-      (currentTransactions.data || []).forEach(t => {
+      currentTxList.forEach(t => {
         const date = t.date.split('T')[0];
         revenueByDayMap[date] = (revenueByDayMap[date] || 0) + Number(t.amount || 0);
       });
@@ -228,12 +172,13 @@ export const useStrategicDashboard = (period: Period = 'month') => {
       // Top professionals by completed appointments from the real agenda.
       const staffStats: Record<string, { name: string; appointments: number; avatar?: string }> = {};
       allAppointments.filter(a => a.status === 'completed').forEach(a => {
+        if (!a.staff_id) return;
         if (!staffStats[a.staff_id]) {
-          const staff = (staffRes.data || []).find(s => s.id === a.staff_id);
+          const staff = activeStaff.find(s => s.id === a.staff_id);
           staffStats[a.staff_id] = { 
             name: a.staff_name || 'Sem profissional', 
             appointments: 0,
-            avatar: staff?.avatar,
+            avatar: staff?.avatar ?? undefined,
           };
         }
         staffStats[a.staff_id].appointments++;
@@ -244,16 +189,16 @@ export const useStrategicDashboard = (period: Period = 'month') => {
         .slice(0, 5);
       
       // Club metrics
-      const planMap = new Map((clubPlansRes.data || []).map(p => [p.id, Number(p.monthly_price) || 0]));
+      const planMap = new Map(clubPlans.map(p => [p.id, Number(p.monthly_price) || 0]));
       const todayStr = getTodayDateKey();
       let clubMrr = 0;
       let clubOverdue = 0;
       let clubPending = 0;
       
-      (clubSubsRes.data || []).forEach(sub => {
-        const price = planMap.get(sub.plan_id) || 0;
+      clubSubscriptions.forEach(sub => {
+        const price = (sub.plan_id ? planMap.get(sub.plan_id) : undefined) || 0;
         clubMrr += price;
-        if (sub.next_billing_date < todayStr) {
+        if (sub.next_billing_date && sub.next_billing_date < todayStr) {
           clubOverdue += price;
         } else {
           clubPending += price;
@@ -264,8 +209,8 @@ export const useStrategicDashboard = (period: Period = 'month') => {
       const alerts: StrategicDashboardData['alerts'] = [];
       
       // Stock alert
-      const lowStockProducts = (productsRes.data || []).filter(p => 
-        p.minimum_stock && p.stock_quantity <= p.minimum_stock
+      const lowStockProducts = productList.filter(p =>
+        p.minimum_stock && (p.stock_quantity ?? 0) <= p.minimum_stock
       );
       if (lowStockProducts.length > 0) {
         alerts.push({
@@ -316,7 +261,7 @@ export const useStrategicDashboard = (period: Period = 'month') => {
         revenueByDay: revenueEvolution,
         topProfessionals,
         topServices: [],
-        clubActiveSubscriptions: (clubSubsRes.data || []).length,
+        clubActiveSubscriptions: clubSubscriptions.length,
         clubMrr,
         clubPending,
         clubOverdue,

@@ -126,6 +126,29 @@ class ComandaRepositoryImpl extends SupabaseRepository {
     }
   }
 
+  async getDetail(
+    id: string,
+    tenantId: string,
+    options?: { staffId?: string },
+    appSlug?: AppSlug,
+  ): Promise<Record<string, any> | null> {
+    try {
+      let query = this.scopeClient(appSlug).from(this.tableName)
+        .select('*')
+        .eq('id', id)
+        .eq('tenant_id', tenantId);
+
+      if (options?.staffId) {
+        query = query.eq('staff_id', options.staffId);
+      }
+
+      const result = await query.maybeSingle();
+      return this.extractData<Record<string, any> | null>(result, 'Erro ao buscar detalhes da comanda');
+    } catch (err) {
+      this.throwOnError(err, 'Erro ao buscar detalhes da comanda');
+    }
+  }
+
   async getByAppointment(appointmentId: string, tenantId: string, appSlug?: AppSlug): Promise<Comanda | null> {
     try {
       const result = await this.scopeClient(appSlug).from(this.tableName)
@@ -493,6 +516,12 @@ class ComandaRepositoryImpl extends SupabaseRepository {
 export interface ComandaRepository extends IRepository<Comanda> {
   list(tenantId: string, options?: ComandaListOptions, appSlug?: AppSlug): Promise<Comanda[]>;
   get(id: string, tenantId: string, appSlug?: AppSlug): Promise<Comanda | null>;
+  getDetail(
+    id: string,
+    tenantId: string,
+    options?: { staffId?: string },
+    appSlug?: AppSlug,
+  ): Promise<Record<string, any> | null>;
   exists(id: string, tenantId: string, appSlug?: AppSlug): Promise<boolean>;
   getByAppointment(appointmentId: string, tenantId: string, appSlug?: AppSlug): Promise<Comanda | null>;
   findLatestByAppointment(appointmentId: string, tenantId: string, appSlug?: AppSlug): Promise<Comanda | null>;

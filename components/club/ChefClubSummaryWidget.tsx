@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { getScopedClient } from '../../services/supabaseClient';
+import { chefClubWidgetService } from '../../services/chefClubWidgetService';
 import { formatCurrency } from '../../shared/format/currency';
 
 interface ChefClubStats {
@@ -13,7 +13,6 @@ interface ChefClubStats {
 
 const ChefClubSummaryWidget: React.FC = () => {
   const { tenantId } = useAuth();
-  const barberSupabase = getScopedClient('barber');
   const [stats, setStats] = useState<ChefClubStats>({
     activeSubscriptions: 0,
     totalCreditsAvailable: 0,
@@ -32,34 +31,16 @@ const ChefClubSummaryWidget: React.FC = () => {
         const now = new Date();
         const currentMonthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-        const [subsRes, creditsRes, plansRes, receivablesRes] = await Promise.all([
-          barberSupabase
-            .from('customer_subscriptions')
-            .select('id, status, plan_id')
-            .eq('tenant_id', tenantId)
-            .eq('status', 'active'),
-          barberSupabase
-            .from('customer_credits')
-            .select('available_credits, used_credits')
-            .eq('tenant_id', tenantId),
-          barberSupabase
-            .from('customer_plans')
-            .select('id, name')
-            .eq('tenant_id', tenantId),
-          barberSupabase
-            .from('customer_subscription_receivables')
-            .select('amount, paid_at')
-            .eq('tenant_id', tenantId)
-            .eq('status', 'paid'),
-        ]);
+        const { subscriptions, credits, plans, paidReceivables } =
+          await chefClubWidgetService.fetchSummaryData(tenantId);
 
-        const activeCount = (subsRes.data || []).length;
-        
-        const planMap = new Map((plansRes.data || []).map((p: any) => [p.id, p.name]));
-        
+        const activeCount = subscriptions.length;
+
+        const planMap = new Map(plans.map((p) => [p.id, p.name]));
+
         const planCounts = new Map<string, number>();
-        (subsRes.data || []).forEach((sub: any) => {
-          const planName = planMap.get(sub.plan_id) || 'Standard';
+        subscriptions.forEach((sub) => {
+          const planName = (sub.plan_id ? planMap.get(sub.plan_id) : undefined) || 'Standard';
           planCounts.set(planName, (planCounts.get(planName) || 0) + 1);
         });
 
@@ -74,12 +55,12 @@ const ChefClubSummaryWidget: React.FC = () => {
 
         let totalAvailable = 0;
         let totalUsed = 0;
-        (creditsRes.data || []).forEach((c: any) => {
+        credits.forEach((c) => {
           totalAvailable += Number(c.available_credits || 0);
           totalUsed += Number(c.used_credits || 0);
         });
 
-        const monthRevenue = (receivablesRes.data || []).reduce((acc: number, rec: any) => {
+        const monthRevenue = paidReceivables.reduce((acc: number, rec) => {
           if (!rec.paid_at || String(rec.paid_at).slice(0, 7) !== currentMonthPrefix) {
             return acc;
           }
