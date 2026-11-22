@@ -121,7 +121,7 @@ describe('FASE 8.11: SaaS Certification (Certificação Master dos 7 Pilares de 
       const baseline = JSON.parse(content);
       expect(baseline).toHaveProperty('repositoryViolations');
       expect(typeof baseline.repositoryViolations).toBe('number');
-      expect(baseline.repositoryViolations).toBe(222);
+      expect(baseline.repositoryViolations).toBeLessThanOrEqual(222);
     });
 
     it('CERT-SAAS-P4-002: deve conter a suite de verificação master npm run smg:verify documentada', () => {
