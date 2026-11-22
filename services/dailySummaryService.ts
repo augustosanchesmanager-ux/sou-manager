@@ -552,3 +552,8 @@ export const dailySummaryService = {
     return { item, wasDuplicate: false };
   },
 };
+
+export const fetchRecentCashEntries = async (tenantId: string, limit = 5) => {
+  const { transactionRepository } = await import('../domain/transaction/repository');
+  return transactionRepository.listRecentCashEntries(tenantId, limit);
+};

@@ -308,6 +308,33 @@ export class PayoutRepository {
         }
     }
 
+    async listActiveAdvancesByDateRange(
+        tenantId: string,
+        start: string,
+        end: string,
+    ): Promise<Array<{ staff_id: string; amount: number }>> {
+        try {
+            const result = await this.db.from('barber_advances')
+                .select('staff_id, amount')
+                .eq('tenant_id', tenantId)
+                .is('reversed_at', null)
+                .gte('issued_at', start)
+                .lte('issued_at', end);
+
+            if (result.error) {
+                if (isTableMissingError(result.error)) return [];
+                this.fail(result.error, 'listActiveAdvancesByDateRange');
+            }
+            return ((result.data || []) as Array<{ staff_id: string; amount: number | string }>).map((row) => ({
+                staff_id: row.staff_id,
+                amount: Number(row.amount || 0),
+            }));
+        } catch (err) {
+            if (isTableMissingError(err)) return [];
+            throw err;
+        }
+    }
+
 /**
      * Delegado à RPC `register_barber_advance`, que insere o vale e
      * espelha a saída no caixa na mesma transação. INSERT direto quebraria

@@ -59,6 +59,19 @@ class FinancialReversalRepositoryImpl extends SupabaseRepository {
       this.throwOnError(error, 'list reversals by transaction ids');
     }
   }
+
+  async listByOriginalOrReversalIds(transactionIds: string[], tenantId: string): Promise<ReversalRow[]> {
+    try {
+      if (transactionIds.length === 0) return [];
+      const result = await this.from()
+        .select('original_transaction_id, reversal_transaction_id, reversal_type, amount, reason_type, created_at')
+        .eq('tenant_id', tenantId)
+        .or(`original_transaction_id.in.(${transactionIds}),reversal_transaction_id.in.(${transactionIds})`);
+      return this.extractData<ReversalRow[]>(result, 'list reversals by original or reversal ids');
+    } catch (error) {
+      this.throwOnError(error, 'list reversals by original or reversal ids');
+    }
+  }
 }
 
 export interface FinancialReversalRepository {
@@ -66,6 +79,7 @@ export interface FinancialReversalRepository {
   get(id: string, tenantId: string): Promise<ReversalRow | null>;
   exists(id: string, tenantId: string): Promise<boolean>;
   listByTransactionIds(transactionIds: string[], tenantId: string): Promise<ReversalRow[]>;
+  listByOriginalOrReversalIds(transactionIds: string[], tenantId: string): Promise<ReversalRow[]>;
 }
 
 export const financialReversalRepository = new FinancialReversalRepositoryImpl();

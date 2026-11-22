@@ -71,6 +71,30 @@ class ComandaPaymentRepositoryImpl extends SupabaseRepository {
     throw new Error('ComandaPaymentRepository is read-only by comanda IDs, not by payment ID');
   }
 
+  async updateTerminalSnapshotForFinalPayment(
+    tenantId: string,
+    comandaId: string,
+    snapshot: {
+      terminal_id: string;
+      fee_percentage: number;
+      fee_amount: number;
+      net_amount: number;
+      estimated_settlement_date: string | null;
+    },
+  ): Promise<void> {
+    try {
+      const result = await this.from()
+        .update(snapshot)
+        .eq('tenant_id', tenantId)
+        .eq('comanda_id', comandaId)
+        .eq('payment_type', 'final')
+        .is('reversed_at', null);
+      this.extractData(result, 'update terminal snapshot on final comanda payment');
+    } catch (err) {
+      this.throwOnError(err, 'update terminal snapshot on final comanda payment');
+    }
+  }
+
   async upsert(): Promise<ComandaPaymentRow> {
     throw new Error('ComandaPaymentRepository is read-only; writes go through RPC (ADR-018)');
   }

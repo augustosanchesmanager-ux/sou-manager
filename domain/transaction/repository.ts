@@ -173,6 +173,24 @@ export class TransactionRepository extends SupabaseRepository {
     }
   }
 
+  async listRecentCashEntries(
+    tenantId: string,
+    limit = 5,
+  ): Promise<Array<{ id: string; type: string; amount: number | string; description: string | null; created_at: string | null; date: string | null }>> {
+    try {
+      const result = await this.from()
+        .select('id, type, amount, description, created_at, date')
+        .eq('tenant_id', tenantId)
+        .in('type', ['income', 'expense'])
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      return this.extractData(result, 'list recent cash entries');
+    } catch (error) {
+      this.throwOnError(error, 'list recent cash entries');
+    }
+  }
+
   async exists(id: string, tenantId: string, appSlug?: string): Promise<boolean> {
     try {
       const result = await this.from()
@@ -197,6 +215,7 @@ export interface TransactionRepository extends IRepository<Transaction> {
   update(id: string, input: UpdateTransactionInput, tenantId: string, appSlug?: string): Promise<void>;
   delete(id: string, tenantId: string, appSlug?: string): Promise<void>;
   createBulk(records: Array<CreateTransactionInput & { user_id?: string }>, tenantId: string, appSlug?: string): Promise<void>;
+  listRecentCashEntries(tenantId: string, limit?: number): Promise<Array<{ id: string; type: string; amount: number | string; description: string | null; created_at: string | null; date: string | null }>>;
 }
 
 export const transactionRepository = new TransactionRepository();

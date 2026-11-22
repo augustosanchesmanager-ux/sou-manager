@@ -27,7 +27,7 @@ import { serviceRepository } from '../../domain/service/repository';
 import type { ServiceRecord } from '../../domain/service/repository';
 import { appointmentRepository } from '../../domain/appointment/repository';
 import { financialReversalRepository } from '../../domain/financial/reversal-repository';
-import { getClientForTable } from '../../services/supabaseClient';
+import { PayoutRepository } from '../../domain/payout/payoutRepository';
 import type { ComandaDetail, ComandaItemDetail } from '../../components/financial/cashCloseUtils';
 import type {
     AppointmentSnapshot,
@@ -130,18 +130,9 @@ export async function loadDayBarberAdvances(
     end: string,
 ): Promise<Record<string, number>> {
     try {
-        const client = getClientForTable('barber_advances', 'barber');
-        if (!client || typeof client.from !== 'function') return {};
-        const { data, error } = await client
-            .from('barber_advances')
-            .select('staff_id, amount')
-            .eq('tenant_id', tenantId)
-            .is('reversed_at', null)
-            .gte('issued_at', start)
-            .lte('issued_at', end);
-
-        if (error || !Array.isArray(data)) return {};
-        return data.reduce<Record<string, number>>((acc, row: any) => {
+        const repo = new PayoutRepository();
+        const data = await repo.listActiveAdvancesByDateRange(tenantId, start, end);
+        return data.reduce<Record<string, number>>((acc, row) => {
             const staffId = row?.staff_id;
             const amount = Number(row?.amount || 0);
             if (staffId && amount > 0) {

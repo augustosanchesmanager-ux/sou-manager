@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import type { DashboardPeriod } from '../../src/modules/dashboard';
 import { formatCurrency } from '../../shared/format/currency';
-import { getClientForTable } from '../../services/supabaseClient';
+import { fetchRecentCashEntries } from '../../services/dailySummaryService';
 import { useAuth } from '../../context/AuthContext';
 
 interface TodayCashCardProps {
@@ -45,14 +45,7 @@ export const TodayCashCard: React.FC<TodayCashCardProps> = ({ loading, income, e
     const fetchMiniTimeline = async () => {
       setLoadingTransactions(true);
       try {
-        const client = getClientForTable('transactions', appSlug);
-        const { data } = await client
-          .from('transactions')
-          .select('id, type, amount, description, created_at, date')
-          .eq('tenant_id', tenantId)
-          .in('type', ['income', 'expense'])
-          .order('created_at', { ascending: false })
-          .limit(5);
+        const data = await fetchRecentCashEntries(tenantId, 5);
 
         if (data) {
           setRecentTransactions(

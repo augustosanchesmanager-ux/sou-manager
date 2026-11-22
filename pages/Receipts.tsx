@@ -4,7 +4,8 @@ import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
 import { AuditAdjustmentButton } from '../components/audit';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../services/supabaseClient';
+import { transactionRepository } from '../domain/transaction/repository';
+import { financialReversalRepository } from '../domain/financial/reversal-repository';
 
 type ReversalStatus = 'none' | 'partial' | 'full';
 
@@ -129,29 +130,15 @@ const Receipts: React.FC = () => {
         setLoadError('');
 
         try {
-            const { data, error } = await supabase
-                .from('transactions')
-                .select('*')
-                .eq('tenant_id', tenantId)
-                .order('date', { ascending: false });
-
-            if (error) throw error;
+            const data = await transactionRepository.list(tenantId);
             const transactionIds = data.map((tx: any) => tx.id).filter(Boolean);
             const reversedByTransactionId = new Map<string, number>();
             const reversalsByTransactionId = new Map<string, ReceiptReversalSummary[]>();
             const reversalSourceByTransactionId = new Map<string, ReceiptReversalSummary>();
 
             if (transactionIds.length > 0) {
-                // Single query for all reversals (avoids 2 sequential queries)
-                const { data: allReversals, error: reversalsError } = await supabase
-                    .from('financial_reversals')
-                    .select('original_transaction_id, reversal_transaction_id, reversal_type, amount, reason_type, created_at')
-                    .eq('tenant_id', tenantId)
-                    .or(`original_transaction_id.in.(${transactionIds}),reversal_transaction_id.in.(${transactionIds})`);
-
-                if (reversalsError) {
-                    console.warn('Não foi possível carregar reversões dos recibos:', reversalsError);
-                } else {
+                try {
+                    const allReversals = await financialReversalRepository.listByOriginalOrReversalIds(transactionIds, tenantId);
                     ((allReversals || []) as FinancialReversalRecord[]).forEach((reversal) => {
                         // Build reversedByTransactionId and reversalsByTransactionId (original direction)
                         if (reversal.original_transaction_id && transactionIds.includes(reversal.original_transaction_id)) {
@@ -183,6 +170,8 @@ const Receipts: React.FC = () => {
                             });
                         }
                     });
+                } catch (reversalsError) {
+                    console.warn('Não foi possível carregar reversões dos recibos:', reversalsError);
                 }
             }
 
@@ -294,22 +283,24 @@ const Receipts: React.FC = () => {
             return;
         }
 
-        const { error } = await supabase.from('transactions').insert({
-            tenant_id: tenantId,
-            description: `${newReceipt.name} - ${newReceipt.description || newReceipt.type}`,
-            amount: parseFloat(newReceipt.amount),
-            type: newReceipt.type === 'Receita' ? 'income' : 'expense',
-            category: newReceipt.type,
-            date: new Date().toISOString(),
-            payment_method: newReceipt.paymentMethod,
-            status: 'paid'
-        });
-
-        if (error) {
+        try {
+            await transactionRepository.create(
+                {
+                    description: `${newReceipt.name} - ${newReceipt.description || newReceipt.type}`,
+                    amount: parseFloat(newReceipt.amount),
+                    type: newReceipt.type === 'Receita' ? 'income' : 'expense',
+                    category: newReceipt.type,
+                    date: new Date().toISOString(),
+                    payment_method: newReceipt.paymentMethod,
+                    status: 'paid',
+                },
+                tenantId,
+            );
+        } catch (error: any) {
             console.error('Error creating receipt:', error);
             setActionMessage({
                 type: 'error',
-                message: `Erro ao criar recibo financeiro: ${error.message}`,
+                message: `Erro ao criar recibo financeiro: ${error?.message || 'Erro desconhecido'}`,
             });
             return;
         }
