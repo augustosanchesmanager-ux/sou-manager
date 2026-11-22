@@ -6,7 +6,7 @@
  * navegador, última versão visualizada. Sem backend nesta frente.
  */
 
-export const CHANGELOG_VERSION = '1.8.0';
+export const CHANGELOG_VERSION = '1.9.0';
 export const CHANGELOG_STORAGE_KEY = 'smg_last_seen_changelog';
 
 export interface ChangelogItem {
@@ -17,39 +17,39 @@ export interface ChangelogItem {
 /** Itens reais da versão, derivados do histórico do repositório. Badge usa o length. */
 export const CHANGELOG_ITEMS: ChangelogItem[] = [
   {
-    title: 'Cadeira Cativa & Agendamento Recorrente',
+    title: 'Dependentes Familiares & Agendamento em Família',
     description:
-      'Projeção de sessões semanais e quinzenais com confirmação ágil via WhatsApp.',
+      'Vincule familiares ao cadastro do cliente, compartilhe créditos do Club dos Chefes e agende para dependentes direto no link público.',
   },
   {
-    title: 'Checkout Expresso & Troco Inteligente',
+    title: 'Metas de Produtos & Vendas por Barbeiro',
     description:
-      'Sugestão de cédulas em BRL, calculadora ágil de troco e bloqueio de valor insuficiente.',
+      'Acompanhe o desempenho de venda de produtos por profissional em Relatórios e defina faixas de metas flexíveis para a equipe.',
   },
   {
-    title: "Abertura Ágil de Comandas (Atalho 'N')",
+    title: 'Agendamento Online Mais Fluido',
     description:
-      'Venda rápida de balcão para consumidor final e prevenção preventiva de comandas duplicadas.',
+      'Seleção de serviços ajustada para qualquer tela, consulta de horários livres no mesmo dia mais estável e janelas sem sobreposição.',
   },
   {
-    title: 'Modo Barbeiro & Fila de Cadeira',
+    title: 'Agenda com Precisão de Horários e Bloqueios',
     description:
-      'Visão móvel de 1 polegar com card Na Cadeira Agora e encaixe rápido walk-in.',
+      'Agendamentos cancelados ou de não comparecimento liberam o horário na hora, com suporte refinado a durações de 45 min e bloqueio personalizado.',
   },
   {
-    title: 'Perfil 360° do Cliente & Combos',
+    title: 'Teste Grátis de 7 Dias no Plano Pro',
     description:
-      'Drawer com LTV, histórico de visitas e combos inteligentes de serviços com desconto.',
+      'Novas barbearias já começam com acesso completo aos recursos Pro durante 7 dias para experimentar toda a operação sem compromisso.',
   },
   {
-    title: 'Design System Atelier Tech Sofisticado',
+    title: 'Datas Consistentes e Menu Mais Limpo',
     description:
-      'Identidade visual refinada Dark-First com contraste WCAG AA e sem poluição de cores.',
+      'Filtros e exibições de datas alinhados ao horário local da barbearia, além de uma navegação mais direta no dia a dia.',
   },
   {
-    title: 'SMG Academy & Central de Ajuda',
+    title: 'Mais Segurança, Estabilidade e Desempenho',
     description:
-      'Trilhas práticas de capacitação por papel e base de autoatendimento para suporte ágil.',
+      'Blindagem reforçada dos dados da sua barbearia e modernização completa do sistema, incluindo Totem e QR Code, para respostas mais rápidas.',
   },
 ];
 
