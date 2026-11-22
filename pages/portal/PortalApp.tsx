@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '../../services/supabaseClient';
 import { portalApi } from '../../services/portalApi';
 import { usePortalAuth } from '../../components/PortalAuthProvider';
 import { LogOut, Calendar, Clock, User, AlertCircle, X, Star } from 'lucide-react';
@@ -38,11 +37,7 @@ const PortalApp: React.FC = () => {
     const loadPortalData = async () => {
         try {
             // 1. Get tenant info
-            const { data: tenantData } = await supabase
-                .from('tenants')
-                .select('id, name, slug')
-                .eq('slug', tenantSlug)
-                .single();
+            const tenantData = await portalApi.getTenantBySlug(tenantSlug!);
 
             if (!tenantData) throw new Error('Tenant não encontrado');
             if (authTenantId && tenantData.id !== authTenantId) throw new Error('Sessão inválida para este tenant');
@@ -52,50 +47,20 @@ const PortalApp: React.FC = () => {
             if (!validation.valid) throw new Error(validation.error || 'Sessão inválida');
 
             // 2. Access Limits
-            const { data: addon } = await supabase
-                .from('tenant_addons')
-                .select('status, limits')
-                .eq('tenant_id', tenantData.id)
-                .eq('addon_key', 'CLIENT_PORTAL')
-                .single();
+            const addon = await portalApi.getClientPortalAddon(tenantData.id);
 
             if (!addon || addon.status !== 'enabled') throw new Error('Portal desativado');
             setTenant({ ...tenantData, theme: addon.limits?.theme || 'default', limits: addon.limits });
 
             // 3. Get Appointments (Upcoming & Past)
-            // Wait, we need to pass a valid Authorization header if we are using the custom jwt!
-            // But since the frontend uses the normal Supabase client (which uses anon key),
-            // if RLS blocks it, we might get an empty array.
             const now = new Date().toISOString();
 
-            // Upcoming
-            const { data: upcoming } = await supabase
-                .from('appointments')
-                .select(`
-                    id, start_time, end_time, status, service:services(name, price), staff:staff(name)
-                `)
-                .eq('tenant_id', tenantData.id)
-                .eq('client_id', client.id)
-                .in('status', ['pending', 'confirmed'])
-                .gte('start_time', now)
-                .order('start_time', { ascending: true })
-                .limit(1)
-                .single();
+            const [upcoming, history] = await Promise.all([
+                portalApi.getUpcomingClientAppointment(tenantData.id, client.id, now),
+                portalApi.listPastClientAppointments(tenantData.id, client.id, now),
+            ]);
 
             if (upcoming) setUpcomingAppt(upcoming);
-
-            // History
-            const { data: history } = await supabase
-                .from('appointments')
-                .select(`
-                    id, start_time, status, service:services(name), staff:staff(name)
-                `)
-                .eq('tenant_id', tenantData.id)
-                .eq('client_id', client.id)
-                .lt('start_time', now)
-                .order('start_time', { ascending: false })
-                .limit(5);
-
             if (history) setPastAppts(history);
 
         } catch (e: any) {
@@ -140,12 +105,7 @@ const PortalApp: React.FC = () => {
             const validation = await portalApi.validateSession(tenant.id, client.id, token);
             if (!validation.valid) throw new Error(validation.error || 'Sessão inválida');
 
-            await supabase
-                .from('appointments')
-                .update({ status: 'cancelled' })
-                .eq('id', actionAppt.id)
-                .eq('tenant_id', tenant.id)
-                .eq('client_id', client.id);
+            await portalApi.cancelClientAppointment(actionAppt.id, tenant.id, client.id);
 
             if (actionType === 'reschedule') {
                 navigate(`/c/${tenantSlug}/app/schedule`);
@@ -171,14 +131,12 @@ const PortalApp: React.FC = () => {
             const validation = await portalApi.validateSession(tenant.id, client.id, token);
             if (!validation.valid) throw new Error(validation.error || 'Sessão inválida');
 
-            // First submit to feedback_barber
-            await supabase.from('feedback_barber').insert({
+            await portalApi.submitBarberFeedback({
                 tenant_id: tenant.id,
                 client_id: client.id,
                 barber_id: reviewAppt.staff?.id || null,
                 rating,
                 comment,
-                source_channel: 'app'
             });
 
             // Mark appointment as 'completed' so it doesn't get reviewed again (or handled differently based on business logic)

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '../../services/supabaseClient';
 import { portalApi } from '../../services/portalApi';
 import {
     blockOverlapsTimeRange,
@@ -67,11 +66,7 @@ const PortalSchedule: React.FC = () => {
             if (!token || !client) throw new Error('Sessão inválida');
 
             // 1. Get tenant
-            const { data: tenantData } = await supabase
-                .from('tenants')
-                .select('id, name, slug')
-                .eq('slug', tenantSlug)
-                .single();
+            const tenantData = await portalApi.getTenantBySlug(tenantSlug!);
 
             if (!tenantData) throw new Error('Tenant não encontrado');
             if (authTenantId && authTenantId !== tenantData.id) throw new Error('Sessão inválida para este tenant');
@@ -80,25 +75,16 @@ const PortalSchedule: React.FC = () => {
             if (!validation.valid) throw new Error(validation.error || 'Sessão inválida');
 
             // 2. Addons limits
-            const { data: addon } = await supabase
-                .from('tenant_addons')
-                .select('status, limits')
-                .eq('tenant_id', tenantData.id)
-                .eq('addon_key', 'CLIENT_PORTAL')
-                .single();
+            const addon = await portalApi.getClientPortalAddon(tenantData.id);
 
             if (!addon || addon.status !== 'enabled') throw new Error('Portal desativado');
             setTenant({ ...tenantData, theme: addon.limits?.theme || 'default' });
 
             // 3. Services and Barbers base load
-            // D5: staff via camada segura kiosk_get_staff (anon) — só id/name/role/status de ativos.
-            const [svcRes, bbrRes] = await Promise.all([
-                supabase.from('services').select('id, name, price, duration_minutes').eq('tenant_id', tenantData.id).eq('is_active', true).order('name'),
-                supabase.rpc('kiosk_get_staff', { p_tenant_identifier: tenantData.id })
-            ]);
+            const { services: svcs, staff: staffRows } = await portalApi.listActiveServicesAndStaff(tenantData.id);
 
-            setServices(svcRes.data || []);
-            setBarbers(((bbrRes.data || []) as Barber[]).filter(shouldAppearOnSchedule));
+            setServices(svcs);
+            setBarbers((staffRows as Barber[]).filter(shouldAppearOnSchedule));
 
         } catch (e: any) {
             console.error(e);
@@ -117,20 +103,13 @@ const PortalSchedule: React.FC = () => {
             const dateStr = toLocalDateKey(selectedDate);
             const { startIso, endIso } = getLocalDayRangeIso(dateStr);
 
-            let query = supabase
-                .from('appointments')
-                .select('start_time, end_time')
-                .eq('tenant_id', tenant.id)
-                .gte('start_time', startIso)
-                .lte('start_time', endIso)
-                .in('status', ['confirmed', 'pending']);
-
-            if (selectedBarber && selectedBarber.id !== 'any') {
-                query = query.eq('staff_id', selectedBarber.id);
-            }
-
-            const { data: booked } = await query;
-            const bookedRanges = (booked || []).map(a => ({ start: new Date(a.start_time), end: new Date(a.end_time) }));
+            const booked = await portalApi.listBookedAppointmentRanges(
+                tenant.id,
+                startIso,
+                endIso,
+                selectedBarber?.id ?? null,
+            );
+            const bookedRanges = booked.map(a => ({ start: new Date(a.start_time), end: new Date(a.end_time) }));
             const allBlocks = await scheduleBlocksApi.listByRange(tenant.id, {
                 startDate: dateStr,
                 endDate: dateStr,
@@ -198,17 +177,13 @@ const PortalSchedule: React.FC = () => {
             const blocked = blocksForDate.some((block) => blockOverlapsTimeRange(block, startDecimal, endDecimal));
             if (blocked) throw new Error('Este horário foi bloqueado e não está mais disponível.');
 
-            await supabase.from('appointments').insert({
+            await portalApi.createPortalAppointment({
                 tenant_id: tenant.id,
                 client_id: client.id,
                 staff_id: selectedBarber && selectedBarber.id !== 'any' ? selectedBarber.id : null,
                 service_id: selectedService.id,
                 start_time: start.toISOString(),
                 end_time: end.toISOString(),
-                status: 'pending',
-                source: 'client_portal',
-                channel: 'home_portal',
-                notes: `Agendado via Portal do Cliente`
             });
 
             setStep('success');
