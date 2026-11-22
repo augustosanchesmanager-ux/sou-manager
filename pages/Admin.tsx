@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
+import { staffRepository } from '../domain/staff/repository';
+import { transactionRepository } from '../domain/transaction/repository';
 import { tenantLifecycleService } from '../application/tenantLifecycle';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
@@ -44,22 +46,27 @@ const Admin: React.FC = () => {
         setSelectedShop(shop);
         setIsPanelOpen(true);
         setIsPanelLoading(true);
-        const tid = shop.tenant_id;
-        const [staffRes, clientsRes, apptsRes, txRes] = await Promise.all([
-            supabase.from('staff').select('id, name, role, status').eq('tenant_id', tid),
-            supabase.from('clients').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
-            supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
-            supabase.from('transactions').select('amount, description, date').eq('tenant_id', tid).eq('type', 'income').order('date', { ascending: false }).limit(5),
-        ]);
-        const revenue = (txRes.data || []).reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
-        setPanelData({
-            staff: staffRes.data || [],
-            clients: clientsRes.count || 0,
-            appointments: apptsRes.count || 0,
-            revenue,
-            recentTx: txRes.data || [],
-        });
-        setIsPanelLoading(false);
+        try {
+            const tid = shop.tenant_id;
+            const [staff, clientsRes, apptsRes, recentTx] = await Promise.all([
+                staffRepository.list(tid),
+                supabase.from('clients').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
+                supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
+                transactionRepository.list(tid, { type: 'income', orderAscending: false, limit: 5 }),
+            ]);
+            const revenue = recentTx.reduce((s: number, t) => s + (Number(t.amount) || 0), 0);
+            setPanelData({
+                staff,
+                clients: clientsRes.count || 0,
+                appointments: apptsRes.count || 0,
+                revenue,
+                recentTx,
+            });
+        } catch {
+            showToast('Erro ao carregar detalhes da barbearia.', 'error');
+        } finally {
+            setIsPanelLoading(false);
+        }
     };
 
     const [searchShop, setSearchShop] = useState('');
@@ -915,9 +922,12 @@ const Admin: React.FC = () => {
                                                     onClick={async () => {
                                                         const select = document.getElementById(`role-select-${u.id}`) as HTMLSelectElement;
                                                         const newRole = select.value;
-                                                        const { error } = await supabase.from('staff').update({ role: newRole }).eq('id', u.id);
-                                                        if (!error) showToast(`Cargo de "${u.name}" → ${newRole}.`);
-                                                        else showToast('Erro ao atualizar cargo.', 'error');
+                                                        try {
+                                                            await staffRepository.update(u.id, { role: newRole }, u.tenant_id);
+                                                            showToast(`Cargo de "${u.name}" → ${newRole}.`);
+                                                        } catch {
+                                                            showToast('Erro ao atualizar cargo.', 'error');
+                                                        }
                                                     }}
                                                     className="px-3 py-2 bg-gradient-to-r from-[#E8B04B] to-[#C98A1F] text-night text-[10px] font-black uppercase rounded-lg hover:opacity-90 transition-all font-mono"
                                                 >

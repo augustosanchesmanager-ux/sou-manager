@@ -20,6 +20,15 @@ import {
 } from '../src/lib/finance/settlement';
 import { clientWalletRepository } from '../domain/clientWallet/walletRepository';
 import type { ClientWallet } from '../domain/clientWallet/types';
+import { comandaRepository } from '../domain/comanda/repository';
+import { comandaItemRepository } from '../domain/comanda/item-repository';
+import { serviceExecutionParticipantRepository } from '../domain/comanda/participant-repository';
+import { receivableRepository } from '../domain/receivable/repository';
+import { transactionRepository } from '../domain/transaction/repository';
+import { clientRepository } from '../domain/client/repository';
+import { staffRepository } from '../domain/staff/repository';
+import { financialReversalRepository } from '../domain/financial/reversal-repository';
+import { chefClubPlanRepository } from '../domain/chefClub/plan-repository';
 import {
     closeZeroAmountComanda,
     isManagerLikeRole,
@@ -367,8 +376,8 @@ const AccountsReceivable: React.FC = () => {
         try {
             const [
                 comandasResult,
-                clubResult,
-                transactionsResult,
+                clubReceivablesList,
+                txData,
                 walletsData,
             ] = await Promise.all([
                 barberSupabase
@@ -376,21 +385,13 @@ const AccountsReceivable: React.FC = () => {
                     .select('id, client_id, status, total, discount, created_at, staff_id, payment_method, clients(name, phone), appointments(start_time)')
                     .eq('tenant_id', tenantId)
                     .eq('status', 'open'),
-                barberSupabase.rpc('generate_club_receivables', { p_tenant_id: tenantId }).then(() =>
-                    barberSupabase
-                        .from('customer_subscription_receivables')
-                        .select('id, customer_id, subscription_id, plan_id, due_date, amount, status, transaction_id')
-                        .eq('tenant_id', tenantId)
-                        .in('status', ['pending', 'overdue'])
-                ),
-                barberSupabase
-                    .from('transactions')
-                    .select('id, tenant_id, status, category, amount, description, date, payment_method, type, source_type, source_id')
-                    .eq('tenant_id', tenantId)
-                    .eq('type', 'income')
-                    .gte('date', startOfMonth)
-                    .lte('date', endOfMonth)
-                    .order('date', { ascending: false }),
+                receivableRepository.generateAndListPending(tenantId),
+                transactionRepository.list(tenantId, {
+                    type: 'income',
+                    dateFrom: startOfMonth,
+                    dateTo: endOfMonth,
+                    orderAscending: false,
+                }),
                 clientWalletRepository.listWallets(tenantId).catch(() => [] as ClientWallet[]),
             ]);
             setWallets(walletsData);
@@ -410,65 +411,35 @@ const AccountsReceivable: React.FC = () => {
 
             const comandaIds = comandasData.map((comanda) => comanda.id).filter(Boolean);
             const clientIds = Array.from(new Set(comandasData.map((comanda) => comanda.client_id).filter(Boolean))) as string[];
-            const { data: clientRowsData, error: clientRowsError } = clientIds.length > 0
-                ? await barberSupabase
-                    .from('clients')
-                    .select('id, name, phone')
-                    .eq('tenant_id', tenantId)
-                    .in('id', clientIds)
-                : { data: [] as ClientLookupRecord[], error: null };
-
-            if (clientRowsError) {
-                console.warn('Não foi possível carregar os clientes das comandas em aberto:', clientRowsError);
+            let clientById: Record<string, { name: string; phone: string | null }> = {};
+            if (clientIds.length > 0) {
+                try {
+                    const clientsMap = await clientRepository.getByIds(clientIds, tenantId);
+                    clientById = Object.entries(clientsMap).reduce((acc, [id, client]) => {
+                        acc[id] = {
+                            name: client.name || CLIENT_FALLBACK_LABEL,
+                            phone: client.phone || null,
+                        };
+                        return acc;
+                    }, {} as Record<string, { name: string; phone: string | null }>);
+                } catch (clientRowsError) {
+                    console.warn('Não foi possível carregar os clientes das comandas em aberto:', clientRowsError);
+                }
             }
 
-            const clientById = ((clientRowsData || []) as ClientLookupRecord[]).reduce((acc, client) => {
-                acc[client.id] = {
-                    name: client.name || CLIENT_FALLBACK_LABEL,
-                    phone: client.phone || null,
-                };
-                return acc;
-            }, {} as Record<string, { name: string; phone: string | null }>);
-
-            const { data: comandaItemsData, error: comandaItemsError } = comandaIds.length > 0
-                ? await barberSupabase
-                    .from('comanda_items')
-                    .select('id, comanda_id, service_id, product_id, product_name, quantity, unit_price, staff_id')
-                    .eq('tenant_id', tenantId)
-                    .in('comanda_id', comandaIds)
-                : { data: [] as ComandaItemRecord[], error: null };
-
-            if (comandaItemsError) throw comandaItemsError;
-
-            const comandaItems = (comandaItemsData || []) as ComandaItemRecord[];
+            const comandaItems = (await comandaItemRepository.listByComandaIds(comandaIds, tenantId)) as ComandaItemRecord[];
             const itemIds = comandaItems.map((item) => item.id).filter(Boolean);
-            const { data: participantRowsData, error: participantRowsError } = itemIds.length > 0
-                ? await barberSupabase
-                    .from('service_execution_participants')
-                    .select('id, comanda_item_id, staff_id, role, payout_type, payout_value')
-                    .eq('tenant_id', tenantId)
-                    .in('comanda_item_id', itemIds)
-                : { data: [] as ExecutionParticipantRecord[], error: null };
-
-            if (participantRowsError) throw participantRowsError;
-
-            const participantRows = (participantRowsData || []) as ExecutionParticipantRecord[];
+            const participantRows = (await serviceExecutionParticipantRepository.listByComandaItemIds(itemIds, tenantId)) as ExecutionParticipantRecord[];
             const staffIds = Array.from(new Set([
                 ...comandasData.map((comanda) => comanda.staff_id).filter(Boolean),
                 ...comandaItems.map((item) => item.staff_id).filter(Boolean),
                 ...participantRows.map((participant) => participant.staff_id).filter(Boolean),
             ])) as string[];
-            const { data: staffRowsData, error: staffRowsError } = staffIds.length > 0
-                ? await barberSupabase
-                    .from('staff')
-                    .select('id, name')
-                    .eq('tenant_id', tenantId)
-                    .in('id', staffIds)
-                : { data: [] as { id: string; name: string }[], error: null };
+            const staffRowsData = staffIds.length > 0
+                ? await staffRepository.list(tenantId)
+                : [];
 
-            if (staffRowsError) throw staffRowsError;
-
-            const staffNameById = ((staffRowsData || []) as { id: string; name: string }[]).reduce((acc, staff) => {
+            const staffNameById = staffRowsData.reduce((acc, staff) => {
                 acc[staff.id] = staff.name;
                 return acc;
             }, {} as Record<string, string>);
@@ -530,13 +501,10 @@ const AccountsReceivable: React.FC = () => {
             }, {} as Record<string, OpenComandaDetail>);
             setOpenComandaDetails(detailsByComandaId);
 
-            if (clubResult.error) throw clubResult.error;
-            const clubData = (clubResult.data || []) as ClubReceivableRecord[];
+            const clubData = (clubReceivablesList || []) as ClubReceivableRecord[];
             setClubReceivables(clubData);
 
-            if (transactionsResult.error) throw transactionsResult.error;
-            const txData = transactionsResult.data || [];
-            const paidComandaTransactions = txData.filter((tx: any) => {
+            const paidComandaTransactions = (txData || []).filter((tx: any) => {
                 const normalizedStatus = tx.status || 'paid';
                 return tx.source_type === 'comanda'
                     && tx.type === 'income'
@@ -550,58 +518,42 @@ const AccountsReceivable: React.FC = () => {
             const reversalsByTransactionId = new Map<string, ReversalSummary[]>();
 
             if (paidComandaSourceIds.length > 0) {
-                const { data: paidComandasData, error: paidComandasError } = await barberSupabase
-                    .from('comandas')
-                    .select('id, client_id, clients(name, phone)')
-                    .eq('tenant_id', tenantId)
-                    .in('id', paidComandaSourceIds);
-
-                if (paidComandasError) {
-                    console.warn('Não foi possível carregar clientes das baixas recentes:', paidComandasError);
-                } else {
-                    const paidComandas = (paidComandasData || []) as ComandaRecord[];
+                try {
+                    const paidComandas = await comandaRepository.list(tenantId, { ids: paidComandaSourceIds });
                     const paidClientIds = Array.from(new Set(paidComandas.map((comanda) => comanda.client_id).filter(Boolean))) as string[];
-                    const { data: paidClientRowsData, error: paidClientRowsError } = paidClientIds.length > 0
-                        ? await barberSupabase
-                            .from('clients')
-                            .select('id, name, phone')
-                            .eq('tenant_id', tenantId)
-                            .in('id', paidClientIds)
-                        : { data: [] as ClientLookupRecord[], error: null };
+                    let paidClientById: Record<string, { name: string; phone?: string | null }> = {};
 
-                    if (paidClientRowsError) {
-                        console.warn('Não foi possível carregar clientes vinculados às baixas recentes:', paidClientRowsError);
+                    if (paidClientIds.length > 0) {
+                        try {
+                            const clientsMap = await clientRepository.getByIds(paidClientIds, tenantId);
+                            paidClientById = Object.entries(clientsMap).reduce((acc, [id, client]) => {
+                                acc[id] = {
+                                    name: client.name || CLIENT_FALLBACK_LABEL,
+                                    phone: client.phone || null,
+                                };
+                                return acc;
+                            }, {} as Record<string, { name: string; phone?: string | null }>);
+                        } catch (paidClientRowsError) {
+                            console.warn('Não foi possível carregar clientes vinculados às baixas recentes:', paidClientRowsError);
+                        }
                     }
-
-                    const paidClientById = ((paidClientRowsData || []) as ClientLookupRecord[]).reduce((acc, client) => {
-                        acc[client.id] = {
-                            name: client.name || CLIENT_FALLBACK_LABEL,
-                            phone: client.phone || null,
-                        };
-                        return acc;
-                    }, {} as Record<string, { name: string; phone?: string | null }>);
 
                     paidClientBySourceId = paidComandas.reduce((acc, comanda) => {
                         const relatedClient = comanda.client_id ? paidClientById[comanda.client_id] : null;
-                        const fallbackClient = getClientData(comanda.clients);
-                        acc[comanda.id] = relatedClient || fallbackClient;
+                        acc[comanda.id] = relatedClient || getClientData(undefined);
                         return acc;
                     }, {} as Record<string, { name: string; phone?: string | null }>);
+                } catch (paidComandasError) {
+                    console.warn('Não foi possível carregar clientes das baixas recentes:', paidComandasError);
                 }
             }
 
             if (paidComandaTransactionIds.length > 0) {
-                const { data: reversals, error: reversalsError } = await supabase
-                    .from('financial_reversals')
-                    .select('original_transaction_id, reversal_transaction_id, reversal_type, amount, reason_type, created_at')
-                    .eq('tenant_id', tenantId)
-                    .in('original_transaction_id', paidComandaTransactionIds);
-
-                if (reversalsError) {
-                    console.warn('Não foi possível carregar reversões de contas a receber:', reversalsError);
-                } else {
-                    ((reversals || []) as FinancialReversalRecord[]).forEach((reversal) => {
-                        if (!reversal.original_transaction_id) return;
+                try {
+                    const paidTransactionIdSet = new Set(paidComandaTransactionIds);
+                    const reversals = await financialReversalRepository.listByOriginalOrReversalIds(paidComandaTransactionIds, tenantId);
+                    (reversals || []).forEach((reversal) => {
+                        if (!reversal.original_transaction_id || !paidTransactionIdSet.has(reversal.original_transaction_id)) return;
                         const amount = Math.abs(Number(reversal.amount || 0));
                         reversedByTransactionId.set(
                             reversal.original_transaction_id,
@@ -617,6 +569,8 @@ const AccountsReceivable: React.FC = () => {
                         });
                         reversalsByTransactionId.set(reversal.original_transaction_id, current);
                     });
+                } catch (reversalsError) {
+                    console.warn('Não foi possível carregar reversões de contas a receber:', reversalsError);
                 }
             }
 
@@ -673,20 +627,20 @@ const AccountsReceivable: React.FC = () => {
 
             const customerIds = Array.from(new Set(clubData.map(r => r.customer_id).filter(Boolean)));
             const planIds = Array.from(new Set(clubData.map(r => r.plan_id).filter(Boolean)));
-            const [clientsRes, plansRes] = await Promise.all([
-                customerIds.length > 0
-                    ? barberSupabase.from('clients').select('id, name, phone').eq('tenant_id', tenantId).in('id', customerIds)
-                    : Promise.resolve({ data: [], error: null }),
-                planIds.length > 0
-                    ? barberSupabase.from('customer_plans').select('id, name').eq('tenant_id', tenantId).in('id', planIds)
-                    : Promise.resolve({ data: [], error: null }),
+            const [clientsMapResult, plansListResult] = await Promise.all([
+                clientRepository.getByIds(customerIds, tenantId).catch((err) => {
+                    console.error('Error loading club clients:', err);
+                    return {} as Record<string, { id: string; name: string; phone: string }>;
+                }),
+                chefClubPlanRepository.getByIds(planIds, tenantId).catch((err) => {
+                    console.error('Error loading club plans:', err);
+                    return [] as Array<{ id: string; name: string }>;
+                }),
             ]);
-            if (clientsRes.error) console.error('Error loading club clients:', clientsRes.error);
-            if (plansRes.error) console.error('Error loading club plans:', plansRes.error);
             const clientsMap: Record<string, { name: string; phone?: string | null }> = {};
             const plansMap: Record<string, { name: string }> = {};
-            (clientsRes.data || []).forEach((c: any) => { clientsMap[c.id] = c; });
-            (plansRes.data || []).forEach((p: any) => { plansMap[p.id] = p; });
+            Object.values(clientsMapResult).forEach((c) => { clientsMap[c.id] = c; });
+            plansListResult.forEach((p) => { plansMap[p.id] = p; });
             setClubClients(clientsMap);
             setClubPlans(plansMap);
 

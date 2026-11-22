@@ -28,6 +28,13 @@ import { getTotalAvailableCredits, normalizeCreditBalances } from '../src/utils/
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 import { appointmentApplicationService, AppointmentError } from '../application/appointment';
 import { comandaRepository, type AppointmentComandaSummary } from '../domain/comanda';
+import { comandaItemRepository } from '../domain/comanda/item-repository';
+import { serviceExecutionParticipantRepository } from '../domain/comanda/participant-repository';
+import { staffRepository } from '../domain/staff';
+import { serviceRepository } from '../domain/service/repository';
+import { chefClubSubscriptionRepository } from '../domain/chefClub/subscription-repository';
+import { chefClubPlanRepository } from '../domain/chefClub/plan-repository';
+import { chefClubCreditRepository } from '../domain/chefClub/credit-repository';
 import { getCatalogDisplayName, getEsteticaDemoServiceName } from '../src/lib/catalog/display';
 import { shouldAppearOnSchedule } from '../src/lib/staff/roles';
 import {
@@ -791,82 +798,38 @@ const Schedule: React.FC = () => {
     }
 
     const scheduleAppSlug = ensureAppSupportsModule(appSlug, 'schedule', ['barber']);
-    const servicesClient = getClientForTable('services', scheduleAppSlug);
     const promotionsClient = getClientForTable('promotions', scheduleAppSlug);
 
-    const [staffRes, servicesRes, loadedClients, promoRes] = await Promise.all([
-      supabase.from('staff').select('id, name, role, avatar, commission_rate').eq('tenant_id', tenantId).eq('status', 'active'),
-      servicesClient.from('services').select('id, name, duration, buffer, price').eq('tenant_id', tenantId).eq('active', true),
+    const [loadedStaff, loadedServices, loadedClients, promoRes] = await Promise.all([
+      staffRepository.list(tenantId).catch(() => []),
+      serviceRepository.listFull(tenantId).catch((err) => {
+        console.error('Erro ao buscar serviços:', err);
+        return [] as any[];
+      }),
       clientRepository.list(tenantId).catch(() => [] as DBClient[]),
       promotionsClient.from('promotions').select('*').eq('tenant_id', tenantId).eq('active', true),
     ]);
 
-    if (staffRes.data) {
-      setStaffList((staffRes.data as DBStaff[]).filter(shouldAppearOnSchedule));
-    }
+    setStaffList(
+      loadedStaff
+        .filter((s) => s.status === 'active')
+        .filter(shouldAppearOnSchedule) as DBStaff[]
+    );
 
-    if (servicesRes.error) {
-      console.error('Erro ao buscar serviços com buffer:', servicesRes.error);
-      const retryServices = await servicesClient
-        .from('services')
-        .select('id, name, duration, price')
-        .eq('tenant_id', tenantId)
-        .neq('active', false)
-        .order('name');
+    const activeServices = loadedServices.filter((s: any) => s.active === true);
+    const resolvedServices = activeServices.length > 0
+      ? activeServices
+      : loadedServices.filter((s: any) => s.active !== false && s.is_active !== false);
 
-      if (retryServices.data) {
-        setServicesList(retryServices.data);
-      } else {
-        const legacyServices = await servicesClient
-          .from('services')
-          .select('id, name, duration_minutes, price')
-          .eq('tenant_id', tenantId)
-          .eq('is_active', true)
-          .order('name');
-
-        if (legacyServices.data) {
-          setServicesList(
-            legacyServices.data.map((s: any) => ({
-              id: s.id,
-              name: s.name,
-              duration: Number(s.duration_minutes) || 30,
-              price: Number(s.price) || 0,
-            }))
-          );
-        }
-      }
-    } else if (servicesRes.data && servicesRes.data.length > 0) {
-      setServicesList(servicesRes.data);
-    } else {
-      const retryServices = await servicesClient
-        .from('services')
-        .select('id, name, duration, price')
-        .eq('tenant_id', tenantId)
-        .neq('active', false)
-        .order('name');
-
-      if (retryServices.data && retryServices.data.length > 0) {
-        setServicesList(retryServices.data);
-      } else {
-        const legacyServices = await servicesClient
-          .from('services')
-          .select('id, name, duration_minutes, price')
-          .eq('tenant_id', tenantId)
-          .eq('is_active', true)
-          .order('name');
-
-        if (legacyServices.data) {
-          setServicesList(
-            legacyServices.data.map((s: any) => ({
-              id: s.id,
-              name: s.name,
-              duration: Number(s.duration_minutes) || 30,
-              price: Number(s.price) || 0,
-            }))
-          );
-        }
-      }
-    }
+    setServicesList(
+      resolvedServices.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        duration: Number(s.duration ?? s.duration_minutes) || 30,
+        ...(s.buffer !== undefined ? { buffer: s.buffer } : {}),
+        price: Number(s.price) || 0,
+      }))
+    );
 
     if (loadedClients) {
       setClientsList(loadedClients);
@@ -1286,34 +1249,32 @@ const Schedule: React.FC = () => {
       return;
     }
 
-    const barberClient = getScopedClient('barber');
-    let { data: subscription, error: subError } = await barberClient
-      .from('customer_subscriptions')
-      .select('id, plan_id, status, tenant_id')
-      .eq('tenant_id', tenantId)
-      .eq('client_id', client.id)
-      .eq('status', 'active')
-      .maybeSingle();
+    if (!tenantId) {
+      setChefClubInfo(null);
+      return;
+    }
+
+    let subscription = null;
+    let subError: unknown = null;
+    try {
+      subscription = await chefClubSubscriptionRepository.getActiveByClient(client.id, tenantId);
+    } catch (err) {
+      subError = err;
+      console.warn('[loadChefClubInfo] Falha ao buscar subscription:', err);
+    }
 
     let inheritedHolderName: string | null = null;
     if (!subError && !subscription && client.parent_client_id) {
       const parentClient = clientsList.find((c) => c.id === client.parent_client_id);
-      const parentSubRes = await barberClient
-        .from('customer_subscriptions')
-        .select('id, plan_id, status, tenant_id')
-        .eq('tenant_id', tenantId)
-        .eq('client_id', client.parent_client_id)
-        .eq('status', 'active')
-        .maybeSingle();
-
-      if (!parentSubRes.error && parentSubRes.data) {
-        subscription = parentSubRes.data;
-        inheritedHolderName = parentClient?.name || 'Responsável';
+      try {
+        const parentSub = await chefClubSubscriptionRepository.getActiveByClient(client.parent_client_id, tenantId);
+        if (parentSub) {
+          subscription = parentSub;
+          inheritedHolderName = parentClient?.name || 'Responsável';
+        }
+      } catch (err) {
+        console.warn('[loadChefClubInfo] Falha ao buscar subscription do responsável:', err);
       }
-    }
-
-    if (subError) {
-      console.warn('[loadChefClubInfo] Falha ao buscar subscription:', subError);
     }
 
     if (!subscription) {
@@ -1322,42 +1283,35 @@ const Schedule: React.FC = () => {
     }
 
     let planName = 'Plano ativo';
-    const { data: plan, error: planError } = await barberClient
-      .from('customer_plans')
-      .select('name')
-      .eq('tenant_id', tenantId)
-      .eq('id', subscription.plan_id)
-      .maybeSingle();
-
-    if (planError) {
+    try {
+      const plan = await chefClubPlanRepository.get(subscription.plan_id, tenantId);
+      if (plan?.name) {
+        planName = inheritedHolderName ? `${plan.name} (Titular: ${inheritedHolderName})` : plan.name;
+      } else if (inheritedHolderName) {
+        planName = `Plano ativo (Titular: ${inheritedHolderName})`;
+      }
+    } catch (planError) {
       console.warn('[loadChefClubInfo] Falha ao buscar plano:', planError);
-    }
-    if (plan?.name) {
-      planName = inheritedHolderName ? `${plan.name} (Titular: ${inheritedHolderName})` : plan.name;
-    } else if (inheritedHolderName) {
-      planName = `Plano ativo (Titular: ${inheritedHolderName})`;
+      if (inheritedHolderName) {
+        planName = `Plano ativo (Titular: ${inheritedHolderName})`;
+      }
     }
 
     let availableCredits = 0;
-    const { data: credits, error: creditsError } = await barberClient
-      .from('customer_credits')
-      .select('available_credits, used_credits, service_balance_map')
-      .eq('tenant_id', tenantId)
-      .eq('subscription_id', subscription.id)
-      .maybeSingle();
-
-    if (creditsError) {
+    try {
+      const credits = await chefClubCreditRepository.getActiveBySubscription(subscription.id, tenantId);
+      if (credits) {
+        const serviceBalances = normalizeCreditBalances(
+          credits.service_balance_map,
+          Number(credits.available_credits) || 0,
+          Number(credits.used_credits) || 0,
+        );
+        availableCredits = serviceBalances.length > 0
+          ? getTotalAvailableCredits(serviceBalances)
+          : Number(credits.available_credits) || 0;
+      }
+    } catch (creditsError) {
       console.warn('[loadChefClubInfo] Falha ao buscar créditos:', creditsError);
-    }
-    if (credits) {
-      const serviceBalances = normalizeCreditBalances(
-        credits.service_balance_map,
-        credits.available_credits || 0,
-        credits.used_credits || 0,
-      );
-      availableCredits = serviceBalances.length > 0
-        ? getTotalAvailableCredits(serviceBalances)
-        : credits.available_credits || 0;
     }
 
     setChefClubInfo({
@@ -2622,59 +2576,44 @@ const Schedule: React.FC = () => {
       return;
     }
 
-    const scheduleClient = getScopedClient('barber');
     const appointmentIds = appointments.map((apt) => apt.id);
-    const { data: comandas, error: comandasError } = await scheduleClient
-      .from('comandas')
-      .select('id, appointment_id, status, total, payment_method, staff_id')
-      .eq('tenant_id', tenantId)
-      .in('appointment_id', appointmentIds);
+    const comandasByAppointment = await comandaRepository
+      .getComandaStatusesByAppointmentIds(appointmentIds, tenantId)
+      .catch((comandasError) => {
+        console.warn('Erro ao carregar comandas para exportação da agenda:', comandasError);
+        return {} as Record<string, AppointmentComandaSummary>;
+      });
 
-    if (comandasError) {
-      console.warn('Erro ao carregar comandas para exportação da agenda:', comandasError);
-    }
+    const comandaIds = Object.values(comandasByAppointment).map((comanda) => comanda.id);
+    const itemRows = comandaIds.length > 0
+      ? await comandaItemRepository
+          .listByComandaIds(comandaIds, tenantId)
+          .catch((itemsError) => {
+            console.warn('Erro ao carregar itens para exportação da agenda:', itemsError);
+            return [] as any[];
+          })
+      : ([] as any[]);
 
-    const comandaRows = (comandas || []) as any[];
-    const comandasByAppointment = comandaRows.reduce((acc, comanda) => {
-      if (comanda.appointment_id) acc[comanda.appointment_id] = comanda;
-      return acc;
-    }, {} as Record<string, any>);
-    const comandaIds = comandaRows.map((comanda) => comanda.id);
-    const { data: items, error: itemsError } = comandaIds.length > 0
-      ? await scheduleClient
-        .from('comanda_items')
-        .select('id, comanda_id, product_name, quantity, unit_price, service_id, staff_id')
-        .eq('tenant_id', tenantId)
-        .in('comanda_id', comandaIds)
-      : { data: [] as any[], error: null };
-
-    if (itemsError) {
-      console.warn('Erro ao carregar itens para exportação da agenda:', itemsError);
-    }
-
-    const itemRows = (items || []) as any[];
     const itemIds = itemRows.map((item) => item.id);
-    const { data: participants, error: participantsError } = itemIds.length > 0
-      ? await scheduleClient
-        .from('service_execution_participants')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .in('comanda_item_id', itemIds)
-      : { data: [] as any[], error: null };
+    const participantRows = itemIds.length > 0
+      ? await serviceExecutionParticipantRepository
+          .listByComandaItemIds(itemIds, tenantId)
+          .catch((participantsError) => {
+            console.warn('Erro ao carregar participantes para exportação da agenda:', participantsError);
+            return [] as any[];
+          })
+      : ([] as any[]);
 
-    if (participantsError) {
-      console.warn('Erro ao carregar participantes para exportação da agenda:', participantsError);
-    }
-
-    const participantRows = (participants || []) as any[];
     const participantStaffIds = participantRows.map(getParticipantStaffId).filter(Boolean);
     const itemStaffIds = itemRows.map((item) => item.staff_id).filter(Boolean);
     const staffIds = Array.from(new Set([...participantStaffIds, ...itemStaffIds]));
-    const { data: staffRows } = staffIds.length > 0
-      ? await scheduleClient.from('staff').select('id, name').eq('tenant_id', tenantId).in('id', staffIds)
-      : { data: [] as any[] };
-    const staffById = ((staffRows || []) as any[]).reduce((acc, staff) => {
-      acc[staff.id] = staff.name;
+    const staffRows = staffIds.length > 0
+      ? await staffRepository.list(tenantId).catch(() => [])
+      : [];
+    const staffById = staffRows.reduce((acc, staff) => {
+      if (staffIds.includes(staff.id)) {
+        acc[staff.id] = staff.name;
+      }
       return acc;
     }, {} as Record<string, string>);
 
