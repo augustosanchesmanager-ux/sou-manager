@@ -19,6 +19,9 @@ import { fetchActiveChefClubPlanMap, fetchChefClubSummaryByClient } from '../src
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 import { formatCurrency } from '../shared/format/currency';
 import { clientRepository, RepositoryError, type Client } from '../domain/client';
+import { staffRepository } from '../domain/staff/repository';
+import { comandaRepository } from '../domain/comanda/repository';
+import { appointmentRepository } from '../domain/appointment/repository';
 import {
     calculateAverageTicket,
     calculatePreferredBarber,
@@ -143,16 +146,17 @@ const Clients: React.FC = () => {
             setStaffList([]);
             return;
         }
-        supabase
-            .from('staff')
-            .select('id, name, avatar')
-            .eq('tenant_id', tenantId)
-            .eq('status', 'active')
-            .order('name')
-            .then(({ data, error }) => {
-                if (!error && data) {
-                    setStaffList(data as StaffOption[]);
-                }
+        staffRepository
+            .list(tenantId)
+            .then((rows) => {
+                setStaffList(
+                    rows
+                        .filter((s) => s.status === 'active')
+                        .map((s) => ({ id: s.id, name: s.name, avatar: s.avatar || undefined }))
+                );
+            })
+            .catch(() => {
+                // Keep existing staffList on transient failure
             });
     }, [tenantId]);
 
@@ -169,72 +173,61 @@ const Clients: React.FC = () => {
         setDetailAverageTicket(0);
 
         try {
-            const [clubSummary, openComandasResult, upcomingResult, pastResult] = await Promise.all([
+            const nowIso = new Date().toISOString();
+            const [clubSummary, openComandas, upcomingAppointments, pastAppointments] = await Promise.all([
                 fetchChefClubSummaryByClient(client.id, tenantId).catch((error) => {
                     console.error('Erro ao carregar resumo do Club dos Chefes:', error);
                     return null;
                 }),
                 tenantId
-                    ? barberSupabase
-                        .from('comandas')
-                        .select('id, total, status, created_at', { count: 'exact' })
-                        .eq('tenant_id', tenantId)
-                        .eq('client_id', client.id)
-                        .eq('status', 'open')
-                        .order('created_at', { ascending: false })
-                        .limit(3)
-                    : Promise.resolve({ data: [], error: null, count: 0 }),
+                    ? comandaRepository.getByClient(client.id, tenantId, { status: 'open' }).catch((error) => {
+                        console.error('Erro ao carregar comandas abertas do cliente:', error);
+                        return null;
+                    })
+                    : Promise.resolve([]),
                 tenantId
-                    ? barberSupabase
-                        .from('appointments')
-                        .select('id, start_time, duration, service_name, staff_name, staff_id, status')
-                        .eq('tenant_id', tenantId)
-                        .eq('client_id', client.id)
-                        .gte('start_time', new Date().toISOString())
-                        .not('status', 'in', '("cancelled","no_show")')
-                        .order('start_time', { ascending: true })
-                        .limit(5)
-                    : Promise.resolve({ data: [], error: null }),
+                    ? appointmentRepository.listByClient(client.id, tenantId, {
+                        fromIso: nowIso,
+                        ascending: true,
+                        limit: 5,
+                    }).catch((error) => {
+                        console.error('Erro ao buscar agendamentos futuros:', error);
+                        return null;
+                    })
+                    : Promise.resolve([]),
                 tenantId
-                    ? barberSupabase
-                        .from('appointments')
-                        .select('id, staff_id, staff_name, start_time, status')
-                        .eq('tenant_id', tenantId)
-                        .eq('client_id', client.id)
-                        .not('status', 'in', '("cancelled","no_show")')
-                        .order('start_time', { ascending: false })
-                        .limit(50)
-                    : Promise.resolve({ data: [], error: null }),
+                    ? appointmentRepository.listByClient(client.id, tenantId, {
+                        ascending: false,
+                        limit: 50,
+                    }).catch(() => [])
+                    : Promise.resolve([]),
             ]);
 
             setDetailChefClub(clubSummary);
 
-            if (openComandasResult.error) {
-                console.error('Erro ao carregar comandas abertas do cliente:', openComandasResult.error);
+            if (!openComandas) {
                 setDetailOpenComandas([]);
                 setDetailOpenComandasCount(0);
             } else {
-                setDetailOpenComandas((openComandasResult.data || []) as OpenComandaSummary[]);
-                setDetailOpenComandasCount(openComandasResult.count || 0);
+                setDetailOpenComandas(openComandas.slice(0, 3) as OpenComandaSummary[]);
+                setDetailOpenComandasCount(openComandas.length);
             }
 
-            if (upcomingResult.error) {
-                console.error('Erro ao buscar agendamentos futuros:', upcomingResult.error);
+            if (!upcomingAppointments) {
                 setDetailUpcomingAppointments([]);
             } else {
-                setDetailUpcomingAppointments((upcomingResult.data || []) as UpcomingAppointmentSummary[]);
+                setDetailUpcomingAppointments(upcomingAppointments as UpcomingAppointmentSummary[]);
             }
 
-            const pastAppointments = (pastResult.data || []) as { staff_id: string; staff_name: string }[];
             const prefBarber = calculatePreferredBarber(
-                pastAppointments.map((a) => ({
-                    staffId: a.staff_id,
-                    staffName: a.staff_name,
+                (pastAppointments || []).map((a) => ({
+                    staffId: a.staff_id || '',
+                    staffName: a.staff_name || '',
                 }))
             );
             setDetailPreferredBarber(prefBarber);
 
-            const pastCount = pastAppointments.length || (client.last_visit ? 1 : 0);
+            const pastCount = (pastAppointments || []).length || (client.last_visit ? 1 : 0);
             setDetailVisitsCount(pastCount);
             setDetailAverageTicket(calculateAverageTicket(client.total_spent || 0, pastCount));
         } catch (error) {
@@ -438,70 +431,9 @@ const Clients: React.FC = () => {
         setDeleting(true);
 
         const clientId = deleteTarget.id;
-        const ignoredCleanupErrorCodes = new Set(['42P01', '42703', '42501', 'PGRST116']);
-        const cleanupLog: Array<{ table: string; status: 'success' | 'error'; detail?: string }> = [];
-
-        const cleanupByClientId = async (table: string) => {
-            const targetClient = table === 'customer_credits' || table === 'customer_subscriptions' || table === 'customer_vouchers'
-                ? barberSupabase
-                : supabase;
-            const clientField = table === 'customer_vouchers' ? 'customer_id' : 'client_id';
-            const { error } = await targetClient.from(table).delete().eq(clientField, clientId);
-            if (error) {
-                if (ignoredCleanupErrorCodes.has(String(error.code || ''))) {
-                    cleanupLog.push({ table, status: 'success', detail: `Ignorado (código ${error.code})` });
-                } else {
-                    cleanupLog.push({ table, status: 'error', detail: `${error.message} (${error.code || 'sem-codigo'})` });
-                    throw new Error(`Falha ao limpar ${table}: ${error.message}`);
-                }
-            } else {
-                cleanupLog.push({ table, status: 'success' });
-            }
-        };
 
         try {
-            const { data: clientComandas, error: comandasReadError } = await barberSupabase
-                .from('comandas')
-                .select('id')
-                .eq('client_id', clientId);
-
-            if (!comandasReadError && clientComandas && clientComandas.length > 0) {
-                const comandaIds = clientComandas.map((c: { id: string }) => c.id);
-                const { error: itemsError } = await barberSupabase
-                    .from('comanda_items')
-                    .delete()
-                    .in('comanda_id', comandaIds);
-                if (itemsError && !ignoredCleanupErrorCodes.has(String(itemsError.code || ''))) {
-                    cleanupLog.push({ table: 'comanda_items', status: 'error', detail: itemsError.message });
-                } else {
-                    cleanupLog.push({ table: 'comanda_items', status: 'success' });
-                }
-            }
-
-            // Limpeza paralela de todas as dependências independentes
-            const cleanupTargets = [
-                'appointments', 'portal_sessions', 'feedback_barber',
-                'feedback_shop', 'kiosk_sessions', 'customer_credits',
-                'customer_subscriptions', 'customer_vouchers', 'comandas',
-            ];
-
-            const results = await Promise.allSettled(
-                cleanupTargets.map(table => cleanupByClientId(table))
-            );
-
-            // Consolidar falhas
-            results.forEach((result, index) => {
-                if (result.status === 'rejected') {
-                    const existing = cleanupLog.find(l => l.table === cleanupTargets[index]);
-                    if (!existing) {
-                        cleanupLog.push({
-                            table: cleanupTargets[index],
-                            status: 'error',
-                            detail: result.reason?.message || 'Erro desconhecido',
-                        });
-                    }
-                }
-            });
+            const cleanupLog = await clientRepository.cleanupDependencies(clientId);
 
             const failures = cleanupLog.filter(l => l.status === 'error');
 
