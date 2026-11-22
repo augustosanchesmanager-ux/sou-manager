@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getScopedClient, getSharedClient } from '../../services/supabaseClient';
+import { chefClubWidgetService } from '../../services/chefClubWidgetService';
 import { formatCurrency } from '../../shared/format/currency';
 
 interface ReceivableItem {
@@ -29,7 +29,6 @@ interface ClubMetrics {
 
 export const ClubReceivablesWidget: React.FC = () => {
   const { tenantId } = useAuth();
-  const barberSupabase = getScopedClient('barber');
   const navigate = useNavigate();
   const [metrics, setMetrics] = useState<ClubMetrics>({
     mrr: 0,
@@ -51,44 +50,24 @@ export const ClubReceivablesWidget: React.FC = () => {
       setLoading(true);
       try {
         const today = new Date().toISOString().split('T')[0];
-        const sharedSupabase = getSharedClient();
 
         // Fetch subscriptions, plans, real receivables, and client names
-        const [subsRes, plansRes, receivablesRes, clientsRes] = await Promise.all([
-          barberSupabase
-            .from('customer_subscriptions')
-            .select('id, client_id, plan_id, status')
-            .eq('tenant_id', tenantId),
-          barberSupabase
-            .from('customer_plans')
-            .select('id, name, monthly_price')
-            .eq('tenant_id', tenantId),
-          barberSupabase
-            .from('customer_subscription_receivables')
-            .select('id, customer_id, subscription_id, plan_id, amount, due_date, status')
-            .eq('tenant_id', tenantId)
-            .in('status', ['pending', 'overdue'])
-            .order('due_date', { ascending: true }),
-          sharedSupabase
-            .from('clients')
-            .select('id, name, phone')
-            .eq('tenant_id', tenantId),
-        ]);
+        const { subscriptions: allSubs, plans, receivables, clients } =
+          await chefClubWidgetService.fetchReceivablesData(tenantId);
 
-        const allSubs = subsRes.data || [];
-        const activeSubs = allSubs.filter((s: any) => s.status === 'active');
-        const subStatusById = new Map<string, string>(allSubs.map((s: any) => [s.id, s.status]));
+        const activeSubs = allSubs.filter((s) => s.status === 'active');
+        const subStatusById = new Map<string, string>(allSubs.map((s) => [s.id, s.status]));
         const planMap = new Map<string, { name: string; price: number }>(
-          (plansRes.data || []).map((p: any) => [p.id, { name: p.name, price: Number(p.monthly_price) || 0 }]),
+          plans.map((p) => [p.id, { name: p.name, price: Number(p.monthly_price) || 0 }]),
         );
         const clientMap = new Map<string, { name: string; phone: string }>(
-          (clientsRes.data || []).map((c: any) => [c.id, { name: c.name || 'Cliente', phone: c.phone || '' }]),
+          clients.map((c) => [c.id, { name: c.name || 'Cliente', phone: c.phone || '' }]),
         );
 
         // Calculate MRR from active subscriptions
         let mrr = 0;
-        activeSubs.forEach((sub: any) => {
-          const plan = planMap.get(sub.plan_id);
+        activeSubs.forEach((sub) => {
+          const plan = sub.plan_id ? planMap.get(sub.plan_id) : undefined;
           if (plan) mrr += plan.price;
         });
 
@@ -100,8 +79,8 @@ export const ClubReceivablesWidget: React.FC = () => {
         const items: ReceivableItem[] = [];
         const todayObj = new Date(`${today}T00:00:00Z`);
 
-        (receivablesRes.data || []).forEach((rec: any) => {
-          if (subStatusById.get(rec.subscription_id) === 'canceled') return;
+        receivables.forEach((rec) => {
+          if (rec.subscription_id && subStatusById.get(rec.subscription_id) === 'canceled') return;
 
           const dueDate = String(rec.due_date || '').slice(0, 10);
           const isOverdue = rec.status === 'overdue' || (rec.status === 'pending' && dueDate < today);

@@ -38,7 +38,7 @@ import {
   ResourceMetric,
   SupabaseMonitorSnapshot,
 } from '../components/supabase-monitor/types';
-import { supabase } from '../services/supabaseClient';
+import { biService } from '../services/biService';
 
 const rangeOptions: { id: MonitorRange; label: string }[] = [
   { id: 'today', label: 'Hoje' },
@@ -169,20 +169,7 @@ const SupabaseMonitoring: React.FC = () => {
 
   const loadSnapshot = useCallback(async () => {
     try {
-      const [usageLogsRes, alertsRes, channelsRes] = await Promise.all([
-        supabase
-          .from('usage_logs')
-          .select('resource_type, value, limit_value, unit, created_at')
-          .order('created_at', { ascending: true }),
-        supabase
-          .from('alerts')
-          .select('id, resource_type, message, level, usage_pct, created_at, resolved_at')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('notification_channels')
-          .select('id, channel_type, target, is_enabled, last_triggered_at')
-          .order('created_at', { ascending: true }),
-      ]);
+      const { usageLogsRes, alertsRes, channelsRes } = await biService.fetchMonitoringSnapshotData();
 
       if (
         usageLogsRes.error ||

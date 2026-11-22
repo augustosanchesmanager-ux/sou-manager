@@ -9,7 +9,7 @@ import { useBusinessInsights } from '../src/hooks/useBusinessInsights';
 import { useAuth } from '../context/AuthContext';
 import { RevenueAreaChart, ExpenseChart, StaffPerformanceCard, ProductSalesChart, AppointmentTimeline } from '../components/charts';
 import MetricCard from '../components/ui/MetricCard';
-import { getClientForTable, getScopedClient, supabase } from '../services/supabaseClient';
+import { biService } from '../services/biService';
 import { staffRepository } from '../domain/staff/repository';
 import { formatCurrency } from '../shared/format/currency';
 import { getTodayDateKey } from '../src/utils/dateTimezone';
@@ -42,7 +42,6 @@ const BusinessIntelligence: React.FC = () => {
     const { theme } = useTheme();
     const { tenantId } = useAuth();
     const [searchParams] = useSearchParams();
-    const barberSupabase = getScopedClient('barber');
 
     const initialPeriod = (searchParams.get('period') as any) || '30d';
     const [period, setPeriod] = useState<string>(initialPeriod);
@@ -135,16 +134,8 @@ const BusinessIntelligence: React.FC = () => {
                 const fromIso = fromDate.toISOString();
 
                 // 1. Heatmap e Produtividade via Appointments
-                const appointmentsClient = getClientForTable('appointments', 'barber');
                 const futureHorizonIso = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000).toISOString();
-                const { data: appts } = await appointmentsClient
-                    .from('appointments')
-                    .select('id, start_time, staff_id, staff_name, price, status, service_name')
-                    .eq('tenant_id', tenantId)
-                    .gte('start_time', fromIso)
-                    .lte('start_time', futureHorizonIso);
-
-                const appointments = appts || [];
+                const appointments = await biService.fetchBiAppointments(tenantId, fromIso, futureHorizonIso);
 
                 // Lista de profissionais para projeção via Repository
                 const staffMembers = await staffRepository.list(tenantId);
@@ -257,18 +248,13 @@ const BusinessIntelligence: React.FC = () => {
                 setStaffDetails(staffList);
 
                 // 3. Liquidez Real e Conciliação Bancária
-                const transactionsClient = getClientForTable('transactions', 'barber');
-                const { data: txData } = await transactionsClient
-                    .from('transactions')
-                    .select('type, amount, category')
-                    .eq('tenant_id', tenantId)
-                    .gte('date', fromIso.split('T')[0]);
+                const txData = await biService.fetchBiTransactions(tenantId, fromIso.split('T')[0]);
 
                 let totalGross = 0;
                 let bankingFees = 0;
                 let otherExpenses = 0;
 
-                (txData || []).forEach((t: any) => {
+                txData.forEach((t: any) => {
                     const amt = Math.abs(Number(t.amount) || 0);
                     if (t.type === 'income') {
                         totalGross += amt;
@@ -290,13 +276,10 @@ const BusinessIntelligence: React.FC = () => {
                 const totalCommissions = staffList.reduce((acc, s) => acc + s.totalCommission, 0);
 
                 // Buscar contagem de transações conciliadas
-                const { data: stmtTxs } = await supabase
-                    .from('bank_statement_transactions')
-                    .select('status')
-                    .eq('tenant_id', tenantId);
+                const stmtTxs = await biService.fetchBankStatementStatuses(tenantId);
 
-                const reconciledCount = (stmtTxs || []).filter((s: any) => s.status === 'reconciled').length;
-                const unreconciledCount = (stmtTxs || []).filter((s: any) => s.status === 'pending').length;
+                const reconciledCount = stmtTxs.filter((s) => s.status === 'reconciled').length;
+                const unreconciledCount = stmtTxs.filter((s) => s.status === 'pending').length;
 
                 // Estimar taxa de maquininha em ~2.5% do bruto caso ainda não haja taxa lançada
                 const effectiveBankingFees = bankingFees > 0 ? bankingFees : effectiveGross * 0.025;
@@ -327,14 +310,8 @@ const BusinessIntelligence: React.FC = () => {
 
         const fetchAll = async () => {
             try {
-                const transactionsClient = getClientForTable('transactions', 'barber');
-
                 try {
-                    const { data: expenses } = await transactionsClient
-                        .from('transactions')
-                        .select('category, amount')
-                        .eq('tenant_id', tenantId)
-                        .eq('type', 'expense');
+                    const expenses = await biService.fetchBiExpenses(tenantId);
 
                     if (expenses && expenses.length > 0) {
                         const categoryTotals: Record<string, number> = {};

@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
+import { profileRepository } from '../domain/profile/repository';
+import { supportRepository } from '../domain/support/repository';
 import { staffRepository } from '../domain/staff/repository';
 import { transactionRepository } from '../domain/transaction/repository';
 import { tenantLifecycleService } from '../application/tenantLifecycle';
@@ -48,17 +50,17 @@ const Admin: React.FC = () => {
         setIsPanelLoading(true);
         try {
             const tid = shop.tenant_id;
-            const [staff, clientsRes, apptsRes, recentTx] = await Promise.all([
+            const [staff, clientsCount, apptsCount, recentTx] = await Promise.all([
                 staffRepository.list(tid),
-                supabase.from('clients').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
-                supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('tenant_id', tid),
+                profileRepository.countClientsByTenant(tid),
+                profileRepository.countAppointmentsByTenant(tid),
                 transactionRepository.list(tid, { type: 'income', orderAscending: false, limit: 5 }),
             ]);
             const revenue = recentTx.reduce((s: number, t) => s + (Number(t.amount) || 0), 0);
             setPanelData({
                 staff,
-                clients: clientsRes.count || 0,
-                appointments: apptsRes.count || 0,
+                clients: clientsCount,
+                appointments: apptsCount,
                 revenue,
                 recentTx,
             });
@@ -80,110 +82,108 @@ const Admin: React.FC = () => {
     // ─── Fetch overview KPIs ────────────────────────────────────────────────
     const fetchOverview = useCallback(async () => {
         setIsLoadingData(true);
-        const [profilesRes, staffRes, ticketsRes, txRes] = await Promise.all([
-            supabase.from('profiles').select('id', { count: 'exact', head: true }),
-            supabase.from('staff').select('id', { count: 'exact', head: true }),
-            supabase.from('support_tickets').select('id', { count: 'exact', head: true }).eq('status', 'open'),
-            supabase.from('transactions').select('amount').eq('type', 'income'),
-        ]);
+        try {
+            const [profilesCount, staffCount, activeTickets, revenue] = await Promise.all([
+                profileRepository.countProfiles(),
+                profileRepository.countAllStaff(),
+                supportRepository.countOpenTickets(),
+                profileRepository.sumAllIncomeTransactions(),
+            ]);
 
-        const totalShops = profilesRes.count || 0;
-        const totalUsers = (profilesRes.count || 0) + (staffRes.count || 0);
-        const activeTickets = ticketsRes.count || 0;
-        const revenue = (txRes.data || []).reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+            const totalShops = profilesCount;
+            const totalUsers = profilesCount + staffCount;
 
-        setKpis({ revenue, totalShops, totalUsers, activeTickets });
-        setIsLoadingData(false);
+            setKpis({ revenue, totalShops, totalUsers, activeTickets });
+        } finally {
+            setIsLoadingData(false);
+        }
     }, []);
 
     // ─── Fetch shops (profiles = owners/managers) ───────────────────────────
     const fetchShops = useCallback(async () => {
         setIsLoadingData(true);
-        const { data } = await supabase
-            .from('profiles')
-            .select('id, tenant_id, onboarding_completed, created_at, tenants(plan)')
-            .order('created_at', { ascending: false });
+        try {
+            const profiles = await profileRepository.listShopsWithPlan();
+            const tenantIds = [...new Set(profiles.map((p: any) => p.tenant_id).filter(Boolean))];
 
-        const profiles = data || [];
-        const tenantIds = [...new Set(profiles.map((p: any) => p.tenant_id).filter(Boolean))];
+            // Bulk fetch staff counts and transaction revenue (avoids N+1)
+            const [staffCounts, txRevenues] = await Promise.all([
+                profileRepository.listStaffTenantIds(tenantIds),
+                profileRepository.listIncomeTransactionsByTenants(tenantIds),
+            ]);
 
-        // Bulk fetch staff counts and transaction revenue (avoids N+1)
-        const [staffCountsRes, txRevenueRes] = await Promise.all([
-            tenantIds.length > 0
-                ? supabase.from('staff').select('tenant_id').in('tenant_id', tenantIds)
-                : Promise.resolve({ data: [] as any[] }),
-            tenantIds.length > 0
-                ? supabase.from('transactions').select('tenant_id, amount').in('tenant_id', tenantIds).eq('type', 'income')
-                : Promise.resolve({ data: [] as any[] }),
-        ]);
+            // Build lookup maps
+            const staffCountByTenant: Record<string, number> = {};
+            staffCounts.forEach((s) => {
+                staffCountByTenant[s.tenant_id] = (staffCountByTenant[s.tenant_id] || 0) + 1;
+            });
 
-        // Build lookup maps
-        const staffCountByTenant: Record<string, number> = {};
-        (staffCountsRes.data || []).forEach((s: any) => {
-            staffCountByTenant[s.tenant_id] = (staffCountByTenant[s.tenant_id] || 0) + 1;
-        });
+            const revenueByTenant: Record<string, number> = {};
+            txRevenues.forEach((t) => {
+                revenueByTenant[t.tenant_id] = (revenueByTenant[t.tenant_id] || 0) + (Number(t.amount) || 0);
+            });
 
-        const revenueByTenant: Record<string, number> = {};
-        (txRevenueRes.data || []).forEach((t: any) => {
-            revenueByTenant[t.tenant_id] = (revenueByTenant[t.tenant_id] || 0) + (Number(t.amount) || 0);
-        });
+            // Enrich with auth user data (still per-user for admin API, but no extra DB queries)
+            const enriched = await Promise.all(profiles.map(async (p: any) => {
+                const { data: authUser } = await supabase.auth.admin?.getUserById?.(p.id) || { data: null };
 
-        // Enrich with auth user data (still per-user for admin API, but no extra DB queries)
-        const enriched = await Promise.all(profiles.map(async (p: any) => {
-            const { data: authUser } = await supabase.auth.admin?.getUserById?.(p.id) || { data: null };
+                return {
+                    ...p,
+                    email: authUser?.user?.email || p.id,
+                    name: authUser?.user?.user_metadata?.shop_name || authUser?.user?.user_metadata?.first_name || 'Barbearia',
+                    owner: `${authUser?.user?.user_metadata?.first_name || ''} ${authUser?.user?.user_metadata?.last_name || ''}`.trim() || 'Proprietário',
+                    plan: (p as any).tenants?.plan || authUser?.user?.user_metadata?.plan || 'free',
+                    staff: staffCountByTenant[p.tenant_id] || 0,
+                    revenue: revenueByTenant[p.tenant_id] || 0,
+                    last: authUser?.user?.last_sign_in_at
+                        ? new Date(authUser.user.last_sign_in_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+                        : 'Nunca',
+                    status: p.onboarding_completed ? 'Ativo' : 'Pendente'
+                };
+            }));
 
-            return {
-                ...p,
-                email: authUser?.user?.email || p.id,
-                name: authUser?.user?.user_metadata?.shop_name || authUser?.user?.user_metadata?.first_name || 'Barbearia',
-                owner: `${authUser?.user?.user_metadata?.first_name || ''} ${authUser?.user?.user_metadata?.last_name || ''}`.trim() || 'Proprietário',
-                plan: (p as any).tenants?.plan || authUser?.user?.user_metadata?.plan || 'free',
-                staff: staffCountByTenant[p.tenant_id] || 0,
-                revenue: revenueByTenant[p.tenant_id] || 0,
-                last: authUser?.user?.last_sign_in_at
-                    ? new Date(authUser.user.last_sign_in_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
-                    : 'Nunca',
-                status: p.onboarding_completed ? 'Ativo' : 'Pendente'
-            };
-        }));
-
-        setShops(enriched);
-        setIsLoadingData(false);
+            setShops(enriched);
+        } finally {
+            setIsLoadingData(false);
+        }
     }, []);
 
     // ─── Fetch all users (profiles + staff) ─────────────────────────────────
     const fetchUsers = useCallback(async () => {
         setIsLoadingData(true);
-        const [profilesRes, staffRes] = await Promise.all([
-            supabase.from('profiles').select('id, tenant_id, created_at'),
-            supabase.from('staff').select('id, name, email, role, status, tenant_id, created_at'),
-        ]);
+        try {
+            const [profilesData, staffData] = await Promise.all([
+                profileRepository.listProfilesBasic(),
+                profileRepository.listAllStaffBasic(),
+            ]);
 
-        const profileUsers: any[] = [];
-        for (const p of profilesRes.data || []) {
-            profileUsers.push({
-                id: p.id,
-                name: '(admin)',
-                email: p.id,
-                role: 'Manager',
-                auth: 'Verificado',
-                source: 'profile',
-                tenant_id: p.tenant_id,
-            });
+            const profileUsers: any[] = [];
+            for (const p of profilesData) {
+                profileUsers.push({
+                    id: p.id,
+                    name: '(admin)',
+                    email: p.id,
+                    role: 'Manager',
+                    auth: 'Verificado',
+                    source: 'profile',
+                    tenant_id: p.tenant_id,
+                });
+            }
+
+            const staffUsers = staffData.map((s) => ({
+                id: s.id,
+                name: s.name,
+                email: s.email,
+                role: s.role,
+                auth: s.status === 'active' ? 'Ativo' : 'Inativo',
+                source: 'staff',
+                tenant_id: s.tenant_id,
+            }));
+
+            setAllUsers([...profileUsers, ...staffUsers]);
+        } finally {
+            setIsLoadingData(false);
         }
-
-        const staffUsers = (staffRes.data || []).map((s: any) => ({
-            id: s.id,
-            name: s.name,
-            email: s.email,
-            role: s.role,
-            auth: s.status === 'active' ? 'Ativo' : 'Inativo',
-            source: 'staff',
-            tenant_id: s.tenant_id,
-        }));
-
-        setAllUsers([...profileUsers, ...staffUsers]);
-        setIsLoadingData(false);
     }, []);
 
     // ─── Realtime ticket subscription ───────────────────────────────────────
@@ -205,15 +205,17 @@ const Admin: React.FC = () => {
         if (activeTab === 'users') fetchUsers();
         if (activeTab === 'tickets') {
             setIsLoadingData(true);
-            supabase.from('support_tickets').select('*').order('created_at', { ascending: false })
-                .then(({ data }) => { setTickets(data || []); setIsLoadingData(false); });
+            supportRepository.listTickets()
+                .then((data) => setTickets(data))
+                .catch(() => {})
+                .finally(() => setIsLoadingData(false));
         }
         if (activeTab === 'requests') {
             setIsLoadingData(true);
-            supabase.from('profiles').select('id, tenant_id, created_at, status')
-                .eq('status', 'pending')
-                .order('created_at', { ascending: false })
-                .then(({ data }) => { setRequests(data || []); setIsLoadingData(false); });
+            profileRepository.listPendingProfiles()
+                .then((data) => setRequests(data))
+                .catch(() => {})
+                .finally(() => setIsLoadingData(false));
         }
     }, [activeTab, fetchOverview, fetchShops, fetchUsers]);
 
@@ -603,8 +605,12 @@ const Admin: React.FC = () => {
                                                         {t.status !== 'closed' && (
                                                             <button onClick={async () => {
                                                                 setSelectedTicket(t);
-                                                                const { data } = await supabase.from('ticket_messages').select('*').eq('ticket_id', t.id).order('created_at', { ascending: true });
-                                                                setMessages(data || []);
+                                                                try {
+                                                                    const data = await supportRepository.listMessages(t.id);
+                                                                    setMessages(data);
+                                                                } catch {
+                                                                    setMessages([]);
+                                                                }
                                                                 setIsTicketModalOpen(true);
                                                             }} className="px-4 py-2 bg-card border border-line text-[10px] font-black uppercase text-ink-soft rounded-lg hover:bg-gold-pale hover:border-primary transition-all tracking-widest">
                                                                 Responder
@@ -613,11 +619,11 @@ const Admin: React.FC = () => {
                                                         {t.status !== 'closed' && (
                                                             <button onClick={async () => {
                                                                 if (!window.confirm('Encerrar este chamado?')) return;
-                                                                const { error } = await supabase.from('support_tickets').update({ status: 'closed' }).eq('id', t.id);
-                                                                if (!error) {
+                                                                try {
+                                                                    await supportRepository.updateTicketStatus(t.id, 'closed');
                                                                     setTickets(prev => prev.map(tk => tk.id === t.id ? { ...tk, status: 'closed' } : tk));
                                                                     showToast('Chamado encerrado com sucesso.');
-                                                                } else {
+                                                                } catch {
                                                                     showToast('Erro ao encerrar chamado.', 'error');
                                                                 }
                                                             }} className="px-4 py-2 bg-card border border-danger/30 text-[10px] font-black uppercase text-danger rounded-lg hover:bg-danger hover:text-white transition-all tracking-widest">
@@ -663,9 +669,10 @@ const Admin: React.FC = () => {
                             </div>
                             <button onClick={() => {
                                 setIsLoadingData(true);
-                                supabase.from('profiles').select('id, tenant_id, created_at, status')
-                                    .eq('status', 'pending').order('created_at', { ascending: false })
-                                    .then(({ data }) => { setRequests(data || []); setIsLoadingData(false); });
+                                profileRepository.listPendingProfiles()
+                                    .then((data) => setRequests(data))
+                                    .catch(() => {})
+                                    .finally(() => setIsLoadingData(false));
                             }} className="flex items-center gap-2 px-4 py-2 bg-card border border-line rounded-lg text-xs font-black text-ink-soft hover:bg-gold-pale hover:border-primary transition-all">
                                 <span className="material-symbols-outlined text-sm text-primary-dark">refresh</span>
                                 Atualizar
@@ -720,14 +727,12 @@ const Admin: React.FC = () => {
                                                     <div className="flex items-center justify-end gap-2">
                                                         <button
                                                             onClick={async () => {
-                                                                const { error } = await supabase.from('profiles')
-                                                                    .update({ status: 'active' })
-                                                                    .eq('id', r.id);
-                                                                if (!error) {
+                                                                try {
+                                                                    await profileRepository.updateProfileStatus(r.id, 'active');
                                                                     setRequests(prev => prev.filter((x: any) => x.id !== r.id));
                                                                     showToast('Acesso aprovado! O usuário já pode entrar no sistema.');
-                                                                } else {
-                                                                    showToast(`Erro ao aprovar: ${error.message}`, 'error');
+                                                                } catch (error) {
+                                                                    showToast(`Erro ao aprovar: ${error instanceof Error ? error.message : 'Erro desconhecido'}`, 'error');
                                                                 }
                                                             }}
                                                             className="flex items-center gap-1.5 px-4 py-2 bg-card border border-success/30 text-[10px] font-black uppercase tracking-widest rounded-lg text-success hover:bg-success hover:text-white transition-all"
@@ -738,14 +743,12 @@ const Admin: React.FC = () => {
                                                         <button
                                                             onClick={async () => {
                                                                 if (!window.confirm('Rejeitar este cadastro? O usuário continuará bloqueado.')) return;
-                                                                const { error } = await supabase.from('profiles')
-                                                                    .update({ status: 'suspended' })
-                                                                    .eq('id', r.id);
-                                                                if (!error) {
+                                                                try {
+                                                                    await profileRepository.updateProfileStatus(r.id, 'suspended');
                                                                     setRequests(prev => prev.filter((x: any) => x.id !== r.id));
                                                                     showToast('Cadastro rejeitado. Usuário suspenso.');
-                                                                } else {
-                                                                    showToast(`Erro: ${error.message}`, 'error');
+                                                                } catch (error) {
+                                                                    showToast(`Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`, 'error');
                                                                 }
                                                             }}
                                                             className="flex items-center gap-1.5 px-4 py-2 bg-card border border-danger/30 text-[10px] font-black uppercase tracking-widest rounded-lg text-danger hover:bg-danger hover:text-white transition-all"
@@ -966,14 +969,20 @@ const Admin: React.FC = () => {
                             className="flex-1 bg-card border border-line rounded-xl py-3 px-4 text-sm text-ink outline-none focus:border-primary focus:ring-1 focus:ring-primary" />
                         <Button onClick={async () => {
                             if (!reply.trim() || !selectedTicket) return;
-                            const { data, error } = await supabase.from('ticket_messages').insert({ ticket_id: selectedTicket.id, sender_id: user!.id, message: reply }).select().single();
-                            if (!error && data) {
+                            try {
+                                const data = await supportRepository.createMessage({
+                                    ticket_id: selectedTicket.id,
+                                    sender_id: user!.id,
+                                    message: reply,
+                                });
                                 setMessages([...messages, data]);
                                 setReply('');
                                 // Status → aguardando resposta do usuário
-                                await supabase.from('support_tickets').update({ status: 'awaiting_response' }).eq('id', selectedTicket.id);
+                                await supportRepository.updateTicketStatus(selectedTicket.id, 'awaiting_response');
                                 setSelectedTicket((prev: any) => ({ ...prev, status: 'awaiting_response' }));
                                 setTickets(prev => prev.map(tk => tk.id === selectedTicket.id ? { ...tk, status: 'awaiting_response' } : tk));
+                            } catch {
+                                // erro silencioso preservando comportamento anterior
                             }
                         }} disabled={!reply.trim()} variant="warning" size="sm">Enviar</Button>
                     </div>
@@ -993,7 +1002,7 @@ const Admin: React.FC = () => {
                         {selectedTicket?.status !== 'closed' && (
                             <button onClick={async () => {
                                 if (!window.confirm('Encerrar este chamado?')) return;
-                                await supabase.from('support_tickets').update({ status: 'closed' }).eq('id', selectedTicket.id);
+                                await supportRepository.updateTicketStatus(selectedTicket.id, 'closed');
                                 setTickets(prev => prev.map(tk => tk.id === selectedTicket.id ? { ...tk, status: 'closed' } : tk));
                                 setIsTicketModalOpen(false);
                                 showToast('Chamado encerrado com sucesso.');

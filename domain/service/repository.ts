@@ -127,6 +127,18 @@ class ServiceRepositoryImpl extends SupabaseRepository {
     }
   }
 
+  async createAndReturn(payload: Record<string, unknown>): Promise<Record<string, any>> {
+    try {
+      const result = await this.from()
+        .insert([payload])
+        .select('*')
+        .single();
+      return this.extractData<Record<string, any>>(result, 'create service');
+    } catch (err) {
+      this.throwOnError(err, 'create service');
+    }
+  }
+
   async update(id: string, tenantId: string, payload: Record<string, unknown>): Promise<void> {
     try {
       const result = await this.from()
@@ -172,6 +184,7 @@ export interface ServiceRepository extends IRepository<ServiceRecord> {
   ): Promise<void>;
   listFull(tenantId: string): Promise<any[]>;
   create(payload: Record<string, unknown>): Promise<void>;
+  createAndReturn(payload: Record<string, unknown>): Promise<Record<string, any>>;
   update(id: string, tenantId: string, payload: Record<string, unknown>): Promise<void>;
   setActive(id: string, tenantId: string, active: boolean): Promise<void>;
   remove(id: string, tenantId: string): Promise<{ error: { code?: string; message: string } | null }>;

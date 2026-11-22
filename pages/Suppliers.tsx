@@ -1,19 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getScopedClient } from '../services/supabaseClient';
+import { supplyRepository, type SupplierRecord } from '../domain/supply/repository';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
 
-interface Supplier {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  category: string;
-  document?: string;
-  address?: string;
-}
+type Supplier = SupplierRecord;
 
 const defaultForm = {
   name: '',
@@ -26,7 +18,6 @@ const defaultForm = {
 
 const Suppliers: React.FC = () => {
   const { tenantId } = useAuth();
-  const barberSupabase = getScopedClient('barber');
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -43,15 +34,15 @@ const Suppliers: React.FC = () => {
     }
 
     setLoading(true);
-    const { data, error } = await barberSupabase.from('suppliers').select('*').eq('tenant_id', tenantId).order('name');
-
-    if (error) {
+    try {
+      const data = await supplyRepository.listSuppliers(tenantId);
+      setSuppliers(data);
+    } catch {
       setToast({ message: 'Erro ao carregar fornecedores.', type: 'error' });
       setSuppliers([]);
-    } else {
-      setSuppliers(data || []);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -93,6 +84,7 @@ const Suppliers: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!tenantId) return;
 
     if (!form.name.trim()) {
       setToast({ message: 'Informe o nome do fornecedor.', type: 'error' });
@@ -100,35 +92,36 @@ const Suppliers: React.FC = () => {
     }
 
     if (editingSupplier) {
-      const { error } = await barberSupabase.from('suppliers').update(form).eq('id', editingSupplier.id).eq('tenant_id', tenantId);
-      if (error) {
+      try {
+        await supplyRepository.updateSupplier(editingSupplier.id, tenantId, form);
+        setToast({ message: 'Fornecedor atualizado com sucesso!', type: 'success' });
+        closeModal();
+        fetchSuppliers();
+      } catch {
         setToast({ message: 'Erro ao atualizar fornecedor.', type: 'error' });
-        return;
       }
-      setToast({ message: 'Fornecedor atualizado com sucesso!', type: 'success' });
-      closeModal();
-      fetchSuppliers();
       return;
     }
 
-    const { error } = await barberSupabase.from('suppliers').insert([{ ...form, tenant_id: tenantId }]);
-    if (error) {
+    try {
+      await supplyRepository.createSupplier(tenantId, form);
+      setToast({ message: 'Fornecedor cadastrado com sucesso!', type: 'success' });
+      closeModal();
+      fetchSuppliers();
+    } catch {
       setToast({ message: 'Erro ao cadastrar fornecedor.', type: 'error' });
-      return;
     }
-    setToast({ message: 'Fornecedor cadastrado com sucesso!', type: 'success' });
-    closeModal();
-    fetchSuppliers();
   };
 
   const handleDelete = async (supplierId: string) => {
-    const { error } = await barberSupabase.from('suppliers').delete().eq('id', supplierId).eq('tenant_id', tenantId);
-    if (error) {
+    if (!tenantId) return;
+    try {
+      await supplyRepository.deleteSupplier(supplierId, tenantId);
+      setToast({ message: 'Fornecedor excluído.', type: 'info' });
+      fetchSuppliers();
+    } catch {
       setToast({ message: 'Erro ao excluir fornecedor.', type: 'error' });
-      return;
     }
-    setToast({ message: 'Fornecedor excluído.', type: 'info' });
-    fetchSuppliers();
   };
 
   return (
