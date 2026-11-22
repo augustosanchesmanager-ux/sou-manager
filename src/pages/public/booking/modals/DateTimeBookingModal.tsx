@@ -3,7 +3,7 @@
  * Date and Time slot selection with final booking confirmation.
  */
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ArrowLeft,
@@ -108,10 +108,12 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
   const [isSameDayConflictModalOpen, setIsSameDayConflictModalOpen] = useState(false);
   const [lookupInfo, setLookupInfo] = useState<PublicClientLookupResult | null>(null);
   const [sameDayBookingInfo, setSameDayBookingInfo] = useState<PublicClientLookupResult | null>(null);
+  const onLookupPhoneRef = useRef(onLookupPhone);
+  onLookupPhoneRef.current = onLookupPhone;
 
   // Reconciliação / verificação de agendamento existente no mesmo dia e filhos vinculados
   useEffect(() => {
-    if (!isOpen || !selectedDate || !clientPhone || !onLookupPhone) {
+    if (!isOpen || !selectedDate || !clientPhone || !onLookupPhoneRef.current) {
       setLookupInfo(null);
       setSameDayBookingInfo(null);
       setIsForOther(false);
@@ -129,7 +131,9 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
     let cancelled = false;
     const checkSameDay = async () => {
       try {
-        const res = await onLookupPhone(phoneDigits, selectedDate);
+        const lookupFn = onLookupPhoneRef.current;
+        if (!lookupFn) return;
+        const res = await lookupFn(phoneDigits, selectedDate);
         if (!cancelled) {
           setLookupInfo(res || null);
           if (res?.has_same_day_booking) {
@@ -155,7 +159,7 @@ export const DateTimeBookingModal: React.FC<DateTimeBookingModalProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, selectedDate, clientPhone, onLookupPhone]);
+  }, [isOpen, selectedDate, clientPhone]);
 
   // Se o submit retornar erro de limite no mesmo dia, abre o Modal Nível 2 automaticamente
   useEffect(() => {

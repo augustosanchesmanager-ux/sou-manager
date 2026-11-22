@@ -431,6 +431,16 @@ const PublicBookingPage: React.FC = () => {
   }, []);
 
   // Final booking submission with automatic WhatsApp dispatch
+  const handleLookupPhone = useCallback(
+    (phoneDigits: string, targetDate?: string | null) => {
+      if (!tenantProfile?.slug) {
+        return Promise.resolve({ found: false, client_name: null, masked_name: null });
+      }
+      return lookupPublicBookingClient(tenantProfile.slug, phoneDigits, targetDate);
+    },
+    [tenantProfile?.slug],
+  );
+
   const handleConfirmBooking = useCallback(async (
     isForOther?: boolean,
     beneficiaryName?: string,
@@ -921,11 +931,7 @@ const PublicBookingPage: React.FC = () => {
         clientPhone={clientPhoneDisplay}
         bookingError={error}
         onDismissError={dismissError}
-        onLookupPhone={
-          tenantProfile?.slug
-            ? (phoneDigits, targetDate) => lookupPublicBookingClient(tenantProfile.slug, phoneDigits, targetDate)
-            : undefined
-        }
+        onLookupPhone={tenantProfile?.slug ? handleLookupPhone : undefined}
       />
 
       {/* Direct Lead Edit Modal */}
