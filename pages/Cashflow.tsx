@@ -23,6 +23,8 @@ import { AuditAdjustmentButton } from '../components/audit';
 import { EnrichedCashFlowEntry } from '../components/financial/types';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabaseClient';
+import { transactionRepository } from '../domain/transaction/repository';
+import { financialReversalRepository } from '../domain/financial/reversal-repository';
 import { formatCurrency } from '../shared/format/currency';
 import {
     createReversalKey,
@@ -242,87 +244,65 @@ const Cashflow: React.FC = () => {
         const endIso = `${dateTo}T23:59:59.999-03:00`;
 
         try {
-            const [prevRes, periodRes] = await Promise.all([
-                supabase
-                    .from('transactions')
-                    .select('type, amount')
-                    .eq('tenant_id', tenantId)
-                    .lt('date', startIso),
-                supabase
-                    .from('transactions')
-                    .select('id, tenant_id, type, category, amount, description, payment_method, date, created_at, status, source_type, source_id')
-                    .eq('tenant_id', tenantId)
-                    .gte('date', startIso)
-                    .lte('date', endIso)
-                    .order('date', { ascending: true }),
+            const [prevRows, periodTransactions] = await Promise.all([
+                transactionRepository.listTypeAmountsBefore(tenantId, startIso).catch(() => []),
+                transactionRepository.list(tenantId, {
+                    dateFrom: startIso,
+                    dateTo: endIso,
+                    orderAscending: true,
+                }),
             ]);
 
-            if (periodRes.error) throw periodRes.error;
-
             let computedPrev = 0;
-            if (!prevRes.error && Array.isArray(prevRes.data)) {
-                for (const row of prevRes.data as any[]) {
-                    const amt = Number(row.amount || 0);
-                    computedPrev += row.type === 'income' ? amt : -amt;
-                }
+            for (const row of prevRows) {
+                const amt = Number(row.amount || 0);
+                computedPrev += row.type === 'income' ? amt : -amt;
             }
             setPreviousBalance(computedPrev);
 
-            const transactions = (periodRes.data || []) as TransactionRecord[];
+            const transactions = periodTransactions as TransactionRecord[];
             const transactionIds = transactions.map((transaction) => transaction.id).filter(Boolean);
             const reversedByTransactionId = new Map<string, number>();
             const reversalsByTransactionId = new Map<string, CashflowReversalSummary[]>();
             const reversalSourceByTransactionId = new Map<string, CashflowReversalSource>();
 
             if (transactionIds.length > 0) {
-                const { data: reversals, error: reversalsError } = await supabase
-                    .from('financial_reversals')
-                    .select('original_transaction_id, reversal_transaction_id, reversal_type, amount, reason_type, created_at')
-                    .eq('tenant_id', tenantId)
-                    .in('original_transaction_id', transactionIds);
-
-                if (reversalsError) {
+                const transactionIdSet = new Set(transactionIds);
+                try {
+                    const allReversals = await financialReversalRepository.listByOriginalOrReversalIds(
+                        transactionIds,
+                        tenantId,
+                    );
+                    allReversals.forEach((reversal) => {
+                        if (reversal.original_transaction_id && transactionIdSet.has(reversal.original_transaction_id)) {
+                            const amount = Math.abs(Number(reversal.amount || 0));
+                            reversedByTransactionId.set(
+                                reversal.original_transaction_id,
+                                (reversedByTransactionId.get(reversal.original_transaction_id) || 0) + amount,
+                            );
+                            const currentReversals = reversalsByTransactionId.get(reversal.original_transaction_id) || [];
+                            currentReversals.push({
+                                reversalTransactionId: reversal.reversal_transaction_id || null,
+                                reversalType: reversal.reversal_type || 'reversal',
+                                amount,
+                                reasonType: reversal.reason_type || 'Sem motivo informado',
+                                createdAt: reversal.created_at || null,
+                            });
+                            reversalsByTransactionId.set(reversal.original_transaction_id, currentReversals);
+                        }
+                        if (reversal.reversal_transaction_id && transactionIdSet.has(reversal.reversal_transaction_id)) {
+                            reversalSourceByTransactionId.set(reversal.reversal_transaction_id, {
+                                originalTransactionId: reversal.original_transaction_id || null,
+                                reversalTransactionId: reversal.reversal_transaction_id,
+                                reversalType: reversal.reversal_type || 'reversal',
+                                amount: Math.abs(Number(reversal.amount || 0)),
+                                reasonType: reversal.reason_type || 'Sem motivo informado',
+                                createdAt: reversal.created_at || null,
+                            });
+                        }
+                    });
+                } catch (reversalsError) {
                     console.warn('Não foi possível carregar reversões financeiras:', reversalsError);
-                } else {
-                    ((reversals || []) as FinancialReversalRecord[]).forEach((reversal) => {
-                        if (!reversal.original_transaction_id) return;
-                        const amount = Math.abs(Number(reversal.amount || 0));
-                        reversedByTransactionId.set(
-                            reversal.original_transaction_id,
-                            (reversedByTransactionId.get(reversal.original_transaction_id) || 0) + amount,
-                        );
-                        const currentReversals = reversalsByTransactionId.get(reversal.original_transaction_id) || [];
-                        currentReversals.push({
-                            reversalTransactionId: reversal.reversal_transaction_id || null,
-                            reversalType: reversal.reversal_type || 'reversal',
-                            amount,
-                            reasonType: reversal.reason_type || 'Sem motivo informado',
-                            createdAt: reversal.created_at || null,
-                        });
-                        reversalsByTransactionId.set(reversal.original_transaction_id, currentReversals);
-                    });
-                }
-
-                const { data: reversalSources, error: reversalSourcesError } = await supabase
-                    .from('financial_reversals')
-                    .select('original_transaction_id, reversal_transaction_id, reversal_type, amount, reason_type, created_at')
-                    .eq('tenant_id', tenantId)
-                    .in('reversal_transaction_id', transactionIds);
-
-                if (reversalSourcesError) {
-                    console.warn('Não foi possível carregar vínculos de movimentações reversas:', reversalSourcesError);
-                } else {
-                    ((reversalSources || []) as FinancialReversalRecord[]).forEach((reversal) => {
-                        if (!reversal.reversal_transaction_id) return;
-                        reversalSourceByTransactionId.set(reversal.reversal_transaction_id, {
-                            originalTransactionId: reversal.original_transaction_id || null,
-                            reversalTransactionId: reversal.reversal_transaction_id,
-                            reversalType: reversal.reversal_type || 'reversal',
-                            amount: Math.abs(Number(reversal.amount || 0)),
-                            reasonType: reversal.reason_type || 'Sem motivo informado',
-                            createdAt: reversal.created_at || null,
-                        });
-                    });
                 }
             }
 
@@ -437,25 +417,24 @@ const Cashflow: React.FC = () => {
         // Busca mês da transação caso pertença a outro período
         let cancelled = false;
         (async () => {
-            const { data } = await supabase
-                .from('transactions')
-                .select('id, date, created_at')
-                .eq('tenant_id', tenantId)
-                .eq('id', txParam)
-                .maybeSingle();
+            try {
+                const data = await transactionRepository.get(txParam, tenantId);
 
-            if (cancelled || !data) return;
-            const rawDate = data.date || data.created_at;
-            if (!rawDate) return;
-            const d = new Date(rawDate);
-            if (Number.isNaN(d.getTime())) return;
-            const targetMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            if (targetMonth !== filterMonth) {
-                const startYmd = `${targetMonth}-01`;
-                const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-                const endYmd = `${targetMonth}-${String(lastDay.getDate()).padStart(2, '0')}`;
-                setDateFrom(startYmd);
-                setDateTo(endYmd);
+                if (cancelled || !data) return;
+                const rawDate = data.date || data.created_at;
+                if (!rawDate) return;
+                const d = new Date(rawDate);
+                if (Number.isNaN(d.getTime())) return;
+                const targetMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                if (targetMonth !== filterMonth) {
+                    const startYmd = `${targetMonth}-01`;
+                    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+                    const endYmd = `${targetMonth}-${String(lastDay.getDate()).padStart(2, '0')}`;
+                    setDateFrom(startYmd);
+                    setDateTo(endYmd);
+                }
+            } catch {
+                // ignore lookup errors when resolving transaction period
             }
         })();
 
@@ -487,19 +466,19 @@ const Cashflow: React.FC = () => {
 
         setManualSubmitting(true);
         try {
-            const { error } = await supabase.from('transactions').insert({
-                tenant_id: tenantId,
-                type: manualModalType,
-                amount: parsedAmount,
-                description: manualDescription.trim(),
-                category: manualCategory.trim() || (manualModalType === 'income' ? 'Suprimento' : 'Sangria'),
-                payment_method: manualMethod,
-                date: new Date().toISOString(),
-                status: 'paid',
-                source_type: 'manual_cashflow',
-            });
-
-            if (error) throw error;
+            await transactionRepository.create(
+                {
+                    type: manualModalType,
+                    amount: parsedAmount,
+                    description: manualDescription.trim(),
+                    category: manualCategory.trim() || (manualModalType === 'income' ? 'Suprimento' : 'Sangria'),
+                    payment_method: manualMethod,
+                    date: new Date().toISOString(),
+                    status: 'paid',
+                    source_type: 'manual_cashflow',
+                },
+                tenantId,
+            );
 
             setToast({
                 message:

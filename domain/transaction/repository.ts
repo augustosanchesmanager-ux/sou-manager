@@ -24,7 +24,7 @@ export class TransactionRepository extends SupabaseRepository {
       let query = this.from()
         .select('*')
         .eq('tenant_id', tenantId)
-        .order('date', { ascending: false });
+        .order('date', { ascending: options?.orderAscending ?? false });
 
       if (options?.type) {
         query = query.eq('type', options.type);
@@ -191,6 +191,25 @@ export class TransactionRepository extends SupabaseRepository {
     }
   }
 
+  async listTypeAmountsBefore(
+    tenantId: string,
+    beforeDate: string,
+  ): Promise<Array<{ type: string; amount: number | string }>> {
+    try {
+      const result = await this.from()
+        .select('type, amount')
+        .eq('tenant_id', tenantId)
+        .lt('date', beforeDate);
+
+      return this.extractData<Array<{ type: string; amount: number | string }>>(
+        result,
+        'list transaction amounts before date',
+      );
+    } catch (error) {
+      this.throwOnError(error, 'list transaction amounts before date');
+    }
+  }
+
   async exists(id: string, tenantId: string, appSlug?: string): Promise<boolean> {
     try {
       const result = await this.from()
@@ -216,6 +235,7 @@ export interface TransactionRepository extends IRepository<Transaction> {
   delete(id: string, tenantId: string, appSlug?: string): Promise<void>;
   createBulk(records: Array<CreateTransactionInput & { user_id?: string }>, tenantId: string, appSlug?: string): Promise<void>;
   listRecentCashEntries(tenantId: string, limit?: number): Promise<Array<{ id: string; type: string; amount: number | string; description: string | null; created_at: string | null; date: string | null }>>;
+  listTypeAmountsBefore(tenantId: string, beforeDate: string): Promise<Array<{ type: string; amount: number | string }>>;
 }
 
 export const transactionRepository = new TransactionRepository();

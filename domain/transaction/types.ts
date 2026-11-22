@@ -52,4 +52,5 @@ export interface TransactionListOptions {
   sourceType?: string;
   sourceId?: string;
   limit?: number;
+  orderAscending?: boolean;
 }

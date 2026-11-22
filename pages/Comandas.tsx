@@ -40,6 +40,14 @@ import { QuickCheckoutModal } from '../components/checkout/QuickCheckoutModal';
 import { ChairSelfCheckoutModal } from '../components/checkout/ChairSelfCheckoutModal';
 import { ComandaAdminAdjustModal } from '../components/comandas/ComandaAdminAdjustModal';
 import { useTenantOptional } from '../src/context/TenantContext';
+import { comandaRepository } from '../domain/comanda/repository';
+import { comandaItemRepository } from '../domain/comanda/item-repository';
+import { serviceExecutionParticipantRepository } from '../domain/comanda/participant-repository';
+import { clientRepository } from '../domain/client/repository';
+import { staffRepository } from '../domain/staff/repository';
+import { appointmentRepository } from '../domain/appointment/repository';
+import { transactionRepository } from '../domain/transaction/repository';
+import { financialReversalRepository } from '../domain/financial/reversal-repository';
 
 type SortField = 'date' | 'client' | 'status' | 'total';
 type SortDirection = 'asc' | 'desc';
@@ -183,7 +191,6 @@ const CANCEL_TYPE_OPTIONS = [
 ] as const;
 
 const COMANDAS_PREFERENCES_KEY = 'soumanager:comandas:preferences:v2';
-const COMANDA_ITEMS_SELECT = 'id, comanda_id, product_name, quantity, unit_price, product_id, service_id';
 const CLIENT_NAME_FALLBACK = 'Cliente não informado';
 const NOT_INFORMED_FALLBACK = 'Não informado';
 const BATCH_SIZE = 80;
@@ -213,33 +220,12 @@ const parseDateInputValue = (value: string, endOfDay = false) => {
     return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
 };
 
-type SupabaseQueryBuilder = ReturnType<ReturnType<typeof import('../src/lib/supabase/client').getScopedClient>['from']>;
-
-type FilterableQuery = { eq: (column: string, value: unknown) => FilterableQuery };
-
-const batchedIn = async <T extends object>(
-    client: ReturnType<typeof import('../src/lib/supabase/client').getScopedClient>,
-    table: string,
-    select: string,
-    column: string,
-    ids: string[],
-    extraFilters?: (q: FilterableQuery) => FilterableQuery,
-): Promise<{ data: T[] | null; error: unknown }> => {
-    if (ids.length === 0) return { data: [], error: null };
-    const batches: string[][] = [];
-    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-        batches.push(ids.slice(i, i + BATCH_SIZE));
+const chunkIds = (ids: string[], size = BATCH_SIZE): string[][] => {
+    const chunks: string[][] = [];
+    for (let i = 0; i < ids.length; i += size) {
+        chunks.push(ids.slice(i, i + size));
     }
-    const allData: T[] = [];
-    let lastError: unknown = null;
-    for (const batch of batches) {
-        const raw = client.from(table).select(select).in(column, batch);
-        const q: FilterableQuery = extraFilters ? extraFilters(raw as unknown as FilterableQuery) : raw as unknown as FilterableQuery;
-        const { data, error } = await q as unknown as { data: T[] | null; error: unknown };
-        if (error) { lastError = error; break; }
-        if (data) allData.push(...data);
-    }
-    return { data: lastError ? null : allData, error: lastError };
+    return chunks;
 };
 
 const formatDateLabel = (value: string) => new Date(value).toLocaleDateString('pt-BR');
@@ -405,20 +391,15 @@ const fetchSingleComandaFinancialHistory = async (
     resolvedTenantId: string | null,
 ): Promise<ComandaFinancialHistory | null> => {
     try {
-        const client = getScopedClient('barber');
-        let transactionsQuery = client
-            .from('transactions')
-            .select('id, tenant_id, source_id, type, amount, payment_method, date, created_at, status')
-            .eq('source_type', 'comanda')
-            .eq('source_id', comandaId)
-            .eq('type', 'income');
+        if (!resolvedTenantId) return null;
 
-        if (resolvedTenantId) {
-            transactionsQuery = transactionsQuery.eq('tenant_id', resolvedTenantId);
-        }
+        const transactionRows = await transactionRepository.list(resolvedTenantId, {
+            sourceType: 'comanda',
+            sourceId: comandaId,
+            type: 'income',
+        });
 
-        const { data: transactionRows, error: transactionsError } = await transactionsQuery;
-        if (transactionsError || !transactionRows || transactionRows.length === 0) {
+        if (!transactionRows || transactionRows.length === 0) {
             return null;
         }
 
@@ -431,34 +412,32 @@ const fetchSingleComandaFinancialHistory = async (
         const reversedByTransactionId = new Map<string, number>();
         const reversalsByTransactionId = new Map<string, ComandaFinancialHistory['reversals']>();
 
-        let reversalsQuery = supabase
-            .from('financial_reversals')
-            .select('original_transaction_id, reversal_transaction_id, reversal_type, amount, reason_type, created_at')
-            .in('original_transaction_id', transactionIds);
-
-        if (resolvedTenantId) {
-            reversalsQuery = reversalsQuery.eq('tenant_id', resolvedTenantId);
-        }
-
-        const { data: reversals, error: reversalsError } = await reversalsQuery;
-        if (!reversalsError && reversals) {
-            (reversals as FinancialReversalRow[]).forEach((reversal) => {
-                if (!reversal.original_transaction_id) return;
-                const amount = Math.abs(Number(reversal.amount || 0));
-                reversedByTransactionId.set(
-                    reversal.original_transaction_id,
-                    (reversedByTransactionId.get(reversal.original_transaction_id) || 0) + amount,
-                );
-                const current = reversalsByTransactionId.get(reversal.original_transaction_id) || [];
-                current.push({
-                    reversalTransactionId: reversal.reversal_transaction_id || null,
-                    reversalType: reversal.reversal_type || 'reversal',
-                    amount,
-                    reasonType: reversal.reason_type || 'Sem motivo informado',
-                    createdAt: reversal.created_at || null,
+        try {
+            const reversals = await financialReversalRepository.listByOriginalOrReversalIds(
+                transactionIds,
+                resolvedTenantId,
+            );
+            (reversals as FinancialReversalRow[])
+                .filter((reversal) => reversal.original_transaction_id && transactionIds.includes(reversal.original_transaction_id))
+                .forEach((reversal) => {
+                    if (!reversal.original_transaction_id) return;
+                    const amount = Math.abs(Number(reversal.amount || 0));
+                    reversedByTransactionId.set(
+                        reversal.original_transaction_id,
+                        (reversedByTransactionId.get(reversal.original_transaction_id) || 0) + amount,
+                    );
+                    const current = reversalsByTransactionId.get(reversal.original_transaction_id) || [];
+                    current.push({
+                        reversalTransactionId: reversal.reversal_transaction_id || null,
+                        reversalType: reversal.reversal_type || 'reversal',
+                        amount,
+                        reasonType: reversal.reason_type || 'Sem motivo informado',
+                        createdAt: reversal.created_at || null,
+                    });
+                    reversalsByTransactionId.set(reversal.original_transaction_id, current);
                 });
-                reversalsByTransactionId.set(reversal.original_transaction_id, current);
-            });
+        } catch {
+            // Best-effort reversals lookup; keep transaction history even if reversals fail
         }
 
         let latestTransaction: ComandaTransactionRow | null = null;
@@ -587,7 +566,6 @@ const Comandas: React.FC = () => {
         setLoadError(null);
         try {
             const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
-            const client = getScopedClient('barber');
             const resolvedTenantId = canAccessSuperAdmin
                 ? null
                 : requireTenantContext({
@@ -598,35 +576,26 @@ const Comandas: React.FC = () => {
                     operation: 'load comandas',
                 }).tenantId;
 
-            let query = client.from('comandas').select('*').order('created_at', { ascending: false });
-            if (resolvedTenantId) query = query.eq('tenant_id', resolvedTenantId);
-            if (accessRole === 'barber' && user?.id) query = query.eq('staff_id', user.id);
-
             const startDate = parseDateInputValue(dateFrom);
             const endDate = parseDateInputValue(dateTo, true);
 
-            if (startDate) {
-                query = query.gte('created_at', startDate.toISOString());
-            }
-            if (endDate) {
-                query = query.lte('created_at', endDate.toISOString());
-            }
-            if (!startDate && !endDate) {
-                query = query.limit(200);
-            }
-
-            const { data, error } = await query;
-            if (error) {
-                logSupabaseError('[Comandas] Erro ao buscar comandas', error, { tenantId: resolvedTenantId });
-                throw error;
-            }
+            const data = await comandaRepository.listForManagement(
+                resolvedTenantId,
+                {
+                    staffId: accessRole === 'barber' && user?.id ? user.id : undefined,
+                    dateFrom: startDate ? startDate.toISOString() : undefined,
+                    dateTo: endDate ? endDate.toISOString() : undefined,
+                    limit: !startDate && !endDate ? 200 : undefined,
+                },
+                currentAppSlug,
+            );
 
             if (!data || data.length === 0) {
                 setComandas([]);
                 return;
             }
 
-            const comandasRows = data as Array<Comanda & { staff_id?: string | null }>;
+            const comandasRows = data as unknown as Array<Comanda & { staff_id?: string | null }>;
             const comandaIds = comandasRows.map((c) => c.id);
             const appointmentIds = Array.from(new Set(
                 comandasRows.map((c) => c.appointment_id).filter((id): id is string => Boolean(id)),
@@ -634,17 +603,27 @@ const Comandas: React.FC = () => {
             const clientIds = Array.from(new Set(
                 comandasRows.map((c) => c.client_id).filter((id): id is string => Boolean(id)),
             ));
+            const tenantIds = resolvedTenantId
+                ? [resolvedTenantId]
+                : Array.from(new Set(comandasRows.map((c) => c.tenant_id).filter((id): id is string => Boolean(id))));
 
-            const { data: itemsData, error: itemsError } = await batchedIn<ComandaItemRow>(
-                client, 'comanda_items', COMANDA_ITEMS_SELECT, 'comanda_id', comandaIds,
-            );
-
-            const itemRows = (itemsData || []) as ComandaItemRow[];
-            if (itemsError) {
-                logSupabaseError('[Comandas] Erro ao buscar itens das comandas', itemsError, {
-                    select: COMANDA_ITEMS_SELECT,
-                    comandaCount: comandaIds.length,
-                });
+            const itemRows: ComandaItemRow[] = [];
+            if (comandaIds.length > 0 && tenantIds.length > 0) {
+                try {
+                    for (const tid of tenantIds) {
+                        const scopedIds = resolvedTenantId
+                            ? comandaIds
+                            : comandasRows.filter((c) => c.tenant_id === tid).map((c) => c.id);
+                        for (const batch of chunkIds(scopedIds)) {
+                            const batchItems = await comandaItemRepository.listByComandaIds(batch, tid, currentAppSlug);
+                            itemRows.push(...(batchItems as unknown as ComandaItemRow[]));
+                        }
+                    }
+                } catch (itemsError) {
+                    logSupabaseError('[Comandas] Erro ao buscar itens das comandas', itemsError, {
+                        comandaCount: comandaIds.length,
+                    });
+                }
             }
 
             const staffIds = Array.from(new Set([
@@ -652,53 +631,65 @@ const Comandas: React.FC = () => {
                 ...itemRows.map((i) => i.staff_id ?? null),
             ].filter((id): id is string => Boolean(id))));
 
-            let clientsResult: { data: ClientLookup[] | null; error: unknown } = { data: null, error: null };
-            let staffResult: { data: StaffLookup[] | null; error: unknown } = { data: null, error: null };
-            let appointmentsResult: { data: AppointmentLookup[] | null; error: unknown } = { data: null, error: null };
-
-            if (clientIds.length > 0) {
+            const clientsById: Record<string, ClientLookup> = {};
+            if (clientIds.length > 0 && tenantIds.length > 0) {
                 try {
-                    clientsResult = await batchedIn<ClientLookup>(client, 'clients', 'id, name, avatar, phone', 'id', clientIds);
+                    for (const tid of tenantIds) {
+                        const scopedClientIds = resolvedTenantId
+                            ? clientIds
+                            : Array.from(new Set(
+                                comandasRows
+                                    .filter((c) => c.tenant_id === tid && c.client_id)
+                                    .map((c) => c.client_id),
+                            ));
+                        for (const batch of chunkIds(scopedClientIds)) {
+                            const map = await clientRepository.getByIds(batch, tid);
+                            Object.values(map).forEach((c) => {
+                                clientsById[c.id] = { id: c.id, name: c.name, avatar: null, phone: c.phone };
+                            });
+                        }
+                    }
                 } catch (err) {
-                    clientsResult = { data: null, error: err };
+                    logSupabaseError('[Comandas] Erro ao buscar clientes das comandas', err, { clientCount: clientIds.length });
                 }
-            } else {
-                clientsResult = { data: [], error: null };
             }
 
-            if (staffIds.length > 0) {
+            const staffById: Record<string, StaffLookup> = {};
+            if (staffIds.length > 0 && tenantIds.length > 0) {
                 try {
-                    staffResult = await batchedIn<StaffLookup>(client, 'staff', 'id, name', 'id', staffIds);
+                    for (const tid of tenantIds) {
+                        const staffRows = await staffRepository.listForCommission(tid);
+                        staffRows.forEach((s) => {
+                            staffById[s.id] = { id: s.id, name: s.name };
+                        });
+                    }
                 } catch (err) {
-                    staffResult = { data: null, error: err };
+                    logSupabaseError('[Comandas] Erro ao buscar profissionais das comandas', err, { staffCount: staffIds.length });
                 }
-            } else {
-                staffResult = { data: [], error: null };
             }
 
-            if (appointmentIds.length > 0) {
+            const appointmentsById: Record<string, AppointmentLookup> = {};
+            if (appointmentIds.length > 0 && tenantIds.length > 0) {
                 try {
-                    appointmentsResult = await batchedIn<AppointmentLookup>(client, 'appointments', 'id, start_time', 'id', appointmentIds);
+                    for (const tid of tenantIds) {
+                        const scopedAppointmentIds = resolvedTenantId
+                            ? appointmentIds
+                            : Array.from(new Set(
+                                comandasRows
+                                    .filter((c) => c.tenant_id === tid && c.appointment_id)
+                                    .map((c) => c.appointment_id as string),
+                            ));
+                        for (const batch of chunkIds(scopedAppointmentIds)) {
+                            const rows = await appointmentRepository.listByIds(batch, tid);
+                            rows.forEach((a) => {
+                                appointmentsById[a.id] = a;
+                            });
+                        }
+                    }
                 } catch (err) {
-                    appointmentsResult = { data: null, error: err };
+                    logSupabaseError('[Comandas] Erro ao buscar agendamentos das comandas', err, { appointmentCount: appointmentIds.length });
                 }
-            } else {
-                appointmentsResult = { data: [], error: null };
             }
-
-            if (clientsResult.error) {
-                logSupabaseError('[Comandas] Erro ao buscar clientes das comandas', clientsResult.error, { clientCount: clientIds.length });
-            }
-            if (staffResult.error) {
-                logSupabaseError('[Comandas] Erro ao buscar profissionais das comandas', staffResult.error, { staffCount: staffIds.length });
-            }
-            if (appointmentsResult.error) {
-                logSupabaseError('[Comandas] Erro ao buscar agendamentos das comandas', appointmentsResult.error, { appointmentCount: appointmentIds.length });
-            }
-
-            const clientsById = ((clientsResult.error ? [] : clientsResult.data) || [] as ClientLookup[]).reduce((acc, c) => { acc[c.id] = c; return acc; }, {} as Record<string, ClientLookup>);
-            const staffById = ((staffResult.error ? [] : staffResult.data) || [] as StaffLookup[]).reduce((acc, s) => { acc[s.id] = s; return acc; }, {} as Record<string, StaffLookup>);
-            const appointmentsById = ((appointmentsResult.error ? [] : appointmentsResult.data) || [] as AppointmentLookup[]).reduce((acc, a) => { acc[a.id] = a; return acc; }, {} as Record<string, AppointmentLookup>);
 
             const itemsByComanda = itemRows.reduce((acc, item) => {
                 if (!acc[item.comanda_id]) acc[item.comanda_id] = [];
@@ -825,7 +816,11 @@ const Comandas: React.FC = () => {
                     operation: 'load financial history',
                 }).tenantId;
 
-            const history = await fetchSingleComandaFinancialHistory(targetId, resolvedTenantId);
+            const targetComanda = comandas.find((c) => c.id === targetId);
+            const history = await fetchSingleComandaFinancialHistory(
+                targetId,
+                resolvedTenantId || targetComanda?.tenant_id || null,
+            );
             if (isMounted && history) {
                 setFinancialHistoryByComandaId((prev) => ({
                     ...prev,
@@ -1134,7 +1129,6 @@ const Comandas: React.FC = () => {
         }
 
         const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
-        const client = getScopedClient('barber');
         const resolvedTenantId = requireTenantContext({
             tenantId,
             appSlug: currentAppSlug,
@@ -1143,26 +1137,25 @@ const Comandas: React.FC = () => {
             operation: 'export comandas',
         }).tenantId;
         const itemIds = sortedComandas.flatMap((comanda) => comanda.comanda_items.map((item) => item.id));
-        const { data: participants, error: participantsError } = itemIds.length > 0
-            ? await client
-                .from('service_execution_participants')
-                .select('*')
-                .eq('tenant_id', resolvedTenantId)
-                .in('comanda_item_id', itemIds)
-            : { data: [] as ServiceExecutionParticipantRow[], error: null };
-
-        if (participantsError) {
+        let participantRows: ServiceExecutionParticipantRow[] = [];
+        try {
+            if (itemIds.length > 0) {
+                participantRows = (await serviceExecutionParticipantRepository.listByComandaItemIds(
+                    itemIds,
+                    resolvedTenantId,
+                )) as ServiceExecutionParticipantRow[];
+            }
+        } catch (participantsError) {
             logSupabaseError('[Comandas] Erro ao carregar compartilhamentos para exportação', participantsError);
             setToast({ message: 'Não foi possível carregar compartilhamentos para exportar.', type: 'error' });
             return;
         }
 
-        const participantRows = (participants || []) as ServiceExecutionParticipantRow[];
         const participantStaffIds = participantRows.map(getParticipantStaffId).filter((id): id is string => Boolean(id));
-        const { data: participantStaffRows } = participantStaffIds.length > 0
-            ? await client.from('staff').select('id, name').eq('tenant_id', resolvedTenantId).in('id', Array.from(new Set(participantStaffIds)))
-            : { data: [] as StaffLookup[] };
-        const staffById = ((participantStaffRows || []) as StaffLookup[]).reduce((acc, staff) => {
+        const participantStaffRows = participantStaffIds.length > 0
+            ? await staffRepository.listForCommission(resolvedTenantId)
+            : [];
+        const staffById = participantStaffRows.reduce((acc, staff) => {
             acc[staff.id] = staff.name;
             return acc;
         }, {} as Record<string, string>);
@@ -1359,12 +1352,11 @@ const Comandas: React.FC = () => {
         setDeleting(true);
         try {
             const currentAppSlug = ensureAppSupportsModule(appSlug || DEFAULT_APP_SLUG, 'comandas', ['barber']);
-            const client = getScopedClient('barber');
             const resolvedTenantId = canAccessSuperAdmin
                 ? null
                 : requireTenantContext({ tenantId, appSlug: currentAppSlug, schema, table: 'comandas', operation: 'cancel comanda' }).tenantId;
 
-            const updatePayload: Record<string, unknown> = {
+            const updatePayload = {
                 status: 'cancelled',
                 cancellation_type: cancelReason,
                 cancelled_at: new Date().toISOString(),
@@ -1373,23 +1365,14 @@ const Comandas: React.FC = () => {
                 hidden_from_financial: isHiddenFinancial,
             };
 
-            let cancelQuery = client.from('comandas').update(updatePayload).eq('id', comanda.id);
-            if (resolvedTenantId) cancelQuery = cancelQuery.eq('tenant_id', resolvedTenantId);
-            let { error } = await cancelQuery;
-
-            if (error) {
-                if (`${error.message}`.toLowerCase().includes('cancellation_type')) {
-                    delete updatePayload.cancellation_type;
-                    delete updatePayload.cancelled_at;
-                    delete updatePayload.cancelled_by_user_id;
-                    delete updatePayload.hidden_from_financial;
-                    let fallbackQuery = client.from('comandas').update(updatePayload).eq('id', comanda.id);
-                    if (resolvedTenantId) fallbackQuery = fallbackQuery.eq('tenant_id', resolvedTenantId);
-                    const fallbackResult = await fallbackQuery;
-                    error = fallbackResult.error;
-                    if (!error) setToast({ message: 'Cancelada, mas campos de auditoria não foram salvos.', type: 'info' });
-                }
-                if (error) throw error;
+            const { auditSaved } = await comandaRepository.cancelWithAuditFallback(
+                comanda.id,
+                updatePayload,
+                resolvedTenantId || comanda.tenant_id || null,
+                currentAppSlug,
+            );
+            if (!auditSaved) {
+                setToast({ message: 'Cancelada, mas campos de auditoria não foram salvos.', type: 'info' });
             }
 
             setToast({ message: `${orderLabel} anulado com sucesso.`, type: 'success' });
@@ -1456,7 +1439,10 @@ const Comandas: React.FC = () => {
                     table: 'comandas',
                     operation: 'load financial history for reopen',
                 }).tenantId;
-            history = (await fetchSingleComandaFinancialHistory(comanda.id, resolvedTenantId)) || undefined;
+            history = (await fetchSingleComandaFinancialHistory(
+                comanda.id,
+                resolvedTenantId || comanda.tenant_id || null,
+            )) || undefined;
             if (history) {
                 setFinancialHistoryByComandaId((prev) => ({ ...prev, [comanda.id]: history! }));
             }
