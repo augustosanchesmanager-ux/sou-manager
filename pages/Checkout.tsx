@@ -69,6 +69,12 @@ import {
     usesCommercialName,
 } from '../src/lib/catalog/display';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
+import { clientRepository } from '../domain/client';
+import { staffRepository } from '../domain/staff';
+import { serviceRepository } from '../domain/service/repository';
+import { comandaRepository } from '../domain/comanda';
+import { comandaItemRepository } from '../domain/comanda/item-repository';
+import { appointmentRepository } from '../domain/appointment';
 
 type ExecutionRole = 'primary' | 'assistant' | 'co_executor';
 type PayoutType = 'percentage' | 'fixed';
@@ -615,23 +621,20 @@ const Checkout: React.FC = () => {
             });
             const client = getScopedClient('barber');
 
-            const [clientsRes, staffRes, servicesRes, productsRes, promoRes] = await Promise.all([
-                client.from('clients').select('id, name, avatar, phone').eq('tenant_id', resolvedTenantId).order('name'),
-                client.from('staff').select('id, name, role, commission_rate').eq('tenant_id', resolvedTenantId).eq('status', 'active').order('name'),
-                client.from('services').select('*').eq('tenant_id', resolvedTenantId).or('active.is.null,active.eq.true'),
+            const [clientsData, staffData, servicesData, productsRes, promoRes] = await Promise.all([
+                clientRepository.list(resolvedTenantId),
+                staffRepository.list(resolvedTenantId).then((rows) => rows.filter((s) => s.status === 'active')),
+                serviceRepository.listFull(resolvedTenantId).then((rows) => rows.filter((s: any) => s.active !== false)),
                 client.from('products').select('*').eq('tenant_id', resolvedTenantId).or('active.is.null,active.eq.true'),
                 client.from('promotions').select('*').eq('tenant_id', resolvedTenantId).eq('active', true),
             ]);
 
-            if (clientsRes.error) throw clientsRes.error;
-            if (staffRes.error) throw staffRes.error;
-            if (servicesRes.error) throw servicesRes.error;
             if (productsRes.error) throw productsRes.error;
             if (promoRes.error) throw promoRes.error;
 
-            setClients((clientsRes.data || []) as Client[]);
-            setStaff((staffRes.data || []) as Staff[]);
-            setServices(servicesRes.data || []);
+            setClients(clientsData as Client[]);
+            setStaff(staffData as Staff[]);
+            setServices(servicesData || []);
             setProducts(productsRes.data || []);
 
             const now = new Date();
@@ -659,34 +662,21 @@ const Checkout: React.FC = () => {
                 if (comError) throw comError;
 
                 if (comanda) {
-                    const [{ data: selectedClientData, error: selectedClientError }, { data: comandaItems, error: itemsError }] = await Promise.all([
+                    const [selectedClientData, comandaItems] = await Promise.all([
                         comanda.client_id
-                            ? client
-                                .from('clients')
-                                .select('id, name, avatar, phone')
-                                .eq('id', comanda.client_id)
-                                .eq('tenant_id', resolvedTenantId)
-                                .maybeSingle()
-                            : Promise.resolve({ data: null, error: null }),
-                        client
-                            .from('comanda_items')
-                            .select('*')
-                            .eq('comanda_id', comanda.id)
-                            .eq('tenant_id', resolvedTenantId),
+                            ? clientRepository.get(comanda.client_id, resolvedTenantId)
+                            : Promise.resolve(null),
+                        comandaItemRepository.list(comanda.id, resolvedTenantId),
                     ]);
-
-                    if (selectedClientError) throw selectedClientError;
-                    if (itemsError) throw itemsError;
 
                     let resolvedStatus = comanda.status || null;
                     if (comanda.status === 'blocked' && comanda.appointment_id) {
                         try {
-                            const { data: linkedAppointment } = await client
-                                .from('appointments')
-                                .select('start_time')
-                                .eq('id', comanda.appointment_id)
-                                .eq('tenant_id', resolvedTenantId)
-                                .maybeSingle();
+                            const linkedAppointment = await appointmentRepository.get(
+                                comanda.appointment_id,
+                                resolvedTenantId,
+                                'barber',
+                            );
 
                             const unblockResult = await unblockComandaIfDue({
                                 tenantId: resolvedTenantId,
@@ -729,14 +719,12 @@ const Checkout: React.FC = () => {
                             .map(getParticipantStaffId)
                             .filter(Boolean),
                     ));
-                    const { data: participantStaffRows } = participantProfessionalIds.length > 0
-                        ? await client
-                            .from('staff')
-                            .select('id, name, role')
-                            .eq('tenant_id', resolvedTenantId)
-                            .in('id', participantProfessionalIds)
-                        : { data: [] as any[] };
-                    const participantStaffById = ((participantStaffRows || []) as any[]).reduce((acc, professional) => {
+                    const participantStaffRows = participantProfessionalIds.length > 0
+                        ? (await staffRepository.list(resolvedTenantId)).filter((professional) =>
+                            participantProfessionalIds.includes(professional.id),
+                        )
+                        : [];
+                    const participantStaffById = participantStaffRows.reduce((acc, professional) => {
                         acc[professional.id] = professional.name;
                         return acc;
                     }, {} as Record<string, string>);
@@ -915,20 +903,14 @@ const Checkout: React.FC = () => {
                 table: 'comandas',
                 operation: 'select checkout client',
             });
-            const clientDb = getScopedClient('barber');
 
             if (!comandaId && supportsOpenComandaState) {
-                const { data: openComandas, error: openComandasError } = await clientDb
-                    .from('comandas')
-                    .select('id, created_at, status')
-                    .eq('client_id', client.id)
-                    .eq('tenant_id', resolvedTenantId)
-                    .in('status', ['open', 'blocked'])
-                    .limit(1);
+                const clientComandas = await comandaRepository.getByClient(client.id, resolvedTenantId, undefined, 'barber');
+                const openComandas = clientComandas
+                    .filter((c) => c.status === 'open' || c.status === 'blocked')
+                    .slice(0, 1);
 
-                if (openComandasError) throw openComandasError;
-
-                if (openComandas && openComandas.length > 0) {
+                if (openComandas.length > 0) {
                     const existingComanda = openComandas[0];
                     if (existingComanda.status === 'blocked') {
                         setToast({ message: `Este cliente já tem ${isEsteticaApp ? 'um atendimento bloqueado' : 'uma comanda bloqueada'} para este dia.`, type: 'error' });
@@ -936,7 +918,10 @@ const Checkout: React.FC = () => {
                         return;
                     }
                     setPendingClient(client);
-                    setDuplicateComanda(existingComanda);
+                    setDuplicateComanda({
+                        id: existingComanda.id,
+                        created_at: existingComanda.created_at,
+                    });
                     setShowDuplicateModal(true);
                     return;
                 }
@@ -1003,40 +988,35 @@ const Checkout: React.FC = () => {
                 table: 'comandas',
                 operation: 'quick search open comandas',
             });
-            const clientDb = getScopedClient('barber');
-            let query = clientDb
-                .from('comandas')
-                .select('id, client_id, created_at, status, total')
-                .eq('tenant_id', resolvedTenantId)
-                .in('status', ['open', 'blocked'])
-                .order('created_at', { ascending: false })
-                .limit(40);
+            const staffFilter = accessRole === 'barber' && user?.id ? user.id : undefined;
+            const [openList, blockedList] = await Promise.all([
+                comandaRepository.list(resolvedTenantId, { status: 'open', staffId: staffFilter }, 'barber'),
+                comandaRepository.list(resolvedTenantId, { status: 'blocked', staffId: staffFilter }, 'barber'),
+            ]);
+            const comandas: QuickOpenComanda[] = [...openList, ...blockedList]
+                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                .slice(0, 40)
+                .map((c) => ({
+                    id: c.id,
+                    client_id: c.client_id,
+                    created_at: c.created_at,
+                    status: c.status,
+                    total: c.total,
+                }));
 
-            if (accessRole === 'barber' && user?.id) {
-                query = query.eq('staff_id', user.id);
-            }
-
-            const { data, error } = await query;
-
-            if (error) throw error;
-            const comandas = (data || []) as QuickOpenComanda[];
             const clientIds = Array.from(new Set(comandas.map((comanda) => comanda.client_id).filter(Boolean))) as string[];
-            const { data: clientRows, error: clientError } = clientIds.length > 0
-                ? await clientDb
-                    .from('clients')
-                    .select('id, name, phone')
-                    .eq('tenant_id', resolvedTenantId)
-                    .in('id', clientIds)
-                : { data: [] as { id: string; name?: string | null; phone?: string | null }[], error: null };
-
-            if (clientError) {
-                console.warn(`Não foi possível carregar clientes ${isEsteticaApp ? 'dos atendimentos abertos' : 'das comandas abertas'}:`, clientError);
+            let clientsById: Record<string, { name: string; phone: string | null }> = {};
+            if (clientIds.length > 0) {
+                try {
+                    const clientMap = await clientRepository.getByIds(clientIds, resolvedTenantId);
+                    clientsById = Object.entries(clientMap).reduce((acc, [id, c]) => {
+                        acc[id] = { name: c.name || 'Cliente não identificado', phone: c.phone || null };
+                        return acc;
+                    }, {} as Record<string, { name: string; phone: string | null }>);
+                } catch (clientError) {
+                    console.warn(`Não foi possível carregar clientes ${isEsteticaApp ? 'dos atendimentos abertos' : 'das comandas abertas'}:`, clientError);
+                }
             }
-
-            const clientsById = ((clientRows || []) as { id: string; name?: string | null; phone?: string | null }[]).reduce((acc, client) => {
-                acc[client.id] = { name: client.name || 'Cliente não identificado', phone: client.phone || null };
-                return acc;
-            }, {} as Record<string, { name: string; phone: string | null }>);
 
             setQuickOpenComandas(comandas.map((comanda) => ({
                 ...comanda,
