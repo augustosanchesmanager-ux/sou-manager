@@ -194,6 +194,32 @@ class AppointmentRepositoryImpl extends SupabaseRepository {
       this.throwOnError(err, 'list appointments for snapshot');
     }
   }
+
+  async listByClient(
+    clientId: string,
+    tenantId: string,
+    options?: { fromIso?: string; ascending?: boolean; limit?: number },
+  ): Promise<Array<{ id: string; start_time: string; duration?: number | null; service_name?: string | null; staff_name?: string | null; staff_id?: string | null; status: string }>> {
+    try {
+      let query = this.scopeClient().from('appointments')
+        .select('id, start_time, duration, service_name, staff_name, staff_id, status')
+        .eq('tenant_id', tenantId)
+        .eq('client_id', clientId)
+        .not('status', 'in', '("cancelled","no_show")')
+        .order('start_time', { ascending: options?.ascending ?? false });
+
+      if (options?.fromIso) {
+        query = query.gte('start_time', options.fromIso);
+      }
+      if (options?.limit) {
+        query = query.limit(options.limit);
+      }
+
+      return this.extractData(await query, 'list appointments by client');
+    } catch (err) {
+      this.throwOnError(err, 'list appointments by client');
+    }
+  }
 }
 
 export interface AppointmentRepository extends IRepository<Appointment> {
@@ -205,6 +231,11 @@ export interface AppointmentRepository extends IRepository<Appointment> {
   updateStatus(id: string, status: string, tenantId: string, appSlug?: AppSlug): Promise<void>;
   listByIds(ids: string[], tenantId: string): Promise<Array<{ id: string; start_time: string }>>;
   listForSnapshot(tenantId: string, start: string, end: string): Promise<Array<{ id: string; status: string; price: number; start_time: string; staff_id: string }>>;
+  listByClient(
+    clientId: string,
+    tenantId: string,
+    options?: { fromIso?: string; ascending?: boolean; limit?: number },
+  ): Promise<Array<{ id: string; start_time: string; duration?: number | null; service_name?: string | null; staff_name?: string | null; staff_id?: string | null; status: string }>>;
 }
 
 export const appointmentRepository: AppointmentRepository = new AppointmentRepositoryImpl();

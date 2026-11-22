@@ -448,6 +448,72 @@ class ClientRepositoryImpl extends SupabaseRepository {
       this.throwOnError(err, 'get one client by id');
     }
   }
+
+  async cleanupDependencies(
+    clientId: string,
+  ): Promise<Array<{ table: string; status: 'success' | 'error'; detail?: string }>> {
+    const ignoredCleanupErrorCodes = new Set(['42P01', '42703', '42501', 'PGRST116']);
+    const cleanupLog: Array<{ table: string; status: 'success' | 'error'; detail?: string }> = [];
+
+    const barberDb = createSupabaseClient('comandas', 'barber');
+    const sharedDb = createSupabaseClient('clients', 'barber');
+
+    const { data: clientComandas, error: comandasReadError } = await barberDb
+      .from('comandas')
+      .select('id')
+      .eq('client_id', clientId);
+
+    if (!comandasReadError && clientComandas && clientComandas.length > 0) {
+      const comandaIds = (clientComandas as Array<{ id: string }>).map((c) => c.id);
+      const { error: itemsError } = await barberDb
+        .from('comanda_items')
+        .delete()
+        .in('comanda_id', comandaIds);
+      if (itemsError && !ignoredCleanupErrorCodes.has(String((itemsError as any).code || ''))) {
+        cleanupLog.push({ table: 'comanda_items', status: 'error', detail: itemsError.message });
+      } else {
+        cleanupLog.push({ table: 'comanda_items', status: 'success' });
+      }
+    }
+
+    const cleanupTargets = [
+      'appointments', 'portal_sessions', 'feedback_barber',
+      'feedback_shop', 'kiosk_sessions', 'customer_credits',
+      'customer_subscriptions', 'customer_vouchers', 'comandas',
+    ];
+
+    const cleanupByClientId = async (table: string) => {
+      const targetClient =
+        table === 'customer_credits' || table === 'customer_subscriptions' || table === 'customer_vouchers'
+          ? barberDb
+          : sharedDb;
+      const clientField = table === 'customer_vouchers' ? 'customer_id' : 'client_id';
+      const { error } = await targetClient.from(table).delete().eq(clientField, clientId);
+      if (error) {
+        const code = String((error as any).code || '');
+        if (ignoredCleanupErrorCodes.has(code)) {
+          cleanupLog.push({ table, status: 'success', detail: `Ignorado (código ${code})` });
+        } else {
+          cleanupLog.push({ table, status: 'error', detail: `${error.message} (${code || 'sem-codigo'})` });
+          throw new Error(`Falha ao limpar ${table}: ${error.message}`);
+        }
+      } else {
+        cleanupLog.push({ table, status: 'success' });
+      }
+    };
+
+    const results = await Promise.allSettled(cleanupTargets.map((table) => cleanupByClientId(table)));
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        const existing = cleanupLog.find((l) => l.table === cleanupTargets[index]);
+        if (!existing) {
+          cleanupLog.push({ table: cleanupTargets[index], status: 'error', detail: String(result.reason) });
+        }
+      }
+    });
+
+    return cleanupLog;
+  }
 }
 
 export interface ClientRepository extends IRepository<Client> {
@@ -479,6 +545,9 @@ export interface ClientRepository extends IRepository<Client> {
   getByIds(ids: string[], tenantId: string): Promise<Record<string, { id: string; name: string; phone: string }>>;
   getNameMap(ids: string[], tenantId: string): Promise<Record<string, string>>;
   getOneById(id: string, tenantId: string): Promise<{ id: string; name: string; phone: string } | null>;
+  cleanupDependencies(
+    clientId: string,
+  ): Promise<Array<{ table: string; status: 'success' | 'error'; detail?: string }>>;
 }
 
 export const clientRepository: ClientRepository = new ClientRepositoryImpl();
