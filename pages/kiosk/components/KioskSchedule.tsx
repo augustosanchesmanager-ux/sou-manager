@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useKioskTheme } from '../KioskThemeProvider';
 import { supabase } from '../../../services/supabaseClient';
+import { kioskRepository } from '../../../domain/kiosk/repository';
 import {
     blockOverlapsTimeRange,
     getBlocksForDate,
@@ -54,8 +55,8 @@ const KioskSchedule: React.FC<KioskScheduleProps> = ({ tenantId, client, channel
 
     const loadServices = async () => {
         setLoading(true);
-        const { data } = await supabase.from('services').select('id, name, price, duration_minutes').eq('tenant_id', tenantId).eq('is_active', true);
-        setServices(data || []);
+        const data = await kioskRepository.listActiveServices(tenantId);
+        setServices(data);
         setLoading(false);
     };
 
@@ -74,17 +75,12 @@ const KioskSchedule: React.FC<KioskScheduleProps> = ({ tenantId, client, channel
         const { startIso, endIso } = getLocalDayRangeIso(dateStr);
 
         // Get existing appointments for the day
-        let query = supabase
-            .from('appointments')
-            .select('start_time, end_time')
-            .eq('tenant_id', tenantId)
-            .gte('start_time', startIso)
-            .lte('start_time', endIso)
-            .in('status', ['confirmed', 'pending']);
-
-        if (selectedBarber) query = query.eq('staff_id', selectedBarber.id);
-
-        const { data: booked } = await query;
+        const booked = await kioskRepository.listBookedAppointmentSlots(
+            tenantId,
+            startIso,
+            endIso,
+            selectedBarber?.id
+        );
         const bookedRanges = (booked || []).map(a => ({ start: new Date(a.start_time), end: new Date(a.end_time) }));
         const allBlocks = await scheduleBlocksApi.listByRange(tenantId, {
             startDate: dateStr,
@@ -145,7 +141,7 @@ const KioskSchedule: React.FC<KioskScheduleProps> = ({ tenantId, client, channel
             const blocked = blocksForDate.some((block) => blockOverlapsTimeRange(block, startDecimal, endDecimal));
             if (blocked) throw new Error('Este horário foi bloqueado e não está mais disponível.');
 
-            await supabase.from('appointments').insert({
+            await kioskRepository.createKioskAppointment({
                 tenant_id: tenantId,
                 client_id: client.id,
                 staff_id: selectedBarber?.id || null,

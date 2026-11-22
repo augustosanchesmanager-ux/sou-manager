@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useKioskTheme } from '../KioskThemeProvider';
-import { supabase } from '../../../services/supabaseClient';
+import { kioskRepository } from '../../../domain/kiosk/repository';
 
 interface Client { id: string; name: string; }
 
@@ -46,7 +46,7 @@ const KioskShopFeedback: React.FC<KioskShopFeedbackProps> = ({ tenantId, client,
         if (nps === null) return;
         setLoading(true);
         try {
-            await supabase.from('feedback_shop').insert({
+            await kioskRepository.submitShopFeedback({
                 tenant_id: tenantId,
                 client_id: client.id,
                 session_id: sessionId || null,

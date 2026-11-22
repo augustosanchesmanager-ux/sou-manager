@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { supabase } from '../../services/supabaseClient';
+import { kioskRepository } from '../../domain/kiosk/repository';
 import { KioskThemeProvider, KioskTheme } from './KioskThemeProvider';
 import { useKioskTheme } from './KioskThemeProvider';
 import KioskIdentify from './components/KioskIdentify';
@@ -23,12 +23,12 @@ const KioskClientInner: React.FC<{ tenant: TenantInfo }> = ({ tenant }) => {
 
     const createSession = async () => {
         try {
-            const { data } = await supabase.from('kiosk_sessions').insert({
+            const data = await kioskRepository.createSession({
                 tenant_id: tenant.id,
                 channel: 'qr',
                 status: 'initiated',
                 user_agent: navigator.userAgent.slice(0, 200),
-            }).select('id').single();
+            });
             if (data) setSessionId(data.id);
         } catch { /* silent */ }
     };
@@ -224,20 +224,11 @@ const KioskClientPage: React.FC = () => {
 
     const loadTenant = async () => {
         try {
-            const { data: tenantData } = await supabase
-                .from('tenants')
-                .select('id, name, slug')
-                .eq('slug', tenantSlug)
-                .single();
+            const tenantData = await kioskRepository.getTenantBySlug(tenantSlug);
 
             if (!tenantData) { setError('Barbearia não encontrada.'); setLoading(false); return; }
 
-            const { data: addon } = await supabase
-                .from('tenant_addons')
-                .select('status, limits')
-                .eq('tenant_id', tenantData.id)
-                .eq('addon_key', 'TOTEM_QR')
-                .single();
+            const addon = await kioskRepository.getTotemQrAddon(tenantData.id);
 
             if (!addon || addon.status !== 'enabled') { setAddonEnabled(false); setLoading(false); return; }
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useKioskTheme } from '../KioskThemeProvider';
 import { supabase } from '../../../services/supabaseClient';
+import { kioskRepository } from '../../../domain/kiosk/repository';
 import { shouldAppearOnSchedule } from '../../../src/lib/staff/roles';
 
 interface Client { id: string; name: string; }
@@ -44,7 +45,7 @@ const KioskBarberFeedback: React.FC<KioskBarberFeedbackProps> = ({ tenantId, cli
         if (rating === 0) return;
         setLoading(true);
         try {
-            await supabase.from('feedback_barber').insert({
+            await kioskRepository.submitBarberFeedback({
                 tenant_id: tenantId,
                 client_id: client.id,
                 barber_id: selectedBarber?.id || null,

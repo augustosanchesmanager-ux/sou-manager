@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { supabase } from '../../services/supabaseClient';
+import { kioskRepository } from '../../domain/kiosk/repository';
 import { KioskThemeProvider, KioskTheme } from './KioskThemeProvider';
 import { useKioskTheme } from './KioskThemeProvider';
 import KioskIdentify from './components/KioskIdentify';
@@ -118,12 +118,12 @@ const KioskInner: React.FC<{ tenant: TenantInfo; timeout: number }> = ({ tenant,
 
     const createSession = async (channel: 'totem' | 'qr') => {
         try {
-            const { data } = await supabase.from('kiosk_sessions').insert({
+            const data = await kioskRepository.createSession({
                 tenant_id: tenant.id,
                 channel,
                 status: 'initiated',
                 user_agent: navigator.userAgent.slice(0, 200),
-            }).select('id').single();
+            });
             if (data) setSessionId(data.id);
         } catch { /* silent */ }
     };
@@ -426,11 +426,7 @@ const KioskPage: React.FC = () => {
 
     const loadTenant = async () => {
         try {
-            const { data: tenantData } = await supabase
-                .from('tenants')
-                .select('id, name, slug')
-                .or(`slug.eq.${tenantSlug},id.eq.${tenantSlug}`)
-                .single();
+            const tenantData = await kioskRepository.getTenantBySlugOrId(tenantSlug);
 
             if (!tenantData) {
                 setError(`Barbearia não encontrada.`);
@@ -438,12 +434,7 @@ const KioskPage: React.FC = () => {
                 return;
             }
 
-            const { data: addon } = await supabase
-                .from('tenant_addons')
-                .select('status, limits')
-                .eq('tenant_id', tenantData.id)
-                .eq('addon_key', 'TOTEM_QR')
-                .single();
+            const addon = await kioskRepository.getTotemQrAddon(tenantData.id);
 
             if (!addon || addon.status !== 'enabled') {
                 setAddonEnabled(false);
@@ -452,16 +443,16 @@ const KioskPage: React.FC = () => {
             }
 
             setAddonEnabled(true);
-            const limits = addon.limits || {};
-            if (limits.timeout_seconds) setTimeout_(limits.timeout_seconds);
+            const limits = addon.limits;
+            if (limits?.timeout_seconds) setTimeout_(limits.timeout_seconds);
 
             setTenant({
                 id: tenantData.id,
                 slug: tenantData.slug || '',
                 name: tenantData.name || '',
-                theme: (limits.theme as KioskTheme) || 'default',
-                logo_url: limits.logo_url,
-                ambient_images: limits.ambient_images
+                theme: (limits?.theme as KioskTheme) || 'default',
+                logo_url: limits?.logo_url,
+                ambient_images: limits?.ambient_images
             });
         } catch (e) {
             setError('Erro ao carregar configurações do totem.');
