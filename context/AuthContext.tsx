@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { type Session, type User } from '@supabase/supabase-js';
 import {
     DEFAULT_APP_SLUG,
@@ -8,6 +8,7 @@ import {
     type SupabaseSchemaName,
 } from '../src/lib/supabase/schemas';
 import { supabase } from '../services/supabaseClient';
+import { extractSupabaseError } from '../src/lib/supabase/errors';
 import { useAppOptional } from '../src/context/AppContext';
 import { useTenantOptional } from '../src/context/TenantContext';
 import type { TenantRecord, TenantRole, UserTenantMembership } from '../src/lib/supabase/tenant';
@@ -54,12 +55,70 @@ export interface AuthContextType {
 
 const AuthContext = createContext<AuthSessionContextType | undefined>(undefined);
 
+/**
+ * [SMG][AUTH][F-01] Classificação de falha de autorização.
+ *
+ * - `unauthenticated` (401 / PGRST301): identidade ausente ou inválida. Terminal:
+ *   não deve haver fallback e a sessão local deve ser encerrada.
+ * - `forbidden` (403 / 42501): identidade válida sem permissão. Terminal (corta os
+ *   fallbacks), mas NUNCA encerra a sessão — usuário legítimo em onboarding/invite
+ *   não pode ser expulso.
+ * - `none`: falha transitória ou ausente → caminho normal (inclui fallbacks).
+ */
+export type AuthFailureKind = 'none' | 'unauthenticated' | 'forbidden';
+
+interface AuthErrorLike {
+    status?: number | null;
+    code?: string | null;
+}
+
+export const classifyAuthFailure = (error: AuthErrorLike | null | undefined): AuthFailureKind => {
+    const status = typeof error?.status === 'number' ? error.status : null;
+    const code = typeof error?.code === 'string' ? error.code : null;
+
+    if (status === 401 || code === 'PGRST301') return 'unauthenticated';
+    if (status === 403 || code === '42501') return 'forbidden';
+    return 'none';
+};
+
+/** Folga (segundos) para considerar um token "quase expirado" como não utilizável. */
+export const SESSION_EXPIRY_SKEW_SECONDS = 30;
+
+/**
+ * [SMG][AUTH][F-01] Trava de sessão: a RPC protegida só pode ser chamada com um
+ * access token presente e fora da janela de expiração. Token expirado enquanto a
+ * aba estava inativa deve passar pelo auto-refresh, nunca por `signOut()`.
+ */
+export const isSessionUsableForAccessContext = (params: {
+    hasSession: boolean;
+    hasAccessToken: boolean;
+    expiresAt?: number | null;
+    nowMs?: number;
+    skewSeconds?: number;
+}): boolean => {
+    if (!params.hasSession || !params.hasAccessToken) return false;
+    if (typeof params.expiresAt !== 'number' || !Number.isFinite(params.expiresAt)) return true;
+
+    const nowMs = typeof params.nowMs === 'number' ? params.nowMs : Date.now();
+    const skewMs = (params.skewSeconds ?? SESSION_EXPIRY_SKEW_SECONDS) * 1000;
+    return params.expiresAt * 1000 - skewMs > nowMs;
+};
+
 interface AccessContextResult {
     tenantId: string | null;
     accessRole: AccessRole;
     profileStatus: 'pending' | 'active' | 'suspended' | null;
     canAccessSuperAdmin: boolean;
+    failure: AuthFailureKind;
 }
+
+const EMPTY_ACCESS_CONTEXT: AccessContextResult = {
+    tenantId: null,
+    accessRole: 'unknown',
+    profileStatus: null,
+    canAccessSuperAdmin: false,
+    failure: 'none',
+};
 
 export interface SessionTransitionAction {
     type: 'SIGN_OUT' | 'SILENT_REFRESH' | 'COLD_BOOT_OR_USER_SWITCH';
@@ -125,7 +184,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [authError, setAuthError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const fetchAccessContext = async (userId: string): Promise<AccessContextResult> => {
+    // [SMG][AUTH][F-01] Single-flight por access token: evita a dupla chamada da
+    // carga fria (getSession + INITIAL_SESSION) e absorve eventos repetidos.
+    const inFlightAccessContextRef = useRef<{ token: string; promise: Promise<AccessContextResult> } | null>(null);
+    // Circuit breaker: token que já falhou de forma terminal não é re-tentado.
+    const terminalFailureRef = useRef<{ token: string; kind: Exclude<AuthFailureKind, 'none'> } | null>(null);
+    // Garante no máximo um encerramento de sessão por token (sem loop de signOut).
+    const signOutIssuedForTokenRef = useRef<string | null>(null);
+
+    const runAccessContextFetch = async (userId: string): Promise<AccessContextResult> => {
+        let rpcFailure: AuthFailureKind = 'none';
+
         try {
             const { data: rpcData, error: rpcError } = await supabase.rpc('get_auth_access_context').single();
             if (!rpcError && rpcData && typeof rpcData === 'object') {
@@ -138,9 +207,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     accessRole: role,
                     profileStatus: status,
                     canAccessSuperAdmin: Boolean(rpcResult.is_super_admin) || role === 'superadmin',
+                    failure: 'none',
                 };
             }
+
+            if (rpcError) {
+                rpcFailure = classifyAuthFailure(extractSupabaseError(rpcError));
+                if (rpcFailure !== 'none') {
+                    // Falha de autorização é terminal: não amplificar com fallbacks
+                    // (profiles/staff também responderiam 401/403).
+                    console.warn('[AuthContext] RPC get_auth_access_context rejected by authorization', {
+                        failure: rpcFailure,
+                        timestamp: new Date().toISOString(),
+                    });
+                    return { ...EMPTY_ACCESS_CONTEXT, failure: rpcFailure };
+                }
+            }
         } catch (rpcUnexpectedError) {
+            rpcFailure = classifyAuthFailure(extractSupabaseError(rpcUnexpectedError));
+            if (rpcFailure !== 'none') {
+                return { ...EMPTY_ACCESS_CONTEXT, failure: rpcFailure };
+            }
             console.warn('[AuthContext] RPC get_auth_access_context failed, using fallback', {
                 error: rpcUnexpectedError,
                 timestamp: new Date().toISOString(),
@@ -163,6 +250,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     accessRole: role === 'superadmin' ? 'unknown' : role,
                     profileStatus: (profileData.status as 'pending' | 'active' | 'suspended' | null) || 'pending',
                     canAccessSuperAdmin: false,
+                    failure: 'none',
                 };
             }
 
@@ -179,6 +267,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     accessRole: role === 'unknown' ? 'barber' : role,
                     profileStatus: (staffData.status as 'pending' | 'active' | 'suspended' | null) || 'active',
                     canAccessSuperAdmin: false,
+                    failure: 'none',
                 };
             }
         } catch (err) {
@@ -188,12 +277,76 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
         }
 
-        return {
-            tenantId: null,
-            accessRole: 'unknown',
-            profileStatus: null,
-            canAccessSuperAdmin: false,
-        };
+        return { ...EMPTY_ACCESS_CONTEXT, failure: rpcFailure };
+    };
+
+    const fetchAccessContext = async (currentSession: Session | null): Promise<AccessContextResult> => {
+        const userId = currentSession?.user?.id ?? null;
+        if (!userId) {
+            // Trava de sessão: sem usuário autenticado a RPC protegida nunca é chamada.
+            return { ...EMPTY_ACCESS_CONTEXT };
+        }
+
+        let token = currentSession?.access_token ?? '';
+
+        if (!isSessionUsableForAccessContext({
+            hasSession: Boolean(currentSession?.user),
+            hasAccessToken: Boolean(token),
+            expiresAt: currentSession?.expires_at ?? null,
+        })) {
+            // Token ausente/expirado (ex.: aba inativa): tenta o auto-refresh antes de
+            // qualquer decisão destrutiva. Refresh falho => sem chamada e sem signOut
+            // (o supabase-js emite SIGNED_OUT por conta própria).
+            const { data: refreshed } = await supabase.auth.getSession();
+            const refreshedSession = refreshed.session;
+            if (!isSessionUsableForAccessContext({
+                hasSession: Boolean(refreshedSession?.user),
+                hasAccessToken: Boolean(refreshedSession?.access_token),
+                expiresAt: refreshedSession?.expires_at ?? null,
+            })) {
+                return { ...EMPTY_ACCESS_CONTEXT };
+            }
+            token = refreshedSession!.access_token;
+        }
+
+        const inFlight = inFlightAccessContextRef.current;
+        if (inFlight && inFlight.token === token) {
+            return inFlight.promise;
+        }
+
+        const terminalFailure = terminalFailureRef.current;
+        if (terminalFailure && terminalFailure.token === token) {
+            return { ...EMPTY_ACCESS_CONTEXT, failure: terminalFailure.kind };
+        }
+
+        const promise = (async (): Promise<AccessContextResult> => {
+            const result = await runAccessContextFetch(userId);
+
+            if (result.failure === 'none') {
+                terminalFailureRef.current = null;
+                signOutIssuedForTokenRef.current = null;
+                return result;
+            }
+
+            terminalFailureRef.current = { token, kind: result.failure };
+
+            if (result.failure === 'unauthenticated' && signOutIssuedForTokenRef.current !== token) {
+                // 401 = identidade inválida/ausente: encerra a sessão local uma única vez.
+                // scope 'local' garante limpeza mesmo com token já rejeitado no servidor.
+                signOutIssuedForTokenRef.current = token;
+                void supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+            }
+
+            return result;
+        })().finally(() => {
+            // Erros transitórios liberam nova tentativa; o circuit breaker cobre os terminais.
+            if (inFlightAccessContextRef.current?.token === token) {
+                inFlightAccessContextRef.current = null;
+            }
+        });
+
+        inFlightAccessContextRef.current = { token, promise };
+        return promise;
     };
 
     useEffect(() => {
@@ -204,6 +357,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         const clearAuthState = () => {
             activeUserId = null;
+            // [SMG][AUTH][F-01] Reset obrigatório do single-flight/circuit breaker no logout.
+            inFlightAccessContextRef.current = null;
+            terminalFailureRef.current = null;
             setResolvedTenantId(null);
             setAccessRole('unknown');
             setCanAccessSuperAdmin(false);
@@ -244,7 +400,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 }
 
                 try {
-                    const authContext = await fetchAccessContext(nextUserId!);
+                    const authContext = await fetchAccessContext(nextSession);
                     if (!isMounted || requestId !== requestCounter) return;
 
                     setResolvedTenantId(authContext.tenantId);
@@ -262,7 +418,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setAuthError(null);
 
             try {
-                const authContext = await fetchAccessContext(nextUserId);
+                const authContext = await fetchAccessContext(nextSession);
                 if (!isMounted || requestId !== requestCounter) return;
 
                 activeUserId = nextUserId;
@@ -271,8 +427,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setCanAccessSuperAdmin(authContext.canAccessSuperAdmin);
                 setProfileStatus(authContext.profileStatus);
 
-                // Auto-detecção de convite pendente para usuário recém-autenticado sem tenant/perfil
-                if (!authContext.tenantId && authContext.accessRole === 'unknown') {
+                // Auto-detecção de convite pendente para usuário recém-autenticado sem tenant/perfil.
+                // Nunca em falha terminal de autorização: 401/403 não devem gerar outra RPC protegida.
+                if (authContext.failure === 'none' && !authContext.tenantId && authContext.accessRole === 'unknown') {
                     try {
                         const { data: inviteToken } = await supabase.rpc('get_my_pending_invite_token');
                         if (inviteToken && typeof window !== 'undefined' && !window.location.hash.includes('/accept-invite/')) {
@@ -313,6 +470,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
             await supabase.auth.signOut();
         } finally {
+            inFlightAccessContextRef.current = null;
+            terminalFailureRef.current = null;
+            signOutIssuedForTokenRef.current = null;
             setSession(null);
             setUser(null);
             setResolvedTenantId(null);
@@ -329,9 +489,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // garantir que resolvedTenantId/accessRole/profileStatus estejam frescos
     // antes da navegação — evita o authError sintético "tenant não identificado".
     const refreshAccessContext = async (): Promise<void> => {
-        if (!user) return;
+        if (!session) return;
         try {
-            const authContext = await fetchAccessContext(user.id);
+            const authContext = await fetchAccessContext(session);
             setResolvedTenantId(authContext.tenantId);
             setAccessRole(authContext.accessRole);
             setCanAccessSuperAdmin(authContext.canAccessSuperAdmin);
