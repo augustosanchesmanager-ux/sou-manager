@@ -18,10 +18,17 @@ export interface Appointment {
   start_time: string;
   end_time: string;
   duration: number;
+  duration_minutes?: number | null;
   price: number;
   status: string;
   notes: string;
   source: string;
+  channel?: string | null;
+  is_overbooked?: boolean;
+  is_walk_in?: boolean;
+  is_recurring?: boolean;
+  attended_at?: string | null;
+  attended_at_source?: string | null;
   hidden_from_schedule: boolean;
   cancellation_reason: string | null;
   cancellation_type: string | null;

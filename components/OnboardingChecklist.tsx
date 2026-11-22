@@ -1,6 +1,9 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../services/supabaseClient';
+import {
+    fetchOnboardingChecklistCounts,
+    markUserOnboardingCompleted,
+} from '../services/dailySummaryService';
 import { useAuth } from '../context/AuthContext';
 import Button from './ui/Button';
 
@@ -41,18 +44,13 @@ const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({ onComplete })
         setLoading(true);
         try {
             // Check all counts in parallel (avoids 4 sequential round-trips)
-            const [servicesRes, staffRes, productsRes, aptsRes] = await Promise.all([
-                supabase.from('services').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
-                supabase.from('staff').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
-                supabase.from('products').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
-                supabase.from('appointments').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
-            ]);
+            const counts = await fetchOnboardingChecklistCounts(tenantId);
 
             setSteps(prev => prev.map(step => {
-                if (step.id === 'services') return { ...step, completed: (servicesRes.count || 0) > 0 };
-                if (step.id === 'staff') return { ...step, completed: (staffRes.count || 0) > 0 };
-                if (step.id === 'products') return { ...step, completed: (productsRes.count || 0) > 0 };
-                if (step.id === 'appointment') return { ...step, completed: (aptsRes.count || 0) > 0 };
+                if (step.id === 'services') return { ...step, completed: counts.services > 0 };
+                if (step.id === 'staff') return { ...step, completed: counts.staff > 0 };
+                if (step.id === 'products') return { ...step, completed: counts.products > 0 };
+                if (step.id === 'appointment') return { ...step, completed: counts.appointments > 0 };
                 return step;
             }));
         } catch (error) {
@@ -63,7 +61,7 @@ const OnboardingChecklist: React.FC<OnboardingChecklistProps> = ({ onComplete })
 
     const handleCompleteOnboarding = async () => {
         if (!user) return;
-        await supabase.from('profiles').update({ onboarding_completed: true }).eq('id', user.id);
+        await markUserOnboardingCompleted(user.id);
         onComplete();
     };
 

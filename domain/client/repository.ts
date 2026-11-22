@@ -169,6 +169,27 @@ class ClientRepositoryImpl extends SupabaseRepository {
     return matched ?? null;
   }
 
+  async findByPhoneOrName(phone: string, name: string, tenantId: string): Promise<{ id: string } | null> {
+    try {
+      const filters: string[] = [];
+      if (phone) filters.push(`phone.eq.${phone}`);
+      if (name) filters.push(`name.eq.${name}`);
+      if (filters.length === 0) return null;
+
+      const result = await this.from()
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .or(filters.join(','))
+        .limit(1)
+        .maybeSingle();
+      const data = this.extractData<{ id: string } | null>(result, 'Erro ao buscar cliente por telefone ou nome');
+      return data ?? null;
+    } catch (err) {
+      if (err instanceof Error && 'code' in err && (err as any).code === 'PGRST116') return null;
+      this.throwOnError(err, 'Erro ao buscar cliente por telefone ou nome');
+    }
+  }
+
   async create(input: CreateClientInput, tenantId: string): Promise<Client> {
     const canonicalPhone = getCanonicalBrPhone(input.phone);
 
@@ -522,6 +543,7 @@ export interface ClientRepository extends IRepository<Client> {
   get(id: string, tenantId: string): Promise<Client | null>;
   exists(id: string, tenantId: string): Promise<boolean>;
   findByCanonicalPhone(phone: string, tenantId: string): Promise<Client | null>;
+  findByPhoneOrName(phone: string, name: string, tenantId: string): Promise<{ id: string } | null>;
   create(input: CreateClientInput, tenantId: string): Promise<Client>;
   update(id: string, input: UpdateClientInput, tenantId: string): Promise<void>;
   delete(id: string, tenantId: string): Promise<void>;

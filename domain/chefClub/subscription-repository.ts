@@ -93,6 +93,22 @@ class ChefClubSubscriptionRepositoryImpl extends SupabaseRepository {
     }
   }
 
+  async getOpenByClient(clientId: string, tenantId: string): Promise<SubscriptionRow | null> {
+    try {
+      const result = await this.from()
+        .select(SUB_COLUMNS)
+        .eq('tenant_id', tenantId)
+        .eq('client_id', clientId)
+        .in('status', ['active', 'past_due', 'paused'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return this.extractData<SubscriptionRow | null>(result, 'get open subscription by client');
+    } catch (error) {
+      this.throwOnError(error, 'get open subscription by client');
+    }
+  }
+
   async updateStatus(id: string, tenantId: string, data: Record<string, unknown>): Promise<void> {
     try {
       const result = await this.from()
@@ -149,6 +165,7 @@ export interface ChefClubSubscriptionRepository extends IRepository<Subscription
   get(id: string, tenantId: string): Promise<SubscriptionRow | null>;
   exists(id: string, tenantId: string): Promise<boolean>;
   getActiveByClient(clientId: string, tenantId: string): Promise<SubscriptionRow | null>;
+  getOpenByClient(clientId: string, tenantId: string): Promise<SubscriptionRow | null>;
   updateStatus(id: string, tenantId: string, data: Record<string, unknown>): Promise<void>;
   updatePlan(id: string, tenantId: string, planId: string): Promise<void>;
   updateBillingDate(id: string, tenantId: string, data: Record<string, unknown>): Promise<void>;

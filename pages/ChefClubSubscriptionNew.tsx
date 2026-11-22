@@ -2,7 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Toast from '../components/Toast';
 import { useAuth } from '../context/AuthContext';
-import { getScopedClient, supabase } from '../services/supabaseClient';
+import { getScopedClient } from '../services/supabaseClient';
+import { clientRepository } from '../domain/client/repository';
+import { chefClubPlanRepository } from '../domain/chefClub/plan-repository';
+import { chefClubSubscriptionRepository } from '../domain/chefClub/subscription-repository';
 import {
     type ServiceBalanceEntry,
     type ServiceCreditsEntry,
@@ -88,21 +91,33 @@ const ChefClubSubscriptionNew: React.FC = () => {
             }
 
             setLoading(true);
-            const [clientsRes, plansRes] = await Promise.all([
-                supabase.from('clients').select('id, name, phone').eq('tenant_id', tenantId).order('name'),
-                barberSupabase
-                    .from('customer_plans')
-                    .select('id, name, monthly_price, service_credits, service_credit_map, description, active')
-                    .eq('tenant_id', tenantId)
-                    .eq('active', true)
-                    .order('monthly_price', { ascending: true }),
+            const [clientsResult, plansResult] = await Promise.allSettled([
+                clientRepository.list(tenantId),
+                chefClubPlanRepository.listActive(tenantId),
             ]);
 
-            if (clientsRes.data) setClients(clientsRes.data as ClientOption[]);
-            if (plansRes.data) setPlans(plansRes.data as PlanOption[]);
+            if (clientsResult.status === 'fulfilled') {
+                setClients(clientsResult.value.map((c) => ({ id: c.id, name: c.name, phone: c.phone })));
+            } else {
+                setToast({ message: 'Erro ao carregar clientes.', type: 'error' });
+            }
 
-            if (clientsRes.error) setToast({ message: 'Erro ao carregar clientes.', type: 'error' });
-            if (plansRes.error) setToast({ message: 'Erro ao carregar planos ativos.', type: 'error' });
+            if (plansResult.status === 'fulfilled') {
+                const sortedPlans = [...plansResult.value]
+                    .map((p) => ({
+                        id: p.id,
+                        name: p.name,
+                        monthly_price: Number(p.monthly_price) || 0,
+                        service_credits: Number(p.service_credits) || 0,
+                        service_credit_map: (p.service_credit_map as ServiceCreditsEntry[] | null) ?? null,
+                        description: p.description || '',
+                        active: p.active,
+                    }))
+                    .sort((a, b) => a.monthly_price - b.monthly_price);
+                setPlans(sortedPlans);
+            } else {
+                setToast({ message: 'Erro ao carregar planos ativos.', type: 'error' });
+            }
 
             setLoading(false);
         };
@@ -206,24 +221,20 @@ const ChefClubSubscriptionNew: React.FC = () => {
         setSaving(true);
         setExistingSubscription(null);
 
-        const { data: activeSub, error: activeSubError } = await barberSupabase
-            .from('customer_subscriptions')
-            .select('id, plan_id, status')
-            .eq('tenant_id', tenantId)
-            .eq('client_id', selectedClient.id)
-            .in('status', ['active', 'past_due', 'paused'])
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-        if (activeSubError) {
+        let activeSub: ExistingSubscription | null = null;
+        try {
+            const found = await chefClubSubscriptionRepository.getOpenByClient(selectedClient.id, tenantId);
+            if (found) {
+                activeSub = { id: found.id, plan_id: found.plan_id, status: found.status };
+            }
+        } catch (activeSubError: any) {
             setSaving(false);
-            setToast({ message: `Erro ao validar assinatura existente: ${activeSubError.message}`, type: 'error' });
+            setToast({ message: `Erro ao validar assinatura existente: ${activeSubError?.message || 'Erro desconhecido'}`, type: 'error' });
             return;
         }
 
         if (activeSub?.id) {
-            setExistingSubscription(activeSub as ExistingSubscription);
+            setExistingSubscription(activeSub);
             setSaving(false);
             setToast({ message: 'Cliente já possui assinatura aberta. Você pode trocar o plano.', type: 'info' });
             return;

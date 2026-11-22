@@ -557,3 +557,79 @@ export const fetchRecentCashEntries = async (tenantId: string, limit = 5) => {
   const { transactionRepository } = await import('../domain/transaction/repository');
   return transactionRepository.listRecentCashEntries(tenantId, limit);
 };
+
+export interface OnboardingChecklistCounts {
+  services: number;
+  staff: number;
+  products: number;
+  appointments: number;
+}
+
+export const fetchOnboardingChecklistCounts = async (
+  tenantId: string
+): Promise<OnboardingChecklistCounts> => {
+  const [servicesRes, staffRes, productsRes, aptsRes] = await Promise.all([
+    supabase.from('services').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
+    supabase.from('staff').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
+    supabase.from('products').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
+    supabase.from('appointments').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
+  ]);
+
+  return {
+    services: servicesRes.count || 0,
+    staff: staffRes.count || 0,
+    products: productsRes.count || 0,
+    appointments: aptsRes.count || 0,
+  };
+};
+
+export const markUserOnboardingCompleted = async (userId: string): Promise<void> => {
+  await supabase.from('profiles').update({ onboarding_completed: true }).eq('id', userId);
+};
+
+export interface DashboardAlertsRawData {
+  appts: Array<{ id: string; client_name: string; start_time: string }>;
+  products: Array<{ id: string; name: string; stock_quantity: number; minimum_stock: number | null }>;
+  comandas: Array<{ id: string; client_id: string | null; created_at: string }>;
+  promos: Array<{ id: string; title: string; end_date: string }>;
+}
+
+export const fetchDashboardAlertsData = async (
+  tenantId: string,
+  startOfDay: string,
+  endOfDay: string
+): Promise<DashboardAlertsRawData> => {
+  const [apptsRes, productsRes, comandasRes, promosRes] = await Promise.all([
+    supabase
+      .from('appointments')
+      .select('id, client_name, start_time')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'confirmed')
+      .gte('start_time', startOfDay)
+      .lte('start_time', endOfDay)
+      .order('start_time', { ascending: true }),
+    supabase
+      .from('products')
+      .select('id, name, stock_quantity, minimum_stock')
+      .eq('tenant_id', tenantId)
+      .lte('stock_quantity', 5),
+    supabase
+      .from('comandas')
+      .select('id, client_id, created_at')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'open')
+      .lt('created_at', startOfDay),
+    supabase
+      .from('promotions')
+      .select('id, title, end_date')
+      .eq('tenant_id', tenantId)
+      .eq('active', true),
+  ]);
+
+  return {
+    appts: (apptsRes.data || []) as DashboardAlertsRawData['appts'],
+    products: (productsRes.data || []) as DashboardAlertsRawData['products'],
+    comandas: (comandasRes.data || []) as DashboardAlertsRawData['comandas'],
+    promos: (promosRes.data || []) as DashboardAlertsRawData['promos'],
+  };
+};
