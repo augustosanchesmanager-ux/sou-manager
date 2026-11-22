@@ -51,6 +51,13 @@ const toComanda = (row: Record<string, unknown>): Comanda => ({
   closed_at: (row.closed_at as string) || null,
 });
 
+export interface ComandaManagementListOptions {
+  staffId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  limit?: number;
+}
+
 class ComandaRepositoryImpl extends SupabaseRepository {
   private readonly defaultAppSlug: AppSlug;
 
@@ -286,7 +293,7 @@ class ComandaRepositoryImpl extends SupabaseRepository {
   async listForCommission(tenantId: string, options?: { statuses?: string[]; excludeHidden?: boolean }): Promise<Array<Record<string, unknown>>> {
     try {
       let query = this.scopeClient().from(this.tableName)
-        .select('id, client_id, appointment_id, staff_id, status, total, discount, payment_method, closure_mode, financial_effect, membership_credit_effect, created_at, closed_at, hidden_from_financial')
+        .select('id, client_id, appointment_id, staff_id, status, total, discount, payment_method, closure_mode, financial_effect, membership_credit_effect, created_at, closed_at, hidden_from_financial, is_fiado, payment_date_real')
         .eq('tenant_id', tenantId);
 
       if (options?.statuses && options.statuses.length > 0) {
@@ -379,6 +386,77 @@ class ComandaRepositoryImpl extends SupabaseRepository {
       this.throwOnError(err, 'Erro ao definir comanda como fiado');
     }
   }
+
+  async listForManagement(
+    tenantId: string | null,
+    options?: ComandaManagementListOptions,
+    appSlug?: AppSlug,
+  ): Promise<Array<Record<string, unknown>>> {
+    try {
+      let query = this.scopeClient(appSlug).from(this.tableName)
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (tenantId) {
+        query = query.eq('tenant_id', tenantId);
+      }
+      if (options?.staffId) {
+        query = query.eq('staff_id', options.staffId);
+      }
+      if (options?.dateFrom) {
+        query = query.gte('created_at', options.dateFrom);
+      }
+      if (options?.dateTo) {
+        query = query.lte('created_at', options.dateTo);
+      }
+      if (options?.limit) {
+        query = query.limit(options.limit);
+      }
+
+      return this.extractData<Array<Record<string, unknown>>>(await query, 'Erro ao listar comandas') || [];
+    } catch (err) {
+      this.throwOnError(err, 'Erro ao listar comandas');
+    }
+  }
+
+  async cancelWithAuditFallback(
+    id: string,
+    input: UpdateComandaInput,
+    tenantId: string | null,
+    appSlug?: AppSlug,
+  ): Promise<{ auditSaved: boolean }> {
+    try {
+      const payload: UpdateComandaInput = { ...input };
+      const client = this.scopeClient(appSlug);
+
+      let cancelQuery = client.from(this.tableName).update(payload).eq('id', id);
+      if (tenantId) cancelQuery = cancelQuery.eq('tenant_id', tenantId);
+      const { error } = await cancelQuery;
+
+      if (!error) {
+        return { auditSaved: true };
+      }
+
+      if (`${error.message}`.toLowerCase().includes('cancellation_type')) {
+        delete payload.cancellation_type;
+        delete payload.cancelled_at;
+        delete payload.cancelled_by_user_id;
+        delete payload.hidden_from_financial;
+
+        let fallbackQuery = client.from(this.tableName).update(payload).eq('id', id);
+        if (tenantId) fallbackQuery = fallbackQuery.eq('tenant_id', tenantId);
+        const fallbackResult = await fallbackQuery;
+        if (fallbackResult.error) {
+          throw fallbackResult.error;
+        }
+        return { auditSaved: false };
+      }
+
+      throw error;
+    } catch (err) {
+      this.throwOnError(err, 'Erro ao cancelar comanda');
+    }
+  }
 }
 
 export interface ComandaRepository extends IRepository<Comanda> {
@@ -413,6 +491,17 @@ export interface ComandaRepository extends IRepository<Comanda> {
     dueDate?: string | null;
     note?: string | null;
   }): Promise<void>;
+  listForManagement(
+    tenantId: string | null,
+    options?: ComandaManagementListOptions,
+    appSlug?: AppSlug,
+  ): Promise<Array<Record<string, unknown>>>;
+  cancelWithAuditFallback(
+    id: string,
+    input: UpdateComandaInput,
+    tenantId: string | null,
+    appSlug?: AppSlug,
+  ): Promise<{ auditSaved: boolean }>;
 }
 
 export const comandaRepository: ComandaRepository = new ComandaRepositoryImpl();

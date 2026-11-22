@@ -24,6 +24,9 @@ import {
 } from '../components/commissions';
 import { useAuth } from '../context/AuthContext';
 import { getScopedClient } from '../services/supabaseClient';
+import { comandaRepository } from '../domain/comanda/repository';
+import { staffRepository } from '../domain/staff/repository';
+import { appointmentRepository } from '../domain/appointment/repository';
 import { getEffectiveCommissionRateForItem, receivesCommissionForItem } from '../src/lib/staff/roles';
 import { normalizePercentage } from '../shared/numbers/normalize';
 import {
@@ -128,29 +131,6 @@ const isServiceItem = (item: any) => {
 };
 
 const COMMISSIONS_IN_BATCH_SIZE = 120;
-const COMMISSIONS_PAGE_SIZE = 1000;
-
-const fetchAllPages = async <T,>(
-    queryBuilder: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: any }>,
-    pageSize: number,
-): Promise<{ data: T[] | null; error: any }> => {
-    const allData: T[] = [];
-    let from = 0;
-    let pageError: any = null;
-    while (true) {
-        const to = from + pageSize - 1;
-        const pageResult = await queryBuilder(from, to);
-        if (pageResult.error) {
-            pageError = pageResult.error;
-            break;
-        }
-        const pageData = (pageResult.data || []) as T[];
-        allData.push(...pageData);
-        if (pageData.length < pageSize) break;
-        from = to + 1;
-    }
-    return { data: allData, error: pageError };
-};
 
 const fetchInChunks = async <T,>(
     client: SupabaseClient,
@@ -171,49 +151,10 @@ const fetchInChunks = async <T,>(
     return allData;
 };
 
-const fetchComandasInPeriod = async (
-    client: SupabaseClient,
-    tenantId: string,
-    statuses: string[],
-    rangeStartIso: string,
-    rangeEndIso: string,
-    appointmentIds: string[],
-): Promise<ComandaRow[]> => {
-    const collected: ComandaRow[] = [];
-    const seen = new Set<string>();
-
-    const runQuery = async (dateOr: string) => {
-        const res = await fetchAllPages(
-            (from, to) =>
-                client
-                    .from('comandas')
-                    .select('*')
-                    .eq('tenant_id', tenantId)
-                    .in('status', statuses)
-                    .or('hidden_from_financial.is.null,hidden_from_financial.eq.false')
-                    .or(dateOr)
-                    .range(from, to),
-            COMMISSIONS_PAGE_SIZE,
-        );
-        if (res.error) throw res.error;
-        for (const comanda of (res.data || []) as ComandaRow[]) {
-            if (comanda.id && !seen.has(comanda.id)) {
-                seen.add(comanda.id);
-                collected.push(comanda);
-            }
-        }
-    };
-
-    await runQuery(
-        `and(created_at.gte.${rangeStartIso},created_at.lte.${rangeEndIso}),and(closed_at.gte.${rangeStartIso},closed_at.lte.${rangeEndIso})`,
-    );
-
-    for (let i = 0; i < appointmentIds.length; i += COMMISSIONS_IN_BATCH_SIZE) {
-        const batch = appointmentIds.slice(i, i + COMMISSIONS_IN_BATCH_SIZE);
-        await runQuery(`and(appointment_id.in.(${batch.join(',')}))`);
-    }
-
-    return collected;
+const isIsoInDateRange = (value: string | null | undefined, start: Date, end: Date) => {
+    if (!value) return false;
+    const date = new Date(value);
+    return !Number.isNaN(date.getTime()) && date >= start && date <= end;
 };
 
 const getPaymentMethodLabel = (comanda: ComandaRow) => {
@@ -407,47 +348,45 @@ const Commissions: React.FC = () => {
         const rangeStartIso = startOfRange.toISOString();
         const rangeEndIso = endOfRange.toISOString();
 
-        const staffRes = await client
-            .from('staff')
-            .select('id, name, role, avatar, commission_rate, product_commission_rate')
-            .eq('tenant_id', tenantId);
-        if (staffRes.error) throw staffRes.error;
+        const [staffRows, appointmentsInRange, allComandas] = await Promise.all([
+            staffRepository.listForCommission(tenantId),
+            appointmentRepository.list(tenantId, {
+                startTimeFrom: rangeStartIso,
+                startTimeTo: rangeEndIso,
+            }),
+            comandaRepository.listForCommission(tenantId, {
+                statuses: ['open', 'paid', 'blocked', 'cancelled'],
+                excludeHidden: true,
+            }),
+        ]);
 
-        const appointmentsInRangeRes = await fetchAllPages(
-            (from, to) =>
-                client
-                    .from('appointments')
-                    .select('id, start_time')
-                    .eq('tenant_id', tenantId)
-                    .gte('start_time', rangeStartIso)
-                    .lte('start_time', rangeEndIso)
-                    .range(from, to),
-            COMMISSIONS_PAGE_SIZE,
-        );
-        if (appointmentsInRangeRes.error) throw appointmentsInRangeRes.error;
-
-        const appointmentIdsInRange = ((appointmentsInRangeRes.data || []) as AppointmentRow[]).map(
-            (appointment) => appointment.id,
+        const appointmentIdsInRangeSet = new Set(appointmentsInRange.map((appointment) => appointment.id));
+        const comandas = (allComandas as unknown as ComandaRow[]).filter(
+            (comanda) =>
+                isIsoInDateRange(comanda.created_at, startOfRange, endOfRange) ||
+                isIsoInDateRange(comanda.closed_at, startOfRange, endOfRange) ||
+                (comanda.appointment_id ? appointmentIdsInRangeSet.has(comanda.appointment_id) : false),
         );
 
-        const comandas = await fetchComandasInPeriod(
-            client,
-            tenantId,
-            ['open', 'paid', 'blocked', 'cancelled'],
-            rangeStartIso,
-            rangeEndIso,
-            appointmentIdsInRange,
-        );
-
-        const staffList = (staffRes.data || []) as StaffMember[];
+        const staffList: StaffMember[] = staffRows.map((staff) => ({
+            id: staff.id,
+            name: staff.name,
+            role: staff.role || 'barber',
+            avatar: staff.avatar || '',
+            commission_rate: staff.commission_rate ?? null,
+            product_commission_rate: staff.product_commission_rate ?? null,
+        }));
         const staffById = staffList.reduce((acc, staff) => {
             acc[staff.id] = staff;
             return acc;
         }, {} as Record<string, StaffMember>);
         const appointmentIds = Array.from(new Set(comandas.map((comanda) => comanda.appointment_id).filter((id): id is string => Boolean(id))));
-        const appointments = appointmentIds.length > 0
-            ? await fetchInChunks<AppointmentRow>(client, 'appointments', 'id', appointmentIds, { select: 'id, start_time', tenantId })
-            : [];
+        const appointments: AppointmentRow[] = [];
+        for (let i = 0; i < appointmentIds.length; i += COMMISSIONS_IN_BATCH_SIZE) {
+            const batch = appointmentIds.slice(i, i + COMMISSIONS_IN_BATCH_SIZE);
+            const batchRows = await appointmentRepository.listByIds(batch, tenantId);
+            appointments.push(...batchRows);
+        }
 
         const appointmentById = appointments.reduce((acc, appointment) => {
             acc[appointment.id] = appointment;
