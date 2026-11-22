@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { supabase, getClientForTable } from '../services/supabaseClient';
+import { serviceRepository } from '../domain/service/repository';
 import Toast from '../components/Toast';
 import { useAuth } from '../context/AuthContext';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
@@ -169,16 +169,14 @@ const Services: React.FC = () => {
     }
 
     setLoading(true);
-    const servicesClient = getClientForTable('services', 'barber');
-    const { data, error } = await servicesClient
-      .from('services')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .order('name');
-
-    if (data) setServices(data);
-    if (error) setToast({ message: `Erro ao carregar ${servicePluralLower}.`, type: 'error' });
-    setLoading(false);
+    try {
+      const data = await serviceRepository.listFull(tenantId);
+      setServices(data);
+    } catch {
+      setToast({ message: `Erro ao carregar ${servicePluralLower}.`, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
   }, [servicePluralLower, tenantId]);
 
   useEffect(() => { fetchServices(); }, [fetchServices]);
@@ -251,19 +249,21 @@ const Services: React.FC = () => {
     };
 
     if (editingService) {
-      const servicesClient = getClientForTable('services', 'barber');
-      const { error } = await servicesClient
-        .from('services')
-        .update(payload)
-        .eq('id', editingService.id)
-        .eq('tenant_id', tenantId);
-      if (error) { setToast({ message: 'Erro ao atualizar.', type: 'error' }); return; }
-      setToast({ message: `${serviceLabel} atualizado!`, type: 'success' });
+      try {
+        await serviceRepository.update(editingService.id, tenantId, payload);
+        setToast({ message: `${serviceLabel} atualizado!`, type: 'success' });
+      } catch {
+        setToast({ message: 'Erro ao atualizar.', type: 'error' });
+        return;
+      }
     } else {
-      const servicesClient = getClientForTable('services', 'barber');
-      const { error } = await servicesClient.from('services').insert(payload);
-      if (error) { setToast({ message: 'Erro ao salvar.', type: 'error' }); return; }
-      setToast({ message: `${serviceLabel} criado!`, type: 'success' });
+      try {
+        await serviceRepository.create(payload);
+        setToast({ message: `${serviceLabel} criado!`, type: 'success' });
+      } catch {
+        setToast({ message: 'Erro ao salvar.', type: 'error' });
+        return;
+      }
     }
 
     setView('list');
@@ -274,15 +274,12 @@ const Services: React.FC = () => {
   const handleToggleActive = async (service: Service) => {
     if (!tenantId) return;
 
-    const servicesClient = getClientForTable('services', 'barber');
-    const { error } = await servicesClient
-      .from('services')
-      .update({ active: !service.active })
-      .eq('id', service.id)
-      .eq('tenant_id', tenantId);
-    if (!error) {
+    try {
+      await serviceRepository.setActive(service.id, tenantId, !service.active);
       setServices(prev => prev.map(s => s.id === service.id ? { ...s, active: !s.active } : s));
       setToast({ message: service.active ? `${serviceLabel} desativado.` : `${serviceLabel} ativado!`, type: 'info' });
+    } catch {
+      // Keep previous state on failure
     }
   };
 
@@ -290,12 +287,7 @@ const Services: React.FC = () => {
     if (!tenantId) return;
 
     try {
-      const servicesClient = getClientForTable('services', 'barber');
-      const { error } = await servicesClient
-        .from('services')
-        .delete()
-        .eq('id', id)
-        .eq('tenant_id', tenantId);
+      const { error } = await serviceRepository.remove(id, tenantId);
       if (error) {
         let message = `Erro ao excluir ${serviceLabelLower}.`;
         if (error.code === '23503' || error.message.includes('foreign key constraint') || error.message.includes('violates foreign key')) {

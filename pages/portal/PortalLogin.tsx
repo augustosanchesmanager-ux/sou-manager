@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '../../services/supabaseClient';
+import { portalApi } from '../../services/portalApi';
 import { usePortalAuth } from '../../components/PortalAuthProvider';
 
 const PortalLogin: React.FC = () => {
@@ -30,20 +30,11 @@ const PortalLogin: React.FC = () => {
 
     const loadTenant = async () => {
         try {
-            const { data: tenantData } = await supabase
-                .from('tenants')
-                .select('id, name, slug')
-                .eq('slug', tenantSlug)
-                .single();
+            const tenantData = await portalApi.getTenantBySlug(tenantSlug!);
 
             if (!tenantData) { setError('Barbearia não encontrada.'); setLoading(false); return; }
 
-            const { data: addon } = await supabase
-                .from('tenant_addons')
-                .select('status, limits')
-                .eq('tenant_id', tenantData.id)
-                .eq('addon_key', 'CLIENT_PORTAL')
-                .single();
+            const addon = await portalApi.getClientPortalAddon(tenantData.id);
 
             if (!addon || addon.status !== 'enabled') {
                 setError('Portal indisponível no momento.');

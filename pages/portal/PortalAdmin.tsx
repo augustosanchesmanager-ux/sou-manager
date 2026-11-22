@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../services/supabaseClient';
+import { portalApi } from '../../services/portalApi';
 import { useAuth } from '../../context/AuthContext';
 import Sidebar from '../../components/Sidebar';
 import { Smartphone, Link as LinkIcon, BarChart2, Settings, Copy, Check } from 'lucide-react';
@@ -35,13 +35,9 @@ const PortalAdmin: React.FC = () => {
     }, [tenantId]);
 
     const loadAddon = async () => {
+        if (!tenantId) return;
         setLoading(true);
-        const { data } = await supabase
-            .from('tenant_addons')
-            .select('status, limits')
-            .eq('tenant_id', tenantId)
-            .eq('addon_key', 'CLIENT_PORTAL')
-            .single();
+        const data = await portalApi.getClientPortalAddon(tenantId);
 
         const theme = data?.limits?.theme || 'default';
         const addonInfo: AddonInfo | null = data ? {
@@ -61,20 +57,10 @@ const PortalAdmin: React.FC = () => {
     };
 
     const handleActivateAddon = async () => {
+        if (!tenantId) return;
         setSaving(true);
         try {
-            const limits = { theme: 'default', reschedule_window_hours: 2, cancellation_window_hours: 2 };
-            if (addon) {
-                await supabase.from('tenant_addons').update({ status: 'enabled', activated_at: new Date().toISOString() }).eq('tenant_id', tenantId).eq('addon_key', 'CLIENT_PORTAL');
-            } else {
-                await supabase.from('tenant_addons').insert({
-                    tenant_id: tenantId,
-                    addon_key: 'CLIENT_PORTAL',
-                    status: 'enabled',
-                    activated_at: new Date().toISOString(),
-                    limits
-                });
-            }
+            await portalApi.enableClientPortalAddon(tenantId, Boolean(addon));
             setShowModal(false);
             await loadAddon();
         } finally {
@@ -83,17 +69,21 @@ const PortalAdmin: React.FC = () => {
     };
 
     const handleDisableAddon = async () => {
+        if (!tenantId) return;
         if (!confirm('Desabilitar o Portal do Cliente? Os clientes não conseguirão acessar.')) return;
-        await supabase.from('tenant_addons').update({ status: 'disabled' }).eq('tenant_id', tenantId).eq('addon_key', 'CLIENT_PORTAL');
+        await portalApi.disableClientPortalAddon(tenantId);
         await loadAddon();
     };
 
     const handleSaveSettings = async () => {
+        if (!tenantId) return;
         setSaving(true);
         try {
-            await supabase.from('tenant_addons').update({
-                limits: { theme: settingsTheme, reschedule_window_hours: rescheduleWindow, cancellation_window_hours: cancellWindow }
-            }).eq('tenant_id', tenantId).eq('addon_key', 'CLIENT_PORTAL');
+            await portalApi.updateClientPortalLimits(tenantId, {
+                theme: settingsTheme,
+                reschedule_window_hours: rescheduleWindow,
+                cancellation_window_hours: cancellWindow,
+            });
             await loadAddon();
             alert('Configurações salvas!');
         } finally {
