@@ -27,6 +27,7 @@
 
 import { comandaRepository } from '../domain/comanda/repository';
 import { comandaItemRepository } from '../domain/comanda/item-repository';
+import { comandaPaymentRepository } from '../domain/comanda/comandaPaymentRepository';
 import { serviceExecutionParticipantRepository } from '../domain/comanda/participant-repository';
 import { createSupabaseClient } from '../domain/shared/supabase-client-factory';
 import type { DatabaseClient } from '../domain/shared/database-client';
@@ -707,19 +708,13 @@ class CheckoutApplicationServiceImpl {
             // F-10 / ADR-036: Gravação de snapshot contábil na comanda_payments gerada pela RPC
             if (req.terminalSnapshot?.terminalId && req.paymentStatus === 'paid') {
                 try {
-                    await (getRpcClient() as any)
-                        .from('comanda_payments')
-                        .update({
-                            terminal_id: req.terminalSnapshot.terminalId,
-                            fee_percentage: req.terminalSnapshot.feePercentage,
-                            fee_amount: req.terminalSnapshot.feeAmount,
-                            net_amount: req.terminalSnapshot.netAmount,
-                            estimated_settlement_date: req.terminalSnapshot.estimatedSettlementDate,
-                        })
-                        .eq('tenant_id', req.tenantId)
-                        .eq('comanda_id', comandaId)
-                        .eq('payment_type', 'final')
-                        .is('reversed_at', null);
+                    await comandaPaymentRepository.updateTerminalSnapshotForFinalPayment(req.tenantId, comandaId, {
+                        terminal_id: req.terminalSnapshot.terminalId,
+                        fee_percentage: req.terminalSnapshot.feePercentage,
+                        fee_amount: req.terminalSnapshot.feeAmount,
+                        net_amount: req.terminalSnapshot.netAmount,
+                        estimated_settlement_date: req.terminalSnapshot.estimatedSettlementDate,
+                    });
                 } catch (snapshotErr) {
                     console.warn('[checkout] Aviso: Falha não-bloqueante ao registrar snapshot da maquininha:', snapshotErr);
                 }

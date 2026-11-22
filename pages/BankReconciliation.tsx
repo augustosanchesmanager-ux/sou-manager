@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { bankReconciliationService } from '../services/bankReconciliationService';
 import { cashClosingRepository } from '../domain/cashClosing/repository';
-import { supabase } from '../services/supabaseClient';
+import { transactionRepository } from '../domain/transaction/repository';
 import { formatCurrency } from '../shared/format/currency';
 import {
   BankAccount,
@@ -338,23 +338,11 @@ export default function BankReconciliation() {
       try {
         const dayStart = `${auditDate}T00:00:00`;
         const dayEnd = `${auditDate}T23:59:59.999`;
-        const [closing, txResult] = await Promise.all([
+        const [closing, rows] = await Promise.all([
           cashClosingRepository.getByBusinessDate(tenantId, auditDate).catch(() => null),
-          supabase
-            .from('transactions')
-            .select('type, amount, payment_method, status')
-            .eq('tenant_id', tenantId)
-            .gte('date', dayStart)
-            .lte('date', dayEnd),
+          transactionRepository.list(tenantId, { dateFrom: dayStart, dateTo: dayEnd }),
         ]);
         if (cancelled) return;
-
-        const rows = (txResult.data || []) as Array<{
-          type: string;
-          amount: number | string | null;
-          payment_method: string | null;
-          status?: string | null;
-        }>;
         let digitalInflows = 0;
         let bankOutflows = 0;
         for (const row of rows) {
