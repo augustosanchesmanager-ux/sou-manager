@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../services/supabaseClient';
+import { fetchDashboardAlertsData } from '../services/dailySummaryService';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { logSupabaseError } from '../domain/shared/errors';
@@ -40,37 +40,11 @@ const DashboardAlerts: React.FC = () => {
             const startOfDay = new Date(`${todayStr}T00:00:00`).toISOString();
             const endOfDay = new Date(`${todayStr}T23:59:59`).toISOString();
 
-            // Fetch upcoming appointments for today
-            const { data: appts } = await supabase
-                .from('appointments')
-                .select('id, client_name, start_time')
-                .eq('tenant_id', tenantId)
-                .eq('status', 'confirmed')
-                .gte('start_time', startOfDay)
-                .lte('start_time', endOfDay)
-                .order('start_time', { ascending: true });
-
-            // Fetch low stock products (stock <= min_stock)
-            const { data: products } = await supabase
-                .from('products')
-                .select('id, name, stock_quantity, minimum_stock')
-                .eq('tenant_id', tenantId)
-                .lte('stock_quantity', 5);
-
-            // Fetch open comandas from previous days (pending payment)
-            const { data: comandas } = await supabase
-                .from('comandas')
-                .select('id, client_id, created_at')
-                .eq('tenant_id', tenantId)
-                .eq('status', 'open')
-                .lt('created_at', startOfDay);
-
-            // Fetch active promotions
-            const { data: promos } = await supabase
-                .from('promotions')
-                .select('id, title, end_date')
-                .eq('tenant_id', tenantId)
-                .eq('active', true);
+            const { appts, products, comandas, promos } = await fetchDashboardAlertsData(
+                tenantId,
+                startOfDay,
+                endOfDay
+            );
 
             const newAlerts: AlertItem[] = [];
 

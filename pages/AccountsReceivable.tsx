@@ -371,20 +371,14 @@ const AccountsReceivable: React.FC = () => {
         const startOfMonth = new Date(year, month - 1, 1).toISOString();
         const endOfMonth = new Date(year, month, 0, 23, 59, 59).toISOString();
 
-        const barberSupabase = getScopedClient('barber');
-
         try {
             const [
-                comandasResult,
+                rawComandasList,
                 clubReceivablesList,
                 txData,
                 walletsData,
             ] = await Promise.all([
-                barberSupabase
-                    .from('comandas')
-                    .select('id, client_id, status, total, discount, created_at, staff_id, payment_method, clients(name, phone), appointments(start_time)')
-                    .eq('tenant_id', tenantId)
-                    .eq('status', 'open'),
+                comandaRepository.listOpenWithClients(tenantId),
                 receivableRepository.generateAndListPending(tenantId),
                 transactionRepository.list(tenantId, {
                     type: 'income',
@@ -396,8 +390,7 @@ const AccountsReceivable: React.FC = () => {
             ]);
             setWallets(walletsData);
 
-            if (comandasResult.error) throw comandasResult.error;
-            const rawComandas = (comandasResult.data || []) as ComandaRecord[];
+            const rawComandas = rawComandasList as unknown as ComandaRecord[];
             const startMs = new Date(year, month - 1, 1, 0, 0, 0, 0).getTime();
             const endMs = new Date(year, month, 0, 23, 59, 59, 999).getTime();
 
@@ -839,29 +832,24 @@ const AccountsReceivable: React.FC = () => {
         setToast({ message: 'Cancelando comanda aberta...', type: 'info' });
 
         try {
-            const barberSupabase = getScopedClient('barber');
             const hiddenFromFinancial = ['duplicate', 'test', 'operational_error'].includes(cancelReasonType);
             const reasonText = selectedReason
                 ? `${selectedReason.label}${note ? `: ${note}` : ''}`
                 : note;
 
-            const { data, error } = await barberSupabase
-                .from('comandas')
-                .update({
-                    status: 'cancelled',
+            const cancelled = await comandaRepository.cancelIfOpen(
+                cancelEntry.id,
+                {
                     cancellation_type: cancelReasonType,
                     closure_note: reasonText,
                     cancelled_at: new Date().toISOString(),
                     cancelled_by_user_id: user?.id || null,
                     hidden_from_financial: hiddenFromFinancial,
-                })
-                .eq('id', cancelEntry.id)
-                .eq('tenant_id', tenantId)
-                .eq('status', 'open')
-                .select('id');
+                },
+                tenantId,
+            );
 
-            if (error) throw error;
-            if (!data?.length) {
+            if (!cancelled) {
                 setToast({
                     message: 'A comanda ja foi alterada ou nao esta mais em aberto. A lista sera atualizada.',
                     type: 'error',

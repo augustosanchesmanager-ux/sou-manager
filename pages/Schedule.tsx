@@ -27,6 +27,7 @@ import { useAuth } from '../context/AuthContext';
 import { getTotalAvailableCredits, normalizeCreditBalances } from '../src/utils/chefClubCredits';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
 import { appointmentApplicationService, AppointmentError } from '../application/appointment';
+import { appointmentRepository } from '../domain/appointment';
 import { comandaRepository, type AppointmentComandaSummary } from '../domain/comanda';
 import { comandaItemRepository } from '../domain/comanda/item-repository';
 import { serviceExecutionParticipantRepository } from '../domain/comanda/participant-repository';
@@ -853,67 +854,63 @@ const Schedule: React.FC = () => {
     }
 
     const scheduleAppSlug = ensureAppSupportsModule(appSlug, 'schedule', ['barber']);
-    const appointmentsClient = getClientForTable('appointments', scheduleAppSlug);
 
-    const fetchAppointmentRows = async (options: { includeHiddenFilter: boolean; includeServerRange: boolean }) => {
-      let query = appointmentsClient
-        .from('appointments')
-        .select('*')
-        .eq('tenant_id', tenantId);
-
-      if (accessRole === 'barber' && user?.id) {
-        query = query.eq('staff_id', user.id);
-      }
-
-      if (options.includeHiddenFilter) {
-        query = query.eq('hidden_from_schedule', false);
-      }
-
-      if (options.includeServerRange) {
-        query = query.gte('start_time', rangeStart).lte('start_time', rangeEnd);
-      }
-
-      return query;
-    };
+    const fetchAppointmentRows = async (options: { includeHiddenFilter: boolean; includeServerRange: boolean }) => (
+      appointmentRepository.list(
+        tenantId,
+        {
+          staffId: accessRole === 'barber' && user?.id ? user.id : undefined,
+          includeHidden: options.includeHiddenFilter ? false : undefined,
+          ...(options.includeServerRange ? { startTimeFrom: rangeStart, startTimeTo: rangeEnd } : {}),
+        },
+        scheduleAppSlug,
+      )
+    );
 
     let includeHiddenFilter = true;
-    let { data, error } = await fetchAppointmentRows({ includeHiddenFilter, includeServerRange: true });
+    let appointmentRows: Awaited<ReturnType<typeof fetchAppointmentRows>> = [];
 
-    if (isHiddenFromScheduleMissingError(error)) {
-      includeHiddenFilter = false;
-      ({ data, error } = await fetchAppointmentRows({ includeHiddenFilter, includeServerRange: true }));
-    }
-
-    let appointmentRows = data || [];
-
-    if (error) {
-      console.warn('Falha ao carregar agendamentos com filtro por start_time. Aplicando fallback local.', error);
-
-      let { data: fallbackData, error: fallbackError } = await fetchAppointmentRows({
-        includeHiddenFilter,
-        includeServerRange: false,
-      });
-
-      if (isHiddenFromScheduleMissingError(fallbackError)) {
+    try {
+      appointmentRows = await fetchAppointmentRows({ includeHiddenFilter, includeServerRange: true });
+    } catch (error) {
+      if (isHiddenFromScheduleMissingError(error)) {
         includeHiddenFilter = false;
-        ({ data: fallbackData, error: fallbackError } = await fetchAppointmentRows({
-          includeHiddenFilter,
-          includeServerRange: false,
-        }));
+        try {
+          appointmentRows = await fetchAppointmentRows({ includeHiddenFilter, includeServerRange: true });
+        } catch (retryError) {
+          console.warn('Falha ao carregar agendamentos com filtro por start_time. Aplicando fallback local.', retryError);
+          const fallbackData = await fetchAppointmentRows({ includeHiddenFilter, includeServerRange: false });
+          appointmentRows = fallbackData.filter((apt) => {
+            const startTime = new Date(apt.start_time).getTime();
+            const isVisible = apt.hidden_from_schedule === undefined || apt.hidden_from_schedule === false;
+            return isVisible
+              && !Number.isNaN(startTime)
+              && startTime >= new Date(rangeStart).getTime()
+              && startTime <= new Date(rangeEnd).getTime();
+          });
+        }
+      } else {
+        console.warn('Falha ao carregar agendamentos com filtro por start_time. Aplicando fallback local.', error);
+        let fallbackData: Awaited<ReturnType<typeof fetchAppointmentRows>>;
+        try {
+          fallbackData = await fetchAppointmentRows({ includeHiddenFilter, includeServerRange: false });
+        } catch (fallbackError) {
+          if (isHiddenFromScheduleMissingError(fallbackError)) {
+            includeHiddenFilter = false;
+            fallbackData = await fetchAppointmentRows({ includeHiddenFilter, includeServerRange: false });
+          } else {
+            throw fallbackError;
+          }
+        }
+        appointmentRows = fallbackData.filter((apt) => {
+          const startTime = new Date(apt.start_time).getTime();
+          const isVisible = apt.hidden_from_schedule === undefined || apt.hidden_from_schedule === false;
+          return isVisible
+            && !Number.isNaN(startTime)
+            && startTime >= new Date(rangeStart).getTime()
+            && startTime <= new Date(rangeEnd).getTime();
+        });
       }
-
-      if (fallbackError) {
-        throw fallbackError;
-      }
-
-      appointmentRows = (fallbackData || []).filter((apt: any) => {
-        const startTime = new Date(apt.start_time).getTime();
-        const isVisible = apt.hidden_from_schedule === undefined || apt.hidden_from_schedule === false;
-        return isVisible
-          && !Number.isNaN(startTime)
-          && startTime >= new Date(rangeStart).getTime()
-          && startTime <= new Date(rangeEnd).getTime();
-      });
     }
 
     appointmentRows = [...appointmentRows].sort(
@@ -1122,7 +1119,6 @@ const Schedule: React.FC = () => {
       }
 
       const scheduleAppSlug = ensureAppSupportsModule(appSlug || 'barber', 'schedule', ['barber']);
-      const checkoutClientsClient = getClientForTable('clients', scheduleAppSlug);
 
       let existingComanda: { id: string; status: string } | null = null;
       let existingComandaError: unknown = null;
@@ -1173,13 +1169,7 @@ const Schedule: React.FC = () => {
         return;
       }
 
-      const { data: clientData } = await checkoutClientsClient
-        .from('clients')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .or(`phone.eq.${apt.clientPhone},name.eq.${apt.client}`)
-        .limit(1)
-        .single();
+      const clientData = await clientRepository.findByPhoneOrName(apt.clientPhone, apt.client, tenantId);
 
       const clientId = clientData?.id || '';
 

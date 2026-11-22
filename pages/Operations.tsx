@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { supabase } from '../services/supabaseClient';
+import { appointmentRepository } from '../domain/appointment';
+import { stockRepository } from '../domain/stock/stockRepository';
+import { staffRepository } from '../domain/staff';
+import { comandaRepository } from '../domain/comanda';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/ui/Modal';
 import DatePickerInput from '../components/ui/DatePickerInput';
@@ -11,7 +14,7 @@ interface Appointment {
     client_name: string;
     service_name: string;
     staff_name: string;
-    staff_id: string;
+    staff_id: string | null;
     start_time: string;
     status: string;
     avatar?: string;
@@ -68,38 +71,40 @@ const Operations: React.FC = () => {
         }
 
         setLoading(true);
-        const [year, month, day] = selectedDate.split('-').map(Number);
+        try {
+            const [year, month, day] = selectedDate.split('-').map(Number);
         const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0).toISOString();
         const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999).toISOString();
 
         // Fetch today's appointments
-        const { data: appts } = await supabase
-            .from('appointments')
-            .select('*')
-            .eq('tenant_id', tenantId)
-            .gte('start_time', startOfDay)
-            .lte('start_time', endOfDay)
-            .order('start_time', { ascending: true });
+        const appts = (
+            await appointmentRepository.list(tenantId, {
+                startTimeFrom: startOfDay,
+                startTimeTo: endOfDay,
+            })
+        ).sort((a, b) => a.start_time.localeCompare(b.start_time));
 
         // Fetch low stock items
-        const { data: products } = await supabase
-            .from('products')
-            .select('id, name, stock_quantity, minimum_stock')
-            .eq('tenant_id', tenantId)
-            .lte('stock_quantity', 5)
-            .limit(5);
+        const allProducts = await stockRepository.listProducts(tenantId);
+        const products = allProducts
+            .filter((p) => p.stock_quantity <= 5)
+            .slice(0, 5)
+            .map((p) => ({
+                id: p.id,
+                name: p.name,
+                stock_quantity: p.stock_quantity,
+                minimum_stock: p.minimum_stock,
+            }));
 
         // Fetch staff for execution participants
-        const { data: staff } = await supabase
-            .from('staff')
-            .select('id, name')
-            .eq('tenant_id', tenantId)
-            .eq('status', 'active')
-            .in('role', ['Barber', 'Manager']);
+        const allStaff = await staffRepository.list(tenantId);
+        const staff = allStaff
+            .filter((s) => s.status === 'active' && (s.role === 'Barber' || s.role === 'Manager'))
+            .map((s) => ({ id: s.id, name: s.name }));
 
-        if (appts) setAppointments(appts);
-        if (products) setLowStockItems(products);
-        if (staff) setStaffList(staff);
+        setAppointments(appts);
+        setLowStockItems(products);
+        setStaffList(staff);
 
         // Calculate appointment KPIs
         const appointmentStats = (appts || []).reduce((acc, apt) => {
@@ -117,14 +122,16 @@ const Operations: React.FC = () => {
             .map((appointment) => appointment.id);
 
         if (completedAppointmentIds.length > 0) {
-            const { data: completedComandas } = await supabase
-                .from('comandas')
-                .select('appointment_id, total')
-                .eq('tenant_id', tenantId)
-                .in('appointment_id', completedAppointmentIds);
+            const comandaSummaryMap = await comandaRepository.getComandaStatusesByAppointmentIds(
+                completedAppointmentIds,
+                tenantId,
+            );
 
             const attendedCount = completedAppointmentIds.length;
-            const totalRevenue = (completedComandas || []).reduce((sum, item) => sum + (Number(item.total) || 0), 0);
+            const totalRevenue = Object.values(comandaSummaryMap).reduce(
+                (sum, item) => sum + (Number(item.total) || 0),
+                0,
+            );
             const avg = attendedCount > 0 ? totalRevenue / attendedCount : 0;
             setStats({ 
                 attended: attendedCount, 
@@ -148,8 +155,11 @@ const Operations: React.FC = () => {
                 revenue: 0
             });
         }
-
-        setLoading(false);
+        } catch (err) {
+            console.error('Error loading operations data:', err);
+        } finally {
+            setLoading(false);
+        }
     }, [tenantId, selectedDate]);
 
     useEffect(() => {

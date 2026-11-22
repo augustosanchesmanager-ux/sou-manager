@@ -11,7 +11,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTenantOptional } from '../src/context/TenantContext';
-import { getScopedClient } from '../services/supabaseClient';
+import { chefClubSubscriptionRepository } from '../domain/chefClub/subscription-repository';
+import { chefClubPlanRepository } from '../domain/chefClub/plan-repository';
+import { chefClubCreditRepository } from '../domain/chefClub/credit-repository';
 import DateRangeFilter from '../components/ui/DateRangeFilter';
 import Toast from '../components/Toast';
 import ExportActionsDropdown from '../src/components/common/ExportActionsDropdown';
@@ -179,26 +181,23 @@ const Reports: React.FC = () => {
     };
 
     try {
-      const clubSupabase = getScopedClient('barber');
-
       // Clube dos Chefes: assinaturas + saldo real de créditos (customer_credits).
       const loadChefClub = async () => {
-        const [subsRes, creditsRes] = await Promise.all([
-          clubSupabase
-            .from('customer_subscriptions')
-            .select('id, status, plan_id, customer_plans(name)')
-            .eq('tenant_id', tenantId)
-            .eq('status', 'active'),
-          clubSupabase
-            .from('customer_credits')
-            .select('available_credits, used_credits')
-            .eq('tenant_id', tenantId),
+        const [subscriptions, credits] = await Promise.all([
+          chefClubSubscriptionRepository.list(tenantId, { status: 'active' }),
+          chefClubCreditRepository.listAll(tenantId),
         ]);
-        if (subsRes.error) throw subsRes.error;
-        if (creditsRes.error) throw creditsRes.error;
+        const planIds = Array.from(
+          new Set(subscriptions.map((s) => s.plan_id).filter((id): id is string => Boolean(id)))
+        );
+        const plans = planIds.length > 0 ? await chefClubPlanRepository.getByIds(planIds, tenantId) : [];
+        const planNameById = new Map(plans.map((p) => [p.id, p.name]));
         return {
-          subscriptions: (subsRes.data || []) as any[],
-          credits: (creditsRes.data || []) as any[],
+          subscriptions: subscriptions.map((s) => ({
+            ...s,
+            customer_plans: { name: planNameById.get(s.plan_id) },
+          })),
+          credits,
         };
       };
 

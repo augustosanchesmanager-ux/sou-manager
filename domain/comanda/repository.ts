@@ -315,6 +315,8 @@ class ComandaRepositoryImpl extends SupabaseRepository {
     staff_id?: string | null;
     appointment_id?: string | null;
     total: number;
+    discount?: number | null;
+    payment_method?: string | null;
     status: string;
     created_at: string;
     clients?: { id: string; name: string; phone?: string | null } | null;
@@ -323,7 +325,7 @@ class ComandaRepositoryImpl extends SupabaseRepository {
   }>> {
     try {
       const result = await this.scopeClient(appSlug).from(this.tableName)
-        .select('id, client_id, staff_id, appointment_id, total, status, created_at, clients(id, name, phone), staff(id, name), appointments(id, start_time, date, time)')
+        .select('id, client_id, staff_id, appointment_id, total, discount, payment_method, status, created_at, clients(id, name, phone), staff(id, name), appointments(id, start_time, date, time)')
         .eq('tenant_id', tenantId)
         .eq('status', 'open')
         .order('created_at', { ascending: false });
@@ -457,6 +459,35 @@ class ComandaRepositoryImpl extends SupabaseRepository {
       this.throwOnError(err, 'Erro ao cancelar comanda');
     }
   }
+
+  async cancelIfOpen(
+    id: string,
+    input: {
+      cancellation_type: string | null;
+      closure_note: string | null;
+      cancelled_at: string;
+      cancelled_by_user_id: string | null;
+      hidden_from_financial: boolean;
+    },
+    tenantId: string,
+    appSlug?: AppSlug,
+  ): Promise<boolean> {
+    try {
+      const result = await this.scopeClient(appSlug).from(this.tableName)
+        .update({
+          status: 'cancelled',
+          ...input,
+        })
+        .eq('id', id)
+        .eq('tenant_id', tenantId)
+        .eq('status', 'open')
+        .select('id');
+      const data = this.extractData<Array<{ id: string }>>(result, 'Erro ao cancelar comanda');
+      return (data?.length ?? 0) > 0;
+    } catch (err) {
+      this.throwOnError(err, 'Erro ao cancelar comanda');
+    }
+  }
 }
 
 export interface ComandaRepository extends IRepository<Comanda> {
@@ -478,6 +509,8 @@ export interface ComandaRepository extends IRepository<Comanda> {
     staff_id?: string | null;
     appointment_id?: string | null;
     total: number;
+    discount?: number | null;
+    payment_method?: string | null;
     status: string;
     created_at: string;
     clients?: { id: string; name: string; phone?: string | null } | null;
@@ -502,6 +535,18 @@ export interface ComandaRepository extends IRepository<Comanda> {
     tenantId: string | null,
     appSlug?: AppSlug,
   ): Promise<{ auditSaved: boolean }>;
+  cancelIfOpen(
+    id: string,
+    input: {
+      cancellation_type: string | null;
+      closure_note: string | null;
+      cancelled_at: string;
+      cancelled_by_user_id: string | null;
+      hidden_from_financial: boolean;
+    },
+    tenantId: string,
+    appSlug?: AppSlug,
+  ): Promise<boolean>;
 }
 
 export const comandaRepository: ComandaRepository = new ComandaRepositoryImpl();
