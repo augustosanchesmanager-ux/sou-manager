@@ -1,5 +1,4 @@
 import { supabase } from './supabaseClient';
-import { transactionRepository } from '../domain/transaction/repository';
 import { shouldAppearOnSchedule } from '../src/lib/staff/roles';
 import { businessDateInTimeZone } from '../shared/dates/timezone';
 import type {
@@ -555,5 +554,6 @@ export const dailySummaryService = {
 };
 
 export const fetchRecentCashEntries = async (tenantId: string, limit = 5) => {
+  const { transactionRepository } = await import('../domain/transaction/repository');
   return transactionRepository.listRecentCashEntries(tenantId, limit);
 };
