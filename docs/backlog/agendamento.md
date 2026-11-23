@@ -10,32 +10,31 @@
 
 | ID | Título | Prioridade | Status |
 |---|---|---|---|
-| `[EXEMPLO]` `AGD-000` | `[EXEMPLO]` Modelo de item de agendamento | `P0` | `TODO` |
+| `AGD-001` | Remover fallback silencioso para `mockService.ts` no Agendamento Público (`/agendar/:slug`) | `P0` | `TODO` |
 
 ---
 
-## `[EXEMPLO]` `AGD-000` — Modelo de item de agendamento
+## `AGD-001` — Remover fallback silencioso para `mockService.ts` no Agendamento Público
 
 - **Status:** `TODO`
 - **Prioridade:** `P0`
-- **Tipo:** `Bugfix` | `Feature` | `Hardening` | `Tech Debt`
+- **Tipo:** `Bugfix`
 - **Dependências:** Nenhuma
 
 ### Problema / Objetivo
-`[EXEMPLO]` Descrever o comportamento atual vs. esperado (ex.: validação de slots, fuso horário `America/Sao_Paulo`, prevenção de fallback mock silencioso).
+Em `src/pages/public/booking/hooks/bookingService.ts:87-103`, se a RPC pública retornar erro `42883`, o serviço cai silenciosamente em `mockService.ts`, exibindo confirmação de agendamento ao cliente final sem gravar no banco de dados.
 
 ### Escopo Técnico
-- `[EXEMPLO]` Componentes/serviços impactados (`pages/Schedule.tsx`, `src/pages/public/booking/`, etc.).
-- `[EXEMPLO]` Contratos de RPC ou regras de negócio envolvidas.
+- `src/pages/public/booking/hooks/bookingService.ts` (remover fallback para `mockService.ts` em erro de RPC e propagar erro explícito tratável pela UI).
+- Verificar se há outros consumidores de `mockService.ts` fora do Local Demo Mode (`isLocalDemoEnabled()`).
 
 ### Critérios de Aceite
-- [ ] `[EXEMPLO]` Isolamento multi-tenant (`tenant_id` / RLS) preservado.
-- [ ] `[EXEMPLO]` Zero dados mockados ou fallback silencioso em produção.
-- [ ] `[EXEMPLO]` `npm run typecheck`, `npm run lint`, `npm run test` e `npm run build` passando.
+- [ ] Zero fallback silencioso para dados mockados quando houver erro de RPC em ambiente real.
+- [ ] Erro `42883` ou falha de RPC exibe mensagem clara de indisponibilidade sem falso sucesso.
+- [ ] Isolamento multi-tenant (`tenant_id` / RLS) preservado.
+- [ ] `npm run typecheck`, `npm run lint`, `npm run test` e `npm run build` passando.
 
 ### Evidência de Validação
-> Preencher antes de mover para `REVIEW` ou `DONE`.
-
 - **Branch / PR:** —
 - **Testes / Build:** —
-- **Observações:** —
+- **Observações:** Bloqueador P0 identificado na Auditoria Go-To-Market (`docs/audit-go-to-market/SMG_AUDITORIA_COMPLETA.md`).
