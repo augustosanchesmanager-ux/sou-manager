@@ -66,3 +66,26 @@ export const buildAppUrl = (
   const protocol = currentLocation.protocol === 'http:' ? 'http:' : 'https:';
   return `${protocol}//${getPublicHostnameForApp(appSlug)}/#${normalizeHashPath(hashPath)}`;
 };
+
+/**
+ * Resolves the canonical booking path for `/booking/:tenantSlug` redirects.
+ */
+export const resolveBookingRedirectPath = (tenantSlug?: string | null): string => {
+  const normalized = (tenantSlug || '').trim();
+  return normalized ? `/agendar/${normalized}` : '/';
+};
+
+/**
+ * Builds the canonical HashRouter public booking URL for client sharing.
+ */
+export const buildPublicBookingUrl = (origin: string, tenantSlug?: string | null): string => {
+  const normalized = (tenantSlug || '').trim();
+  if (!normalized) return '';
+  return `${origin.replace(/\/$/, '')}/#/agendar/${normalized}`;
+};
+
+/**
+ * Builds the HashRouter-compatible password recovery redirect URL.
+ */
+export const buildResetPasswordRedirectUrl = (origin: string): string =>
+  `${origin.replace(/\/$/, '')}/#/reset-password`;

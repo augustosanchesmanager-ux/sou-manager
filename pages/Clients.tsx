@@ -17,6 +17,7 @@ import { useLoading } from '../context/LoadingContext';
 import { useAuth } from '../context/AuthContext';
 import { fetchActiveChefClubPlanMap, fetchChefClubSummaryByClient } from '../src/lib/supabase/chefClub';
 import { getBusinessLabels } from '../src/lib/apps/businessLabels';
+import { buildPublicBookingUrl } from '../src/lib/apps/publicUrl';
 import { formatCurrency } from '../shared/format/currency';
 import { clientRepository, RepositoryError, type Client } from '../domain/client';
 import { staffRepository } from '../domain/staff/repository';
@@ -63,9 +64,7 @@ const Clients: React.FC = () => {
     const labels = getBusinessLabels(appSlug);
     const isEsteticaApp = appSlug === 'estetica';
     const shopName = tenant?.name || '';
-    const bookingUrl = tenantSlug
-        ? `${window.location.origin}/#/agendamento/${tenantSlug}`
-        : `${window.location.origin}/#/agendamento`;
+    const bookingUrl = buildPublicBookingUrl(window.location.origin, tenantSlug);
     const orderLabel = labels.order;
     const orderLabelLower = orderLabel.toLowerCase();
     const orderPluralLower = labels.orderPlural.toLowerCase();
