@@ -16,6 +16,8 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import Logo from '../Logo';
 import type { FeatureKey } from '../../domain/billing/featureKey';
+import { useTenantOptional } from '../../src/context/TenantContext';
+import { openAssistedUpgradeChannel } from '../../src/lib/billing/assistedUpgrade';
 
 interface FeatureMeta {
   title: string;
@@ -48,6 +50,8 @@ export const FEATURE_META: Record<FeatureKey, FeatureMeta> = {
 
 const UpgradePrompt: React.FC<{ feature: FeatureKey }> = ({ feature }) => {
   const navigate = useNavigate();
+  const tenantContext = useTenantOptional();
+  const currentTenant = tenantContext?.tenant ?? null;
   const meta = FEATURE_META[feature];
 
   return (
@@ -90,12 +94,27 @@ const UpgradePrompt: React.FC<{ feature: FeatureKey }> = ({ feature }) => {
 
         <div className="flex flex-col gap-3">
           <button
-            onClick={() => navigate('/settings')}
+            type="button"
+            onClick={() =>
+              openAssistedUpgradeChannel({
+                tenantName: currentTenant?.name,
+                currentPlan: currentTenant?.plan,
+                contextReason: `Desbloquear módulo ${meta.title}`,
+              })
+            }
             className="w-full py-3.5 rounded-xl bg-amber-500 text-black font-black text-sm hover:bg-amber-400 transition-all shadow-lg shadow-amber-500/20"
+          >
+            Solicitar Upgrade Assistido
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/settings')}
+            className="w-full py-3 rounded-xl bg-white/10 text-white font-bold text-sm hover:bg-white/15 transition-all border border-white/10"
           >
             Ver Meu Plano
           </button>
           <button
+            type="button"
             onClick={() => navigate('/dashboard')}
             className="w-full py-3 rounded-xl bg-white/5 text-slate-400 font-bold text-sm hover:bg-white/10 transition-all border border-white/10"
           >
