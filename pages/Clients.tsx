@@ -432,7 +432,7 @@ const Clients: React.FC = () => {
         const clientId = deleteTarget.id;
 
         try {
-            const cleanupLog = await clientRepository.cleanupDependencies(clientId);
+            const cleanupLog = await clientRepository.cleanupDependencies(clientId, tenantId);
 
             const failures = cleanupLog.filter(l => l.status === 'error');
 

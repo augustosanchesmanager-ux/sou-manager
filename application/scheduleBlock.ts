@@ -186,7 +186,7 @@ class ScheduleBlockApplicationServiceImpl {
 
         if (editingBlockId) {
             // Update existing block
-            const updated = await scheduleBlocksApi.update(editingBlockId, blockData);
+            const updated = await scheduleBlocksApi.update(tenantId, editingBlockId, blockData);
             block = updated;
         } else {
             // Create new block
@@ -224,9 +224,9 @@ class ScheduleBlockApplicationServiceImpl {
      * Remove um bloqueio.
      */
     async deleteBlock(params: DeleteBlockParams): Promise<void> {
-        const { blockId, userId } = params;
+        const { tenantId, blockId, userId } = params;
 
-        await scheduleBlocksApi.remove(blockId, userId);
+        await scheduleBlocksApi.remove(tenantId, blockId, userId);
     }
 
     /**
