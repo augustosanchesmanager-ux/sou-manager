@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { chefClubWidgetService } from '../../services/chefClubWidgetService';
 import { formatCurrency } from '../../shared/format/currency';
+import { businessDateInTimeZone } from '../../shared/dates/timezone';
 
 interface ReceivableItem {
   id: string;
@@ -49,7 +50,7 @@ export const ClubReceivablesWidget: React.FC = () => {
     const fetchMetrics = async () => {
       setLoading(true);
       try {
-        const today = new Date().toISOString().split('T')[0];
+        const today = businessDateInTimeZone();
 
         // Fetch subscriptions, plans, real receivables, and client names
         const { subscriptions: allSubs, plans, receivables, clients } =
