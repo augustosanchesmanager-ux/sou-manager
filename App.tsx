@@ -122,7 +122,7 @@ const InstitutionalAppRedirect: React.FC = () => {
 };
 
 const ProtectedRoute: React.FC = () => {
-  const { session, loading, profileStatus, isSuperAdmin, authError, tenant, user } = useAuth();
+  const { session, loading, profileStatus, isSuperAdmin, authError, tenant, tenantId, tenantError, user } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -158,7 +158,7 @@ const ProtectedRoute: React.FC = () => {
   // de e-mail ATIVADA no Supabase → signUp não retorna sessão). O provisionamento
   // roda aqui, no primeiro login pós-confirmação, e segue para o onboarding.
   const pendingRegistration =
-    Boolean(session.user?.user_metadata?.shop_name) && !tenant;
+    Boolean(session.user?.user_metadata?.shop_name) && !tenantId && !tenantError;
 
   if (pendingRegistration && location.pathname !== '/onboarding/provision') {
     return <Navigate to="/onboarding/provision" replace />;
