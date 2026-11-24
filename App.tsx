@@ -19,7 +19,6 @@ const Layout = lazy(() => import('./components/Layout'));
 const AccessControl = lazy(() => import('./pages/AccessControl'));
 const AcceptInvite = lazy(() => import('./pages/AcceptInvite'));
 const Admin = lazy(() => import('./pages/Admin'));
-const Automations = lazy(() => import('./pages/Automations'));
 const BusinessIntelligence = lazy(() => import('./pages/BusinessIntelligence'));
 const Cashflow = lazy(() => import('./pages/Cashflow'));
 const Categories = lazy(() => import('./pages/Categories'));
@@ -300,8 +299,6 @@ const AppRoutes: React.FC = () => {
             <Route path="/booking-settings" element={<ModuleRoute moduleName="portal"><ManagerRoute><OnlineBookingSettings /></ManagerRoute></ModuleRoute>} />
             <Route path="/quality" element={<ManagerRoute><QualityDashboard /></ManagerRoute>} />
             <Route path="/settings" element={<ManagerRoute><Settings /></ManagerRoute>} />
-            {/* Frente 1 (Zero Mock): rota /automations desativada até integração real de disparos. */}
-            {/* <Route path="/automations" element={<ManagerRoute><Automations /></ManagerRoute>} /> */}
             <Route path="/clients" element={<ManagerRoute><Clients /></ManagerRoute>} />
             <Route path="/bi" element={<ManagerRoute><FeatureRoute feature="bi"><BusinessIntelligence /></FeatureRoute></ManagerRoute>} />
             <Route path="/smart-return" element={<ManagerRoute><SmartReturn /></ManagerRoute>} />
