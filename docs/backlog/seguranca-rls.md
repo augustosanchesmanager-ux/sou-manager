@@ -11,7 +11,7 @@
 | ID | Título | Prioridade | Status |
 |---|---|---|---|
 | `SEC-001` | **F-01:** Loop de `401` em `rpc/get_auth_access_context` (trava de sessão + circuit breaker) | `P0` | `REVIEW` |
-| `SEC-002` | **F-03:** Drift de schema exposto no `.env.local` (`Accept-Profile` / `404 PGRST202`) | `P0` | `TODO` |
+| `SEC-002` | **F-03:** Drift de schema exposto no `.env.local` (`Accept-Profile` / `404 PGRST202`) | `P0` | `REVIEW` |
 | `SEC-003` | **E-7:** Memoizar `refreshAccessContext` em `AuthContext.tsx` | `P1` | `TODO` |
 | `SEC-004` | Proteger `/admin` com `SuperAdminRoute` e remover `supabase.auth.admin` do browser | `P1` | `TODO` |
 | `SEC-005` | Gate de deploy pré-atribuição (`ADR-049` em `deploy-production.yml`) | `P1` | `BLOCKED` |
@@ -46,26 +46,27 @@
 
 ## `SEC-002` — F-03: Drift de schema exposto no `.env.local` (`Accept-Profile`)
 
-- **Status:** `TODO`
+- **Status:** `REVIEW`
 - **Prioridade:** `P0`
 - **Tipo:** `Hardening`
-- **Dependências:** Nenhuma
+- **Dependências:** Camada B (Dashboard Supabase em produção sob decisão do PO)
 
 ### Problema / Objetivo
-Conforme registrado em `docs/audit/F01_AUTH_401_LOOP_20261122.md` (§6 GAP #3), `.env.local` aponta para projeto cujo schema default é `api`, fazendo `.rpc()` sem `Accept-Profile` retornar `404 PGRST202`.
+Conforme registrado em `docs/audit/F01_AUTH_401_LOOP_20261122.md` (§6 GAP #3), `.env.local` aponta para projeto de Produção (`ushsnmlbeurfvlkieiln`) onde o schema `api` (vazio) aparece antes de `public` nos *Exposed schemas* do PostgREST, fazendo chamadas REST sem `Content-Profile`/`Accept-Profile` retornarem `404 PGRST202`.
 
 ### Escopo Técnico
-- Alinhar schema exposto do ambiente / configuração do cliente Supabase (`src/lib/supabase/client.ts` / `.env.local` / documentação de ambientes).
+- Camada A: declaração explícita de `db: { schema: SHARED_SCHEMA }` em `src/lib/supabase/client.ts` (`BASE_SUPABASE_CLIENT_OPTIONS` e `PUBLIC_ANONYMOUS_CLIENT_OPTIONS`), envio de `Content-Profile`/`Accept-Profile: public` nos `fetch` diretos de `tests/e2e/flows/flow-p0-4-accounts-payable.spec.ts` e teste unitário `tests/unit/supabaseClientSchema.test.ts`.
+- Camada B (fora do repo, ação do PO no Dashboard): colocar `public` como primeiro schema em `Settings → API → Data API → Exposed schemas` na Produção.
 
 ### Critérios de Aceite
-- [ ] Chamadas `.rpc()` no ambiente local/staging resolvem o schema esperado sem `404 PGRST202`.
-- [ ] Isolamento multi-tenant (`tenant_id` / RLS) preservado.
-- [ ] `npm run typecheck`, `npm run lint`, `npm run test` e `npm run build` passando.
+- [x] Chamadas do SDK e `fetch` diretos de E2E declaram explicitamente o schema `public` (`Content-Profile`/`Accept-Profile`), prevenindo `404 PGRST202`.
+- [x] Isolamento multi-tenant (`tenant_id` / RLS) preservado.
+- [x] `npm run typecheck`, `npm run lint`, `npm run test` e `npm run build` passando.
 
 ### Evidência de Validação
-- **Branch / PR:** —
-- **Testes / Build / Prova RLS:** —
-- **Observações:** —
+- **Branch / PR:** `fix/f03-supabase-schema-profile` (aguardando autorização de commit/PR) — registro em `docs/audit/F03_SCHEMA_EXPOSED_DRIFT_20261124.md`
+- **Testes / Build / Prova RLS:** `typecheck` OK · `lint` exit 0 · `supabaseClientSchema.test.ts` 4/4 passed · `vitest` 208 files / 2.898 passed (5 skipped) · `build` OK (18.15 s) · `architecture:ci` 0 erros
+- **Observações:** Camada A concluída e validada localmente; Camada B (ajuste de *Exposed schemas* no Dashboard de Produção) fica sob decisão do PO.
 
 ---
 
