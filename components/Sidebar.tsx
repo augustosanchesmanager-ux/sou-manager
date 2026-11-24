@@ -222,6 +222,7 @@ export const buildRawSidebarMenu = ({
       // Frente 1 (Zero Mock): rota /automations ocultada até integração real de disparos.
       // { name: 'Central de Automações', icon: Bot, path: '/automations', module: 'settings' },
       { name: 'Permissões e Perfis', icon: ShieldCheck, path: '/access-control' },
+      { name: 'Centro Jurídico', icon: ShieldCheck, path: '/legal', operationalAllowed: true },
       { name: 'Sincronização Offline', icon: RefreshCw, path: '/offline-sync', operationalAllowed: true },
     ],
   },
