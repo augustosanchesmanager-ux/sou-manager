@@ -7,6 +7,7 @@ import {
     type AppSlug,
     type SupabaseSchemaName,
 } from '../src/lib/supabase/schemas';
+import { clearFeatureFlagsCache } from '../src/lib/billing/featureFlagsCache';
 import { supabase } from '../services/supabaseClient';
 import { extractSupabaseError } from '../src/lib/supabase/errors';
 import { useAppOptional } from '../src/context/AppContext';
@@ -15,6 +16,9 @@ import type { TenantRecord, TenantRole, UserTenantMembership } from '../src/lib/
 import { AuthSessionContext } from '../src/context/authContextBase';
 
 export type AccessRole = 'superadmin' | 'manager' | 'barber' | 'receptionist' | 'unknown';
+
+export const isManagerAccessRole = (role: AccessRole): boolean =>
+    role === 'manager' || role === 'superadmin';
 
 interface AuthSessionContextType {
     session: Session | null;
@@ -473,6 +477,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             inFlightAccessContextRef.current = null;
             terminalFailureRef.current = null;
             signOutIssuedForTokenRef.current = null;
+            clearFeatureFlagsCache();
             setSession(null);
             setUser(null);
             setResolvedTenantId(null);

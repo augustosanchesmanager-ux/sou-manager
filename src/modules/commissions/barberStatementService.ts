@@ -154,6 +154,7 @@ export async function fetchBarberStatementData(params: {
       const { data: pItemsData } = await supabase
         .from('comanda_items')
         .select('id, comanda_id, service_id, product_name, unit_price, quantity, staff_id, created_at, services(name)')
+        .eq('tenant_id', tenantId)
         .in('id', participantItemIds)
         .gte('created_at', startIso)
         .lte('created_at', endIso);
@@ -207,6 +208,7 @@ export async function fetchBarberStatementData(params: {
     const { data: allItemsData } = await supabase
       .from('comanda_items')
       .select('id, comanda_id, service_id, product_name, unit_price, quantity, staff_id, services(name)')
+      .eq('tenant_id', tenantId)
       .in('comanda_id', allComandaIds);
 
     if (allItemsData) {
@@ -256,6 +258,7 @@ export async function fetchBarberStatementData(params: {
       const { data: payData } = await supabase
         .from('comanda_payments')
         .select('id, comanda_id, payment_type, payment_method, amount')
+        .eq('tenant_id', tenantId)
         .in('comanda_id', allComandaIds)
         .is('reversed_at', null);
 

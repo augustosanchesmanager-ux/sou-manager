@@ -10,6 +10,7 @@
  */
 
 import { roundCents } from '../payout/money';
+import { businessDateInTimeZone } from '../../shared/dates/timezone';
 import type {
   CalculateFeeParams,
   FeeCalculationResult,
@@ -25,7 +26,7 @@ export function addBusinessDays(startDate: Date | string, businessDays: number):
 
   // Garantir data válida
   if (Number.isNaN(date.getTime())) {
-    return new Date().toISOString().split('T')[0];
+    return businessDateInTimeZone();
   }
 
   let remainingDays = Math.max(0, Math.floor(businessDays));
@@ -39,7 +40,7 @@ export function addBusinessDays(startDate: Date | string, businessDays: number):
     }
   }
 
-  return date.toISOString().split('T')[0];
+  return businessDateInTimeZone(date);
 }
 
 /**
@@ -96,7 +97,7 @@ export function calculateTerminalFee(params: CalculateFeeParams): FeeCalculation
   const paymentDate = params.paymentDate || new Date();
   const estimatedSettlementDate = settlementDays > 0
     ? addBusinessDays(paymentDate, settlementDays)
-    : (typeof paymentDate === 'string' ? paymentDate.split('T')[0] : paymentDate.toISOString().split('T')[0]);
+    : (typeof paymentDate === 'string' ? paymentDate.split('T')[0] : businessDateInTimeZone(paymentDate));
 
   return {
     feePercentage,

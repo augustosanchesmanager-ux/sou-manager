@@ -1,6 +1,6 @@
 # Frente: Agendamento & Recorrência
 
-- **Domínio:** Agenda Interna, Bloqueios, Agendamento Público (`/agendar/:slug`) e Recorrência / Club dos Chefes
+- **Domínio:** Agenda Interna, Sync Agenda ↔ Comanda, Bloqueios, Concorrência de Checkout, Agendamento Público (`/agendar/:slug`) e Club dos Chefes
 - **Stack:** React 19 · TypeScript 5.8 · Supabase (PostgreSQL + RLS + RPCs) · Vitest / Playwright
 - **Referências obrigatórias:** `AGENTS.md`, `docs/SPEC_RPC_AGENDAMENTO_ONLINE_PUBLICO.md`
 
@@ -8,33 +8,46 @@
 
 ## Índice da Frente
 
-| ID | Título | Prioridade | Status |
-|---|---|---|---|
-| `AGD-001` | Remover fallback silencioso para `mockService.ts` no Agendamento Público (`/agendar/:slug`) | `P0` | `TODO` |
+| ID | Título | Prioridade | Issue | Status |
+|---|---|---|---|---|
+| `AGD-001` | Isolar/remover mock `"Barbearia Dom Zé"` do bundle de Agendamento Público (`/agendar/:slug`) | `P0` | [#385](https://github.com/augustosanchesmanager-ux/sou-manager/issues/385) | `TODO` |
+| `AGD-002` | **P1-02:** Unificar Sync Agenda ↔ Comanda (3 caminhos → 1) e blindar concorrência no Checkout | `P1` | [#388](https://github.com/augustosanchesmanager-ux/sou-manager/issues/388) | `TODO` |
 
 ---
 
-## `AGD-001` — Remover fallback silencioso para `mockService.ts` no Agendamento Público
+## `AGD-001` — Isolar/remover mock `"Barbearia Dom Zé"` do bundle de Agendamento Público
 
 - **Status:** `TODO`
 - **Prioridade:** `P0`
+- **GitHub Issue:** [#385](https://github.com/augustosanchesmanager-ux/sou-manager/issues/385)
+- **Sprint:** Sprint 1
 - **Tipo:** `Bugfix`
 - **Dependências:** Nenhuma
 
 ### Problema / Objetivo
-Em `src/pages/public/booking/hooks/bookingService.ts:87-103`, se a RPC pública retornar erro `42883`, o serviço cai silenciosamente em `mockService.ts`, exibindo confirmação de agendamento ao cliente final sem gravar no banco de dados.
-
-### Escopo Técnico
-- `src/pages/public/booking/hooks/bookingService.ts` (remover fallback para `mockService.ts` em erro de RPC e propagar erro explícito tratável pela UI).
-- Verificar se há outros consumidores de `mockService.ts` fora do Local Demo Mode (`isLocalDemoEnabled()`).
+Na verificação da Sprint 0 em `src/pages/public/booking/hooks/bookingService.ts:43-67`, confirmou-se que `allowMockFallback()` só ativa quando faltam env vars do Supabase ou `VITE_ENABLE_BOOKING_MOCK=true`. Entretanto, ~616 linhas de dados fictícios (`mockData.ts` / `mockService.ts` — `"Barbearia Dom Zé"`) seguem importadas estaticamente no bundle de produção e podem mascarar erro de configuração de deploy.
 
 ### Critérios de Aceite
-- [ ] Zero fallback silencioso para dados mockados quando houver erro de RPC em ambiente real.
-- [ ] Erro `42883` ou falha de RPC exibe mensagem clara de indisponibilidade sem falso sucesso.
-- [ ] Isolamento multi-tenant (`tenant_id` / RLS) preservado.
-- [ ] `npm run typecheck`, `npm run lint`, `npm run test` e `npm run build` passando.
+- [ ] Em build de produção, erro `42883` ou falha de RPC nunca cai em dados fictícios e exibe indisponibilidade real.
+- [ ] `mockData`/`mockService` isolados exclusivamente para `DEV`/testes (tree-shaken do bundle de produção).
+- [ ] `npm run smg:verify` verde.
 
-### Evidência de Validação
-- **Branch / PR:** —
-- **Testes / Build:** —
-- **Observações:** Bloqueador P0 identificado na Auditoria Go-To-Market (`docs/audit-go-to-market/SMG_AUDITORIA_COMPLETA.md`).
+---
+
+## `AGD-002` — P1-02: Unificar Sync Agenda ↔ Comanda (3 caminhos → 1) e blindar concorrência no Checkout
+
+- **Status:** `TODO`
+- **Prioridade:** `P1`
+- **GitHub Issue:** [#388](https://github.com/augustosanchesmanager-ux/sou-manager/issues/388)
+- **Sprint:** Sprint 4
+- **Tipo:** `Refactor / Hardening`
+- **Dependências:** Auditoria SQL prévia das RPCs de produção + eventual migration para `FOR UPDATE` / `idempotency_key`
+
+### Problema / Objetivo
+1. `pages/Schedule.tsx` dispara **3 caminhos distintos de escrita** para sincronizar Agenda ↔ Comanda (`application/appointment/comandaSync.ts`, `services/appointmentComandaSyncService.ts` via RPC e `services/comandaScheduleSyncService.ts` direto).
+2. Falta garantia auditada de lock pessimista (`FOR UPDATE`) e trava contra clique duplo no fechamento de comanda/PDV em `pages/Checkout.tsx`.
+
+### Critérios de Aceite
+- [ ] `Schedule.tsx` utiliza 1 único Application Service (`application/appointment/`) delegado à RPC atômica.
+- [ ] Duplo clique no fechamento de comanda/PDV gera exatamente 1 transação e 1 movimentação de estoque/crédito.
+- [ ] Testes de concorrência e integração verdes.
