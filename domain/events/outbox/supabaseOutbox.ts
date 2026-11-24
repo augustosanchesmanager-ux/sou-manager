@@ -104,6 +104,73 @@ const itemToRow = (item: Omit<OutboxItem, 'id' | 'createdAt' | 'updatedAt' | 'di
 
 const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 
+// ─── F-02: Auth Guard (session validity + circuit breaker) ────
+
+/** Folga (segundos) para tratar um token quase expirado como não utilizável. */
+export const OUTBOX_SESSION_EXPIRY_SKEW_SECONDS = 30;
+
+/** Circuit breaker: primeira pausa 30 s, dobrando até o teto de 5 min. */
+export const OUTBOX_AUTH_BREAKER_BASE_MS = 30 * 1000;
+export const OUTBOX_AUTH_BREAKER_MAX_MS = 5 * 60 * 1000;
+
+export type OutboxAuthFailureKind = 'none' | 'unauthenticated' | 'forbidden';
+
+interface OutboxAuthErrorLike {
+  status?: number | null;
+  code?: string | null;
+  message?: string | null;
+}
+
+/**
+ * [SMG][OUTBOX][F-02] Classifica erro de query do outbox.
+ *
+ * - `unauthenticated` (401 / PGRST301): token ausente ou inválido.
+ * - `forbidden` (403 / 42501): token válido sem permissão (drift de policy).
+ * - `none`: erro não relacionado a autorização — não abre o circuito.
+ *
+ * Em ambos os casos de auth o polling deve pausar: repetir a query a cada
+ * ciclo não corrige nem token inválido nem policy divergente.
+ */
+export const classifyOutboxAuthFailure = (
+  error: OutboxAuthErrorLike | null | undefined,
+): OutboxAuthFailureKind => {
+  const status = typeof error?.status === 'number' ? error.status : null;
+  const code = typeof error?.code === 'string' ? error.code : null;
+
+  if (status === 401 || code === 'PGRST301') return 'unauthenticated';
+  if (status === 403 || code === '42501') return 'forbidden';
+  return 'none';
+};
+
+export interface OutboxSessionLike {
+  access_token?: string | null;
+  expires_at?: number | null;
+}
+
+/**
+ * [SMG][OUTBOX][F-02] Validade da sessão para emitir queries do outbox.
+ *
+ * ADITIVO de propósito: só bloqueia quando `expires_at` é numérico e está
+ * dentro da folga. Sessão sem `expires_at` continua permitida (compatibilidade
+ * com sessões legadas e com os mocks de chaos), e a presença da sessão segue
+ * sendo requisito mínimo — o guard anterior (`Boolean(session)`) permanece.
+ */
+export const isOutboxSessionUsable = (params: {
+  hasSession: boolean;
+  expiresAt?: number | null;
+  nowMs?: number;
+  skewSeconds?: number;
+}): boolean => {
+  if (!params.hasSession) return false;
+  if (typeof params.expiresAt !== 'number' || !Number.isFinite(params.expiresAt)) {
+    return true;
+  }
+
+  const nowMs = typeof params.nowMs === 'number' ? params.nowMs : Date.now();
+  const skewMs = (params.skewSeconds ?? OUTBOX_SESSION_EXPIRY_SKEW_SECONDS) * 1000;
+  return params.expiresAt * 1000 - skewMs > nowMs;
+};
+
 // ─── ADR-015: Outbox Hooks ────────────────────────────────────
 
 export interface OutboxHooks {
@@ -133,6 +200,11 @@ export class SupabaseOutbox implements OutboxRepository {
   private client: SupabaseClient | null = null;
   private hooks?: OutboxHooks;
 
+  // F-02: circuit breaker por token — evita polling de 5 s contra auth quebrada.
+  private authBreakerFailures = 0;
+  private authBreakerOpenUntil = 0;
+  private authBreakerToken: string | null = null;
+
   constructor(hooks?: OutboxHooks) {
     this.hooks = hooks;
   }
@@ -145,12 +217,16 @@ export class SupabaseOutbox implements OutboxRepository {
   }
 
   /**
-   * True quando há uma sessão ativa no cliente compartilhado.
+   * True quando há uma sessão ativa e utilizável no cliente compartilhado.
    *
    * Sem sessão ativa o PostgREST opera como role `anon` — e as RLS policies
    * de `outbox_items` (`current_tenant_id_from_auth_uid()`, SECURITY DEFINER)
    * falham com 42501 para `anon` (incidente P2.1-OUTBOX-42501). Nenhuma query
    * deve ser emitida nesse estado.
+   *
+   * F-02: além da presença, exige token fora da janela de expiração e circuito
+   * de auth fechado. Sem isso, um token rejeitado mantinha ~5 requisições a cada
+   * 5 s (≈60/min) contra a API.
    */
   private async hasActiveSession(): Promise<boolean> {
     const client = this.resolveClient();
@@ -159,7 +235,65 @@ export class SupabaseOutbox implements OutboxRepository {
       console.error('[SUPABASE_OUTBOX] Failed to read session:', error);
       return false;
     }
-    return Boolean(data?.session);
+
+    const session = (data?.session ?? null) as OutboxSessionLike | null;
+    if (!session) return false;
+
+    // Token novo (login, refresh ou troca de usuário) rearma o circuito.
+    const token =
+      typeof session.access_token === 'string' && session.access_token.length > 0
+        ? session.access_token
+        : null;
+    if (token && token !== this.authBreakerToken) {
+      this.authBreakerToken = token;
+      this.closeAuthBreaker();
+    }
+
+    if (Date.now() < this.authBreakerOpenUntil) return false;
+
+    return isOutboxSessionUsable({
+      hasSession: true,
+      expiresAt: session.expires_at,
+    });
+  }
+
+  /**
+   * F-02: abre o circuito de auth com backoff exponencial (30 s → 5 min).
+   * O polling fica pausado enquanto `hasActiveSession()` retornar false.
+   */
+  private openAuthBreaker(kind: OutboxAuthFailureKind, context: string): void {
+    this.authBreakerFailures += 1;
+    const delayMs = Math.min(
+      OUTBOX_AUTH_BREAKER_BASE_MS * Math.pow(2, this.authBreakerFailures - 1),
+      OUTBOX_AUTH_BREAKER_MAX_MS,
+    );
+    this.authBreakerOpenUntil = Date.now() + delayMs;
+    console.warn(
+      `[SUPABASE_OUTBOX] auth circuit open (${kind}) on ${context}; ` +
+        `pausing outbox polling for ${Math.round(delayMs / 1000)}s ` +
+        `(failure ${this.authBreakerFailures})`,
+    );
+  }
+
+  /** F-02: fecha o circuito e zera o backoff (query bem-sucedida ou token novo). */
+  private closeAuthBreaker(): void {
+    if (this.authBreakerFailures === 0 && this.authBreakerOpenUntil === 0) return;
+    this.authBreakerFailures = 0;
+    this.authBreakerOpenUntil = 0;
+  }
+
+  /**
+   * F-02: alimenta o breaker a partir do resultado de uma query do outbox.
+   * Erros não relacionados a autorização são ignorados.
+   */
+  private noteQueryOutcome(error: unknown, context: string): void {
+    if (!error) {
+      this.closeAuthBreaker();
+      return;
+    }
+    const kind = classifyOutboxAuthFailure(error as OutboxAuthErrorLike);
+    if (kind === 'none') return;
+    this.openAuthBreaker(kind, context);
   }
 
   // ── Enqueue ────────────────────────────────────────────────────
@@ -216,9 +350,13 @@ export class SupabaseOutbox implements OutboxRepository {
       .limit(1);
 
     if (findError) {
+      this.noteQueryOutcome(findError, 'findNext/select');
       console.error('[SUPABASE_OUTBOX] findNext query failed:', findError);
       return null;
     }
+
+    // Query autorizada funcionou: o circuito pode ser rearmado.
+    this.noteQueryOutcome(null, 'findNext/select');
 
     if (!candidates || candidates.length === 0) return null;
 
@@ -239,6 +377,7 @@ export class SupabaseOutbox implements OutboxRepository {
 
     if (claimError) {
       // Another dispatcher claimed it first — try again next cycle
+      this.noteQueryOutcome(claimError, 'findNext/claim');
       this.hooks?.onClaimFailed?.(candidate.id);
       console.warn(
         `[SUPABASE_OUTBOX] Failed to claim item ${candidate.id}:`,
@@ -283,8 +422,10 @@ export class SupabaseOutbox implements OutboxRepository {
       .eq('id', id);
 
     if (error) {
+      this.noteQueryOutcome(error, 'markPublished');
       console.error(`[SUPABASE_OUTBOX] Failed to markPublished ${id}:`, error);
     } else {
+      this.noteQueryOutcome(null, 'markPublished');
       this.hooks?.onPublished?.(id);
     }
   }
@@ -305,6 +446,7 @@ export class SupabaseOutbox implements OutboxRepository {
       .maybeSingle();
 
     if (readError || !current) {
+      this.noteQueryOutcome(readError, 'markFailed/read');
       console.error(`[SUPABASE_OUTBOX] Failed to read item ${id} for markFailed:`, readError);
       return;
     }
@@ -326,8 +468,10 @@ export class SupabaseOutbox implements OutboxRepository {
         .eq('id', id);
 
       if (deadError) {
+        this.noteQueryOutcome(deadError, 'markFailed/deadLetter');
         console.error(`[SUPABASE_OUTBOX] Failed to dead-letter ${id}:`, deadError);
       } else {
+        this.noteQueryOutcome(null, 'markFailed/deadLetter');
         this.hooks?.onDeadLetter?.(id, errorMsg);
       }
     } else {
@@ -349,8 +493,10 @@ export class SupabaseOutbox implements OutboxRepository {
         .eq('id', id);
 
       if (retryError) {
+        this.noteQueryOutcome(retryError, 'markFailed/scheduleRetry');
         console.error(`[SUPABASE_OUTBOX] Failed to schedule retry for ${id}:`, retryError);
       } else {
+        this.noteQueryOutcome(null, 'markFailed/scheduleRetry');
         this.hooks?.onFailed?.(id, errorMsg);
       }
     }
@@ -375,8 +521,10 @@ export class SupabaseOutbox implements OutboxRepository {
       .eq('id', id);
 
     if (error) {
+      this.noteQueryOutcome(error, 'moveToDeadLetter');
       console.error(`[SUPABASE_OUTBOX] Failed to dead-letter ${id}:`, error);
     } else {
+      this.noteQueryOutcome(null, 'moveToDeadLetter');
       this.hooks?.onDeadLetter?.(id, reason);
     }
   }
@@ -401,6 +549,7 @@ export class SupabaseOutbox implements OutboxRepository {
       .lt('processing_started_at', staleThreshold);
 
     if (queryError || !staleItems || staleItems.length === 0) {
+      this.noteQueryOutcome(queryError, 'recoverStaleProcessing/select');
       return 0;
     }
 
@@ -421,10 +570,13 @@ export class SupabaseOutbox implements OutboxRepository {
 
       if (!resetError) {
         recovered++;
+        this.noteQueryOutcome(null, 'recoverStaleProcessing/reset');
         this.hooks?.onStaleRecovery?.(item.id);
         console.log(
           `[SUPABASE_OUTBOX] Recovered stale item ${item.id}`,
         );
+      } else {
+        this.noteQueryOutcome(resetError, 'recoverStaleProcessing/reset');
       }
     }
 
@@ -487,7 +639,13 @@ export class SupabaseOutbox implements OutboxRepository {
         .select('id', { count: 'exact', head: true })
         .eq('status', status);
 
-      if (error || count === null) return 0;
+      if (error) {
+        this.noteQueryOutcome(error, 'count/status');
+        return 0;
+      }
+      // Query autorizada funcionou, mesmo sem contagem retornada.
+      this.noteQueryOutcome(null, 'count/status');
+      if (count === null) return 0;
       return count;
     }
 
@@ -495,7 +653,12 @@ export class SupabaseOutbox implements OutboxRepository {
       .from('outbox_items')
       .select('id', { count: 'exact', head: true });
 
-    if (error || count === null) return 0;
+    if (error) {
+      this.noteQueryOutcome(error, 'count/all');
+      return 0;
+    }
+    this.noteQueryOutcome(null, 'count/all');
+    if (count === null) return 0;
     return count;
   }
 
