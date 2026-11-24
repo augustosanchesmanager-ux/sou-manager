@@ -1,6 +1,6 @@
 # Frente: Segurança, Multi-tenant & RLS
 
-- **Domínio:** Autenticação, Sessão, Isolamento Multi-tenant, Políticas RLS, RPCs Protegidas e Guards de Rota
+- **Domínio:** Autenticação, Sessão, Isolamento Multi-tenant, Políticas RLS, Grants, RPCs Protegidas e Guards de Rota
 - **Stack:** React 19 · TypeScript 5.8 · Supabase Auth · PostgreSQL RLS · Vitest
 - **Referências obrigatórias:** `docs/security/SECURITY_AUDIT_RLS.md`, `docs/security/SECURITY_AUDIT_RPC.md`, `AGENTS.md`
 
@@ -8,13 +8,15 @@
 
 ## Índice da Frente
 
-| ID | Título | Prioridade | Status |
-|---|---|---|---|
-| `SEC-001` | **F-01:** Loop de `401` em `rpc/get_auth_access_context` (trava de sessão + circuit breaker) | `P0` | `REVIEW` |
-| `SEC-002` | **F-03:** Drift de schema exposto no `.env.local` (`Accept-Profile` / `404 PGRST202`) | `P0` | `REVIEW` |
-| `SEC-003` | **E-7:** Memoizar `refreshAccessContext` em `AuthContext.tsx` | `P1` | `TODO` |
-| `SEC-004` | Proteger `/admin` com `SuperAdminRoute` e remover `supabase.auth.admin` do browser | `P1` | `TODO` |
-| `SEC-005` | Gate de deploy pré-atribuição (`ADR-049` em `deploy-production.yml`) | `P1` | `BLOCKED` |
+| ID | Título | Prioridade | Issue | Status |
+|---|---|---|---|---|
+| `SEC-001` | **F-01:** Loop de `401` em `rpc/get_auth_access_context` (trava de sessão + circuit breaker) | `P0` | — | `REVIEW` |
+| `SEC-002` | **F-03:** Drift de schema exposto (`Accept-Profile` / `Content-Profile`) | `P0` | — | `REVIEW` |
+| `SEC-006` | **P0-01:** Hardening final de RLS, Grants e reconciliação de Produção | `P0` | [#376](https://github.com/augustosanchesmanager-ux/sou-manager/issues/376) | `TODO` |
+| `SEC-007` | **P0-02:** Blindar guards (`ManagerRoute` allow-list), `CommandPalette` e filtro `tenant_id` | `P0` | [#377](https://github.com/augustosanchesmanager-ux/sou-manager/issues/377) | `TODO` |
+| `SEC-003` | **E-7:** Memoizar `refreshAccessContext` em `AuthContext.tsx` *(consolidada em `UXQ-004`)* | `P1` | [#392](https://github.com/augustosanchesmanager-ux/sou-manager/issues/392) | `TODO` |
+| `SEC-004` | Remover `auth.admin` do browser e consolidar `/admin` em `/superadmin` *(consolidada em `GTM-007`)* | `P0` | [#383](https://github.com/augustosanchesmanager-ux/sou-manager/issues/383) | `TODO` |
+| `SEC-005` | Gate de deploy pré-atribuição (`ADR-049` em `deploy-production.yml`) | `P1` | [#395](https://github.com/augustosanchesmanager-ux/sou-manager/issues/395) | `BLOCKED` |
 
 ---
 
@@ -25,99 +27,86 @@
 - **Tipo:** `Bugfix`
 - **Dependências:** Aprovação do PO no `deploy-production.yml` para publicar em produção
 
-### Problema / Objetivo
-`POST /rest/v1/rpc/get_auth_access_context` entrava em loop de `401` porque `AuthContext` chamava a RPC sem validar expiração do token, amplificava falhas em fallbacks (`profiles`, `staff`, `get_my_pending_invite_token`) e duplicava a carga fria (`getSession` + `INITIAL_SESSION`).
-
-### Escopo Técnico
-- `context/AuthContext.tsx` + `context/AuthContext.test.ts` (implementado no PR #369, commit `097c900` na `main`).
-
-### Critérios de Aceite
-- [x] Trava de sessão (`isSessionUsableForAccessContext`) e classificador `401` vs `403` (`classifyAuthFailure`).
-- [x] Single-flight por token + circuit breaker sem amplificação de fallbacks.
-- [x] `npm run typecheck`, `npm run test` (2.872 passed), `npm run build` e `npm run architecture:ci` verdes.
-- [ ] Deploy controlado em produção via `deploy-production.yml`.
-
-### Evidência de Validação
-- **Branch / PR:** `main` · PR #369 (`097c900`) — registro em `docs/audit/F01_AUTH_401_LOOP_20261122.md`
-- **Testes / Build:** `typecheck` OK · `vitest` 206 files / 2.872 passed · `build` OK · CI pós-merge run `45076558247` e `Deploy Validation` run `45076636274` com `success`
-- **Observações:** Aguardando promoção em produção para mover para `DONE`.
+### Escopo & Evidência
+- Implementado no PR #369 (`097c900` na `main`) — registro em `docs/audit/F01_AUTH_401_LOOP_20261122.md`.
+- Aguardando promoção controlada em produção para mover para `DONE`.
 
 ---
 
-## `SEC-002` — F-03: Drift de schema exposto no `.env.local` (`Accept-Profile`)
+## `SEC-002` — F-03: Drift de schema exposto (`Accept-Profile` / `Content-Profile`)
 
 - **Status:** `REVIEW`
 - **Prioridade:** `P0`
 - **Tipo:** `Hardening`
 - **Dependências:** Camada B (Dashboard Supabase em produção sob decisão do PO)
 
-### Problema / Objetivo
-Conforme registrado em `docs/audit/F01_AUTH_401_LOOP_20261122.md` (§6 GAP #3), `.env.local` aponta para projeto de Produção (`ushsnmlbeurfvlkieiln`) onde o schema `api` (vazio) aparece antes de `public` nos *Exposed schemas* do PostgREST, fazendo chamadas REST sem `Content-Profile`/`Accept-Profile` retornarem `404 PGRST202`.
+### Escopo & Evidência
+- Camada A mergeada (`c34af60` na `main`) — registro em `docs/audit/F03_SCHEMA_EXPOSED_DRIFT_20261124.md`.
+- Pendência Camada B no Dashboard de Produção (`ushsnmlbeurfvlkieiln`): posicionar `public` como primeiro schema em *Exposed schemas*.
 
-### Escopo Técnico
-- Camada A: declaração explícita de `db: { schema: SHARED_SCHEMA }` em `src/lib/supabase/client.ts` (`BASE_SUPABASE_CLIENT_OPTIONS` e `PUBLIC_ANONYMOUS_CLIENT_OPTIONS`), envio de `Content-Profile`/`Accept-Profile: public` nos `fetch` diretos de `tests/e2e/flows/flow-p0-4-accounts-payable.spec.ts` e teste unitário `tests/unit/supabaseClientSchema.test.ts`.
-- Camada B (fora do repo, ação do PO no Dashboard): colocar `public` como primeiro schema em `Settings → API → Data API → Exposed schemas` na Produção.
+---
+
+## `SEC-006` — P0-01: Hardening final de RLS, Grants e reconciliação de Produção
+
+- **Status:** `TODO`
+- **Prioridade:** `P0`
+- **GitHub Issue:** [#376](https://github.com/augustosanchesmanager-ux/sou-manager/issues/376)
+- **Sprint:** Sprint 1
+- **Tipo:** `Security`
+- **Dependências:** Aprovação explícita do PO para aplicar migration em Produção (`DEC-10`) + checagem do alias Vercel
+
+### Problema / Objetivo
+Inspeção read-only ao vivo em Produção (`ushsnmlbeurfvlkieiln`) na Sprint 0 confirmou brechas ativas:
+1. `platform_subscriptions` e `platform_invoices` (`20261106030000:109-123,175-189`) permitem `INSERT`/`UPDATE` por usuário comum do próprio tenant (`tenant_id = current_effective_tenant_id()`) para `{public}`.
+2. `access_requests` possui policy `"superadmin full access access_requests"` checando `profiles.role = 'superadmin'` case-sensitive em vez de `current_is_super_admin_from_auth_uid()`.
+3. `anon` e `authenticated` possuem `GRANT ALL` amplo (`DELETE, INSERT, SELECT, UPDATE, TRUNCATE`) em `platform_invoices`, `platform_subscriptions`, `subscriptions`, `invoices`, `plans`, `access_requests` e `feature_flags`.
+4. **Drift de deploy:** 234 migrations locais vs 210 aplicadas em Produção (`latest = 20261120025214`, faltam 5 migrations até `20261121162000`) e apenas 8 de 16 Edge Functions deployadas (`stripe-webhook` ausente em Produção).
 
 ### Critérios de Aceite
-- [x] Chamadas do SDK e `fetch` diretos de E2E declaram explicitamente o schema `public` (`Content-Profile`/`Accept-Profile`), prevenindo `404 PGRST202`.
-- [x] Isolamento multi-tenant (`tenant_id` / RLS) preservado.
-- [x] `npm run typecheck`, `npm run lint`, `npm run test` e `npm run build` passando.
+- [ ] Query em `pg_policies` em Produção retorna 0 policies permissivas indevidas em tabelas de domínio/billing.
+- [ ] Usuário comum recebe `42501` ao tentar `INSERT`/`UPDATE` em `platform_subscriptions` e `platform_invoices`.
+- [ ] `access_requests` padronizada com `current_is_super_admin_from_auth_uid()` e `GRANT`s reduzidos ao menor privilégio.
+- [ ] Delta de migrations e Edge Functions em Produção auditado e reconciliado com aprovação do PO.
 
-### Evidência de Validação
-- **Branch / PR:** `fix/f03-supabase-schema-profile` (aguardando autorização de commit/PR) — registro em `docs/audit/F03_SCHEMA_EXPOSED_DRIFT_20261124.md`
-- **Testes / Build / Prova RLS:** `typecheck` OK · `lint` exit 0 · `supabaseClientSchema.test.ts` 4/4 passed · `vitest` 208 files / 2.898 passed (5 skipped) · `build` OK (18.15 s) · `architecture:ci` 0 erros
-- **Observações:** Camada A concluída e validada localmente; Camada B (ajuste de *Exposed schemas* no Dashboard de Produção) fica sob decisão do PO.
+---
+
+## `SEC-007` — P0-02: Blindar guards (`ManagerRoute` allow-list), `CommandPalette` e filtro `tenant_id`
+
+- **Status:** `TODO`
+- **Prioridade:** `P0`
+- **GitHub Issue:** [#377](https://github.com/augustosanchesmanager-ux/sou-manager/issues/377)
+- **Sprint:** Sprint 1
+- **Tipo:** `Security`
+- **Dependências:** Nenhuma
+
+### Problema / Objetivo
+1. `App.tsx:188-194`: `ManagerRoute` usa deny-list (`barber` / `receptionist`), deixando `accessRole === 'unknown'` atravessar.
+2. `App.tsx:308-329`: ordem `FeatureRoute > ManagerRoute` exibe tela de "Faça upgrade" para barbeiro em vez de bloquear acesso.
+3. Queries sem `.eq('tenant_id', tenantId)` expostas sob bypass RLS de Super Admin: `domain/client/repository.ts:483-512`, `domain/accountsPayable/repository.ts:69-164`, `services/scheduleBlocksApi.ts:253-265` e `src/modules/commissions/barberStatementService.ts:155-260`.
+4. `components/CommandPalette.tsx:48-238` exibe rotas gerenciais/SuperAdmin/features sem filtrar por `accessRole` ou `useFeatureFlags()`.
+
+### Critérios de Aceite
+- [ ] `ManagerRoute` valida via allow-list explícita (`manager` | `superadmin`).
+- [ ] Ordem padronizada `ManagerRoute > FeatureRoute`.
+- [ ] Todos os métodos dos 4 arquivos citados exigem e aplicam `.eq('tenant_id', tenantId)`.
+- [ ] `CommandPalette` oculta rotas não autorizadas para o perfil/plano atual.
+- [ ] `npm run smg:verify` verde.
 
 ---
 
 ## `SEC-003` — E-7: Memoizar `refreshAccessContext` em `AuthContext.tsx`
 
-- **Status:** `TODO`
+- **Status:** `TODO` (consolidada com `UXQ-004` em [#392](https://github.com/augustosanchesmanager-ux/sou-manager/issues/392))
 - **Prioridade:** `P1`
-- **Tipo:** `Bugfix`
-- **Dependências:** `SEC-001`
-
-### Problema / Objetivo
-`refreshAccessContext` não é memoizado e é dependência de `useEffect` em `pages/AcceptInvite.tsx:53`, podendo causar re-execuções desnecessárias do efeito.
-
-### Escopo Técnico
-- `context/AuthContext.tsx` (envolver `refreshAccessContext` em `useCallback` com dependências estáveis) e verificação de `pages/AcceptInvite.tsx`.
-
-### Critérios de Aceite
-- [ ] Identidade referencial de `refreshAccessContext` estabilizada entre renders.
-- [ ] Fluxo de aceite de convite validado sem regressão em `npm run test`.
-- [ ] `npm run typecheck`, `npm run lint`, `npm run test` e `npm run build` passando.
-
-### Evidência de Validação
-- **Branch / PR:** —
-- **Testes / Build / Prova RLS:** —
-- **Observações:** —
+- **Escopo:** Envolver `refreshAccessContext` em `useCallback` junto à memoização completa dos providers em `UXQ-004`.
 
 ---
 
-## `SEC-004` — Proteger `/admin` com `SuperAdminRoute` e remover `auth.admin` do browser
+## `SEC-004` — Remover `auth.admin` do browser e consolidar `/admin` em `/superadmin`
 
-- **Status:** `TODO`
-- **Prioridade:** `P1`
-- **Tipo:** `Security`
-- **Dependências:** Nenhuma
-
-### Problema / Objetivo
-Auditoria Go-To-Market (`docs/audit-go-to-market/SMG_AUDITORIA_COMPLETA.md`) identificou que a rota `/admin` está protegida apenas por `ManagerRoute` (`App.tsx:293`) em vez de `SuperAdminRoute`, e `pages/Admin.tsx:126` tenta chamar `supabase.auth.admin.getUserById` no client.
-
-### Escopo Técnico
-- `App.tsx` (troca de guard para `SuperAdminRoute`) e `pages/Admin.tsx` (remoção de chamada `auth.admin` client-side, substituindo por RPC/Edge Function segura se necessário).
-- Revisão de queries sem filtro explícito de `tenant_id` citadas na auditoria (ex.: `pages/Support.tsx:76`).
-
-### Critérios de Aceite
-- [ ] Usuários `owner`/`manager` comuns não acessam `/admin`.
-- [ ] Zero chamadas `supabase.auth.admin` no código de browser.
-- [ ] `npm run typecheck`, `npm run lint`, `npm run test` e `npm run build` passando.
-
-### Evidência de Validação
-- **Branch / PR:** —
-- **Testes / Build / Prova RLS:** —
-- **Observações:** —
+- **Status:** `TODO` (elevada para `P0` e consolidada com `GTM-007` em [#383](https://github.com/augustosanchesmanager-ux/sou-manager/issues/383))
+- **Prioridade:** `P0`
+- **Escopo:** Embora `App.tsx:293` já use `SuperAdminRoute`, `pages/Admin.tsx` ainda chama `supabase.auth.admin.getUserById()` no browser, possui botões falsos e viola CHECK constraints — será removida após migrar mutações válidas para `/superadmin` em `GTM-007`.
 
 ---
 
@@ -125,20 +114,6 @@ Auditoria Go-To-Market (`docs/audit-go-to-market/SMG_AUDITORIA_COMPLETA.md`) ide
 
 - **Status:** `BLOCKED`
 - **Prioridade:** `P1`
-- **Tipo:** `Hardening`
-- **Dependências:** Autorização explícita do PO para alteração de CI (`AGENTS.md` §5)
-
-### Problema / Objetivo
-O gate atual é pós-atribuição (move o alias no `promote` e roda `post-validate` depois). O plano cirúrgico em `docs/audit/2026-11-17-deploy-gate-implementation-plan.md` implementa a validação antes do `vercel promote`.
-
-### Escopo Técnico
-- `.github/workflows/deploy-production.yml` conforme `ADR-049`.
-
-### Critérios de Aceite
-- [ ] Health check e E2E smoke rodam contra a URL do deployment candidato antes de `vercel promote`.
-- [ ] Aprovação explícita do PO registrada em Authorization Record.
-
-### Evidência de Validação
-- **Branch / PR:** —
-- **Testes / Build / Prova RLS:** —
-- **Observações:** Bloqueado aguardando autorização do PO para mexer em workflow de CI.
+- **GitHub Issue:** [#395](https://github.com/augustosanchesmanager-ux/sou-manager/issues/395)
+- **Dependências:** Autorização explícita do PO para alteração de CI (`AGENTS.md` §5) + Authorization Record.
+- **Escopo:** Executar health check e E2E smoke contra a URL candidata antes de `vercel promote` em `.github/workflows/deploy-production.yml`.
