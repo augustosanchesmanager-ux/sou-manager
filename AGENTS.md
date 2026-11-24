@@ -275,3 +275,27 @@ VITE_APP_HOSTNAME_MAP={"custom.domain":"barber"}   # opcional
   - **Timeouts:** todos os jobs (`resolve-validate`, `promote`, `post-validate`) têm `timeout-minutes: 15`.
 - **(D) Deploy por CLI é proibido — bypass conhecido.** O Ignored Build Step só é avaliado no caminho Git. `vercel --prod` / `vercel deploy --prod` a partir de checkout local publica direto em produção e **não** é bloqueado por ele. Assinatura no histórico: deployment com `source: "cli"`, `meta.actor` preenchido e `meta.githubCommitVerification` ausente.
   - **Incidente observado (2026-11-08):** o merge `577237a` foi corretamente `CANCELED` pelo Ignored Build Step às `09:08:29Z`; 26s depois (`09:08:52Z`) um deploy `source: cli` (actor `antigravity`) republicou `46144ec`, SHA **anterior** ao HEAD de `main`. O delta funcional foi zero (só `.github/` e `AGENTS.md`), mas o caminho de bypass é real e não é coberto pelo bloqueio.
+
+---
+
+## Governança de Backlog (`docs/backlog/`)
+
+- **Fonte Única de Verdade (SSOT):** O diretório `docs/backlog/` é a **Fonte Única de Verdade** do backlog operacional e técnico do projeto, organizado em:
+  - `docs/backlog/INDEX.md` — índice executivo (legenda de status, prioridades atuais e mapa de frentes);
+  - `docs/backlog/<frente>.md` — detalhamento técnico por frente (`financeiro.md`, `agendamento.md`, `seguranca-rls.md`, etc.);
+  - `docs/backlog/_ARCHIVE.md` — arquivo histórico para itens concluídos (`DONE`) há mais de 30 dias.
+- **Leitura obrigatória antes de codar:** Antes de iniciar qualquer tarefa, ler `docs/backlog/INDEX.md` e **apenas** o arquivo `<frente>.md` correspondente à frente ativa.
+- **Fluxo obrigatório em 4 etapas:**
+  1. **Diagnóstico:** mapear causa raiz, escopo e dependências (sem alterar código);
+  2. **Planejamento:** definir plano técnico e critérios de aceite — **parar para aprovação explícita do PO** em decisões de produto, regra de negócio ou arquitetura;
+  3. **Implementação (`IN_PROGRESS`):** executar exclusivamente na branch da frente, mantendo o status atualizado;
+  4. **Validação (`REVIEW` / `DONE`):** comprovar execução dos gates, registrar evidências na frente e abrir PR.
+- **Proibições expressas:**
+  - É **proibido** marcar um item como `DONE` sem evidência verificável registrada na frente;
+  - É **proibido** criar tarefas paralelas fora de `docs/backlog/`;
+  - É **proibido** presumir autorização para deploy em produção (`MERGE ≠ DEPLOY PROD`).
+- **Definition of Done (DoD) padrão:**
+  - Isolamento multi-tenant (`tenant_id` / RLS) preservado;
+  - Zero dados mockados em produção;
+  - Comandos de validação passando: `npm run typecheck`, `npm run lint`, `npm run test` e `npm run build` (e, quando aplicável, os gates do projeto `npm run smg:verify` / `npm run architecture:ci`);
+  - Evidência de validação preenchida no arquivo `<frente>.md` e status sincronizado em `docs/backlog/INDEX.md`.
