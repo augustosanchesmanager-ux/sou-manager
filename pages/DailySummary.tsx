@@ -20,7 +20,7 @@ import { AutomationSettingsCard } from '../components/daily-summary/AutomationSe
 const shiftBusinessDate = (dateIso: string, deltaDays: number): string => {
   const [y, m, d] = dateIso.split('-').map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d + deltaDays, 12, 0, 0));
-  return dt.toISOString().split('T')[0];
+  return businessDateInTimeZone(dt);
 };
 
 export const DailySummary: React.FC = () => {

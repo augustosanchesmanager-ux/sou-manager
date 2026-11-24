@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase, getScopedClient } from '../../services/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
 import { logSupabaseError } from '../lib/supabase/errors';
+import { businessDateInTimeZone } from '../../shared/dates/timezone';
 import type {
   SubscriptionStatus,
   MembershipFilters,
@@ -60,7 +61,7 @@ export const useMembershipOverview = (filters: MembershipFilters) => {
     setData(prev => ({ ...prev, loading: true, error: null }));
 
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = businessDateInTimeZone();
       const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
       const [subsRes, plansRes, creditsRes] = await Promise.all([

@@ -9,6 +9,7 @@ import { getClientForTable } from '../../services/supabaseClient';
 import { hasSupabaseEnv } from '../../src/lib/supabase/client';
 import { PayoutRepository } from '../payout/payoutRepository';
 import { clientWalletRepository } from '../clientWallet/walletRepository';
+import { businessDateInTimeZone } from '../../shared/dates/timezone';
 import type {
     LedgerEntry,
     BatchSettleInput,
@@ -57,8 +58,8 @@ export class CashLedgerRepository {
                 category: 'Serviços',
                 description: 'Corte + Barboterapia',
                 amount: 75.00,
-                due_date: new Date().toISOString().split('T')[0],
-                payment_date: new Date().toISOString().split('T')[0],
+                due_date: businessDateInTimeZone(),
+                payment_date: businessDateInTimeZone(),
                 status: 'paid',
                 recipient_or_payer: 'Felipe Amorim',
                 payment_method: 'pix',
@@ -71,8 +72,8 @@ export class CashLedgerRepository {
                 category: 'Insumos',
                 description: 'Reposição de Pomadas Modeladoras (10 un)',
                 amount: 180.00,
-                due_date: new Date().toISOString().split('T')[0],
-                payment_date: new Date().toISOString().split('T')[0],
+                due_date: businessDateInTimeZone(),
+                payment_date: businessDateInTimeZone(),
                 status: 'paid',
                 recipient_or_payer: 'Barber Supply Distribuidora',
                 payment_method: 'money',
@@ -85,7 +86,7 @@ export class CashLedgerRepository {
                 category: 'Aluguel',
                 description: 'Aluguel do Salão - Mês Atual',
                 amount: 2200.00,
-                due_date: new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0],
+                due_date: businessDateInTimeZone(new Date(Date.now() + 5 * 86400000)),
                 payment_date: null,
                 status: 'pending',
                 recipient_or_payer: 'Imobiliária Santa Cruz',
@@ -99,7 +100,7 @@ export class CashLedgerRepository {
                 category: 'Energia',
                 description: 'Conta de Energia Elétrica',
                 amount: 420.50,
-                due_date: new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0],
+                due_date: businessDateInTimeZone(new Date(Date.now() + 10 * 86400000)),
                 payment_date: null,
                 status: 'pending',
                 recipient_or_payer: 'Enel Distribuição',
@@ -113,7 +114,7 @@ export class CashLedgerRepository {
                 category: 'Club dos Chefes',
                 description: 'Renovação Plano VIP Mensal',
                 amount: 149.90,
-                due_date: new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0],
+                due_date: businessDateInTimeZone(new Date(Date.now() + 3 * 86400000)),
                 payment_date: null,
                 status: 'pending',
                 recipient_or_payer: 'Rodrigo Medeiros',
@@ -332,7 +333,7 @@ export class CashLedgerRepository {
      */
     async registerVale(input: CreateValeInput): Promise<CreateValeResult> {
         const { tenantId, staffId, staffName, amount, paymentMethod, notes, issuedAt } = input;
-        const effectiveDate = issuedAt || new Date().toISOString().split('T')[0];
+        const effectiveDate = issuedAt || businessDateInTimeZone();
 
         // 1. Tenta acionar a RPC canônica do Payout se disponível (apenas fora de modo demo/teste)
         if (!isDemoOrTestMode()) {
