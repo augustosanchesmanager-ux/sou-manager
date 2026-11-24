@@ -23,7 +23,9 @@ export interface ProfileAdminRow {
   id: string;
   tenant_id: string | null;
   full_name: string | null;
+  email?: string | null;
   role: string | null;
+  status?: string | null;
   created_at: string;
   updated_at?: string | null;
 }
@@ -53,6 +55,7 @@ export interface TenantAdminRow {
   id: string;
   name: string;
   slug: string;
+  plan?: string | null;
   status: string;
   created_at: string;
 }
@@ -143,11 +146,12 @@ class ProfileRepositoryImpl extends SupabaseRepository {
     }
   }
 
-  async listAllProfiles(): Promise<ProfileAdminRow[]> {
+  async listAllProfiles(limit = 200): Promise<ProfileAdminRow[]> {
     try {
       const result = await this.from()
-        .select('id, tenant_id, full_name, role, created_at, updated_at')
-        .order('created_at', { ascending: false });
+        .select('id, tenant_id, full_name, email, role, status, created_at, updated_at')
+        .order('created_at', { ascending: false })
+        .limit(limit);
       return this.extractData<ProfileAdminRow[]>(result, 'Erro ao listar perfis') ?? [];
     } catch (err) {
       this.throwOnError(err, 'Erro ao listar perfis');
@@ -198,12 +202,13 @@ class ProfileRepositoryImpl extends SupabaseRepository {
     }
   }
 
-  async listTenants(): Promise<TenantAdminRow[]> {
+  async listTenants(limit = 200): Promise<TenantAdminRow[]> {
     try {
       const result = await this.db
         .from('tenants')
-        .select('id, name, slug, status, created_at')
-        .order('created_at', { ascending: false });
+        .select('id, name, slug, plan, status, created_at')
+        .order('created_at', { ascending: false })
+        .limit(limit);
       return this.extractData<TenantAdminRow[]>(result, 'Erro ao listar empresas') ?? [];
     } catch (err) {
       this.throwOnError(err, 'Erro ao listar empresas');
@@ -367,6 +372,85 @@ class ProfileRepositoryImpl extends SupabaseRepository {
       return this.extractData<CrossTenantTransactionRow[]>(result, 'Erro ao listar transações recentes') ?? [];
     } catch (err) {
       this.throwOnError(err, 'Erro ao listar transações recentes');
+    }
+  }
+
+  async superadminUpdateTenantStatus(
+    tenantId: string,
+    status: 'trial' | 'active' | 'past_due' | 'suspended' | 'cancelled',
+    reason?: string
+  ): Promise<Record<string, unknown>> {
+    try {
+      const result = await this.db.rpc('superadmin_update_tenant_status', {
+        p_tenant_id: tenantId,
+        p_status: status,
+        p_reason: reason ?? null,
+      });
+      return this.extractData<Record<string, unknown>>(result, 'Erro ao atualizar status da empresa') ?? {};
+    } catch (err) {
+      this.throwOnError(err, 'Erro ao atualizar status da empresa');
+    }
+  }
+
+  async superadminExtendTenantTrial(
+    tenantId: string,
+    extraDays: number
+  ): Promise<Record<string, unknown>> {
+    try {
+      const result = await this.db.rpc('superadmin_extend_tenant_trial', {
+        p_tenant_id: tenantId,
+        p_extra_days: extraDays,
+      });
+      return this.extractData<Record<string, unknown>>(result, 'Erro ao estender trial da empresa') ?? {};
+    } catch (err) {
+      this.throwOnError(err, 'Erro ao estender trial da empresa');
+    }
+  }
+
+  async superadminChangeTenantPlan(
+    tenantId: string,
+    targetPlan: 'free' | 'pro' | 'premium'
+  ): Promise<Record<string, unknown>> {
+    try {
+      const result = await this.db.rpc('superadmin_change_tenant_plan', {
+        p_tenant_id: tenantId,
+        p_target_plan: targetPlan,
+      });
+      return this.extractData<Record<string, unknown>>(result, 'Erro ao alterar plano da empresa') ?? {};
+    } catch (err) {
+      this.throwOnError(err, 'Erro ao alterar plano da empresa');
+    }
+  }
+
+  async superadminDecideProfileStatus(
+    profileId: string,
+    status: ProfileStatus
+  ): Promise<Record<string, unknown>> {
+    try {
+      const result = await this.db.rpc('superadmin_decide_profile_status', {
+        p_profile_id: profileId,
+        p_status: status,
+      });
+      return this.extractData<Record<string, unknown>>(result, 'Erro ao atualizar status do usuário') ?? {};
+    } catch (err) {
+      this.throwOnError(err, 'Erro ao atualizar status do usuário');
+    }
+  }
+
+  async superadminRespondSupportTicket(
+    ticketId: string,
+    response: string,
+    status: 'open' | 'responded' | 'closed' = 'responded'
+  ): Promise<Record<string, unknown>> {
+    try {
+      const result = await this.db.rpc('superadmin_respond_support_ticket', {
+        p_ticket_id: ticketId,
+        p_response: response,
+        p_status: status,
+      });
+      return this.extractData<Record<string, unknown>>(result, 'Erro ao responder ticket de suporte') ?? {};
+    } catch (err) {
+      this.throwOnError(err, 'Erro ao responder ticket de suporte');
     }
   }
 }
