@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Clock3, FileClock, MapPinned, X } from 'lucide-react';
 import { AdminActivity } from './types';
 import StatusBadge from './StatusBadge';
@@ -19,10 +20,29 @@ const formatDateTime = (value: string) =>
   }).format(new Date(value));
 
 const AuditDrawer: React.FC<AuditDrawerProps> = ({ item, isOpen, onClose }) => {
+  useEffect(() => {
+    if (!isOpen || !item) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, item, onClose]);
+
   if (!isOpen || !item) return null;
 
-  return (
-    <div className="fixed inset-0 z-[95]" onClick={onClose}>
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[105]"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Detalhes do evento de auditoria"
+      onClick={onClose}
+    >
       <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" />
       <aside
         className="absolute right-0 top-0 h-full w-full max-w-2xl overflow-y-auto border-l border-slate-200 bg-white p-6 shadow-2xl dark:border-[#262A33] dark:bg-[#101116]"
@@ -99,7 +119,8 @@ const AuditDrawer: React.FC<AuditDrawerProps> = ({ item, isOpen, onClose }) => {
           </div>
         </div>
       </aside>
-    </div>
+    </div>,
+    document.body
   );
 };
 

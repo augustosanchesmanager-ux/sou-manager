@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { kioskRepository } from '../domain/kiosk/repository';
 import { useAuth } from '../context/AuthContext';
 import AddonModal, { AddonModalTheme } from '../components/KioskAddonModal';
-import Sidebar from '../components/Sidebar';
 import { RefreshCw, LayoutDashboard, MonitorSmartphone, Settings, BarChart2 } from 'lucide-react';
 import QRCode from 'react-qr-code';
 
@@ -283,10 +282,8 @@ const KioskAdmin: React.FC = () => {
     const isEnabled = addon?.status === 'enabled';
 
     return (
-        <div className="flex h-screen overflow-hidden bg-slate-900">
-            <Sidebar isOpen={false} onClose={() => {}} />
-
-            <main className="flex-1 overflow-y-auto" style={{ background: '#0f172a', padding: '32px' }}>
+        <div className="flex flex-col min-h-full bg-slate-900 rounded-2xl overflow-hidden">
+            <main className="flex-1" style={{ background: '#0f172a', padding: '32px' }}>
 
                 {showModal && (
                     <AddonModal
