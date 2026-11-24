@@ -57,6 +57,7 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | [ADR-050](./ADR-050-smg-barber-intelligence-phase-1.md) | Accepted | SMG Barber Intelligence — Fase 1 (Diagnóstico Inteligente de Gestão) (2026-11-19) |
 | [ADR-051](./ADR-051-po-copilot-chief-of-staff.md) | Proposed | PO Copilot — SMG Chief of Staff (Arquitetura e Governança do Agente) (2026-11-19) |
 | [ADR-052](./ADR-052-product-sales-by-staff-and-flexible-goals.md) | Accepted | Venda de Produtos por Profissional & Metas Flexíveis de Produtos (2026-11-20) |
+| [ADR-055](./ADR-055-billing-stack-a-canonical-and-assisted-upgrade.md) | Accepted | Stack A como Fonte Única de Billing e Fluxo de Upgrade Assistido (2026-11-24) |
 
 ---
 
