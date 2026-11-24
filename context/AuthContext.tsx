@@ -7,6 +7,7 @@ import {
     type AppSlug,
     type SupabaseSchemaName,
 } from '../src/lib/supabase/schemas';
+import { clearFeatureFlagsCache } from '../src/lib/billing/featureFlagsCache';
 import { supabase } from '../services/supabaseClient';
 import { extractSupabaseError } from '../src/lib/supabase/errors';
 import { useAppOptional } from '../src/context/AppContext';
@@ -473,6 +474,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             inFlightAccessContextRef.current = null;
             terminalFailureRef.current = null;
             signOutIssuedForTokenRef.current = null;
+            clearFeatureFlagsCache();
             setSession(null);
             setUser(null);
             setResolvedTenantId(null);
