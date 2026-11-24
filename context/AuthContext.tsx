@@ -16,6 +16,9 @@ import { AuthSessionContext } from '../src/context/authContextBase';
 
 export type AccessRole = 'superadmin' | 'manager' | 'barber' | 'receptionist' | 'unknown';
 
+export const isManagerAccessRole = (role: AccessRole): boolean =>
+    role === 'manager' || role === 'superadmin';
+
 interface AuthSessionContextType {
     session: Session | null;
     user: User | null;

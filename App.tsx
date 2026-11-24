@@ -1,7 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { HashRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { PortalAuthProvider } from './components/PortalAuthProvider';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider, isManagerAccessRole, useAuth } from './context/AuthContext';
 import { LoadingProvider } from './context/LoadingContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { isAppModuleEnabled } from './src/lib/apps/modules';
@@ -13,6 +13,10 @@ import { useObservability } from './src/lib/observability/useObservability';
 import { useEventInfrastructure } from './src/hooks/useEventInfrastructure';
 import FeatureGuard from './components/billing/FeatureGuard';
 import type { AppModuleSlug } from './src/lib/supabase/schemas';
+import {
+  isLocalDemoEnabled,
+  isSupabaseConfigMissingInProduction,
+} from './src/lib/supabase/client';
 import type { FeatureKey } from './domain/billing/featureKey';
 
 const Layout = lazy(() => import('./components/Layout'));
@@ -44,7 +48,6 @@ const Landing = lazy(() => import('./pages/Landing'));
 const Login = lazy(() => import('./pages/Login'));
 const Operations = lazy(() => import('./pages/Operations'));
 const OperationSuccess = lazy(() => import('./pages/OperationSuccess'));
-const OrderDetails = lazy(() => import('./pages/OrderDetails'));
 const Orders = lazy(() => import('./pages/Orders'));
 const OfflineSync = lazy(() => import('./pages/OfflineSync'));
 const Payroll = lazy(() => import('./pages/Payroll'));
@@ -61,7 +64,6 @@ const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const Reports = lazy(() => import('./pages/Reports'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Observability = lazy(() => import('./pages/Observability'));
-const EventVersioningAdmin = lazy(() => import('./pages/EventVersioningAdmin'));
 const Schedule = lazy(() => import('./pages/Schedule'));
 const Services = lazy(() => import('./pages/Services'));
 const Settings = lazy(() => import('./pages/Settings'));
@@ -187,7 +189,7 @@ const ProtectedRoute: React.FC = () => {
 
 const ManagerRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { accessRole } = useAuth();
-  if (accessRole === 'barber' || accessRole === 'receptionist') {
+  if (!isManagerAccessRole(accessRole)) {
     return <Navigate to="/dashboard" replace />;
   }
   return <>{children}</>;
@@ -305,11 +307,11 @@ const AppRoutes: React.FC = () => {
             <Route path="/clients" element={<ManagerRoute><Clients /></ManagerRoute>} />
             <Route path="/bi" element={<ManagerRoute><FeatureRoute feature="bi"><BusinessIntelligence /></FeatureRoute></ManagerRoute>} />
             <Route path="/smart-return" element={<ManagerRoute><SmartReturn /></ManagerRoute>} />
-            <Route path="/chef-club-plans" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubPlans /></ManagerRoute></FeatureRoute></ModuleRoute>} />
-            <Route path="/chef-club-receivables" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubReceivables /></ManagerRoute></FeatureRoute></ModuleRoute>} />
-            <Route path="/chef-club-subscriptions" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubSubscriptions /></ManagerRoute></FeatureRoute></ModuleRoute>} />
-            <Route path="/chef-club-subscriptions/new" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubSubscriptionNew /></ManagerRoute></FeatureRoute></ModuleRoute>} />
-            <Route path="/chef-club-subscriptions/:subscriptionId" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubSubscriptionDetail /></ManagerRoute></FeatureRoute></ModuleRoute>} />
+            <Route path="/chef-club-plans" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><FeatureRoute feature="chef_club"><ChefClubPlans /></FeatureRoute></ManagerRoute></ModuleRoute>} />
+            <Route path="/chef-club-receivables" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><FeatureRoute feature="chef_club"><ChefClubReceivables /></FeatureRoute></ManagerRoute></ModuleRoute>} />
+            <Route path="/chef-club-subscriptions" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><FeatureRoute feature="chef_club"><ChefClubSubscriptions /></FeatureRoute></ManagerRoute></ModuleRoute>} />
+            <Route path="/chef-club-subscriptions/new" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><FeatureRoute feature="chef_club"><ChefClubSubscriptionNew /></FeatureRoute></ManagerRoute></ModuleRoute>} />
+            <Route path="/chef-club-subscriptions/:subscriptionId" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><FeatureRoute feature="chef_club"><ChefClubSubscriptionDetail /></FeatureRoute></ManagerRoute></ModuleRoute>} />
 
             <Route path="/financial" element={<Navigate to="/cashflow" replace />} />
             <Route path="/financial-overview" element={<Navigate to="/cashflow" replace />} />
@@ -326,16 +328,14 @@ const AppRoutes: React.FC = () => {
             <Route path="/client-accounts" element={<Navigate to="/accounts-receivable?tab=creditos" replace />} />
             <Route path="/conta-cliente" element={<Navigate to="/accounts-receivable?tab=creditos" replace />} />
             <Route path="/payroll" element={<ManagerRoute><Payroll /></ManagerRoute>} />
-            <Route path="/commissions" element={<ModuleRoute moduleName="commissions"><FeatureRoute feature="commissions"><ManagerRoute><Commissions /></ManagerRoute></FeatureRoute></ModuleRoute>} />
+            <Route path="/commissions" element={<ModuleRoute moduleName="commissions"><ManagerRoute><FeatureRoute feature="commissions"><Commissions /></FeatureRoute></ManagerRoute></ModuleRoute>} />
             <Route path="/reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
             <Route path="/daily-summary" element={<ManagerRoute><DailySummary /></ManagerRoute>} />
             <Route path="/services" element={<ManagerRoute><Services /></ManagerRoute>} />
             <Route path="/performance" element={<ManagerRoute><Performance /></ManagerRoute>} />
             <Route path="/operations" element={<ManagerRoute><Operations /></ManagerRoute>} />
-            <Route path="/observability" element={<ManagerRoute><Observability /></ManagerRoute>} />
-            <Route path="/event-versioning" element={<SuperAdminRoute><EventVersioningAdmin /></SuperAdminRoute>} />
+            <Route path="/observability" element={<SuperAdminRoute><Observability /></SuperAdminRoute>} />
             <Route path="/orders" element={<ManagerRoute><Orders /></ManagerRoute>} />
-            <Route path="/orders/:id" element={<ManagerRoute><OrderDetails /></ManagerRoute>} />
             <Route path="/products" element={<ManagerRoute><Products /></ManagerRoute>} />
             <Route path="/categories" element={<ManagerRoute><Categories /></ManagerRoute>} />
             <Route path="/suppliers" element={<ManagerRoute><Suppliers /></ManagerRoute>} />
@@ -355,6 +355,19 @@ const App: React.FC = () => {
   useObservability();
   useEventInfrastructure();
 
+  if (isSupabaseConfigMissingInProduction()) {
+    return (
+      <div className="min-h-screen bg-[#0c0d10] text-white flex items-center justify-center p-6">
+        <div className="max-w-md w-full rounded-2xl border border-red-500/30 bg-[#14161b] p-6 text-center space-y-3 shadow-2xl">
+          <h1 className="text-lg font-bold text-red-400">Configuração do ambiente ausente</h1>
+          <p className="text-sm text-slate-300">
+            Não foi possível inicializar a conexão com o servidor. Verifique as variáveis de ambiente do projeto antes de continuar.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <ThemeProvider>
       <LoadingProvider>
@@ -362,6 +375,14 @@ const App: React.FC = () => {
           <AuthProvider>
             <AppDocumentTitle />
             <TenantProvider>
+              {isLocalDemoEnabled() && (
+                <div
+                  role="status"
+                  className="w-full bg-amber-500 text-neutral-950 text-xs font-bold text-center py-1 px-3 z-[9999]"
+                >
+                  AMBIENTE DEMO LOCAL — dados fictícios armazenados apenas neste navegador
+                </div>
+              )}
               <HashRouter>
                 <AppRoutes />
               </HashRouter>

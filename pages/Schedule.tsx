@@ -1954,10 +1954,10 @@ const Schedule: React.FC = () => {
   };
 
   const executeDeleteBlock = async (block: ScheduleBlock) => {
-    if (deletingBlockId) return;
+    if (!tenantId || deletingBlockId) return;
     setDeletingBlockId(block.id);
     try {
-      await scheduleBlocksApi.remove(block.id, user?.id || null);
+      await scheduleBlocksApi.remove(tenantId, block.id, user?.id || null);
       setToast({ message: 'Bloqueio removido com sucesso.', type: 'success' });
       fetchScheduleBlocks();
     } catch (err) {
@@ -1976,7 +1976,7 @@ const Schedule: React.FC = () => {
     setBlockSaving(true);
     try {
       if (editingBlockId) {
-        await scheduleBlocksApi.update(editingBlockId, payload);
+        await scheduleBlocksApi.update(tenantId, editingBlockId, payload);
       } else {
         await scheduleBlocksApi.create(tenantId, user?.id || null, payload);
       }
