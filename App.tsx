@@ -23,7 +23,6 @@ import type { FeatureKey } from './domain/billing/featureKey';
 const Layout = lazy(() => import('./components/Layout'));
 const AccessControl = lazy(() => import('./pages/AccessControl'));
 const AcceptInvite = lazy(() => import('./pages/AcceptInvite'));
-const Admin = lazy(() => import('./pages/Admin'));
 const BusinessIntelligence = lazy(() => import('./pages/BusinessIntelligence'));
 const Cashflow = lazy(() => import('./pages/Cashflow'));
 const Categories = lazy(() => import('./pages/Categories'));
@@ -322,7 +321,7 @@ const AppRoutes: React.FC = () => {
             <Route path="/offline-sync" element={<OfflineSync />} />
             <Route path="/support" element={<Support />} />
 
-            <Route path="/admin" element={<SuperAdminRoute><Admin /></SuperAdminRoute>} />
+            <Route path="/admin" element={<SuperAdminRoute><Navigate to="/superadmin" replace /></SuperAdminRoute>} />
             {/* PO 2026-10-06: rota mockada desativada (dados ficticios). Ver ADR-031. */}
             {/* <Route path="/admin/supabase-monitoring" element={<ManagerRoute><SupabaseMonitoring /></ManagerRoute>} /> */}
             <Route path="/access-control" element={<ManagerRoute><AccessControl /></ManagerRoute>} />
