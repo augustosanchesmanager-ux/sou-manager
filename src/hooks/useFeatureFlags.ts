@@ -24,10 +24,16 @@ import { useTenant } from '../../src/context/TenantContext';
 import { getSharedClient } from '../../src/lib/supabase/client';
 import { FEATURE_KEYS, type FeatureKey, type FeatureSet } from '../../domain/billing/featureKey';
 import { planCatalog } from '../../domain/billing/planCatalog';
+import {
+  clearFeatureFlagsCache,
+  featureFlagsResolutionCache,
+} from '../lib/billing/featureFlagsCache';
 
 // ─── Cache de resolução (uma chamada por sessão/plano/status) ──────
 
-const resolutionCache = new Map<string, FeatureSet | null>();
+const resolutionCache = featureFlagsResolutionCache;
+
+export { clearFeatureFlagsCache };
 
 /** Interface mínima do cliente RPC (compatível com o SupabaseClient real). */
 export interface RpcClient {
@@ -37,11 +43,68 @@ export interface RpcClient {
   ) => Promise<{ data: unknown; error: unknown }>;
 }
 
+const isMissingRpcError = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') return false;
+  const err = error as Record<string, unknown>;
+  const code = String(err.code ?? '');
+  const msg = String(err.message ?? '').toLowerCase();
+  return (
+    code === '42883' ||
+    code === 'PGRST202' ||
+    msg.includes('could not find the function') ||
+    (msg.includes('function') && msg.includes('does not exist'))
+  );
+};
+
 /**
- * Resolve as flags via RPC `tenant_has_feature` (fonte de verdade).
- * Retorna `null` quando a RPC falha (ex.: migration ainda não aplicada,
- * modo demo sem handler) → o chamador usa a base tipada (fail-open de UI;
- * o enforcement real continua no backend).
+ * Resolve todas as flags do tenant em 1 única RPC (`get_tenant_feature_flags`).
+ * Faz fallback automático para `resolveFeaturesViaRpc` apenas quando a RPC batch
+ * ainda não foi aplicada no ambiente remoto (erro 42883 / PGRST202).
+ * Erros transitórios de rede NUNCA ficam cacheados na sessão.
+ */
+export async function resolveFeaturesBatchViaRpc(
+  tenantId: string,
+  plan: string,
+  status: string,
+  client: RpcClient = getSharedClient() as unknown as RpcClient,
+): Promise<FeatureSet | null> {
+  const cacheKey = `${tenantId}|${plan}|${status}`;
+  const cached = resolutionCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  try {
+    const { data, error } = await client.rpc('get_tenant_feature_flags', {
+      p_tenant_id: tenantId,
+    });
+
+    if (error) {
+      if (isMissingRpcError(error)) {
+        return resolveFeaturesViaRpc(tenantId, plan, status, client);
+      }
+      return null;
+    }
+
+    if (Array.isArray(data)) {
+      const allowed = new Set<string>(FEATURE_KEYS);
+      const resolved = data.filter(
+        (item): item is FeatureKey => typeof item === 'string' && allowed.has(item),
+      );
+      resolutionCache.set(cacheKey, resolved);
+      return resolved;
+    }
+
+    return resolveFeaturesViaRpc(tenantId, plan, status, client);
+  } catch (err) {
+    if (isMissingRpcError(err)) {
+      return resolveFeaturesViaRpc(tenantId, plan, status, client);
+    }
+    return null;
+  }
+}
+
+/**
+ * Resolve as flags via RPC `tenant_has_feature` (fallback legado).
+ * Erros transitórios retornam `null` SEM poluir `resolutionCache`.
  */
 export async function resolveFeaturesViaRpc(
   tenantId: string,
@@ -68,7 +131,6 @@ export async function resolveFeaturesViaRpc(
     resolutionCache.set(cacheKey, resolved);
     return resolved;
   } catch {
-    resolutionCache.set(cacheKey, null);
     return null;
   }
 }
@@ -115,7 +177,7 @@ export function useFeatureFlags(): UseFeatureFlagsReturn {
     }
 
     setResolved(null);
-    void resolveFeaturesViaRpc(tenantId, plan, status).then((features) => {
+    void resolveFeaturesBatchViaRpc(tenantId, plan, status).then((features) => {
       if (!cancelled) setResolved(features);
     });
 
