@@ -234,7 +234,8 @@ export const scheduleBlocksApi = {
     return data as ScheduleBlock;
   },
 
-  async update(blockId: string, payload: Partial<ScheduleBlockInput>) {
+  async update(tenantId: string, blockId: string, payload: Partial<ScheduleBlockInput>) {
+    if (!tenantId) throw new Error('tenantId é obrigatório para scheduleBlocksApi.update.');
     const updateData: Record<string, unknown> = {};
 
     if (payload.professional_id !== undefined) updateData.professional_id = payload.professional_id;
@@ -252,6 +253,7 @@ export const scheduleBlocksApi = {
     const { data, error } = await supabase
       .from('schedule_blocks')
       .update(updateData)
+      .eq('tenant_id', tenantId)
       .eq('id', blockId)
       .select('*')
       .single();
@@ -260,7 +262,8 @@ export const scheduleBlocksApi = {
     return data as ScheduleBlock;
   },
 
-  async remove(blockId: string, userId: string | null) {
+  async remove(tenantId: string, blockId: string, userId: string | null) {
+    if (!tenantId) throw new Error('tenantId é obrigatório para scheduleBlocksApi.remove.');
     const { error } = await supabase
       .from('schedule_blocks')
       .update({
@@ -268,6 +271,7 @@ export const scheduleBlocksApi = {
         removed_by: userId,
         removed_at: new Date().toISOString(),
       })
+      .eq('tenant_id', tenantId)
       .eq('id', blockId);
 
     if (error) throw error;

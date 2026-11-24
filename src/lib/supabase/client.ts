@@ -24,16 +24,31 @@ const LOCAL_DEMO_PASSWORD = '12345678';
 type AuthChangeEvent = 'SIGNED_IN' | 'SIGNED_OUT' | 'TOKEN_REFRESHED' | 'USER_UPDATED' | 'INITIAL_SESSION';
 type AuthChangeCallback = (event: AuthChangeEvent, session: any) => void;
 
-const isLocalBrowserHost = (): boolean => {
-  if (typeof window === 'undefined') {
-    return false;
-  }
-
-  const hostname = window.location.hostname;
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+export const evaluateRuntimeSupabaseMode = (params: {
+  hasEnv: boolean;
+  isBrowser: boolean;
+  hostname?: string;
+}): 'supabase' | 'local-demo' | 'missing-config' | 'node-test' => {
+  if (params.hasEnv) return 'supabase';
+  if (!params.isBrowser) return 'node-test';
+  const host = (params.hostname || '').toLowerCase();
+  const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0';
+  return isLocal ? 'local-demo' : 'missing-config';
 };
 
-const isLocalDemoEnabled = (): boolean => !hasSupabaseEnv && isLocalBrowserHost();
+export const isLocalDemoEnabled = (): boolean =>
+  evaluateRuntimeSupabaseMode({
+    hasEnv: hasSupabaseEnv,
+    isBrowser: typeof window !== 'undefined',
+    hostname: typeof window !== 'undefined' ? window.location.hostname : '',
+  }) === 'local-demo';
+
+export const isSupabaseConfigMissingInProduction = (): boolean =>
+  evaluateRuntimeSupabaseMode({
+    hasEnv: hasSupabaseEnv,
+    isBrowser: typeof window !== 'undefined',
+    hostname: typeof window !== 'undefined' ? window.location.hostname : '',
+  }) === 'missing-config';
 
 const getDemoTenantRecord = () => ({
   id: LOCAL_DEMO_TENANT_ID,

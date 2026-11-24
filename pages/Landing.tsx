@@ -373,7 +373,7 @@ const Landing: React.FC = () => {
           {/* Ações */}
           <div className="flex items-center gap-3">
             <Link
-              to="/portal"
+              to="/login"
               className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-code-mono tracking-widest text-slate-400 hover:text-primary transition-colors py-2 px-3 rounded-lg hover:bg-card-dark"
             >
               <span className="material-symbols-outlined text-sm text-primary">hub</span>
@@ -967,7 +967,7 @@ const Landing: React.FC = () => {
           <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-code-mono text-slate-400">
             <p>© {new Date().getFullYear()} SMG INTELLIGENCE. TODOS OS DIREITOS RESERVADOS.</p>
             <div className="flex items-center gap-6">
-              <Link to="/portal" className="hover:text-primary transition-colors">PORTAL DO CLIENTE</Link>
+              <Link to="/login" className="hover:text-primary transition-colors">PORTAL DO CLIENTE</Link>
               <Link to="/login" className="hover:text-primary transition-colors">ACESSO RESTRITO</Link>
             </div>
           </div>
