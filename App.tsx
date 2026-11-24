@@ -13,6 +13,10 @@ import { useObservability } from './src/lib/observability/useObservability';
 import { useEventInfrastructure } from './src/hooks/useEventInfrastructure';
 import FeatureGuard from './components/billing/FeatureGuard';
 import type { AppModuleSlug } from './src/lib/supabase/schemas';
+import {
+  isLocalDemoEnabled,
+  isSupabaseConfigMissingInProduction,
+} from './src/lib/supabase/client';
 import type { FeatureKey } from './domain/billing/featureKey';
 
 const Layout = lazy(() => import('./components/Layout'));
@@ -44,7 +48,6 @@ const Landing = lazy(() => import('./pages/Landing'));
 const Login = lazy(() => import('./pages/Login'));
 const Operations = lazy(() => import('./pages/Operations'));
 const OperationSuccess = lazy(() => import('./pages/OperationSuccess'));
-const OrderDetails = lazy(() => import('./pages/OrderDetails'));
 const Orders = lazy(() => import('./pages/Orders'));
 const OfflineSync = lazy(() => import('./pages/OfflineSync'));
 const Payroll = lazy(() => import('./pages/Payroll'));
@@ -61,7 +64,6 @@ const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const Reports = lazy(() => import('./pages/Reports'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Observability = lazy(() => import('./pages/Observability'));
-const EventVersioningAdmin = lazy(() => import('./pages/EventVersioningAdmin'));
 const Schedule = lazy(() => import('./pages/Schedule'));
 const Services = lazy(() => import('./pages/Services'));
 const Settings = lazy(() => import('./pages/Settings'));
@@ -332,10 +334,8 @@ const AppRoutes: React.FC = () => {
             <Route path="/services" element={<ManagerRoute><Services /></ManagerRoute>} />
             <Route path="/performance" element={<ManagerRoute><Performance /></ManagerRoute>} />
             <Route path="/operations" element={<ManagerRoute><Operations /></ManagerRoute>} />
-            <Route path="/observability" element={<ManagerRoute><Observability /></ManagerRoute>} />
-            <Route path="/event-versioning" element={<SuperAdminRoute><EventVersioningAdmin /></SuperAdminRoute>} />
+            <Route path="/observability" element={<SuperAdminRoute><Observability /></SuperAdminRoute>} />
             <Route path="/orders" element={<ManagerRoute><Orders /></ManagerRoute>} />
-            <Route path="/orders/:id" element={<ManagerRoute><OrderDetails /></ManagerRoute>} />
             <Route path="/products" element={<ManagerRoute><Products /></ManagerRoute>} />
             <Route path="/categories" element={<ManagerRoute><Categories /></ManagerRoute>} />
             <Route path="/suppliers" element={<ManagerRoute><Suppliers /></ManagerRoute>} />
@@ -355,6 +355,19 @@ const App: React.FC = () => {
   useObservability();
   useEventInfrastructure();
 
+  if (isSupabaseConfigMissingInProduction()) {
+    return (
+      <div className="min-h-screen bg-[#0c0d10] text-white flex items-center justify-center p-6">
+        <div className="max-w-md w-full rounded-2xl border border-red-500/30 bg-[#14161b] p-6 text-center space-y-3 shadow-2xl">
+          <h1 className="text-lg font-bold text-red-400">Configuração do ambiente ausente</h1>
+          <p className="text-sm text-slate-300">
+            Não foi possível inicializar a conexão com o servidor. Verifique as variáveis de ambiente do projeto antes de continuar.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <ThemeProvider>
       <LoadingProvider>
@@ -362,6 +375,14 @@ const App: React.FC = () => {
           <AuthProvider>
             <AppDocumentTitle />
             <TenantProvider>
+              {isLocalDemoEnabled() && (
+                <div
+                  role="status"
+                  className="w-full bg-amber-500 text-neutral-950 text-xs font-bold text-center py-1 px-3 z-[9999]"
+                >
+                  AMBIENTE DEMO LOCAL — dados fictícios armazenados apenas neste navegador
+                </div>
+              )}
               <HashRouter>
                 <AppRoutes />
               </HashRouter>
