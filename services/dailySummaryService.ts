@@ -68,8 +68,8 @@ export const dailySummaryService = {
     });
     const formattedDate = rawFormattedDate.charAt(0).toUpperCase() + rawFormattedDate.slice(1);
 
-    // 2. Busca paralela de agendamentos, comandas e equipe real
-    const [aptsRes, cmdasRes, staffRes, expensesRes] = await Promise.all([
+    // 2. Busca paralela de agendamentos, comandas (fechadas por closed_at, abertas por created_at), equipe e comissões canônicas
+    const [aptsRes, closedCmdasRes, openCmdasRes, staffRes, expensesRes, commissionsRes] = await Promise.all([
       supabase
         .from('appointments')
         .select('id, status, price, staff_id, client_id, start_time, end_time, service_name, client_name, clients(name)')
@@ -82,9 +82,17 @@ export const dailySummaryService = {
         .from('comandas')
         .select('id, status, total, payment_method, client_id, staff_id, created_at, closed_at, clients(name)')
         .eq('tenant_id', tenantId)
+        .in('status', ['paid', 'closed'])
+        .gte('closed_at', startIso)
+        .lte('closed_at', endIso),
+
+      supabase
+        .from('comandas')
+        .select('id, status, total, payment_method, client_id, staff_id, created_at, closed_at, clients(name)')
+        .eq('tenant_id', tenantId)
+        .eq('status', 'open')
         .gte('created_at', startIso)
-        .lte('created_at', endIso)
-        .not('status', 'eq', 'cancelled'),
+        .lte('created_at', endIso),
 
       supabase
         .from('staff')
@@ -100,15 +108,25 @@ export const dailySummaryService = {
         .eq('type', 'expense')
         .gte('date', targetDateStr)
         .lte('date', targetDateStr),
+
+      supabase
+        .from('commission_records')
+        .select('staff_id, amount, status')
+        .eq('tenant_id', tenantId)
+        .gte('created_at', startIso)
+        .lte('created_at', endIso)
+        .not('status', 'eq', 'cancelled'),
     ]);
 
     const allAppointments = (aptsRes.data || []) as any[];
     const cancelledAppointments = allAppointments.filter((a) => a.status === 'cancelled').length;
     const appointments = allAppointments.filter((a) => a.status !== 'cancelled');
-    const comandas = (cmdasRes.data || []) as any[];
+    const closedComandas = (closedCmdasRes.data || []) as any[];
+    const openComandas = (openCmdasRes.data || []) as any[];
     const rawStaffList = (staffRes.data || []) as any[];
     const staffList = rawStaffList.filter((st) => shouldAppearOnSchedule(st));
     const expenses = (expensesRes.data || []) as any[];
+    const commissionRecords = (commissionsRes.data || []) as any[];
 
     // 3. Métricas operacionais reais
     const scheduledCount = appointments.length;
@@ -120,10 +138,7 @@ export const dailySummaryService = {
       ? Math.min(100, Math.round((scheduledCount / totalCapacity) * 100))
       : 0;
 
-    // Métricas financeiras de comandas
-    const closedComandas = comandas.filter((c) => c.status === 'paid' || c.status === 'closed');
-    const openComandas = comandas.filter((c) => c.status === 'open');
-
+    // Métricas financeiras de comandas (fechadas por closed_at e abertas)
     const realizedRevenue = closedComandas.reduce((sum, c) => sum + (Number(c.total) || 0), 0);
     const openComandasTotal = openComandas.reduce((sum, c) => sum + (Number(c.total) || 0), 0);
 
@@ -192,13 +207,21 @@ export const dailySummaryService = {
       type: 'payable' as const,
     }));
 
-    // 7. Fechamento real da equipe
+    // 7. Fechamento real da equipe usando fonte canônica `commission_records`
+    const commissionByStaff = new Map<string, number>();
+    commissionRecords.forEach((rec) => {
+      if (!rec.staff_id) return;
+      commissionByStaff.set(
+        rec.staff_id,
+        (commissionByStaff.get(rec.staff_id) || 0) + (Number(rec.amount) || 0)
+      );
+    });
+
     let totalCommissionsCalculated = 0;
     const staffClosing = staffList.map((st) => {
       const stClosedCmds = closedComandas.filter((c) => c.staff_id === st.id);
       const cashRevenue = stClosedCmds.reduce((acc, c) => acc + (Number(c.total) || 0), 0);
-      const rate = (Number(st.commission_rate) || 0) / 100;
-      const commissionAmount = cashRevenue * rate;
+      const commissionAmount = commissionByStaff.get(st.id) || 0;
       totalCommissionsCalculated += commissionAmount;
 
       return {

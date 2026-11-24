@@ -56,11 +56,11 @@ export function createAccountsPayableApplicationService(
     },
 
     async updateRecurringBill(id, data) {
-      return repository.updateRecurringBill(id, data);
+      return repository.updateRecurringBill(id, tenantId, data);
     },
 
     async deactivateRecurringBill(id) {
-      await repository.updateRecurringBill(id, { is_active: false });
+      await repository.updateRecurringBill(id, tenantId, { is_active: false });
     },
 
     async getRecurringBills() {
@@ -74,7 +74,7 @@ export function createAccountsPayableApplicationService(
     },
 
     async getAccountsPayableById(id) {
-      const item = await repository.getAccountsPayableById(id);
+      const item = await repository.getAccountsPayableById(id, tenantId);
       return item ? addOverdueFlag(item) : null;
     },
 
@@ -90,7 +90,7 @@ export function createAccountsPayableApplicationService(
     },
 
     async editAccountPayable(id, data) {
-      return repository.updateAccountPayable(id, data);
+      return repository.updateAccountPayable(id, tenantId, data);
     },
 
     // Actions

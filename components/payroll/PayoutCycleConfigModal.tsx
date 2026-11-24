@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Modal from '../ui/Modal';
 import { useBarberPayoutConfig } from '../../src/hooks/usePayoutService';
 import type { BarberPayoutConfig, PayoutFrequency } from '../../domain/payout/types';
+import { businessDateInTimeZone } from '../../shared/dates/timezone';
 
 export const PAYOUT_WEEKDAY_LABELS: Record<number, { short: string; full: string }> = {
     1: { short: 'Seg', full: 'Segunda-feira' },
@@ -50,7 +51,7 @@ export function isPayoutConfigDueInPeriod(
         return { dueToday: false, dueInPeriod: false };
     }
 
-    const todayIso = referenceDateIso ?? new Date().toISOString().split('T')[0];
+    const todayIso = referenceDateIso ?? businessDateInTimeZone();
 
     const matchesDate = (dateIso: string): boolean => {
         if (config.frequency === 'daily') return true;
@@ -90,7 +91,7 @@ export function isPayoutConfigDueInPeriod(
         const cursor = new Date(start);
         let guard = 0;
         while (cursor <= end && guard < 62) {
-            const iso = cursor.toISOString().split('T')[0];
+            const iso = businessDateInTimeZone(cursor);
             if (matchesDate(iso)) {
                 dueInPeriod = true;
                 break;

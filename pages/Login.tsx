@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
 import { supabase } from '../services/supabaseClient';
-import { isInstitutionalHostname } from '../src/lib/apps/publicUrl';
+import { buildResetPasswordRedirectUrl, isInstitutionalHostname } from '../src/lib/apps/publicUrl';
 
 const Login: React.FC = () => {
     const navigate = useNavigate();
@@ -59,11 +59,6 @@ const Login: React.FC = () => {
 
             if (authError) throw authError;
 
-            if (authData.user && isInstitutionalHostname(window.location.hostname)) {
-                navigate('/select-system', { replace: true });
-                return;
-            }
-
             navigate('/dashboard', { replace: true });
         } catch (err: any) {
             setError(getAuthErrorMessage(err));
@@ -80,7 +75,7 @@ const Login: React.FC = () => {
         try {
             const normalizedResetEmail = normalizeEmail(resetEmail);
             const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedResetEmail, {
-                redirectTo: `${window.location.origin}/reset-password`,
+                redirectTo: buildResetPasswordRedirectUrl(window.location.origin),
             });
 
             if (resetError) throw resetError;
