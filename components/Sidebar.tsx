@@ -41,7 +41,6 @@ import {
   ShieldCheck,
   RefreshCw,
   Eye,
-  GitBranch,
   Building2,
   Star,
   type LucideIcon,
@@ -248,9 +247,8 @@ export const buildRawSidebarMenu = ({
         },
         operationalAllowed: true,
       },
-      { name: 'Observabilidade', icon: Eye, path: '/observability' },
+      { name: 'Observabilidade', icon: Eye, path: '/observability', superAdminOnly: true },
       { name: 'Super Admin', icon: ShieldCheck, path: '/superadmin', superAdminOnly: true },
-      { name: 'Event Versioning', icon: GitBranch, path: '/event-versioning', superAdminOnly: true },
     ],
   },
 ];
