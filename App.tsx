@@ -1,7 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { HashRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { PortalAuthProvider } from './components/PortalAuthProvider';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider, isManagerAccessRole, useAuth } from './context/AuthContext';
 import { LoadingProvider } from './context/LoadingContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { isAppModuleEnabled } from './src/lib/apps/modules';
@@ -187,7 +187,7 @@ const ProtectedRoute: React.FC = () => {
 
 const ManagerRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { accessRole } = useAuth();
-  if (accessRole === 'barber' || accessRole === 'receptionist') {
+  if (!isManagerAccessRole(accessRole)) {
     return <Navigate to="/dashboard" replace />;
   }
   return <>{children}</>;
@@ -305,11 +305,11 @@ const AppRoutes: React.FC = () => {
             <Route path="/clients" element={<ManagerRoute><Clients /></ManagerRoute>} />
             <Route path="/bi" element={<ManagerRoute><FeatureRoute feature="bi"><BusinessIntelligence /></FeatureRoute></ManagerRoute>} />
             <Route path="/smart-return" element={<ManagerRoute><SmartReturn /></ManagerRoute>} />
-            <Route path="/chef-club-plans" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubPlans /></ManagerRoute></FeatureRoute></ModuleRoute>} />
-            <Route path="/chef-club-receivables" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubReceivables /></ManagerRoute></FeatureRoute></ModuleRoute>} />
-            <Route path="/chef-club-subscriptions" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubSubscriptions /></ManagerRoute></FeatureRoute></ModuleRoute>} />
-            <Route path="/chef-club-subscriptions/new" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubSubscriptionNew /></ManagerRoute></FeatureRoute></ModuleRoute>} />
-            <Route path="/chef-club-subscriptions/:subscriptionId" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubSubscriptionDetail /></ManagerRoute></FeatureRoute></ModuleRoute>} />
+            <Route path="/chef-club-plans" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><FeatureRoute feature="chef_club"><ChefClubPlans /></FeatureRoute></ManagerRoute></ModuleRoute>} />
+            <Route path="/chef-club-receivables" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><FeatureRoute feature="chef_club"><ChefClubReceivables /></FeatureRoute></ManagerRoute></ModuleRoute>} />
+            <Route path="/chef-club-subscriptions" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><FeatureRoute feature="chef_club"><ChefClubSubscriptions /></FeatureRoute></ManagerRoute></ModuleRoute>} />
+            <Route path="/chef-club-subscriptions/new" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><FeatureRoute feature="chef_club"><ChefClubSubscriptionNew /></FeatureRoute></ManagerRoute></ModuleRoute>} />
+            <Route path="/chef-club-subscriptions/:subscriptionId" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><FeatureRoute feature="chef_club"><ChefClubSubscriptionDetail /></FeatureRoute></ManagerRoute></ModuleRoute>} />
 
             <Route path="/financial" element={<Navigate to="/cashflow" replace />} />
             <Route path="/financial-overview" element={<Navigate to="/cashflow" replace />} />
@@ -326,7 +326,7 @@ const AppRoutes: React.FC = () => {
             <Route path="/client-accounts" element={<Navigate to="/accounts-receivable?tab=creditos" replace />} />
             <Route path="/conta-cliente" element={<Navigate to="/accounts-receivable?tab=creditos" replace />} />
             <Route path="/payroll" element={<ManagerRoute><Payroll /></ManagerRoute>} />
-            <Route path="/commissions" element={<ModuleRoute moduleName="commissions"><FeatureRoute feature="commissions"><ManagerRoute><Commissions /></ManagerRoute></FeatureRoute></ModuleRoute>} />
+            <Route path="/commissions" element={<ModuleRoute moduleName="commissions"><ManagerRoute><FeatureRoute feature="commissions"><Commissions /></FeatureRoute></ManagerRoute></ModuleRoute>} />
             <Route path="/reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
             <Route path="/daily-summary" element={<ManagerRoute><DailySummary /></ManagerRoute>} />
             <Route path="/services" element={<ManagerRoute><Services /></ManagerRoute>} />
