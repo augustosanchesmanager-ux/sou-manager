@@ -12,6 +12,33 @@ import type {
   PlatformPaymentMethod,
 } from '../src/types/platformBilling';
 
+/**
+ * @deprecated ADR-055 (Fase 1): As tabelas `platform_plans`, `platform_subscriptions`
+ * e `platform_invoices` foram depreciadas sem DROP imediato. O Stack A (`plans`,
+ * `subscriptions`, `invoices` + `tenants.plan`) é a fonte única de verdade.
+ * Utilize `activateAssistedPlanUpgrade` para ativações e baixas manuais no fluxo assistido.
+ */
+export interface AssistedPlanUpgradeInput {
+  tenantId: string;
+  targetPlan: 'free' | 'pro' | 'premium';
+  invoiceId?: string | null;
+  amount?: number | null;
+  paymentMethod?: string;
+  periodMonths?: number;
+  idempotencyKey?: string | null;
+}
+
+export interface AssistedPlanUpgradeResult {
+  success: boolean;
+  tenant_id: string;
+  plan: 'free' | 'pro' | 'premium';
+  status: string;
+  subscription_id: string;
+  invoice_id: string;
+  period_start: string;
+  period_end: string;
+}
+
 export const platformBillingService = {
   /**
    * Lista os planos comerciais da plataforma SMG disponíveis.
@@ -330,5 +357,35 @@ export const platformBillingService = {
     }
 
     return data as SaaSExecutiveMetrics;
+  },
+
+  /**
+   * Operação atômica oficial do Stack A (ADR-055) para ativação/upgrade de plano
+   * e baixa manual no fluxo assistido (DEC-01). Restrito a SuperAdmin.
+   */
+  async activateAssistedPlanUpgrade(
+    input: AssistedPlanUpgradeInput,
+    client: SupabaseClient = defaultSupabase
+  ): Promise<AssistedPlanUpgradeResult> {
+    if (!input.tenantId || input.tenantId.trim() === '') {
+      throw new Error('Tenant ID é obrigatório para ativar upgrade assistido.');
+    }
+
+    const { data, error } = await client.rpc('activate_assisted_plan_upgrade', {
+      p_tenant_id: input.tenantId,
+      p_target_plan: input.targetPlan,
+      p_invoice_id: input.invoiceId ?? null,
+      p_amount: input.amount ?? null,
+      p_payment_method: input.paymentMethod ?? 'assisted',
+      p_period_months: input.periodMonths ?? 1,
+      p_idempotency_key: input.idempotencyKey ?? null,
+    });
+
+    if (error) {
+      console.error('[PlatformBillingService] Erro ao executar activate_assisted_plan_upgrade:', error);
+      throw error;
+    }
+
+    return data as AssistedPlanUpgradeResult;
   },
 };

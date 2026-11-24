@@ -153,10 +153,14 @@ export const useStrategicDashboard = (period: Period = 'month') => {
       }).length;
       const returningClients = allClients.filter(c => c.last_visit && new Date(c.last_visit) >= new Date(currentStart)).length;
       
-      // Calculate appointments
+      // Calculate appointments using actual days in the selected period
       const appointmentCount = allAppointments.filter(a => !['canceled', 'cancelled'].includes(a.status)).length;
       const staffCount = activeStaff.length;
-      const appointmentSlots = staffCount > 0 ? staffCount * 12 * 30 : 0;
+      const periodDays = Math.max(
+        1,
+        Math.round((new Date(currentEnd).getTime() - new Date(currentStart).getTime()) / (24 * 60 * 60 * 1000))
+      );
+      const appointmentSlots = staffCount > 0 ? staffCount * 12 * periodDays : 0;
       const occupationRate = appointmentSlots > 0 ? (appointmentCount / appointmentSlots) * 100 : 0;
       
       // Revenue evolution chart

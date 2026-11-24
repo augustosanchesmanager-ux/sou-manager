@@ -1,3 +1,5 @@
+import { businessDateInTimeZone } from '../../../shared/dates/timezone';
+
 export interface ParsedTransaction {
   fitid: string;
   posted_at: string; // YYYY-MM-DD
@@ -22,7 +24,7 @@ const parseOfxDate = (raw: string): string => {
     const day = digits.slice(6, 8);
     return `${year}-${month}-${day}`;
   }
-  return new Date().toISOString().split('T')[0];
+  return businessDateInTimeZone();
 };
 
 const extractTagValue = (xmlOrSgml: string, tag: string): string => {
@@ -72,7 +74,7 @@ export const parseOfxContent = (content: string): ParsedStatement => {
     }
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = businessDateInTimeZone();
 
   return {
     bankId,
@@ -140,7 +142,7 @@ export const parseCsvContent = (content: string): ParsedStatement => {
     }
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = businessDateInTimeZone();
 
   return {
     periodStart: earliestDate || today,

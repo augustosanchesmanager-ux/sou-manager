@@ -1,5 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTenantOptional } from '../src/context/TenantContext';
+import {
+    formatTenantPlanLabel,
+    openAssistedUpgradeChannel,
+} from '../src/lib/billing/assistedUpgrade';
 import { supabase } from '../services/supabaseClient';
 import { tenantGoalsRepository } from '../domain/tenantGoals/repository';
 import { useNotificationPreferences } from '../src/hooks/useNotificationPreferences';
@@ -95,6 +100,8 @@ const validateProfileFields = (profile: Record<string, string>) => {
 
 const Settings: React.FC = () => {
     const { user, tenantId, accessRole: authAccessRole } = useAuth();
+    const tenantContext = useTenantOptional();
+    const currentTenant = tenantContext?.tenant ?? null;
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const { loading: cepLoading, message: cepMessage, fetchAddress } = useViaCep();
@@ -927,9 +934,21 @@ const Settings: React.FC = () => {
                         <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Plano Atual</p>
                         <div className="flex items-center gap-2">
                             <span className="px-2 py-0.5 bg-primary text-night text-[10px] font-black rounded-md uppercase tracking-wider">
-                                {user?.user_metadata?.plan || 'Free'}
+                                {formatTenantPlanLabel(currentTenant?.plan)}
                             </span>
-                            <button className="text-[10px] text-primary hover:underline font-bold uppercase tracking-widest">Upgrade</button>
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    openAssistedUpgradeChannel({
+                                        tenantName: currentTenant?.name || profile.shop_name,
+                                        currentPlan: currentTenant?.plan,
+                                        contextReason: 'Configurações da Unidade',
+                                    })
+                                }
+                                className="text-[10px] text-primary hover:underline font-bold uppercase tracking-widest cursor-pointer"
+                            >
+                                Upgrade
+                            </button>
                         </div>
                     </div>
                 </div>
