@@ -1,17 +1,18 @@
 import React, { Suspense, lazy } from 'react';
-import { HashRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { HashRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { PortalAuthProvider } from './components/PortalAuthProvider';
 import { AuthProvider, isManagerAccessRole, useAuth } from './context/AuthContext';
 import { LoadingProvider } from './context/LoadingContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { isAppModuleEnabled } from './src/lib/apps/modules';
-import { buildAppUrl, isInstitutionalHostname } from './src/lib/apps/publicUrl';
+import { buildAppUrl, isInstitutionalHostname, resolveBookingRedirectPath } from './src/lib/apps/publicUrl';
 import { AppProvider } from './src/context/AppContext';
 import { TenantProvider } from './src/context/TenantContext';
 import { authorizationService } from './application/authorization';
 import { useObservability } from './src/lib/observability/useObservability';
 import { useEventInfrastructure } from './src/hooks/useEventInfrastructure';
 import FeatureGuard from './components/billing/FeatureGuard';
+import { getSharedClient } from './src/lib/supabase/client';
 import type { AppModuleSlug } from './src/lib/supabase/schemas';
 import {
   isLocalDemoEnabled,
@@ -248,6 +249,36 @@ const AppDocumentTitle: React.FC = () => {
   return null;
 };
 
+const BookingSlugRedirect: React.FC = () => {
+  const { tenantSlug } = useParams<{ tenantSlug: string }>();
+  return <Navigate to={resolveBookingRedirectPath(tenantSlug)} replace />;
+};
+
+const PasswordRecoveryRedirect: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  React.useEffect(() => {
+    if (
+      (window.location.hash.includes('type=recovery') || window.location.pathname === '/reset-password') &&
+      location.pathname !== '/reset-password'
+    ) {
+      navigate('/reset-password', { replace: true });
+    }
+
+    const client = getSharedClient();
+    const { data: { subscription } } = client.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        navigate('/reset-password', { replace: true });
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate, location.pathname]);
+
+  return null;
+};
+
 const AppRoutes: React.FC = () => {
   return (
     <Suspense fallback={<RouteFallback />}>
@@ -271,7 +302,7 @@ const AppRoutes: React.FC = () => {
 
         {/* Public Booking & Feedback Routes (no auth required) */}
         <Route path="/agendar/:tenantSlug" element={<PublicBookingPage />} />
-        <Route path="/booking/:tenantSlug" element={<Navigate to="/agendar/:tenantSlug" replace />} />
+        <Route path="/booking/:tenantSlug" element={<BookingSlugRedirect />} />
         <Route path="/feedback/:tenantSlug" element={<PublicFeedbackPage />} />
         <Route path="/feedback/:tenantSlug/:token" element={<PublicFeedbackPage />} />
         <Route path="/r/:tenantSlug" element={<PublicFeedbackPage />} />
@@ -384,6 +415,7 @@ const App: React.FC = () => {
                 </div>
               )}
               <HashRouter>
+                <PasswordRecoveryRedirect />
                 <AppRoutes />
               </HashRouter>
             </TenantProvider>
