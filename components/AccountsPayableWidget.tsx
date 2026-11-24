@@ -3,6 +3,7 @@ import { useAccountsPayable } from '@/hooks/useAccountsPayable';
 import { AccountPayableWithOverdue, RecurringBill } from '@/domain/accountsPayable/types';
 import Modal from './ui/Modal';
 import Toast from './Toast';
+import { businessDateInTimeZone } from '@/shared/dates/timezone';
 
 type TabType = 'pending' | 'paid' | 'cancelled' | 'recurring';
 
@@ -40,7 +41,7 @@ const AccountsPayableWidget: React.FC = () => {
   const [payingAP, setPayingAP] = useState<AccountPayableWithOverdue | null>(null);
   const [isPaying, setIsPaying] = useState(false);
   const [payForm, setPayForm] = useState({
-    paid_at: new Date().toISOString().split('T')[0],
+    paid_at: businessDateInTimeZone(),
     payment_method: 'Dinheiro',
   });
 
@@ -57,7 +58,7 @@ const AccountsPayableWidget: React.FC = () => {
   const [apForm, setApForm] = useState({
     name: '',
     amount: '',
-    due_date: new Date().toISOString().split('T')[0],
+    due_date: businessDateInTimeZone(),
     category: 'Outros',
     notes: '',
   });
@@ -208,7 +209,7 @@ const AccountsPayableWidget: React.FC = () => {
       });
       setToast({ message: 'Conta avulsa criada!', type: 'success' });
       setIsOneTimeModalOpen(false);
-      setApForm({ name: '', amount: '', due_date: new Date().toISOString().split('T')[0], category: 'Outros', notes: '' });
+      setApForm({ name: '', amount: '', due_date: businessDateInTimeZone(), category: 'Outros', notes: '' });
       setIdempotencyKey(null);
     } catch {
       setToast({ message: 'Erro ao criar conta avulsa', type: 'error' });
@@ -238,7 +239,7 @@ const AccountsPayableWidget: React.FC = () => {
   const openPayModal = (ap: AccountPayableWithOverdue) => {
     setPayingAP(ap);
     setPayForm({
-      paid_at: new Date().toISOString().split('T')[0],
+      paid_at: businessDateInTimeZone(),
       payment_method: 'Dinheiro',
     });
     setIsPayModalOpen(true);
@@ -415,7 +416,7 @@ const AccountsPayableWidget: React.FC = () => {
             + Recorrência
           </button>
           <button
-            onClick={() => { setEditingAP(null); setApForm({ name: '', amount: '', due_date: new Date().toISOString().split('T')[0], category: 'Outros', notes: '' }); setIsOneTimeModalOpen(true); }}
+            onClick={() => { setEditingAP(null); setApForm({ name: '', amount: '', due_date: businessDateInTimeZone(), category: 'Outros', notes: '' }); setIsOneTimeModalOpen(true); }}
             className="bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
           >
             <span className="material-symbols-outlined text-sm">add_circle</span>
