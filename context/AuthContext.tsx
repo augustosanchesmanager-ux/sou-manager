@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { type Session, type User } from '@supabase/supabase-js';
 import {
     DEFAULT_APP_SLUG,
@@ -466,7 +466,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
     }, []);
 
-    const signOut = async () => {
+    const signOut = useCallback(async () => {
         try {
             await supabase.auth.signOut();
         } finally {
@@ -482,13 +482,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setAuthError(null);
             setLoading(false);
         }
-    };
+    }, []);
 
     // Re-resolve o contexto de acesso para o usuário atual.
     // Usado após o provisionamento do tenant (ex: fluxo de registro) para
     // garantir que resolvedTenantId/accessRole/profileStatus estejam frescos
     // antes da navegação — evita o authError sintético "tenant não identificado".
-    const refreshAccessContext = async (): Promise<void> => {
+    const refreshAccessContext = useCallback(async (): Promise<void> => {
         if (!session) return;
         try {
             const authContext = await fetchAccessContext(session);
@@ -499,25 +499,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch (err) {
             console.error('Failed to refresh auth session context:', err);
         }
-    };
+    }, [session]);
+
+    const authSessionValue = useMemo(
+        () => ({ session, user }),
+        [session, user],
+    );
+
+    const authContextValue = useMemo<AuthSessionContextType>(
+        () => ({
+            session,
+            user,
+            resolvedTenantId,
+            accessRole,
+            canAccessSuperAdmin,
+            isSuperAdmin: canAccessSuperAdmin,
+            profileStatus,
+            authError,
+            loading,
+            signOut,
+            refreshAccessContext,
+        }),
+        [
+            accessRole,
+            authError,
+            canAccessSuperAdmin,
+            loading,
+            profileStatus,
+            refreshAccessContext,
+            resolvedTenantId,
+            session,
+            signOut,
+            user,
+        ],
+    );
 
     return (
-        <AuthSessionContext.Provider value={{ session, user }}>
-            <AuthContext.Provider
-                value={{
-                    session,
-                    user,
-                    resolvedTenantId,
-                    accessRole,
-                    canAccessSuperAdmin,
-                    isSuperAdmin: canAccessSuperAdmin,
-                    profileStatus,
-                    authError,
-                    loading,
-                    signOut,
-                    refreshAccessContext,
-                }}
-            >
+        <AuthSessionContext.Provider value={authSessionValue}>
+            <AuthContext.Provider value={authContextValue}>
                 {children}
             </AuthContext.Provider>
         </AuthSessionContext.Provider>

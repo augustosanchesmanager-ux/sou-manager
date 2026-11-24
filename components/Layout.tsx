@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { Suspense, useState, useEffect, useRef } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import { RouteErrorBoundary } from './RouteErrorBoundary';
 import Logo from './Logo';
 import ThemeToggle from './ThemeToggle';
 import { useAuth } from '../context/AuthContext';
@@ -360,7 +361,17 @@ const Layout: React.FC = () => {
         <StatusBanner />
 
         <div className={`flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 main-content ${showMobileBottomNav ? 'pb-24 md:pb-24 lg:pb-8' : ''}`}>
-          <Outlet />
+          <RouteErrorBoundary resetKey={location.pathname}>
+            <Suspense
+              fallback={
+                <div className="flex min-h-[240px] items-center justify-center">
+                  <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-primary" />
+                </div>
+              }
+            >
+              <Outlet />
+            </Suspense>
+          </RouteErrorBoundary>
         </div>
 
         <MobileBottomNav onOpenMenu={() => setIsSidebarOpen(true)} />
