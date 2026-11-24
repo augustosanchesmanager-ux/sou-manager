@@ -1,30 +1,14 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Button from '../components/ui/Button';
 import Toast from '../components/Toast';
 import { useAuth } from '../context/AuthContext';
-
-interface Category {
-  id: string;
-  name: string;
-  description: string;
-  active: boolean;
-  created_at: string;
-}
+import { categoriesRepository, type CategoryRecord } from '../domain/categories/repository';
 
 const Categories: React.FC = () => {
   const { tenantId } = useAuth();
-  const storageKey = `categories_${tenantId || 'default'}`;
-
-  const [categories, setCategories] = useState<Category[]>(() => {
-    const raw = localStorage.getItem(storageKey);
-    if (!raw) return [];
-    try {
-      const parsed = JSON.parse(raw) as Category[];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  });
+  const [categories, setCategories] = useState<CategoryRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   const [search, setSearch] = useState('');
   const [name, setName] = useState('');
@@ -32,10 +16,28 @@ const Categories: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
-  const persist = (next: Category[]) => {
-    setCategories(next);
-    localStorage.setItem(storageKey, JSON.stringify(next));
-  };
+  const loadCategories = useCallback(async () => {
+    if (!tenantId) {
+      setCategories([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const rows = await categoriesRepository.listByTenant(tenantId);
+      setCategories(rows);
+    } catch (err) {
+      console.error('[Categories] Erro ao carregar categorias:', err);
+      setToast({ message: 'Não foi possível carregar as categorias.', type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  }, [tenantId]);
+
+  useEffect(() => {
+    void loadCategories();
+  }, [loadCategories]);
 
   const filtered = useMemo(
     () =>
@@ -51,52 +53,74 @@ const Categories: React.FC = () => {
     setDescription('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!tenantId) {
+      setToast({ message: 'Unidade não identificada para salvar categoria.', type: 'error' });
+      return;
+    }
     if (!name.trim()) {
       setToast({ message: 'Informe o nome da categoria.', type: 'error' });
       return;
     }
 
-    if (editingId) {
-      const next = categories.map((c) =>
-        c.id === editingId ? { ...c, name: name.trim(), description: description.trim() } : c
-      );
-      persist(next);
-      setToast({ message: 'Categoria atualizada com sucesso!', type: 'success' });
-      resetForm();
-      return;
-    }
+    setSubmitting(true);
+    try {
+      if (editingId) {
+        const updated = await categoriesRepository.update(tenantId, editingId, {
+          name: name.trim(),
+          description: description.trim(),
+        });
+        setCategories((prev) => prev.map((c) => (c.id === editingId ? updated : c)));
+        setToast({ message: 'Categoria atualizada com sucesso!', type: 'success' });
+        resetForm();
+        return;
+      }
 
-    const newCategory: Category = {
-      id: window.crypto?.randomUUID?.() || `${Date.now()}`,
-      name: name.trim(),
-      description: description.trim(),
-      active: true,
-      created_at: new Date().toISOString()
-    };
-    persist([newCategory, ...categories]);
-    setToast({ message: 'Categoria criada com sucesso!', type: 'success' });
-    resetForm();
+      const created = await categoriesRepository.create(tenantId, {
+        name: name.trim(),
+        description: description.trim(),
+      });
+      setCategories((prev) => [created, ...prev]);
+      setToast({ message: 'Categoria criada com sucesso!', type: 'success' });
+      resetForm();
+    } catch (err) {
+      console.error('[Categories] Erro ao salvar categoria:', err);
+      setToast({ message: 'Erro ao salvar categoria no servidor.', type: 'error' });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleEdit = (category: Category) => {
+  const handleEdit = (category: CategoryRecord) => {
     setEditingId(category.id);
     setName(category.name);
     setDescription(category.description);
   };
 
-  const handleToggle = (id: string) => {
-    const next = categories.map((c) => (c.id === id ? { ...c, active: !c.active } : c));
-    persist(next);
-    setToast({ message: 'Status atualizado.', type: 'info' });
+  const handleToggle = async (category: CategoryRecord) => {
+    if (!tenantId) return;
+    try {
+      const updated = await categoriesRepository.toggleActive(tenantId, category.id, !category.active);
+      setCategories((prev) => prev.map((c) => (c.id === category.id ? updated : c)));
+      setToast({ message: 'Status atualizado.', type: 'info' });
+    } catch (err) {
+      console.error('[Categories] Erro ao alterar status da categoria:', err);
+      setToast({ message: 'Não foi possível atualizar o status.', type: 'error' });
+    }
   };
 
-  const handleDelete = (id: string) => {
-    const next = categories.filter((c) => c.id !== id);
-    persist(next);
-    if (editingId === id) resetForm();
-    setToast({ message: 'Categoria removida.', type: 'info' });
+  const handleDelete = async (id: string) => {
+    if (!tenantId) return;
+    try {
+      await categoriesRepository.remove(tenantId, id);
+      setCategories((prev) => prev.filter((c) => c.id !== id));
+      if (editingId === id) resetForm();
+      setToast({ message: 'Categoria removida.', type: 'info' });
+    } catch (err) {
+      console.error('[Categories] Erro ao remover categoria:', err);
+      setToast({ message: 'Não foi possível remover a categoria.', type: 'error' });
+    }
   };
 
   return (
@@ -136,7 +160,13 @@ const Categories: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-border-dark text-sm">
-                {filtered.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
+                      Carregando categorias...
+                    </td>
+                  </tr>
+                ) : filtered.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
                       Nenhuma categoria encontrada.
@@ -151,7 +181,8 @@ const Categories: React.FC = () => {
                       </td>
                       <td className="px-6 py-4">
                         <button
-                          onClick={() => handleToggle(category.id)}
+                          type="button"
+                          onClick={() => void handleToggle(category)}
                           className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border ${
                             category.active
                               ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-600 border-emerald-200 dark:border-emerald-900'
@@ -164,6 +195,7 @@ const Categories: React.FC = () => {
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
+                            type="button"
                             onClick={() => handleEdit(category)}
                             className="p-2 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                             title="Editar"
@@ -171,7 +203,8 @@ const Categories: React.FC = () => {
                             <span className="material-symbols-outlined text-lg">edit</span>
                           </button>
                           <button
-                            onClick={() => handleDelete(category.id)}
+                            type="button"
+                            onClick={() => void handleDelete(category.id)}
                             className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
                             title="Excluir"
                           >
@@ -192,10 +225,10 @@ const Categories: React.FC = () => {
             {editingId ? 'Editar Categoria' : 'Nova Categoria'}
           </h3>
           <p className="text-xs text-slate-500 mt-1 mb-4">
-            Cadastro local por tenant para ativar o fluxo dessa tela.
+            Sincronizado na nuvem com isolamento por unidade.
           </p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
             <div>
               <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Nome</label>
               <input
@@ -219,11 +252,11 @@ const Categories: React.FC = () => {
             </div>
 
             <div className="flex gap-3 pt-2">
-              <Button variant="secondary" className="flex-1" onClick={resetForm}>
+              <Button type="button" variant="secondary" className="flex-1" onClick={resetForm} disabled={submitting}>
                 Limpar
               </Button>
-              <Button type="submit" className="flex-1">
-                {editingId ? 'Atualizar' : 'Salvar'}
+              <Button type="submit" className="flex-1" disabled={submitting}>
+                {submitting ? 'Salvando...' : editingId ? 'Atualizar' : 'Salvar'}
               </Button>
             </div>
           </form>

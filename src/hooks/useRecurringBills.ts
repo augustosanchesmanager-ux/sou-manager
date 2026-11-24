@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../services/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
 import { logSupabaseError } from '../lib/supabase/errors';
+import { businessDateInTimeZone } from '../../shared/dates/timezone';
 
 const DEBUG_RECURRING_BILLS = true;
 
@@ -264,7 +265,7 @@ export const useRecurringBills = () => {
   const markAsPaid = async (billId: string) => {
     if (!tenantId) throw new Error('Tenant inválido');
     
-    const today = new Date().toISOString().split('T')[0];
+    const today = businessDateInTimeZone();
     
     const payload = { status: 'paid', date: today };
     debugRecurringBills('markAsPaid payload', { billId, tenantId, payload });

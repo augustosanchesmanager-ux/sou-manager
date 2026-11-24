@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Modal from '../ui/Modal';
 import { formatCurrency } from '../../shared/format/currency';
+import { businessDateInTimeZone } from '../../shared/dates/timezone';
 import { getEffectiveCommissionRate } from '../../src/lib/staff/roles';
 import {
   calculateBarberStatementSummary,
@@ -50,7 +51,7 @@ export const BarberCommissionStatementModal: React.FC<BarberCommissionStatementM
 
   // Period state
   const [period, setPeriod] = useState<StatementPeriod>('today');
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayStr = useMemo(() => businessDateInTimeZone(), []);
   const [customStartDate, setCustomStartDate] = useState<string>(todayStr);
   const [customEndDate, setCustomEndDate] = useState<string>(todayStr);
 

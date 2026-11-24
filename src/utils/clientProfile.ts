@@ -6,6 +6,7 @@
  */
 
 import type { PreferredFrequency } from '../../domain/client/types';
+import { businessDateInTimeZone } from '../../shared/dates/timezone';
 
 export interface ServiceHistoryEntry {
   staffId: string | null;
@@ -102,7 +103,7 @@ export function calculateNextPreferredDate(
   referenceDate: Date = new Date()
 ): string {
   if (!Number.isInteger(preferredWeekday) || preferredWeekday < 1 || preferredWeekday > 7) {
-    return referenceDate.toISOString().split('T')[0];
+    return businessDateInTimeZone(referenceDate);
   }
 
   const jsDay = referenceDate.getDay(); // 0 = Domingo, 1 = Segunda ... 6 = Sábado

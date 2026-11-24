@@ -1,25 +1,28 @@
 import React, { Suspense, lazy } from 'react';
-import { HashRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { HashRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { PortalAuthProvider } from './components/PortalAuthProvider';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider, isManagerAccessRole, useAuth } from './context/AuthContext';
 import { LoadingProvider } from './context/LoadingContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { isAppModuleEnabled } from './src/lib/apps/modules';
-import { buildAppUrl, isInstitutionalHostname } from './src/lib/apps/publicUrl';
+import { buildAppUrl, isInstitutionalHostname, resolveBookingRedirectPath } from './src/lib/apps/publicUrl';
 import { AppProvider } from './src/context/AppContext';
 import { TenantProvider } from './src/context/TenantContext';
 import { authorizationService } from './application/authorization';
 import { useObservability } from './src/lib/observability/useObservability';
 import { useEventInfrastructure } from './src/hooks/useEventInfrastructure';
 import FeatureGuard from './components/billing/FeatureGuard';
+import { getSharedClient } from './src/lib/supabase/client';
 import type { AppModuleSlug } from './src/lib/supabase/schemas';
+import {
+  isLocalDemoEnabled,
+  isSupabaseConfigMissingInProduction,
+} from './src/lib/supabase/client';
 import type { FeatureKey } from './domain/billing/featureKey';
 
 const Layout = lazy(() => import('./components/Layout'));
 const AccessControl = lazy(() => import('./pages/AccessControl'));
 const AcceptInvite = lazy(() => import('./pages/AcceptInvite'));
-const Admin = lazy(() => import('./pages/Admin'));
-const Automations = lazy(() => import('./pages/Automations'));
 const BusinessIntelligence = lazy(() => import('./pages/BusinessIntelligence'));
 const Cashflow = lazy(() => import('./pages/Cashflow'));
 const Categories = lazy(() => import('./pages/Categories'));
@@ -44,7 +47,6 @@ const Landing = lazy(() => import('./pages/Landing'));
 const Login = lazy(() => import('./pages/Login'));
 const Operations = lazy(() => import('./pages/Operations'));
 const OperationSuccess = lazy(() => import('./pages/OperationSuccess'));
-const OrderDetails = lazy(() => import('./pages/OrderDetails'));
 const Orders = lazy(() => import('./pages/Orders'));
 const OfflineSync = lazy(() => import('./pages/OfflineSync'));
 const Payroll = lazy(() => import('./pages/Payroll'));
@@ -57,11 +59,11 @@ const Provision = lazy(() => import('./pages/onboarding/Provision'));
 const Receipts = lazy(() => import('./pages/Receipts'));
 const Register = lazy(() => import('./pages/Register'));
 const RegisterSuccess = lazy(() => import('./pages/RegisterSuccess'));
+const LegalCenter = lazy(() => import('./pages/LegalCenter'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const Reports = lazy(() => import('./pages/Reports'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Observability = lazy(() => import('./pages/Observability'));
-const EventVersioningAdmin = lazy(() => import('./pages/EventVersioningAdmin'));
 const Schedule = lazy(() => import('./pages/Schedule'));
 const Services = lazy(() => import('./pages/Services'));
 const Settings = lazy(() => import('./pages/Settings'));
@@ -120,7 +122,7 @@ const InstitutionalAppRedirect: React.FC = () => {
 };
 
 const ProtectedRoute: React.FC = () => {
-  const { session, loading, profileStatus, isSuperAdmin, authError, tenant, user } = useAuth();
+  const { session, loading, profileStatus, isSuperAdmin, authError, tenant, tenantId, tenantError, user } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -156,7 +158,7 @@ const ProtectedRoute: React.FC = () => {
   // de e-mail ATIVADA no Supabase → signUp não retorna sessão). O provisionamento
   // roda aqui, no primeiro login pós-confirmação, e segue para o onboarding.
   const pendingRegistration =
-    Boolean(session.user?.user_metadata?.shop_name) && !tenant;
+    Boolean(session.user?.user_metadata?.shop_name) && !tenantId && !tenantError;
 
   if (pendingRegistration && location.pathname !== '/onboarding/provision') {
     return <Navigate to="/onboarding/provision" replace />;
@@ -187,7 +189,7 @@ const ProtectedRoute: React.FC = () => {
 
 const ManagerRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { accessRole } = useAuth();
-  if (accessRole === 'barber' || accessRole === 'receptionist') {
+  if (!isManagerAccessRole(accessRole)) {
     return <Navigate to="/dashboard" replace />;
   }
   return <>{children}</>;
@@ -246,6 +248,36 @@ const AppDocumentTitle: React.FC = () => {
   return null;
 };
 
+const BookingSlugRedirect: React.FC = () => {
+  const { tenantSlug } = useParams<{ tenantSlug: string }>();
+  return <Navigate to={resolveBookingRedirectPath(tenantSlug)} replace />;
+};
+
+const PasswordRecoveryRedirect: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  React.useEffect(() => {
+    if (
+      (window.location.hash.includes('type=recovery') || window.location.pathname === '/reset-password') &&
+      location.pathname !== '/reset-password'
+    ) {
+      navigate('/reset-password', { replace: true });
+    }
+
+    const client = getSharedClient();
+    const { data: { subscription } } = client.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        navigate('/reset-password', { replace: true });
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate, location.pathname]);
+
+  return null;
+};
+
 const AppRoutes: React.FC = () => {
   return (
     <Suspense fallback={<RouteFallback />}>
@@ -254,6 +286,7 @@ const AppRoutes: React.FC = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/register-success" element={<RegisterSuccess />} />
+        <Route path="/legal" element={<LegalCenter />} />
         <Route path="/register/verify-email" element={<VerifyEmail />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/accept-invite/:token" element={<AcceptInvite />} />
@@ -269,7 +302,7 @@ const AppRoutes: React.FC = () => {
 
         {/* Public Booking & Feedback Routes (no auth required) */}
         <Route path="/agendar/:tenantSlug" element={<PublicBookingPage />} />
-        <Route path="/booking/:tenantSlug" element={<Navigate to="/agendar/:tenantSlug" replace />} />
+        <Route path="/booking/:tenantSlug" element={<BookingSlugRedirect />} />
         <Route path="/feedback/:tenantSlug" element={<PublicFeedbackPage />} />
         <Route path="/feedback/:tenantSlug/:token" element={<PublicFeedbackPage />} />
         <Route path="/r/:tenantSlug" element={<PublicFeedbackPage />} />
@@ -290,7 +323,7 @@ const AppRoutes: React.FC = () => {
             <Route path="/offline-sync" element={<OfflineSync />} />
             <Route path="/support" element={<Support />} />
 
-            <Route path="/admin" element={<SuperAdminRoute><Admin /></SuperAdminRoute>} />
+            <Route path="/admin" element={<SuperAdminRoute><Navigate to="/superadmin" replace /></SuperAdminRoute>} />
             {/* PO 2026-10-06: rota mockada desativada (dados ficticios). Ver ADR-031. */}
             {/* <Route path="/admin/supabase-monitoring" element={<ManagerRoute><SupabaseMonitoring /></ManagerRoute>} /> */}
             <Route path="/access-control" element={<ManagerRoute><AccessControl /></ManagerRoute>} />
@@ -300,16 +333,14 @@ const AppRoutes: React.FC = () => {
             <Route path="/booking-settings" element={<ModuleRoute moduleName="portal"><ManagerRoute><OnlineBookingSettings /></ManagerRoute></ModuleRoute>} />
             <Route path="/quality" element={<ManagerRoute><QualityDashboard /></ManagerRoute>} />
             <Route path="/settings" element={<ManagerRoute><Settings /></ManagerRoute>} />
-            {/* Frente 1 (Zero Mock): rota /automations desativada até integração real de disparos. */}
-            {/* <Route path="/automations" element={<ManagerRoute><Automations /></ManagerRoute>} /> */}
             <Route path="/clients" element={<ManagerRoute><Clients /></ManagerRoute>} />
             <Route path="/bi" element={<ManagerRoute><FeatureRoute feature="bi"><BusinessIntelligence /></FeatureRoute></ManagerRoute>} />
             <Route path="/smart-return" element={<ManagerRoute><SmartReturn /></ManagerRoute>} />
-            <Route path="/chef-club-plans" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubPlans /></ManagerRoute></FeatureRoute></ModuleRoute>} />
-            <Route path="/chef-club-receivables" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubReceivables /></ManagerRoute></FeatureRoute></ModuleRoute>} />
-            <Route path="/chef-club-subscriptions" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubSubscriptions /></ManagerRoute></FeatureRoute></ModuleRoute>} />
-            <Route path="/chef-club-subscriptions/new" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubSubscriptionNew /></ManagerRoute></FeatureRoute></ModuleRoute>} />
-            <Route path="/chef-club-subscriptions/:subscriptionId" element={<ModuleRoute moduleName="chef_club"><FeatureRoute feature="chef_club"><ManagerRoute><ChefClubSubscriptionDetail /></ManagerRoute></FeatureRoute></ModuleRoute>} />
+            <Route path="/chef-club-plans" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><FeatureRoute feature="chef_club"><ChefClubPlans /></FeatureRoute></ManagerRoute></ModuleRoute>} />
+            <Route path="/chef-club-receivables" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><FeatureRoute feature="chef_club"><ChefClubReceivables /></FeatureRoute></ManagerRoute></ModuleRoute>} />
+            <Route path="/chef-club-subscriptions" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><FeatureRoute feature="chef_club"><ChefClubSubscriptions /></FeatureRoute></ManagerRoute></ModuleRoute>} />
+            <Route path="/chef-club-subscriptions/new" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><FeatureRoute feature="chef_club"><ChefClubSubscriptionNew /></FeatureRoute></ManagerRoute></ModuleRoute>} />
+            <Route path="/chef-club-subscriptions/:subscriptionId" element={<ModuleRoute moduleName="chef_club"><ManagerRoute><FeatureRoute feature="chef_club"><ChefClubSubscriptionDetail /></FeatureRoute></ManagerRoute></ModuleRoute>} />
 
             <Route path="/financial" element={<Navigate to="/cashflow" replace />} />
             <Route path="/financial-overview" element={<Navigate to="/cashflow" replace />} />
@@ -326,16 +357,14 @@ const AppRoutes: React.FC = () => {
             <Route path="/client-accounts" element={<Navigate to="/accounts-receivable?tab=creditos" replace />} />
             <Route path="/conta-cliente" element={<Navigate to="/accounts-receivable?tab=creditos" replace />} />
             <Route path="/payroll" element={<ManagerRoute><Payroll /></ManagerRoute>} />
-            <Route path="/commissions" element={<ModuleRoute moduleName="commissions"><FeatureRoute feature="commissions"><ManagerRoute><Commissions /></ManagerRoute></FeatureRoute></ModuleRoute>} />
+            <Route path="/commissions" element={<ModuleRoute moduleName="commissions"><ManagerRoute><FeatureRoute feature="commissions"><Commissions /></FeatureRoute></ManagerRoute></ModuleRoute>} />
             <Route path="/reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
             <Route path="/daily-summary" element={<ManagerRoute><DailySummary /></ManagerRoute>} />
             <Route path="/services" element={<ManagerRoute><Services /></ManagerRoute>} />
             <Route path="/performance" element={<ManagerRoute><Performance /></ManagerRoute>} />
             <Route path="/operations" element={<ManagerRoute><Operations /></ManagerRoute>} />
-            <Route path="/observability" element={<ManagerRoute><Observability /></ManagerRoute>} />
-            <Route path="/event-versioning" element={<SuperAdminRoute><EventVersioningAdmin /></SuperAdminRoute>} />
+            <Route path="/observability" element={<SuperAdminRoute><Observability /></SuperAdminRoute>} />
             <Route path="/orders" element={<ManagerRoute><Orders /></ManagerRoute>} />
-            <Route path="/orders/:id" element={<ManagerRoute><OrderDetails /></ManagerRoute>} />
             <Route path="/products" element={<ManagerRoute><Products /></ManagerRoute>} />
             <Route path="/categories" element={<ManagerRoute><Categories /></ManagerRoute>} />
             <Route path="/suppliers" element={<ManagerRoute><Suppliers /></ManagerRoute>} />
@@ -355,6 +384,19 @@ const App: React.FC = () => {
   useObservability();
   useEventInfrastructure();
 
+  if (isSupabaseConfigMissingInProduction()) {
+    return (
+      <div className="min-h-screen bg-[#0c0d10] text-white flex items-center justify-center p-6">
+        <div className="max-w-md w-full rounded-2xl border border-red-500/30 bg-[#14161b] p-6 text-center space-y-3 shadow-2xl">
+          <h1 className="text-lg font-bold text-red-400">Configuração do ambiente ausente</h1>
+          <p className="text-sm text-slate-300">
+            Não foi possível inicializar a conexão com o servidor. Verifique as variáveis de ambiente do projeto antes de continuar.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <ThemeProvider>
       <LoadingProvider>
@@ -362,7 +404,16 @@ const App: React.FC = () => {
           <AuthProvider>
             <AppDocumentTitle />
             <TenantProvider>
+              {isLocalDemoEnabled() && (
+                <div
+                  role="status"
+                  className="w-full bg-amber-500 text-neutral-950 text-xs font-bold text-center py-1 px-3 z-[9999]"
+                >
+                  AMBIENTE DEMO LOCAL — dados fictícios armazenados apenas neste navegador
+                </div>
+              )}
               <HashRouter>
+                <PasswordRecoveryRedirect />
                 <AppRoutes />
               </HashRouter>
             </TenantProvider>

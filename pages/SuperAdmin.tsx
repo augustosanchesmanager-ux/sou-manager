@@ -17,14 +17,14 @@ import { profileRepository } from '../domain/profile/repository';
 import { supportRepository } from '../domain/support/repository';
 import { formatCurrency } from '../shared/format/currency';
 
-type TenantRow = { id: string; name: string; slug: string; status: string; created_at: string };
-type ProfileRow = { id: string; tenant_id: string | null; full_name: string | null; role: string | null; created_at: string; updated_at?: string | null };
+type TenantRow = { id: string; name: string; slug: string; plan?: string | null; status: string; created_at: string };
+type ProfileRow = { id: string; tenant_id: string | null; full_name: string | null; email?: string | null; role: string | null; status?: string | null; created_at: string; updated_at?: string | null };
 type PlanRow = { id: string; user_id: string; current_plan: string | null; requested_plan: string | null; status: string; created_at: string };
 type TicketRow = { id: string; user_id: string; subject: string; description: string | null; status: string; priority: string; created_at: string };
 type AlertRow = { id: string; resource_type: string; message: string; level: string; usage_pct: number | null; resolved_at: string | null; created_at: string };
 type AuditLogRow = { id: string; table_name: string; record_id: string; action: string; old_data: Record<string, any> | null; new_data: Record<string, any> | null; changed_by: string | null; changed_at: string; tenant_id: string | null };
 type AccessRequestRow = { id: string; tenant_name: string | null; owner_name: string | null; email: string | null; phone: string | null; status: string; created_at: string };
-type CompanyRow = { id: string; name: string; slug: string; usersCount: number; createdAt: string; status: AdminStatus };
+type CompanyRow = { id: string; name: string; slug: string; plan: string; rawStatus: string; usersCount: number; createdAt: string; status: AdminStatus };
 
 const tabs: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
   { id: 'overview', label: 'Visão Geral', icon: <HandCoins className="h-4 w-4" /> },
@@ -69,6 +69,8 @@ const SuperAdmin: React.FC = () => {
   const [userPage, setUserPage] = useState(1);
   const [subscriptionPage, setSubscriptionPage] = useState(1);
   const [companyPage, setCompanyPage] = useState(1);
+  const [auditPage, setAuditPage] = useState(1);
+  const [mutatingId, setMutatingId] = useState<string | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<AdminActivity | null>(null);
   const [actionMenuOpen, setActionMenuOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -150,22 +152,25 @@ const SuperAdmin: React.FC = () => {
     id: tenant.id,
     name: tenant.name,
     slug: tenant.slug,
+    plan: tenant.plan || 'free',
+    rawStatus: tenant.status || 'trial',
     usersCount: profiles.filter((profile) => profile.tenant_id === tenant.id).length,
     createdAt: tenant.created_at,
-    status: tenant.status === 'active' ? 'ativo' : 'inativo',
+    status: tenant.status === 'active' ? 'ativo' : tenant.status === 'trial' ? 'analise' : 'inativo',
   })), [profiles, tenants]);
 
   const users = useMemo<ManagedUserRow[]>(() => profiles.map((profile) => {
     const tenant = profile.tenant_id ? tenantMap[profile.tenant_id] : null;
+    const rawProfileStatus = profile.status || tenant?.status || 'active';
     return {
       id: profile.id,
-      name: profile.full_name || 'Usuário sem nome',
+      name: profile.full_name || profile.email || 'Usuário sem nome',
       company: tenant?.name || 'Sem tenant',
       role: profile.role || 'Sem perfil',
       lastAccess: profile.updated_at || profile.created_at,
-      status: tenant?.status === 'active' ? 'ativo' : 'inativo',
+      status: rawProfileStatus === 'active' ? 'ativo' : rawProfileStatus === 'pending' ? 'pendente' : 'inativo',
       phone: '-',
-      email: profile.id,
+      email: profile.email || 'E-mail não informado',
       riskLevel: auditLogs.filter((audit) => audit.changed_by === profile.id).length > 3 ? 'alto' : 'baixo',
       history: [`Criado em ${formatDate(profile.created_at)}`],
     };
@@ -377,25 +382,158 @@ const SuperAdmin: React.FC = () => {
     if (action.id === 'go-logs') setActiveTab('logs');
   };
 
+  const runOperationalMutation = async (
+    key: string,
+    fn: () => Promise<unknown>,
+    successMessage: string
+  ) => {
+    setMutatingId(key);
+    try {
+      await fn();
+      setToast({ message: successMessage, type: 'success' });
+      await fetchData();
+    } catch (err: any) {
+      setToast({ message: err?.message || 'Erro ao executar operação administrativa.', type: 'error' });
+    } finally {
+      setMutatingId(null);
+    }
+  };
+
+  const pagedAudits = paginate(filtered.audits, auditPage, 10);
+
   const companyColumns: DataColumn<CompanyRow>[] = [
-    { key: 'name', label: 'Empresa', render: (item) => <div><p className="font-bold text-slate-950 dark:text-white">{item.name}</p><p className="text-xs text-slate-500 dark:text-slate-400">{item.slug}</p></div> },
+    { key: 'name', label: 'Empresa', render: (item) => <div><p className="font-bold text-slate-950 dark:text-white">{item.name}</p><p className="text-xs text-slate-500 dark:text-slate-400">{item.slug} • Plano {item.plan.toUpperCase()}</p></div> },
     { key: 'usersCount', label: 'Usuários', render: (item) => item.usersCount },
     { key: 'status', label: 'Status', render: (item) => <StatusBadge status={item.status} /> },
     { key: 'createdAt', label: 'Criada em', render: (item) => formatDate(item.createdAt) },
+    {
+      key: 'actions',
+      label: 'Operações',
+      align: 'right',
+      render: (item) => (
+        <div className="flex flex-wrap justify-end gap-1.5">
+          {item.rawStatus !== 'active' && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={mutatingId !== null}
+              onClick={() =>
+                void runOperationalMutation(
+                  `activate-${item.id}`,
+                  () => profileRepository.superadminUpdateTenantStatus(item.id, 'active', 'Ativado via SuperAdmin'),
+                  `Tenant ${item.name} ativado com sucesso.`
+                )
+              }
+            >
+              Ativar
+            </Button>
+          )}
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={mutatingId !== null}
+            onClick={() =>
+              void runOperationalMutation(
+                `trial-${item.id}`,
+                () => profileRepository.superadminExtendTenantTrial(item.id, 7),
+                `Trial de ${item.name} estendido em +7 dias.`
+              )
+            }
+          >
+            +7d Trial
+          </Button>
+          <select
+            aria-label={`Alterar plano de ${item.name}`}
+            value={item.plan}
+            disabled={mutatingId !== null}
+            onChange={(e) => {
+              const nextPlan = e.target.value as 'free' | 'pro' | 'premium';
+              void runOperationalMutation(
+                `plan-${item.id}`,
+                () => profileRepository.superadminChangeTenantPlan(item.id, nextPlan),
+                `Plano de ${item.name} atualizado para ${nextPlan.toUpperCase()}.`
+              );
+            }}
+            className="rounded-xl border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+          >
+            <option value="free">Free</option>
+            <option value="pro">Pro</option>
+            <option value="premium">Premium</option>
+          </select>
+          {item.rawStatus !== 'suspended' && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={mutatingId !== null}
+              onClick={() =>
+                void runOperationalMutation(
+                  `suspend-${item.id}`,
+                  () => profileRepository.superadminUpdateTenantStatus(item.id, 'suspended', 'Suspenso via SuperAdmin'),
+                  `Tenant ${item.name} suspenso.`
+                )
+              }
+            >
+              Suspender
+            </Button>
+          )}
+        </div>
+      ),
+    },
   ];
   const userColumns: DataColumn<ManagedUserRow>[] = [
-    { key: 'name', label: 'Usuário', render: (item) => <div><p className="font-bold text-slate-950 dark:text-white">{item.name}</p><p className="text-xs text-slate-500 dark:text-slate-400">{item.id}</p></div> },
+    { key: 'name', label: 'Usuário', render: (item) => <div><p className="font-bold text-slate-950 dark:text-white">{item.name}</p><p className="text-xs text-slate-500 dark:text-slate-400">{item.email}</p></div> },
     { key: 'company', label: 'Empresa', render: (item) => item.company },
     { key: 'role', label: 'Perfil', render: (item) => item.role },
     { key: 'lastAccess', label: 'Atualizado em', render: (item) => formatDateTime(item.lastAccess) },
     { key: 'status', label: 'Status', render: (item) => <StatusBadge status={item.status} /> },
+    {
+      key: 'actions',
+      label: 'Ações',
+      align: 'right',
+      render: (item) => (
+        <div className="flex justify-end gap-1.5">
+          {item.status !== 'ativo' && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={mutatingId !== null}
+              onClick={() =>
+                void runOperationalMutation(
+                  `approve-${item.id}`,
+                  () => profileRepository.superadminDecideProfileStatus(item.id, 'active'),
+                  `Perfil ${item.name} aprovado.`
+                )
+              }
+            >
+              Aprovar
+            </Button>
+          )}
+          {item.status === 'ativo' && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={mutatingId !== null}
+              onClick={() =>
+                void runOperationalMutation(
+                  `block-${item.id}`,
+                  () => profileRepository.superadminDecideProfileStatus(item.id, 'suspended'),
+                  `Perfil ${item.name} suspenso.`
+                )
+              }
+            >
+              Suspender
+            </Button>
+          )}
+        </div>
+      ),
+    },
   ];
   const subscriptionColumns: DataColumn<SubscriptionRequestRow>[] = [
     { key: 'company', label: 'Empresa', render: (item) => <div><p className="font-bold text-slate-950 dark:text-white">{item.company}</p><p className="text-xs text-slate-500 dark:text-slate-400">{item.owner}</p></div> },
     { key: 'plan', label: 'Plano', render: (item) => item.plan },
     { key: 'status', label: 'Status', render: (item) => <StatusBadge status={item.status} /> },
     { key: 'requestDate', label: 'Criado em', render: (item) => formatDate(item.requestDate) },
-    { key: 'action', label: 'Ação', align: 'right', render: (item) => <div className="flex justify-end"><Button variant="secondary" size="sm" className="rounded-xl" onClick={() => setToast({ message: `Solicitação ${item.id} aberta para análise.`, type: 'info' })}>Ver histórico</Button></div> },
+    { key: 'action', label: 'Ação', align: 'right', render: () => <div className="flex justify-end"><Button variant="secondary" size="sm" className="rounded-xl" onClick={() => setActiveTab('audit')}>Ver auditoria</Button></div> },
   ];
   const auditColumns: DataColumn<AuditEntry>[] = [
     { key: 'actor', label: 'Quem fez', render: (item) => item.actor },
@@ -463,8 +601,8 @@ const SuperAdmin: React.FC = () => {
       {activeTab === 'companies' && <DataTable title="Empresas e tenants" description="Base real de tenants cadastrados." columns={companyColumns} rows={pagedCompanies.items} page={companyPage} totalPages={pagedCompanies.totalPages} onPageChange={setCompanyPage} emptyTitle="Nenhuma empresa encontrada" emptyDescription="Não há tenants para os filtros atuais." />}
       {activeTab === 'users' && <DataTable title="Usuários da plataforma" description="Perfis reais encontrados em profiles." columns={userColumns} rows={pagedUsers.items} page={userPage} totalPages={pagedUsers.totalPages} onPageChange={setUserPage} emptyTitle="Nenhum usuário encontrado" emptyDescription="Não há perfis correspondentes aos filtros." />}
       {activeTab === 'subscriptions' && <DataTable title="Solicitações de plano" description="Mudanças reais de plano vindas de plan_change_requests." columns={subscriptionColumns} rows={pagedSubscriptions.items} page={subscriptionPage} totalPages={pagedSubscriptions.totalPages} onPageChange={setSubscriptionPage} emptyTitle="Nenhuma solicitação encontrada" emptyDescription="Não há solicitações no período." />}
-      {activeTab === 'audit' && <DataTable title="Auditoria administrativa" description="Registros reais da tabela audit_logs." columns={auditColumns} rows={filtered.audits} page={1} totalPages={1} onPageChange={() => undefined} emptyTitle="Nenhum evento auditado" emptyDescription="Não há eventos auditados para os filtros atuais." />}
-      {activeTab === 'logs' && <div className="space-y-6"><AlertStack items={filtered.alerts} onOpenAlert={() => setToast({ message: 'Alerta destacado na fila atual.', type: 'info' })} /><ActivityTimeline items={pagedActivities.items} onOpenDetails={setSelectedActivity} /></div>}
+      {activeTab === 'audit' && <DataTable title="Auditoria administrativa" description="Registros reais da tabela audit_logs." columns={auditColumns} rows={pagedAudits.items} page={auditPage} totalPages={pagedAudits.totalPages} onPageChange={setAuditPage} emptyTitle="Nenhum evento auditado" emptyDescription="Não há eventos auditados para os filtros atuais." />}
+      {activeTab === 'logs' && <div className="space-y-6"><AlertStack items={filtered.alerts} onOpenAlert={() => setActiveTab('audit')} /><ActivityTimeline items={pagedActivities.items} onOpenDetails={setSelectedActivity} /></div>}
 
       <AuditDrawer item={selectedActivity} isOpen={Boolean(selectedActivity)} onClose={() => setSelectedActivity(null)} />
       <AdminActionMenu isOpen={actionMenuOpen} onClose={() => setActionMenuOpen(false)} onSelect={handleAction} />
