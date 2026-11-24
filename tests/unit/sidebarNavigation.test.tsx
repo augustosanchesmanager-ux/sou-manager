@@ -108,7 +108,7 @@ describe('Sidebar Navigation Architecture', () => {
     expect(stockPaths).toEqual(['/products', '/categories', '/orders', '/suppliers']);
   });
 
-  it('should_allow_manager_access_to_system_observability_while_hiding_superadmin_routes', () => {
+  it('should_hide_observability_and_superadmin_from_barber_manager_in_system_group', () => {
     // Arrange
     const raw = buildMenu();
 
@@ -123,7 +123,8 @@ describe('Sidebar Navigation Architecture', () => {
     const systemItems = (filtered.find((group) => group.name === 'Sistema')?.items || []).map((i) => i.name);
 
     // Assert
-    expect(systemItems).toEqual(['Avisos', 'Novidades', 'Observabilidade']);
+    expect(systemItems).toEqual(['Avisos', 'Novidades']);
+    expect(systemItems).not.toContain('Observabilidade');
     expect(systemItems).not.toContain('Super Admin');
     expect(systemItems).not.toContain('Event Versioning');
   });
@@ -146,7 +147,7 @@ describe('Sidebar Navigation Architecture', () => {
     expect(systemItems).toEqual(['Avisos', 'Novidades']);
   });
 
-  it('should_expose_superadmin_and_event_versioning_when_user_is_superadmin', () => {
+  it('should_expose_observability_and_superadmin_without_event_versioning_when_user_is_superadmin', () => {
     // Arrange
     const raw = buildMenu();
 
@@ -166,23 +167,38 @@ describe('Sidebar Navigation Architecture', () => {
       'Novidades',
       'Observabilidade',
       'Super Admin',
-      'Event Versioning',
     ]);
+    expect(systemItems).not.toContain('Event Versioning');
   });
 
-  it('should_render_system_observability_expanded_when_manager_visits_observability', () => {
-    // Act
-    const html = renderToStaticMarkup(
+  it('should_hide_observability_from_manager_and_show_for_superadmin_in_rendered_sidebar', () => {
+    // Act — manager comum não vê Observabilidade nem Super Admin
+    const managerHtml = renderToStaticMarkup(
       <MemoryRouter initialEntries={['/observability']}>
         <Sidebar isOpen={true} onClose={vi.fn()} />
       </MemoryRouter>,
     );
 
     // Assert
-    expect(html).toContain('Club dos Chefes');
-    expect(html).toContain('Estoque &amp; Compras');
-    expect(html).toContain('Observabilidade');
-    expect(html).not.toContain('Super Admin');
+    expect(managerHtml).toContain('Club dos Chefes');
+    expect(managerHtml).toContain('Estoque &amp; Compras');
+    expect(managerHtml).not.toContain('Observabilidade');
+    expect(managerHtml).not.toContain('Super Admin');
+
+    // Act — superadmin vê Observabilidade e Super Admin
+    mockUseAuth.mockReturnValue({
+      accessRole: 'superadmin',
+      canAccessSuperAdmin: true,
+      appSlug: 'barber',
+    });
+    const superAdminHtml = renderToStaticMarkup(
+      <MemoryRouter initialEntries={['/observability']}>
+        <Sidebar isOpen={true} onClose={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    expect(superAdminHtml).toContain('Observabilidade');
+    expect(superAdminHtml).toContain('Super Admin');
   });
 
   it('should_match_subroutes_accurately_when_evaluating_active_sidebar_path', () => {
