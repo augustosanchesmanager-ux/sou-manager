@@ -193,7 +193,7 @@ export const buildRawSidebarMenu = ({
       { name: 'Contas a Receber', icon: FileSpreadsheet, path: '/accounts-receivable', module: 'financial', hideFromEsteticaMenu: true },
       { name: 'Contas a Pagar', icon: CreditCard, path: '/expenses', module: 'financial', hideFromEsteticaMenu: true },
       { name: isEsteticaApp ? 'Repasses' : 'Comissões', icon: Percent, path: '/commissions', module: 'commissions' },
-      { name: 'Folha de Pagamento', icon: Wallet, path: '/payroll', module: 'financial', hideFromEsteticaMenu: true },
+      { name: 'Repasse de Comissões', icon: Wallet, path: '/payroll', module: 'financial', hideFromEsteticaMenu: true },
       { name: 'Maquininhas e Taxas', icon: CreditCard, path: '/payment-terminals', module: 'settings', hideFromEsteticaMenu: true },
       // Frente 6 (Zero Mock): módulo Fiscal ocultado até integração de provedor NFS-e real (hoje usa MockFiscalProvider).
       // { name: 'Notas Fiscais (NFS-e)', icon: Receipt, path: '/fiscal', module: 'financial', hideFromEsteticaMenu: true },
