@@ -218,6 +218,7 @@ export const buildRawSidebarMenu = ({
       { name: 'Dados da Unidade', icon: Settings, path: '/settings', module: 'settings' },
       { name: 'Agendamento Online', icon: Globe, path: '/booking-settings', module: 'portal' },
       { name: 'Permissões e Perfis', icon: ShieldCheck, path: '/access-control' },
+      { name: 'Centro Jurídico', icon: ShieldCheck, path: '/legal', operationalAllowed: true },
       { name: 'Sincronização Offline', icon: RefreshCw, path: '/offline-sync', operationalAllowed: true },
     ],
   },

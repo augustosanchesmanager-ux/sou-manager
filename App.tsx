@@ -59,6 +59,7 @@ const Provision = lazy(() => import('./pages/onboarding/Provision'));
 const Receipts = lazy(() => import('./pages/Receipts'));
 const Register = lazy(() => import('./pages/Register'));
 const RegisterSuccess = lazy(() => import('./pages/RegisterSuccess'));
+const LegalCenter = lazy(() => import('./pages/LegalCenter'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const Reports = lazy(() => import('./pages/Reports'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
@@ -285,6 +286,7 @@ const AppRoutes: React.FC = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/register-success" element={<RegisterSuccess />} />
+        <Route path="/legal" element={<LegalCenter />} />
         <Route path="/register/verify-email" element={<VerifyEmail />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/accept-invite/:token" element={<AcceptInvite />} />
