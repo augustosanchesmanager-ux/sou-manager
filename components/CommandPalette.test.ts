@@ -105,4 +105,32 @@ describe('CommandPalette Logic & Search Filtering', () => {
     expect(paths).not.toContain('/agenda');
     expect(paths).not.toContain('/chef-club');
   });
+
+  it('should hide manager-only and unavailable feature routes when filtered', () => {
+    const barberItems = buildCommandPaletteItems('barbearia-modelo', {
+      accessRole: 'barber',
+      appSlug: 'barber',
+      canFeature: () => true,
+    });
+    const barberPaths = barberItems.map((item) => item.path);
+
+    expect(barberPaths).toContain('/schedule');
+    expect(barberPaths).toContain('/comandas');
+    expect(barberPaths).not.toContain('/clients');
+    expect(barberPaths).not.toContain('/team');
+    expect(barberPaths).not.toContain('/payroll');
+    expect(barberPaths).not.toContain('/settings');
+    expect(barberPaths).not.toContain('/chef-club-plans');
+
+    const freeManagerItems = buildCommandPaletteItems('barbearia-modelo', {
+      accessRole: 'manager',
+      appSlug: 'barber',
+      canFeature: (feature) => feature !== 'chef_club' && feature !== 'cash_closing',
+    });
+    const freeManagerPaths = freeManagerItems.map((item) => item.path);
+
+    expect(freeManagerPaths).toContain('/clients');
+    expect(freeManagerPaths).not.toContain('/cash-closing');
+    expect(freeManagerPaths).not.toContain('/chef-club-plans');
+  });
 });

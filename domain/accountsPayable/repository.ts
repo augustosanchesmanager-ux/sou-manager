@@ -30,16 +30,16 @@ export interface CreateRecurringBillResult {
 export interface AccountsPayableRepository {
   // Recurring Bills
   createRecurringBill(data: { name: string; amount: number; due_day: number; category?: string; notes?: string; idempotency_key: string }): Promise<CreateRecurringBillResult>;
-  updateRecurringBill(id: string, data: Partial<Pick<RecurringBill, 'name' | 'amount' | 'due_day' | 'category' | 'notes' | 'is_active'>>): Promise<RecurringBill>;
-  deleteRecurringBill(id: string): Promise<void>;
+  updateRecurringBill(id: string, tenantId: string, data: Partial<Pick<RecurringBill, 'name' | 'amount' | 'due_day' | 'category' | 'notes' | 'is_active'>>): Promise<RecurringBill>;
+  deleteRecurringBill(id: string, tenantId: string): Promise<void>;
   getRecurringBillsByTenant(tenantId: string): Promise<RecurringBill[]>;
-  getRecurringBillById(id: string): Promise<RecurringBill | null>;
+  getRecurringBillById(id: string, tenantId: string): Promise<RecurringBill | null>;
 
   // Accounts Payable
   getAccountsPayableByTenant(tenantId: string, filters?: AccountsPayableFilters): Promise<AccountPayable[]>;
-  getAccountsPayableById(id: string): Promise<AccountPayable | null>;
+  getAccountsPayableById(id: string, tenantId: string): Promise<AccountPayable | null>;
   createOneTimeAccountPayable(data: { name: string; amount: number; due_date: string; category?: string; notes?: string; idempotency_key: string }): Promise<CreateOneTimeAPResult>;
-  updateAccountPayable(id: string, data: Partial<Pick<AccountPayable, 'amount' | 'due_date' | 'category' | 'notes'>>): Promise<AccountPayable>;
+  updateAccountPayable(id: string, tenantId: string, data: Partial<Pick<AccountPayable, 'amount' | 'due_date' | 'category' | 'notes'>>): Promise<AccountPayable>;
 
   // RPCs
   payAccountPayable(apId: string, paymentMethod?: string, paidAt?: string): Promise<PayAccountPayableResult>;
@@ -64,10 +64,12 @@ export function createAccountsPayableRepository(supabase: SupabaseClient): Accou
       return result;
     },
 
-    async updateRecurringBill(id, data) {
+    async updateRecurringBill(id, tenantId, data) {
+      if (!tenantId) throw new Error('tenantId é obrigatório para updateRecurringBill.');
       const { data: result, error } = await supabase
         .from('recurring_bills')
         .update({ ...data, updated_at: new Date().toISOString() })
+        .eq('tenant_id', tenantId)
         .eq('id', id)
         .select()
         .single();
@@ -76,10 +78,12 @@ export function createAccountsPayableRepository(supabase: SupabaseClient): Accou
       return result;
     },
 
-    async deleteRecurringBill(id) {
+    async deleteRecurringBill(id, tenantId) {
+      if (!tenantId) throw new Error('tenantId é obrigatório para deleteRecurringBill.');
       const { error } = await supabase
         .from('recurring_bills')
         .delete()
+        .eq('tenant_id', tenantId)
         .eq('id', id);
 
       if (error) throw error;
@@ -96,10 +100,12 @@ export function createAccountsPayableRepository(supabase: SupabaseClient): Accou
       return data || [];
     },
 
-    async getRecurringBillById(id) {
+    async getRecurringBillById(id, tenantId) {
+      if (!tenantId) throw new Error('tenantId é obrigatório para getRecurringBillById.');
       const { data, error } = await supabase
         .from('recurring_bills')
         .select('*')
+        .eq('tenant_id', tenantId)
         .eq('id', id)
         .maybeSingle();
 
@@ -134,10 +140,12 @@ export function createAccountsPayableRepository(supabase: SupabaseClient): Accou
       return data || [];
     },
 
-    async getAccountsPayableById(id) {
+    async getAccountsPayableById(id, tenantId) {
+      if (!tenantId) throw new Error('tenantId é obrigatório para getAccountsPayableById.');
       const { data, error } = await supabase
         .from('accounts_payable')
         .select('*')
+        .eq('tenant_id', tenantId)
         .eq('id', id)
         .maybeSingle();
 
@@ -159,10 +167,12 @@ export function createAccountsPayableRepository(supabase: SupabaseClient): Accou
       return result;
     },
 
-    async updateAccountPayable(id, data) {
+    async updateAccountPayable(id, tenantId, data) {
+      if (!tenantId) throw new Error('tenantId é obrigatório para updateAccountPayable.');
       const { data: result, error } = await supabase
         .from('accounts_payable')
         .update({ ...data, updated_at: new Date().toISOString() })
+        .eq('tenant_id', tenantId)
         .eq('id', id)
         .select()
         .single();
