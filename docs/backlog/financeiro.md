@@ -1,6 +1,6 @@
 # Frente: Financeiro & Comissões
 
-- **Domínio:** Regime de Caixa, Fechamento de Caixa, Comandas/PDV, Comissões Teóricas (ADR-001), Outbox Financeiro (D8), Fiscal e Estoque
+- **Domínio:** Regime de Caixa, Fechamento de Caixa, Comandas/PDV, Comissões Teóricas (ADR-001), BI/Fuso Horário, Persistência Financeira, Feature Flags, Outbox D8 e Fiscal
 - **Stack:** React 19 · TypeScript 5.8 · Supabase (PostgreSQL + RLS + Edge Functions) · Vitest
 - **Referências obrigatórias:** `docs/adr/ADR-001-Commission-vs-Settlement.md`, `AGENTS.md` (regras financeiras e D8)
 
@@ -8,12 +8,14 @@
 
 ## Índice da Frente
 
-| ID | Título | Prioridade | Status |
-|---|---|---|---|
-| `FIN-001` | **F-02:** Guard de sessão e circuit breaker no polling do outbox | `P0` | `REVIEW` |
-| `FIN-002` | Corrigir virada de data `UTC` vs `BRT` (`toISOString().split('T')[0]`) em telas financeiras/BI | `P1` | `TODO` |
-| `FIN-003` | Corrigir timeouts em `fiscalService.test.ts` e `stockRepository.test.ts` + definir escopo Fiscal | `P1` | `TODO` |
-| `FIN-004` | Aplicar migration/Edge Function `import-export` (bucket `exports`) em Staging e registrar em `config.toml` | `P2` | `TODO` |
+| ID | Título | Prioridade | Issue | Status |
+|---|---|---|---|---|
+| `FIN-001` | **F-02:** Guard de sessão e circuit breaker no polling do outbox | `P0` | — | `REVIEW` |
+| `FIN-002` | **P0-06 (`+GTM-002`):** Sanear métricas fabricadas em `/bi`, hardcodes e fuso `UTC` vs `BRT` / `closed_at` | `P0` | [#381](https://github.com/augustosanchesmanager-ux/sou-manager/issues/381) | `TODO` |
+| `FIN-005` | **P0-07:** Migrar `/categories` e políticas de taxa (`cardFeeRepository`) de `localStorage` para Supabase | `P0` | [#382](https://github.com/augustosanchesmanager-ux/sou-manager/issues/382) | `TODO` |
+| `FIN-006` | **P1-01:** Consolidar `useFeatureFlags` (20 RPCs → 1 RPC Batch) e higiene de cache | `P1` | [#387](https://github.com/augustosanchesmanager-ux/sou-manager/issues/387) | `TODO` |
+| `FIN-003` | Corrigir timeouts em `fiscalService.test.ts` e `stockRepository.test.ts` + definir escopo NFS-e | `P1` | [#396](https://github.com/augustosanchesmanager-ux/sou-manager/issues/396) | `TODO` |
+| `FIN-004` | Alinhar Staging e `config.toml` da exportação Excel (`import-export`) | `P2` | [#402](https://github.com/augustosanchesmanager-ux/sou-manager/issues/402) | `TODO` |
 
 ---
 
@@ -22,50 +24,64 @@
 - **Status:** `REVIEW`
 - **Prioridade:** `P0`
 - **Tipo:** `Bugfix`
-- **Dependências:** PR + merge em `main` + deploy
-
-### Problema / Objetivo
-O dispatcher de outbox emitia ~5 requisições a cada 5 s mesmo com sessão rejeitada (`401`/`PGRST301` ou `42501`), pois `hasActiveSession()` validava apenas presença da sessão.
-
-### Escopo Técnico
-- `domain/events/outbox/supabaseOutbox.ts` + `domain/events/outbox/supabaseOutbox.authGuard.test.ts` (commit `70c40cc` na branch `fix/f02-outbox-auth-guard`).
-- Sem alteração em canônicos D8 (`npm run d8:verify` byte-identical).
-
-### Critérios de Aceite
-- [x] `isOutboxSessionUsable` bloqueia token expirado preservando compatibilidade com chaos tests.
-- [x] Circuit breaker por token com backoff exponencial (30 s → 5 min) e reset em sucesso/troca de token.
-- [x] `npm run typecheck`, `npm run test` (207 files / 2.894 passed), `npm run build`, `npm run architecture:ci` e `npm run d8:verify` verdes.
-- [ ] PR aberto, mergeado em `main` e promovido em produção.
-
-### Evidência de Validação
-- **Branch / PR:** `fix/f02-outbox-auth-guard` (`70c40cc`) — registro em `docs/audit/F02_OUTBOX_AUTH_GUARD_20261123.md`
-- **Testes / Build:** `typecheck` OK · `supabaseOutbox.authGuard.test.ts` 22/22 passed · `vitest` 207 files / 2.894 passed · `d8:verify` OK · `build` OK
-- **Observações:** Aguardando abertura de PR e autorização de merge.
+- **Escopo & Evidência:** PR #374 mergeado (`b87e0cb`); registro em `docs/audit/F02_OUTBOX_AUTH_GUARD_20261123.md`. Aguardando deploy controlado em produção.
 
 ---
 
-## `FIN-002` — Corrigir virada de data `UTC` vs `BRT` em telas financeiras e BI
+## `FIN-002` — P0-06 (`+GTM-002`): Sanear `/bi`, hardcodes e fuso `UTC` vs `BRT` / `closed_at`
+
+- **Status:** `TODO`
+- **Prioridade:** `P0`
+- **GitHub Issue:** [#381](https://github.com/augustosanchesmanager-ux/sou-manager/issues/381)
+- **Sprint:** Sprint 2
+- **Tipo:** `Bugfix`
+- **Dependências:** Nenhuma (alinhar se `/bi` e `/strategic-dashboard` já unificam aqui ou em `UXQ-001`)
+
+### Problema / Objetivo
+1. `src/modules/bi/biCockpitService.ts:200-398` e `pages/BusinessIntelligence.tsx:232-285` aplicam `Math.max(incomeFromTx, comandasGross, apptsGross)` e inventam comissão fixa de `45%`/`50%`, taxa `2,5%`, split `85%/15%` e radar `85 + (count % 15)`.
+2. `BiExecutiveCockpit.tsx:338` e `StaffProfitabilityTable.tsx:50` vazam strings hardcoded de cliente único (`"Sanchez Barber"`, `"Rubens, Heron, Lucas"`, `"augusto@sanchezbarber.com.br"`).
+3. 16+ ocorrências de `toISOString().split('T')[0]` (UTC) e mistura com fuso local em `useCashClosing.ts:174-178` causam virada errada do dia após 21h BRT.
+4. `dailySummaryService.ts:85-86,197-202` filtra comandas por `created_at` em vez de `closed_at` e usa fórmula simplista; `useStrategicDashboard.ts:159` divide ocupação sempre por `30` dias.
+
+### Critérios de Aceite
+- [ ] Zero fórmulas fabricadas ou strings hardcoded de cliente único em `/bi` e componentes de BI.
+- [ ] 100% dos filtros de data operacional usam `shared/dates/timezone.ts` (`America/Sao_Paulo`).
+- [ ] `dailySummaryService` filtra comandas por `closed_at` e usa cálculo canônico; `useStrategicDashboard` divide pelos dias reais do período.
+- [ ] Testes unitários cobrindo fronteira `22:30` BRT.
+
+---
+
+## `FIN-005` — P0-07: Migrar `/categories` e políticas de taxa (`cardFeeRepository`) para Supabase
+
+- **Status:** `TODO`
+- **Prioridade:** `P0`
+- **GitHub Issue:** [#382](https://github.com/augustosanchesmanager-ux/sou-manager/issues/382)
+- **Sprint:** Sprint 2
+- **Tipo:** `Bugfix`
+- **Dependências:** Aprovação do PO para migration e RLS por `tenant_id`
+
+### Problema / Objetivo
+`pages/Categories.tsx:16-38` e `domain/paymentTerminal/cardFeeRepository.ts` (também lido por `barberStatementService.ts:251`) salvam dados exclusivamente em `localStorage`, causando perda de cadastro ao trocar de dispositivo/navegador.
+
+### Critérios de Aceite
+- [ ] Categorias e políticas de split de taxa persistidas no Supabase com RLS estrita por `tenant_id`.
+- [ ] Dados sincronizados entre dispositivos/navegadores da mesma conta.
+- [ ] Testes unitários e de isolamento cross-tenant verdes.
+
+---
+
+## `FIN-006` — P1-01: Consolidar `useFeatureFlags` (20 RPCs → 1 RPC Batch) e higiene de cache
 
 - **Status:** `TODO`
 - **Prioridade:** `P1`
-- **Tipo:** `Bugfix`
-- **Dependências:** Nenhuma
-
-### Problema / Objetivo
-A auditoria Go-To-Market identificou 16+ ocorrências de `new Date().toISOString().split('T')[0]` em telas financeiras, BI e comissões (`Commissions.tsx`, `BusinessIntelligence.tsx`, `DailySummary.tsx`, `Expenses.tsx`), causando virada prematura do dia após 21h no fuso de Brasília (`America/Sao_Paulo`).
-
-### Escopo Técnico
-- Substituir formatação UTC por helper canônico em fuso `America/Sao_Paulo` nos módulos financeiros, BI e resumo diário.
+- **GitHub Issue:** [#387](https://github.com/augustosanchesmanager-ux/sou-manager/issues/387)
+- **Sprint:** Sprint 4
+- **Tipo:** `Performance`
+- **Dependências:** Aprovação do PO para RPC `get_tenant_feature_flags`
 
 ### Critérios de Aceite
-- [ ] Zero ocorrências de `toISOString().split('T')[0]` para cálculo de data local de operação nos arquivos auditados.
-- [ ] Testes unitários cobrindo fronteira de horário (ex.: 22:30 BRT = mesmo dia local).
-- [ ] `npm run typecheck`, `npm run lint`, `npm run test` e `npm run build` passando.
-
-### Evidência de Validação
-- **Branch / PR:** —
-- **Testes / Build:** —
-- **Observações:** —
+- [ ] Boot autenticado executa 1 única RPC em vez de 20 paralelas.
+- [ ] `signOut()` limpa `resolutionCache` e erros transitórios não ficam cacheados.
 
 ---
 
@@ -73,25 +89,13 @@ A auditoria Go-To-Market identificou 16+ ocorrências de `new Date().toISOString
 
 - **Status:** `TODO`
 - **Prioridade:** `P1`
-- **Tipo:** `Tech Debt`
-- **Dependências:** Decisão do PO sobre emissão fiscal no lançamento GTM
-
-### Problema / Objetivo
-`pages/Fiscal.tsx:86-87` utiliza apenas `mockFiscalProvider.ts` (`mock_sandbox`), e a auditoria Go-To-Market registrou 8 timeouts em `domain/fiscal/fiscalService.test.ts` e `domain/stock/stockRepository.test.ts`.
-
-### Escopo Técnico
-- Investigar e corrigir a causa raiz dos timeouts nos testes unitários sem alterar asserções para forçar passagem.
-- Alinhar com o PO se o módulo Fiscal fica oculto por feature flag até integração real.
+- **GitHub Issue:** [#396](https://github.com/augustosanchesmanager-ux/sou-manager/issues/396)
+- **Sprint:** Sprint 4
+- **Dependências:** Decisão do PO sobre emissão fiscal pós-GTM
 
 ### Critérios de Aceite
 - [ ] `domain/fiscal/fiscalService.test.ts` e `domain/stock/stockRepository.test.ts` passando sem timeouts.
 - [ ] Zero provider mock exposto como funcionalidade ativa em produção.
-- [ ] `npm run typecheck`, `npm run lint`, `npm run test` e `npm run build` passando.
-
-### Evidência de Validação
-- **Branch / PR:** —
-- **Testes / Build:** —
-- **Observações:** —
 
 ---
 
@@ -99,20 +103,9 @@ A auditoria Go-To-Market identificou 16+ ocorrências de `new Date().toISOString
 
 - **Status:** `TODO`
 - **Prioridade:** `P2`
-- **Tipo:** `Hardening`
-- **Dependências:** Nenhuma
-
-### Problema / Objetivo
-Conforme retificação no item `7.78` do `PROJECT_STATUS.md`, o bucket `exports`, o job `purge-expired-exports` e a Edge Function `import-export` já estão ativos em Produção (`ushsnmlbeurfvlkieiln`), mas seguem pendentes em Staging (`tjcvuhynckocmvtqykxp`) e sem seção em `supabase/config.toml`.
-
-### Escopo Técnico
-- `supabase/config.toml` e aplicação controlada em Staging mediante validação.
+- **GitHub Issue:** [#402](https://github.com/augustosanchesmanager-ux/sou-manager/issues/402)
+- **Sprint:** Sprint 5+
 
 ### Critérios de Aceite
 - [ ] Seção `[functions.import-export]` documentada em `supabase/config.toml`.
 - [ ] Staging sincronizado com Produção (`20261113094500_storage_exports_bucket.sql` + `import-export`).
-
-### Evidência de Validação
-- **Branch / PR:** —
-- **Testes / Build:** —
-- **Observações:** —
