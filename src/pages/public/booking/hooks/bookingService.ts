@@ -16,15 +16,6 @@ import type {
   PromoLeadRegistrationRequest,
   PromoLeadRegistrationResult,
 } from './types';
-import {
-  mockGetPublicTenantProfile,
-  mockGetPublicShowcaseProducts,
-  mockGetPublicAvailableSlots,
-  mockCreatePublicBooking,
-  mockCancelPublicBooking,
-  mockLookupPublicBookingClient,
-  mockRegisterPublicBookingPromoLead,
-} from './mockService';
 
 // ============================================================================
 // Configuration
@@ -41,7 +32,10 @@ const RPC_NAMES = {
 } as const;
 
 const isMockEnabled = (): boolean => {
-  // Explicit opt-in or override via environment variable
+  // Never serve mock data in production builds regardless of env fallbacks or flags
+  if (import.meta.env.PROD) return false;
+
+  // Explicit opt-in or override via environment variable (DEV / test only)
   if (import.meta.env.VITE_ENABLE_BOOKING_MOCK === 'true') return true;
   if (import.meta.env.VITE_BOOKING_MOCK === 'true') return true;
 
@@ -49,7 +43,7 @@ const isMockEnabled = (): boolean => {
     return false;
   }
 
-  // Fallback to mock only if Supabase environment credentials are not configured
+  // Fallback to mock only if Supabase environment credentials are not configured in non-PROD
   const hasBackendSupport = Boolean(
     import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
   );
@@ -64,7 +58,14 @@ const isFunctionNotFoundError = (error: unknown): boolean => {
   return err.code === '42883' || (typeof err.message === 'string' && err.message.includes('function') && err.message.includes('does not exist'));
 };
 
-const allowMockFallback = (): boolean => isMockEnabled();
+const allowMockFallback = (): boolean => !import.meta.env.PROD && isMockEnabled();
+
+async function loadMockService(): Promise<typeof import('./mockService')> {
+  if (!import.meta.env.DEV || import.meta.env.PROD) {
+    throw new Error('[BookingService] Mock service is disabled in production builds.');
+  }
+  return import('./mockService');
+}
 
 // ============================================================================
 // RPC 1: get_public_tenant_profile
@@ -74,6 +75,7 @@ export async function getPublicTenantProfile(
   tenantIdentifier: string
 ): Promise<PublicTenantProfile | null> {
   if (isMockEnabled()) {
+    const { mockGetPublicTenantProfile } = await loadMockService();
     return mockGetPublicTenantProfile(tenantIdentifier);
   }
 
@@ -86,6 +88,7 @@ export async function getPublicTenantProfile(
     if (error) {
       if (allowMockFallback() && isFunctionNotFoundError(error)) {
         console.warn('[BookingService] RPC not found (mock mode), falling back to mock:', error.message);
+        const { mockGetPublicTenantProfile } = await loadMockService();
         return mockGetPublicTenantProfile(tenantIdentifier);
       }
       throw error;
@@ -96,6 +99,7 @@ export async function getPublicTenantProfile(
   } catch (err) {
     if (allowMockFallback() && isFunctionNotFoundError(err)) {
       console.warn('[BookingService] RPC error, falling back to mock:', err);
+      const { mockGetPublicTenantProfile } = await loadMockService();
       return mockGetPublicTenantProfile(tenantIdentifier);
     }
     throw err;
@@ -110,6 +114,7 @@ export async function getPublicShowcaseProducts(
   slug: string
 ): Promise<PublicShowcaseProduct[]> {
   if (isMockEnabled()) {
+    const { mockGetPublicShowcaseProducts } = await loadMockService();
     return mockGetPublicShowcaseProducts(slug);
   }
 
@@ -121,7 +126,11 @@ export async function getPublicShowcaseProducts(
 
     if (error) {
       if (isFunctionNotFoundError(error)) {
-        return allowMockFallback() ? mockGetPublicShowcaseProducts(slug) : [];
+        if (allowMockFallback()) {
+          const { mockGetPublicShowcaseProducts } = await loadMockService();
+          return mockGetPublicShowcaseProducts(slug);
+        }
+        return [];
       }
       throw error;
     }
@@ -139,7 +148,11 @@ export async function getPublicShowcaseProducts(
     }));
   } catch (err) {
     if (isFunctionNotFoundError(err)) {
-      return allowMockFallback() ? mockGetPublicShowcaseProducts(slug) : [];
+      if (allowMockFallback()) {
+        const { mockGetPublicShowcaseProducts } = await loadMockService();
+        return mockGetPublicShowcaseProducts(slug);
+      }
+      return [];
     }
     console.warn('[BookingService] Failed to load showcase products:', err);
     return [];
@@ -157,6 +170,7 @@ export async function getPublicAvailableSlots(
   date: string
 ): Promise<PublicAvailableSlotsResponse> {
   if (isMockEnabled()) {
+    const { mockGetPublicAvailableSlots } = await loadMockService();
     return mockGetPublicAvailableSlots(tenantIdentifier, staffId, serviceIds, date);
   }
 
@@ -172,6 +186,7 @@ export async function getPublicAvailableSlots(
     if (error) {
       if (allowMockFallback() && isFunctionNotFoundError(error)) {
         console.warn('[BookingService] RPC not found (mock mode), falling back to mock:', error.message);
+        const { mockGetPublicAvailableSlots } = await loadMockService();
         return mockGetPublicAvailableSlots(tenantIdentifier, staffId, serviceIds, date);
       }
       throw error;
@@ -181,6 +196,7 @@ export async function getPublicAvailableSlots(
   } catch (err) {
     if (allowMockFallback() && isFunctionNotFoundError(err)) {
       console.warn('[BookingService] RPC error, falling back to mock:', err);
+      const { mockGetPublicAvailableSlots } = await loadMockService();
       return mockGetPublicAvailableSlots(tenantIdentifier, staffId, serviceIds, date);
     }
     throw err;
@@ -195,6 +211,7 @@ export async function createPublicBooking(
   request: CreatePublicBookingRequest
 ): Promise<CreatePublicBookingResult> {
   if (isMockEnabled()) {
+    const { mockCreatePublicBooking } = await loadMockService();
     return mockCreatePublicBooking(request);
   }
 
@@ -228,6 +245,7 @@ export async function createPublicBooking(
     if (error) {
       if (allowMockFallback() && isFunctionNotFoundError(error)) {
         console.warn('[BookingService] RPC not found (mock mode), falling back to mock:', error.message);
+        const { mockCreatePublicBooking } = await loadMockService();
         return mockCreatePublicBooking(request);
       }
       // Map Postgres error codes to our error types
@@ -239,6 +257,7 @@ export async function createPublicBooking(
   } catch (err) {
     if (allowMockFallback() && isFunctionNotFoundError(err)) {
       console.warn('[BookingService] RPC error, falling back to mock:', err);
+      const { mockCreatePublicBooking } = await loadMockService();
       return mockCreatePublicBooking(request);
     }
     throw err;
@@ -256,6 +275,7 @@ export async function cancelPublicBooking(
   const normalizedToken = publicToken.trim().replace(/ /g, '+');
 
   if (isMockEnabled()) {
+    const { mockCancelPublicBooking } = await loadMockService();
     return mockCancelPublicBooking(tenantIdentifier, normalizedToken);
   }
 
@@ -269,6 +289,7 @@ export async function cancelPublicBooking(
     if (error) {
       if (allowMockFallback() && isFunctionNotFoundError(error)) {
         console.warn('[BookingService] RPC not found (mock mode), falling back to mock:', error.message);
+        const { mockCancelPublicBooking } = await loadMockService();
         return mockCancelPublicBooking(tenantIdentifier, normalizedToken);
       }
       const bookingError = mapPostgresError(error);
@@ -279,6 +300,7 @@ export async function cancelPublicBooking(
   } catch (err) {
     if (allowMockFallback() && isFunctionNotFoundError(err)) {
       console.warn('[BookingService] RPC error, falling back to mock:', err);
+      const { mockCancelPublicBooking } = await loadMockService();
       return mockCancelPublicBooking(tenantIdentifier, normalizedToken);
     }
     throw err;
@@ -347,6 +369,7 @@ export async function lookupPublicBookingClient(
   targetDate?: string | null
 ): Promise<PublicClientLookupResult> {
   if (isMockEnabled()) {
+    const { mockLookupPublicBookingClient } = await loadMockService();
     return mockLookupPublicBookingClient(tenantIdentifier, clientPhone, targetDate);
   }
 
@@ -390,6 +413,7 @@ export async function registerPublicBookingPromoLead(
   request: PromoLeadRegistrationRequest
 ): Promise<PromoLeadRegistrationResult> {
   if (isMockEnabled()) {
+    const { mockRegisterPublicBookingPromoLead } = await loadMockService();
     return mockRegisterPublicBookingPromoLead(request);
   }
 
@@ -408,6 +432,7 @@ export async function registerPublicBookingPromoLead(
 
   if (error) {
     if (allowMockFallback() && isFunctionNotFoundError(error)) {
+      const { mockRegisterPublicBookingPromoLead } = await loadMockService();
       return mockRegisterPublicBookingPromoLead(request);
     }
     throw mapPostgresError(error);
