@@ -24,7 +24,7 @@
 |---|---|---|---|---|---|
 | `SEC-001` | [Segurança & RLS](./seguranca-rls.md) | **F-01:** Trava de sessão e circuit breaker em `AuthContext` (PR #369 mergeado; deploy PROD pendente) | `P0` | `REVIEW` | Aprovação PO no `deploy-production.yml` |
 | `FIN-001` | [Financeiro & Comissões](./financeiro.md) | **F-02:** Guard de sessão e circuit breaker no polling do outbox (`fix/f02-outbox-auth-guard`) | `P0` | `REVIEW` | PR + merge em `main` + deploy |
-| `SEC-002` | [Segurança & RLS](./seguranca-rls.md) | **F-03:** Alinhar drift de schema exposto no `.env.local` (`Accept-Profile` / `404 PGRST202`) | `P0` | `TODO` | — |
+| `SEC-002` | [Segurança & RLS](./seguranca-rls.md) | **F-03:** Alinhar drift de schema exposto no `.env.local` (`Accept-Profile` / `404 PGRST202`) | `P0` | `REVIEW` | — |
 | `AGD-001` | [Agendamento & Recorrência](./agendamento.md) | Remover fallback silencioso para `mockService.ts` no Agendamento Público (`/agendar/:slug`) | `P0` | `TODO` | — |
 | `GTM-001` | [Go-To-Market & Produto](./go-to-market.md) | Billing Self-Serve (Stripe Checkout) + destravar plano inicial (`maxStaff: 1`) | `P0` | `TODO` | Decisão comercial do PO sobre planos/preços |
 | `GTM-002` | [Go-To-Market & Produto](./go-to-market.md) | Remover strings hardcoded de cliente único (`"Sanchez Barber"`, `"Rubens, Heron, Lucas"`) do BI | `P0` | `TODO` | — |

@@ -347,6 +347,7 @@ test.describe('P0.4-A8 — Idempotency: RPC concurrency', () => {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Content-Profile': 'public',
               apikey: apiKey,
               Authorization: `Bearer ${token}`,
             },
@@ -390,6 +391,7 @@ test.describe('P0.4-A8 — Idempotency: RPC concurrency', () => {
           `${url}/rest/v1/recurring_bills?idempotency_key=eq.${encodeURIComponent(key)}&select=id`,
           {
             headers: {
+              'Accept-Profile': 'public',
               apikey: apiKey,
               Authorization: `Bearer ${token}`,
               Range: '0-0',
@@ -502,6 +504,7 @@ test.describe('P0.4-A7 — Idempotency: RPC concurrency', () => {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Content-Profile': 'public',
               apikey: apiKey,
               Authorization: `Bearer ${token}`,
             },
@@ -550,6 +553,7 @@ test.describe('P0.4-A7 — Idempotency: RPC concurrency', () => {
           `${url}/rest/v1/accounts_payable?idempotency_key=eq.${encodeURIComponent(key)}&select=id`,
           {
             headers: {
+              'Accept-Profile': 'public',
               apikey: apiKey,
               Authorization: `Bearer ${token}`,
               Range: '0-0',

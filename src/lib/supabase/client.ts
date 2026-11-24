@@ -1,7 +1,8 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient, type SupabaseClientOptions } from '@supabase/supabase-js';
 import {
   type AppSlug,
   DEFAULT_APP_SLUG,
+  type SharedSchemaName,
   type SupabaseSchemaName,
   getSchemaForTable,
   resolveSchemaForApp,
@@ -2714,14 +2715,36 @@ const client = {
   return client as unknown as SupabaseClient;
 };
 
+export const BASE_SUPABASE_CLIENT_OPTIONS: SupabaseClientOptions<SharedSchemaName> = {
+  db: {
+    schema: SHARED_SCHEMA,
+  },
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+  },
+};
+
+export const PUBLIC_ANONYMOUS_CLIENT_OPTIONS: SupabaseClientOptions<SharedSchemaName> = {
+  db: {
+    schema: SHARED_SCHEMA,
+  },
+  auth: {
+    storageKey: 'sb-public-anon-auth-token',
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+    storage: {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+    },
+  },
+};
+
 const baseClient = hasSupabaseEnv
-  ? createClient(supabaseUrl!, supabaseAnonKey!, {
-      auth: {
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: true,
-      },
-    })
+  ? createClient(supabaseUrl!, supabaseAnonKey!, BASE_SUPABASE_CLIENT_OPTIONS)
   : createLocalDemoClient();
 
 interface ActiveAppState {
@@ -2770,19 +2793,11 @@ export const getPublicAnonymousClient = (): SupabaseClient => {
   }
 
   if (hasSupabaseEnv) {
-    publicAnonymousClient = createClient(supabaseUrl!, supabaseAnonKey!, {
-      auth: {
-        storageKey: 'sb-public-anon-auth-token',
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-        storage: {
-          getItem: () => null,
-          setItem: () => {},
-          removeItem: () => {},
-        },
-      },
-    });
+    publicAnonymousClient = createClient(
+      supabaseUrl!,
+      supabaseAnonKey!,
+      PUBLIC_ANONYMOUS_CLIENT_OPTIONS,
+    );
     return publicAnonymousClient;
   }
 
