@@ -38,7 +38,6 @@ const Commissions = lazy(() => import('./pages/Commissions'));
 const DailySummary = lazy(() => import('./pages/DailySummary'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Expenses = lazy(() => import('./pages/Expenses'));
-const FiscalPage = lazy(() => import('./pages/Fiscal'));
 const AccountsReceivable = lazy(() => import('./pages/AccountsReceivable'));
 const BankReconciliation = lazy(() => import('./pages/BankReconciliation'));
 const CashClosingPage = lazy(() => import('./pages/CashClosingPage'));
@@ -347,8 +346,7 @@ const AppRoutes: React.FC = () => {
             <Route path="/cashflow" element={<ManagerRoute><FeatureRoute feature="finance"><Cashflow /></FeatureRoute></ManagerRoute>} />
             <Route path="/cash-closing" element={<ManagerRoute><FeatureRoute feature="cash_closing"><CashClosingPage /></FeatureRoute></ManagerRoute>} />
             <Route path="/bank-reconciliation" element={<ManagerRoute><FeatureRoute feature="finance"><BankReconciliation /></FeatureRoute></ManagerRoute>} />
-            {/* Frente 6 (Zero Mock): rota /fiscal ocultada até integração de provedor NFS-e real. */}
-            {/* <Route path="/fiscal" element={<ManagerRoute><FiscalPage /></ManagerRoute>} /> */}
+            {/* Frente 6 / FIN-003 (#396): rota /fiscal e import lazy removidos até integração de provedor NFS-e real. */}
             <Route path="/expenses" element={<ManagerRoute><FeatureRoute feature="expenses"><Expenses /></FeatureRoute></ManagerRoute>} />
             <Route path="/receipts" element={<EsteticaBlockedRoute><ManagerRoute><FeatureRoute feature="finance"><Receipts /></FeatureRoute></ManagerRoute></EsteticaBlockedRoute>} />
             <Route path="/accounts-receivable" element={<ManagerRoute><FeatureRoute feature="receivables"><AccountsReceivable /></FeatureRoute></ManagerRoute>} />
