@@ -7,6 +7,7 @@ export type AdminTab =
   | 'subscriptions'
   | 'finance'
   | 'audit'
+  | 'governance'
   | 'logs'
   | 'permissions'
   | 'settings';

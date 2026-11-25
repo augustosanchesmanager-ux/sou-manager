@@ -68,8 +68,8 @@ const Settings = lazy(() => import('./pages/Settings'));
 const ShopSetup = lazy(() => import('./pages/onboarding/ShopSetup'));
 const Welcome = lazy(() => import('./pages/onboarding/Welcome'));
 const SmartReturn = lazy(() => import('./pages/SmartReturn'));
-// PO 2026-10-06: rota mockada desativada (dados ficticios). Arquivo preservado para migracao. Ver ADR-031.
-// const SupabaseMonitoring = lazy(() => import('./pages/SupabaseMonitoring'));
+// GTM-009 (#401): monitoramento real reativado exclusivamente sob <SuperAdminRoute> (sem fallback mock).
+const SupabaseMonitoring = lazy(() => import('./pages/SupabaseMonitoring'));
 const SuperAdmin = lazy(() => import('./pages/SuperAdmin'));
 const Suppliers = lazy(() => import('./pages/Suppliers'));
 const Support = lazy(() => import('./pages/Support'));
@@ -316,8 +316,7 @@ const AppRoutes: React.FC = () => {
             <Route path="/support" element={<Support />} />
 
             <Route path="/admin" element={<SuperAdminRoute><Navigate to="/superadmin" replace /></SuperAdminRoute>} />
-            {/* PO 2026-10-06: rota mockada desativada (dados ficticios). Ver ADR-031. */}
-            {/* <Route path="/admin/supabase-monitoring" element={<ManagerRoute><SupabaseMonitoring /></ManagerRoute>} /> */}
+            <Route path="/admin/supabase-monitoring" element={<SuperAdminRoute><SupabaseMonitoring /></SuperAdminRoute>} />
             <Route path="/access-control" element={<ManagerRoute><AccessControl /></ManagerRoute>} />
             <Route path="/team" element={<ManagerRoute><Team /></ManagerRoute>} />
             <Route path="/kiosk-admin" element={<ModuleRoute moduleName="kiosk"><ManagerRoute><KioskAdmin /></ManagerRoute></ModuleRoute>} />
