@@ -11,8 +11,7 @@ import { receivableRepository } from '../../domain/receivable/repository';
 import { clientRepository } from '../../domain/client/repository';
 import { chefClubPlanRepository } from '../../domain/chefClub/plan-repository';
 import { chefClubSubscriptionRepository } from '../../domain/chefClub/subscription-repository';
-import { createSupabaseClient } from '../../domain/shared/supabase-client-factory';
-import type { DatabaseClient } from '../../domain/shared/database-client';
+import { chefClubRpcRepository } from '../../domain/chefClub/rpc-repository';
 import type { ReceivableStatus } from '../../domain/chefClub';
 import { appEventBus } from '../../domain/events/app-bus';
 import { createEvent } from '../../domain/events/types';
@@ -232,19 +231,8 @@ const loadPlansMap = async (
 
 // ─── Generate Receivables ────────────────────────────────────────
 
-let rpcClient: DatabaseClient | null = null;
-
-function getRpcClient(): DatabaseClient {
-    if (!rpcClient) {
-        rpcClient = createSupabaseClient('customer_subscriptions', 'barber');
-    }
-    return rpcClient;
-}
-
 export const generateReceivables = async (tenantId: string): Promise<void> => {
-    const { error } = await getRpcClient().rpc('generate_club_receivables', {
-        p_tenant_id: tenantId,
-    });
+    const { error } = await chefClubRpcRepository.generateReceivables(tenantId);
 
     if (error) {
         console.error('[SMG][CHEF_CLUB] Erro ao gerar recebíveis:', error);
@@ -261,11 +249,11 @@ export const generateReceivables = async (tenantId: string): Promise<void> => {
 export const payReceivable = async (params: PayReceivableParams): Promise<void> => {
     const { receivableId, paymentMethod } = params;
 
-    const { error } = await getRpcClient().rpc('pay_club_receivable', {
-        p_receivable_id: receivableId,
-        p_payment_method: paymentMethod,
-        p_paid_at: new Date().toISOString(),
-        p_notes: null,
+    const { error } = await chefClubRpcRepository.payReceivable({
+        receivableId,
+        paymentMethod,
+        paidAtIso: new Date().toISOString(),
+        notes: null,
     });
 
     if (error) {
@@ -284,11 +272,11 @@ export const settleReceivableWithDetails = async (params: {
     paidAt: string;
     notes: string | null;
 }): Promise<void> => {
-    const { error } = await getRpcClient().rpc('pay_club_receivable', {
-        p_receivable_id: params.receivableId,
-        p_payment_method: params.paymentMethod,
-        p_paid_at: toPaidAtIso(params.paidAt),
-        p_notes: params.notes?.trim() || null,
+    const { error } = await chefClubRpcRepository.payReceivable({
+        receivableId: params.receivableId,
+        paymentMethod: params.paymentMethod,
+        paidAtIso: toPaidAtIso(params.paidAt),
+        notes: params.notes?.trim() || null,
     });
 
     if (error) {
@@ -304,9 +292,7 @@ export const settleReceivableWithDetails = async (params: {
 // ─── Refresh Statuses ────────────────────────────────────────────
 
 export const refreshReceivableStatuses = async (tenantId: string): Promise<void> => {
-    const { error } = await getRpcClient().rpc('refresh_club_receivable_statuses', {
-        p_tenant_id: tenantId,
-    });
+    const { error } = await chefClubRpcRepository.refreshReceivableStatuses(tenantId);
 
     if (error) {
         console.error('[SMG][CHEF_CLUB] Erro ao atualizar status dos recebíveis:', error);
@@ -332,11 +318,11 @@ export const cancelReceivablesBySubscription = async (
 ): Promise<number> => {
     const { subscriptionId, tenantId, cancelReason, cancelObservation } = params;
 
-    const { data, error } = await getRpcClient().rpc('cancel_club_receivables', {
-        p_subscription_id: subscriptionId,
-        p_tenant_id: tenantId,
-        p_cancel_reason: cancelReason,
-        p_cancel_observation: cancelObservation ?? null,
+    const { data, error } = await chefClubRpcRepository.cancelReceivables({
+        subscriptionId,
+        tenantId,
+        cancelReason,
+        cancelObservation: cancelObservation ?? null,
     });
 
     if (error) {
@@ -377,12 +363,12 @@ export const cancelSingleReceivable = async (
         cancelSubscription = false,
     } = params;
 
-    const { data, error } = await getRpcClient().rpc('cancel_single_club_receivable', {
-        p_receivable_id: receivableId,
-        p_tenant_id: tenantId,
-        p_cancel_reason: cancelReason,
-        p_cancel_observation: cancelObservation?.trim() || null,
-        p_cancel_subscription: cancelSubscription,
+    const { data, error } = await chefClubRpcRepository.cancelSingleReceivable({
+        receivableId,
+        tenantId,
+        cancelReason,
+        cancelObservation: cancelObservation?.trim() || null,
+        cancelSubscription,
     });
 
     if (error) {
