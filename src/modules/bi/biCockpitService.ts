@@ -62,6 +62,77 @@ export interface BiCockpitData {
 
 export type BiPeriod = 'today' | '7d' | '30d' | '90d';
 
+interface BiTransactionRow {
+  id?: string;
+  amount: number | string | null;
+  date?: string | null;
+  type: string | null;
+  category?: string | null;
+  payment_method?: string | null;
+}
+
+interface BiAppointmentRow {
+  id: string;
+  start_time: string;
+  staff_id: string | null;
+  staff_name?: string | null;
+  price: number | string | null;
+  status: string | null;
+  service_name?: string | null;
+  client_id?: string | null;
+}
+
+interface BiComandaItemRow {
+  id: string;
+  product_id: string | null;
+  service_id: string | null;
+  product_name?: string | null;
+  quantity: number | string | null;
+  unit_price: number | string | null;
+  comanda_id: string | null;
+  staff_id?: string | null;
+  created_at?: string | null;
+}
+
+interface BiComandaRow {
+  id: string;
+  total: number | string | null;
+  staff_id?: string | null;
+  client_id?: string | null;
+  status: string | null;
+  created_at?: string | null;
+}
+
+interface BiStaffRow {
+  id: string;
+  name: string;
+  status: string | null;
+  role?: string | null;
+}
+
+interface BiSubscriptionRow {
+  id: string;
+  plan_id: string;
+  status: string | null;
+  created_at?: string | null;
+}
+
+interface BiPlanRow {
+  id: string;
+  name: string;
+  monthly_price: number | string | null;
+}
+
+interface BiStaffStats {
+  count: number;
+  revenue: number;
+  ticket: number;
+  completionRate: number;
+  productSales: number;
+}
+
+type BiStaffStatKey = keyof BiStaffStats;
+
 export function getBiDateRange(period: BiPeriod, baseDate: Date = new Date()): { from: Date; to: Date; prevFrom: Date; prevTo: Date } {
   const to = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 23, 59, 59, 999);
   let from = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 0, 0, 0, 0);
@@ -170,29 +241,29 @@ export async function fetchBiCockpitData(tenantId: string, period: BiPeriod = '3
       .eq('active', true),
   ]);
 
-  const transactions = transactionsRes.data || [];
-  const prevTransactions = prevTransactionsRes.data || [];
-  const appointments = appointmentsRes.data || [];
-  const comandaItems = comandaItemsRes.data || [];
-  const comandas = comandasRes.data || [];
-  const staffList = (staffRes.data as any[]) || [];
-  const activeSubs = subscriptionsRes.data || [];
-  const plans = plansRes.data || [];
+  const transactions = (transactionsRes.data as BiTransactionRow[] | null) || [];
+  const prevTransactions = (prevTransactionsRes.data as BiTransactionRow[] | null) || [];
+  const appointments = (appointmentsRes.data as BiAppointmentRow[] | null) || [];
+  const comandaItems = (comandaItemsRes.data as BiComandaItemRow[] | null) || [];
+  const comandas = (comandasRes.data as BiComandaRow[] | null) || [];
+  const staffList = (staffRes.data as BiStaffRow[] | null) || [];
+  const activeSubs = (subscriptionsRes.data as BiSubscriptionRow[] | null) || [];
+  const plans = (plansRes.data as BiPlanRow[] | null) || [];
 
   // Plan map para cálculo de receita de assinaturas
-  const planMap = new Map<string, number>(plans.map(p => [p.id, Number(p.monthly_price) || 0]));
+  const planMap = new Map<string, number>(plans.map((p) => [p.id, Number(p.monthly_price) || 0]));
   const monthlyClubRevenue = activeSubs.reduce((sum, s) => sum + (planMap.get(s.plan_id) || 0), 0);
 
   // 2. Faturamento Bruto e Despesas
   let incomeFromTx = 0;
   let expensesTotal = 0;
-  transactions.forEach((t: any) => {
+  transactions.forEach((t) => {
     const amt = Math.abs(Number(t.amount) || 0);
     if (t.type === 'income') incomeFromTx += amt;
     else if (t.type === 'expense') expensesTotal += amt;
   });
 
-  const comandasGross = comandas.reduce((sum: number, c: any) => sum + (Number(c.total) || 0), 0);
+  const comandasGross = comandas.reduce((sum, c) => sum + (Number(c.total) || 0), 0);
 
   // Receita bruta realizada: prioriza lançamentos de caixa; usa comandas apenas se não houver transações no período
   const effectiveGross = incomeFromTx > 0 ? incomeFromTx : comandasGross;
@@ -203,12 +274,12 @@ export async function fetchBiCockpitData(tenantId: string, period: BiPeriod = '3
 
   // Comparativo com período anterior
   let prevIncome = 0;
-  prevTransactions.forEach((t: any) => {
+  prevTransactions.forEach((t) => {
     if (t.type === 'income') prevIncome += Math.abs(Number(t.amount) || 0);
   });
   const growthVsPrev = prevIncome > 0 ? ((effectiveGross - prevIncome) / prevIncome) * 100 : 0;
 
-  const validAppointments = appointments.filter((a: any) => !['cancelled', 'no_show'].includes(String(a.status).toLowerCase()));
+  const validAppointments = appointments.filter((a) => !['cancelled', 'no_show'].includes(String(a.status).toLowerCase()));
   const totalAppointments = validAppointments.length;
   const averageTicket = totalAppointments > 0 ? effectiveGross / totalAppointments : 0;
 
@@ -222,7 +293,7 @@ export async function fetchBiCockpitData(tenantId: string, period: BiPeriod = '3
   let productsRevenue = 0;
   let servicesRevenue = 0;
 
-  comandaItems.forEach((it: any) => {
+  comandaItems.forEach((it) => {
     const val = (Number(it.quantity) || 1) * (Number(it.unit_price) || 0);
     if (it.product_id) {
       productsRevenue += val;
@@ -265,12 +336,12 @@ export async function fetchBiCockpitData(tenantId: string, period: BiPeriod = '3
   if (period === 'today') {
     const hourBuckets = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00'];
     hourBuckets.forEach((bucket, idx) => {
-      const bucketAppts = validAppointments.filter((a: any) => {
+      const bucketAppts = validAppointments.filter((a) => {
         const h = new Date(a.start_time).getHours();
         const startH = 8 + idx * 2;
         return h >= startH && h < startH + 2;
       });
-      const g = bucketAppts.reduce((sum: number, a: any) => sum + (Number(a.price) || 0), 0);
+      const g = bucketAppts.reduce((sum, a) => sum + (Number(a.price) || 0), 0);
       const exp = 0;
       const net = Math.max(0, g - exp);
       timeline.push({
@@ -289,17 +360,18 @@ export async function fetchBiCockpitData(tenantId: string, period: BiPeriod = '3
       const pEnd = new Date(pStart.getTime() + intervalMs);
       const label = pStart.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '');
 
-      const pTxs = transactions.filter((t: any) => {
+      const pTxs = transactions.filter((t) => {
+        if (!t.date) return false;
         const d = new Date(t.date);
         return d >= pStart && d < pEnd;
       });
 
       const g = pTxs
-        .filter((t: any) => t.type === 'income')
-        .reduce((sum: number, t: any) => sum + Math.abs(Number(t.amount) || 0), 0);
+        .filter((t) => t.type === 'income')
+        .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
       const exp = pTxs
-        .filter((t: any) => t.type === 'expense')
-        .reduce((sum: number, t: any) => sum + Math.abs(Number(t.amount) || 0), 0);
+        .filter((t) => t.type === 'expense')
+        .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
 
       timeline.push({
         label,
@@ -331,7 +403,7 @@ export async function fetchBiCockpitData(tenantId: string, period: BiPeriod = '3
   const projectedMonthAppts = Math.round(currentAppts / monthProgressFraction);
   const apptsGoalPct = Math.min(100, Math.round((currentAppts / targetAppts) * 100));
 
-  const currentClients = new Set(validAppointments.map((a: any) => a.client_id).filter(Boolean)).size;
+  const currentClients = new Set(validAppointments.map((a) => a.client_id).filter(Boolean)).size;
   const projectedMonthClients = Math.round(currentClients / monthProgressFraction);
   const clientsGoalPct = Math.min(100, Math.round((currentClients / targetClients) * 100));
 
@@ -376,17 +448,17 @@ export async function fetchBiCockpitData(tenantId: string, period: BiPeriod = '3
   }));
 
   // Agregar estatísticas reais por profissional (sem fórmulas fabricadas)
-  const statsByStaff: Record<string, { count: number; revenue: number; ticket: number; completionRate: number; productSales: number }> = {};
+  const statsByStaff: Record<string, BiStaffStats> = {};
   activeStaff.forEach((s) => {
-    const sAppts = validAppointments.filter((a: any) => a.staff_id === s.id);
+    const sAppts = validAppointments.filter((a) => a.staff_id === s.id);
     const count = sAppts.length;
-    const completedCount = sAppts.filter((a: any) => String(a.status).toLowerCase() === 'completed').length;
-    const revenue = sAppts.reduce((sum: number, a: any) => sum + (Number(a.price) || 0), 0);
+    const completedCount = sAppts.filter((a) => String(a.status).toLowerCase() === 'completed').length;
+    const revenue = sAppts.reduce((sum, a) => sum + (Number(a.price) || 0), 0);
     const ticket = count > 0 ? revenue / count : 0;
     const completionRate = count > 0 ? Math.round((completedCount / count) * 100) : 0;
     const productSales = comandaItems
-      .filter((it: any) => Boolean(it.product_id) && it.staff_id === s.id)
-      .reduce((sum: number, it: any) => sum + (Number(it.quantity) || 1) * (Number(it.unit_price) || 0), 0);
+      .filter((it) => Boolean(it.product_id) && it.staff_id === s.id)
+      .reduce((sum, it) => sum + (Number(it.quantity) || 1) * (Number(it.unit_price) || 0), 0);
 
     statsByStaff[s.id] = { count, revenue, ticket, completionRate, productSales };
   });
@@ -396,7 +468,7 @@ export async function fetchBiCockpitData(tenantId: string, period: BiPeriod = '3
   const maxTicket = Math.max(1, ...Object.values(statsByStaff).map((v) => v.ticket));
   const maxProductSales = Math.max(1, ...Object.values(statsByStaff).map((v) => v.productSales));
 
-  const radarAxes = [
+  const radarAxes: Array<{ subject: string; key: BiStaffStatKey; max: number }> = [
     { subject: 'Volume', key: 'count', max: maxCount },
     { subject: 'Faturamento', key: 'revenue', max: maxRevenue },
     { subject: 'Ticket Médio', key: 'ticket', max: maxTicket },
@@ -416,7 +488,7 @@ export async function fetchBiCockpitData(tenantId: string, period: BiPeriod = '3
         point[profile.name] = 0;
         return;
       }
-      const rawVal = (sStat as any)[axis.key] || 0;
+      const rawVal = sStat[axis.key] || 0;
       const normalizedScore = axis.max > 0 ? Math.min(100, Math.round((rawVal / axis.max) * 100)) : 0;
       point[profile.name] = normalizedScore;
     });

@@ -79,204 +79,36 @@ import { comandaItemRepository } from '../domain/comanda/item-repository';
 import { serviceExecutionParticipantRepository } from '../domain/comanda/participant-repository';
 import { appointmentRepository } from '../domain/appointment';
 
-type ExecutionRole = 'primary' | 'assistant' | 'co_executor';
-type PayoutType = 'percentage' | 'fixed';
-type ClosureMode = 'standard' | 'legacy_membership';
-
-interface CartParticipant {
-  id: string;
-  professional_id: string;
-  professional_name?: string;
-  role: ExecutionRole;
-  payout_type: PayoutType;
-  payout_value: number;
-  affects_revenue: boolean;
-  affects_commission: boolean;
-}
-
-// Types
-interface CartItem {
-    id: string; // for UI tracking
-    dbId?: string; // from database if editing
-    type: 'service' | 'product';
-    name: string;
-    internal_name?: string;
-    display_name?: string;
-    description?: string;
-    price: number;
-    quantity: number;
-    service_id?: string;
-    product_id?: string;
-    staff_id?: string;
-    usedCredit?: boolean;
-    execution_participants?: CartParticipant[];
-}
-
-interface PendingCreditItem {
-    item: any;
-    type: 'service' | 'product';
-    finalPrice: number;
-}
-
-interface Client {
-    id: string;
-    name: string;
-    avatar: string;
-    phone?: string;
-}
-
-interface QuickOpenComanda {
-    id: string;
-    client_id?: string | null;
-    created_at: string;
-    status: string;
-    total?: number | string | null;
-    clients?: { name?: string | null; phone?: string | null } | { name?: string | null; phone?: string | null }[] | null;
-}
-
-interface Promotion {
-    id: string;
-    title: string;
-    target_type: 'service' | 'product' | 'all';
-    target_id: string | null;
-    discount_type: 'percentage' | 'fixed';
-    discount_value: number;
-    start_date: string;
-    end_date: string;
-    active: boolean;
-}
-
-interface Staff {
-    id: string;
-    name: string;
-    role?: string | null;
-    commission_rate?: number | string | null;
-}
-
-interface QuickProductForm {
-    name: string;
-    commercial_name: string;
-    description: string;
-    cost_price: string;
-    sale_price: string;
-    stock_quantity: string;
-    minimum_stock: string;
-    auto_generate_purchase_order: boolean;
-}
-
-interface QuickServiceForm {
-    name: string;
-    commercial_name: string;
-    description: string;
-    category: string;
-    price: string;
-    duration: string;
-    active: boolean;
-}
-
-interface CheckoutLocationState {
-    fromAppointment?: boolean;
-    appointmentId?: string;
-    clientId?: string;
-    clientName?: string;
-    serviceName?: string;
-    staffId?: string;
-    price?: number;
-}
-
-type CheckoutEntryMode = 'edit_comanda' | 'open_comanda' | 'pdv';
-
-const generateIdempotencyKey = (prefix = 'req') => {
-    const randomPart = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    return `${prefix}-${randomPart}`;
-};
-
-const createInitialQuickProductForm = (): QuickProductForm => ({
-    name: '',
-    commercial_name: '',
-    description: '',
-    cost_price: '0',
-    sale_price: '0',
-    stock_quantity: '0',
-    minimum_stock: '0',
-    auto_generate_purchase_order: false,
-});
-
-const createInitialQuickServiceForm = (serviceName = ''): QuickServiceForm => ({
-    name: serviceName,
-    commercial_name: '',
-    description: '',
-    category: 'Cabelo',
-    price: '0',
-    duration: '30',
-    active: true,
-});
-
-const toMonthInputValue = (value?: string | null) => {
-    if (!value) return '';
-
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return '';
-
-    return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`;
-};
-
-const normalizePercentageValue = normalizePercentage;
-
-const formatPayoutValue = (participant: Pick<CartParticipant, 'payout_type' | 'payout_value'>) => {
-    return domainFormatParticipantPayout(participant as ParticipantRow, '');
-};
-
-const isSharedExecution = (item: Pick<CartItem, 'staff_id' | 'execution_participants'>) => {
-    const participants = (item.execution_participants || []) as unknown as ParticipantRow[];
-    return domainIsSharedExecution(
-        { service_id: undefined },
-        participants.filter((p) => p.affects_commission),
-    );
-};
-
-const getParticipantStaffId = (participant: any) => participant?.staff_id || participant?.professional_id || '';
-
-const getDirectSettlementBlockMessage = (orderLabelLower: string, isMasculineOrder: boolean) =>
-    `${isMasculineOrder ? 'Este' : 'Esta'} ${orderLabelLower} pertence a um atendimento anterior ou foi ${isMasculineOrder ? 'cadastrado' : 'cadastrada'} fora da data do agendamento. Para proteger o caixa e os relatórios, a baixa deve ser feita pelo financeiro.`;
-
-const getQuickComandaClient = (comanda: QuickOpenComanda) => {
-    const client = Array.isArray(comanda.clients) ? comanda.clients[0] : comanda.clients;
-    return {
-        name: client?.name || 'Cliente não identificado',
-        phone: client?.phone || null,
-    };
-};
-
-const startOfLocalDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
-
-const isBeforeTodayLocal = (value?: string | null) => {
-    if (!value) return false;
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return false;
-    return startOfLocalDay(parsed).getTime() < startOfLocalDay(new Date()).getTime();
-};
-
-const isCreatedAfterAppointmentDay = (createdAt?: string | null, appointmentStartTime?: string | null) => {
-    if (!createdAt || !appointmentStartTime) return false;
-    const created = new Date(createdAt);
-    const appointment = new Date(appointmentStartTime);
-    if (Number.isNaN(created.getTime()) || Number.isNaN(appointment.getTime())) return false;
-    return startOfLocalDay(created).getTime() > startOfLocalDay(appointment).getTime();
-};
-
-const serviceCategories = ['Cabelo', 'Barba', 'Combo', 'Quimica', 'Acabamento', 'Outros'];
-const esteticaServiceCategoryDisplay: Record<string, string> = {
-    Cabelo: 'Facial',
-    Barba: 'Sobrancelhas',
-    Combo: 'Protocolos',
-    Quimica: 'Peelings',
-    Acabamento: 'Finalização',
-    Outros: 'Outros',
-};
-
-const getServiceCategoryDisplay = (category: string, isEsteticaApp: boolean) =>
-    isEsteticaApp ? esteticaServiceCategoryDisplay[category] || category : category;
+import {
+    type ExecutionRole,
+    type PayoutType,
+    type ClosureMode,
+    type CartParticipant,
+    type CartItem,
+    type PendingCreditItem,
+    type Client,
+    type QuickOpenComanda,
+    type Promotion,
+    type Staff,
+    type QuickProductForm,
+    type QuickServiceForm,
+    type CheckoutLocationState,
+    type CheckoutEntryMode,
+    generateIdempotencyKey,
+    createInitialQuickProductForm,
+    createInitialQuickServiceForm,
+    toMonthInputValue,
+    normalizePercentageValue,
+    formatPayoutValue,
+    isSharedExecution,
+    getParticipantStaffId,
+    getDirectSettlementBlockMessage,
+    getQuickComandaClient,
+    isBeforeTodayLocal,
+    isCreatedAfterAppointmentDay,
+    serviceCategories,
+    getServiceCategoryDisplay,
+} from './checkout/checkoutHelpers';
 
 const Checkout: React.FC = () => {
     const { id: comandaId } = useParams<{ id: string }>();
