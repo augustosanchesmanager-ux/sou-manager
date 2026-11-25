@@ -278,9 +278,9 @@ export const ACADEMY_TRACKS: AcademyTrack[] = [
         id: 'ges-ex-1',
         title: 'Análise do Cockpit Estratégico',
         scenario: 'O gestor analisa a rentabilidade da barbearia na última semana.',
-        expectedAction: 'Acessar o Painel Estratégico, analisar o ticket médio e avaliar ocupação por barbeiro.',
-        targetRoute: '/strategic-dashboard',
-        routeLabel: 'Abrir Painel Estratégico'
+        expectedAction: 'Acessar a Inteligência (BI), analisar o ticket médio e avaliar ocupação por barbeiro.',
+        targetRoute: '/bi',
+        routeLabel: 'Abrir Inteligência (BI)'
       },
       {
         id: 'ges-ex-2',

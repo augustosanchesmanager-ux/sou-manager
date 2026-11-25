@@ -1,6 +1,5 @@
 import React, { Suspense, lazy } from 'react';
 import { HashRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { PortalAuthProvider } from './components/PortalAuthProvider';
 import { AuthProvider, isManagerAccessRole, useAuth } from './context/AuthContext';
 import { LoadingProvider } from './context/LoadingContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -69,7 +68,6 @@ const Settings = lazy(() => import('./pages/Settings'));
 const ShopSetup = lazy(() => import('./pages/onboarding/ShopSetup'));
 const Welcome = lazy(() => import('./pages/onboarding/Welcome'));
 const SmartReturn = lazy(() => import('./pages/SmartReturn'));
-const StrategicDashboard = lazy(() => import('./pages/StrategicDashboard'));
 // PO 2026-10-06: rota mockada desativada (dados ficticios). Arquivo preservado para migracao. Ver ADR-031.
 // const SupabaseMonitoring = lazy(() => import('./pages/SupabaseMonitoring'));
 const SuperAdmin = lazy(() => import('./pages/SuperAdmin'));
@@ -78,12 +76,7 @@ const Support = lazy(() => import('./pages/Support'));
 const Team = lazy(() => import('./pages/Team'));
 const KioskClientPage = lazy(() => import('./pages/kiosk/KioskClientPage'));
 const KioskPage = lazy(() => import('./pages/kiosk/KioskPage'));
-const PortalAdmin = lazy(() => import('./pages/portal/PortalAdmin'));
 const OnlineBookingSettings = lazy(() => import('./pages/portal/OnlineBookingSettings'));
-const PortalApp = lazy(() => import('./pages/portal/PortalApp'));
-const PortalLanding = lazy(() => import('./pages/portal/PortalLanding'));
-const PortalLogin = lazy(() => import('./pages/portal/PortalLogin'));
-const PortalSchedule = lazy(() => import('./pages/portal/PortalSchedule'));
 const PublicBookingPage = lazy(() => import('./src/pages/public/booking/PublicBookingPage'));
 const PublicFeedbackPage = lazy(() => import('./src/pages/public/feedback/PublicFeedbackPage'));
 const QualityDashboard = lazy(() => import('./src/pages/QualityDashboard'));
@@ -294,10 +287,10 @@ const AppRoutes: React.FC = () => {
         <Route path="/kiosk/:tenantSlug" element={<ModuleRoute moduleName="kiosk"><KioskPage /></ModuleRoute>} />
         <Route path="/kiosk/:tenantSlug/client" element={<ModuleRoute moduleName="kiosk"><KioskClientPage /></ModuleRoute>} />
 
-        <Route path="/c/:tenantSlug" element={<ModuleRoute moduleName="portal"><PortalLanding /></ModuleRoute>} />
-        <Route path="/c/:tenantSlug/login" element={<ModuleRoute moduleName="portal"><PortalAuthProvider><PortalLogin /></PortalAuthProvider></ModuleRoute>} />
-        <Route path="/c/:tenantSlug/app" element={<ModuleRoute moduleName="portal"><PortalAuthProvider><PortalApp /></PortalAuthProvider></ModuleRoute>} />
-        <Route path="/c/:tenantSlug/app/schedule" element={<ModuleRoute moduleName="portal"><PortalAuthProvider><PortalSchedule /></PortalAuthProvider></ModuleRoute>} />
+        <Route path="/c/:tenantSlug" element={<BookingSlugRedirect />} />
+        <Route path="/c/:tenantSlug/login" element={<BookingSlugRedirect />} />
+        <Route path="/c/:tenantSlug/app" element={<BookingSlugRedirect />} />
+        <Route path="/c/:tenantSlug/app/schedule" element={<BookingSlugRedirect />} />
 
         {/* Public Booking & Feedback Routes (no auth required) */}
         <Route path="/agendar/:tenantSlug" element={<PublicBookingPage />} />
@@ -314,7 +307,7 @@ const AppRoutes: React.FC = () => {
 
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/strategic-dashboard" element={<ManagerRoute><StrategicDashboard /></ManagerRoute>} />
+            <Route path="/strategic-dashboard" element={<ManagerRoute><Navigate to="/bi" replace /></ManagerRoute>} />
             <Route path="/checkout/:id?" element={<Checkout />} />
             <Route path="/comandas" element={<Comandas />} />
             <Route path="/schedule" element={<Schedule />} />
@@ -328,7 +321,7 @@ const AppRoutes: React.FC = () => {
             <Route path="/access-control" element={<ManagerRoute><AccessControl /></ManagerRoute>} />
             <Route path="/team" element={<ManagerRoute><Team /></ManagerRoute>} />
             <Route path="/kiosk-admin" element={<ModuleRoute moduleName="kiosk"><ManagerRoute><KioskAdmin /></ManagerRoute></ModuleRoute>} />
-            <Route path="/portal-admin" element={<ModuleRoute moduleName="portal"><ManagerRoute><PortalAdmin /></ManagerRoute></ModuleRoute>} />
+            <Route path="/portal-admin" element={<ModuleRoute moduleName="portal"><ManagerRoute><Navigate to="/booking-settings" replace /></ManagerRoute></ModuleRoute>} />
             <Route path="/booking-settings" element={<ModuleRoute moduleName="portal"><ManagerRoute><OnlineBookingSettings /></ManagerRoute></ModuleRoute>} />
             <Route path="/quality" element={<ManagerRoute><QualityDashboard /></ManagerRoute>} />
             <Route path="/settings" element={<ManagerRoute><Settings /></ManagerRoute>} />
