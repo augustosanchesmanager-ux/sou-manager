@@ -151,7 +151,7 @@ A rota `/automations` já está comentada em `App.tsx:304`, porém o `lazy()` im
 
 ## `GTM-009` — P2-05: Super Admin Avançado
 
-- **Status:** `TODO`
+- **Status:** `DONE`
 - **Prioridade:** `P2`
 - **GitHub Issue:** [#401](https://github.com/augustosanchesmanager-ux/sou-manager/issues/401)
 - **Sprint:** Sprint 5+

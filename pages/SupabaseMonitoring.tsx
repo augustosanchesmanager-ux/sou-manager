@@ -29,7 +29,6 @@ import {
 } from 'recharts';
 import Toast from '../components/Toast';
 import Button from '../components/ui/Button';
-import { supabaseMonitorMock } from '../components/supabase-monitor/mockData';
 import {
   AutomationRule,
   MonitorAlert,
@@ -39,6 +38,74 @@ import {
   SupabaseMonitorSnapshot,
 } from '../components/supabase-monitor/types';
 import { biService } from '../services/biService';
+
+interface ResourceDescriptor {
+  id: string;
+  label: string;
+  icon: keyof typeof iconMap;
+  unit: string;
+  defaultLimit: number;
+  description: string;
+}
+
+const RESOURCE_CATALOG: Record<string, ResourceDescriptor> = {
+  database_size: {
+    id: 'database_size',
+    label: 'Tamanho do Banco',
+    icon: 'database',
+    unit: 'MB',
+    defaultLimit: 500,
+    description: 'Armazenamento ocupado no PostgreSQL',
+  },
+  requests: {
+    id: 'requests',
+    label: 'Requisições API',
+    icon: 'activity',
+    unit: 'req',
+    defaultLimit: 50000,
+    description: 'Chamadas REST/RPC registradas no período',
+  },
+  cpu: {
+    id: 'cpu',
+    label: 'Uso de CPU',
+    icon: 'cpu',
+    unit: '%',
+    defaultLimit: 100,
+    description: 'Pressão de processamento no banco',
+  },
+  bandwidth: {
+    id: 'bandwidth',
+    label: 'Banda / Egress',
+    icon: 'wifi',
+    unit: 'GB',
+    defaultLimit: 5,
+    description: 'Tráfego de saída acumulado',
+  },
+  auth_users: {
+    id: 'auth_users',
+    label: 'Usuários Auth',
+    icon: 'shield',
+    unit: 'users',
+    defaultLimit: 50000,
+    description: 'Contas autenticadas no projeto',
+  },
+  storage: {
+    id: 'storage',
+    label: 'Storage',
+    icon: 'hard-drive',
+    unit: 'GB',
+    defaultLimit: 1,
+    description: 'Arquivos armazenados em buckets',
+  },
+};
+
+const createEmptySnapshot = (): SupabaseMonitorSnapshot => ({
+  lastUpdatedAt: new Date().toISOString(),
+  resources: [],
+  alerts: [],
+  channels: [],
+  automations: [],
+});
 
 const rangeOptions: { id: MonitorRange; label: string }[] = [
   { id: 'today', label: 'Hoje' },
@@ -162,63 +229,66 @@ const deriveAlertsFromResources = (resources: ResourceMetric[]): MonitorAlert[] 
 
 const SupabaseMonitoring: React.FC = () => {
   const [range, setRange] = useState<MonitorRange>('7d');
-  const [snapshot, setSnapshot] = useState<SupabaseMonitorSnapshot>(buildRealtimeSnapshot(supabaseMonitorMock));
+  const [snapshot, setSnapshot] = useState<SupabaseMonitorSnapshot>(() => createEmptySnapshot());
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   const loadSnapshot = useCallback(async () => {
     try {
+      setLoadError(null);
       const { usageLogsRes, alertsRes, channelsRes } = await biService.fetchMonitoringSnapshotData();
 
-      if (
-        usageLogsRes.error ||
-        !usageLogsRes.data ||
-        usageLogsRes.data.length === 0 ||
-        alertsRes.error ||
-        channelsRes.error
-      ) {
-        setSnapshot(buildRealtimeSnapshot(supabaseMonitorMock));
+      const errors = [usageLogsRes.error, alertsRes.error, channelsRes.error].filter(Boolean);
+      if (errors.length === 3) {
+        setSnapshot(createEmptySnapshot());
+        setLoadError('Não foi possível consultar a telemetria real do Supabase. Verifique permissões e conectividade.');
         return;
       }
 
-      const grouped = usageLogsRes.data.reduce<Record<string, typeof usageLogsRes.data>>((acc, row) => {
+      const usageRows = usageLogsRes.error || !usageLogsRes.data ? [] : usageLogsRes.data;
+      const grouped = usageRows.reduce<Record<string, typeof usageRows>>((acc, row) => {
         acc[row.resource_type] = acc[row.resource_type] || [];
         acc[row.resource_type].push(row);
         return acc;
       }, {});
 
-      const resources = supabaseMonitorMock.resources.map((resource) => {
-        const resourceRows = grouped[resource.id];
-        if (!resourceRows?.length) return resource;
-
+      const resources: ResourceMetric[] = Object.entries(grouped).map(([resourceId, resourceRows]) => {
+        const meta = RESOURCE_CATALOG[resourceId];
         const latest = resourceRows[resourceRows.length - 1];
         const previous = resourceRows[Math.max(0, resourceRows.length - 2)] || latest;
+        const limitValue = Number(latest.limit_value ?? meta?.defaultLimit ?? 100);
 
         return {
-          ...resource,
+          id: resourceId,
+          label: meta?.label || resourceId,
+          icon: meta?.icon || 'activity',
+          unit: latest.unit || meta?.unit || 'un',
           current: Number(latest.value),
-          limit: Number(latest.limit_value ?? resource.limit),
-          unit: latest.unit || resource.unit,
-          history: resourceRows.map((row) => ({
-            timestamp: row.created_at,
-            value: Number(row.value),
-          })),
+          limit: limitValue > 0 ? limitValue : 100,
           trend:
             Number(latest.value) > Number(previous.value)
               ? 'up'
               : Number(latest.value) < Number(previous.value)
                 ? 'down'
                 : 'stable',
-        } as ResourceMetric;
+          description: meta?.description || `Telemetria real de ${resourceId}`,
+          etaDays: null,
+          available: true,
+          history: resourceRows.map((row) => ({
+            timestamp: row.created_at,
+            value: Number(row.value),
+          })),
+        };
       });
 
-      const alerts = [
+      const alerts: MonitorAlert[] = [
         ...deriveAlertsFromResources(resources),
-        ...(alertsRes.data || []).map((alert) => ({
+        ...(alertsRes.error || !alertsRes.data ? [] : alertsRes.data).map((alert) => ({
           id: alert.id,
           resourceId: alert.resource_type,
-          resourceLabel: supabaseMonitorMock.resources.find((resource) => resource.id === alert.resource_type)?.label || alert.resource_type,
+          resourceLabel: RESOURCE_CATALOG[alert.resource_type]?.label || alert.resource_type,
           message: alert.message,
           level: alert.level,
           usagePct: Number(alert.usage_pct ?? 0),
@@ -227,7 +297,7 @@ const SupabaseMonitoring: React.FC = () => {
         })),
       ];
 
-      const channels = (channelsRes.data || []).map((channel) => ({
+      const channels = (channelsRes.error || !channelsRes.data ? [] : channelsRes.data).map((channel) => ({
         id: channel.id,
         type: channel.channel_type,
         target: channel.target,
@@ -235,15 +305,20 @@ const SupabaseMonitoring: React.FC = () => {
         lastTriggeredAt: channel.last_triggered_at,
       })) as NotificationChannel[];
 
+      if (errors.length > 0) {
+        setLoadError('Algumas tabelas de monitoramento não retornaram dados. Exibindo apenas os blocos reais disponíveis.');
+      }
+
       setSnapshot({
         lastUpdatedAt: new Date().toISOString(),
         resources,
         alerts,
-        channels: channels.length ? channels : supabaseMonitorMock.channels,
-        automations: supabaseMonitorMock.automations,
+        channels,
+        automations: [],
       });
     } catch {
-      setSnapshot(buildRealtimeSnapshot(supabaseMonitorMock));
+      setSnapshot(createEmptySnapshot());
+      setLoadError('Falha ao carregar telemetria real do Supabase. Nenhum dado simulado foi exibido.');
     }
   }, []);
 
@@ -269,6 +344,7 @@ const SupabaseMonitoring: React.FC = () => {
   const alertHistory = snapshot.alerts.filter((alert) => !alert.active).sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
 
   const overallRisk = useMemo(() => {
+    if (resources.length === 0) return 0;
     const highestPct = Math.max(...resources.map(getUsagePct));
     const resourcesAbove70 = resources.filter((resource) => getUsagePct(resource) >= 70).length;
     const projectedBreaches = resources.filter((resource) => resource.etaDays !== null && resource.etaDays <= 10).length;
@@ -277,25 +353,30 @@ const SupabaseMonitoring: React.FC = () => {
   }, [resources]);
 
   const overallStatus = useMemo(() => {
+    if (resources.length === 0) return 'Sem telemetria';
     if (overallRisk >= 85) return 'Crítico';
     if (overallRisk >= 60) return 'Atenção';
     return 'Saudável';
-  }, [overallRisk]);
+  }, [overallRisk, resources.length]);
 
   const statusTone =
     overallStatus === 'Crítico'
       ? 'text-red-600 bg-red-500/10 border-red-500/20'
       : overallStatus === 'Atenção'
         ? 'text-amber-600 bg-amber-500/10 border-amber-500/20'
-        : 'text-emerald-600 bg-emerald-500/10 border-emerald-500/20';
+        : overallStatus === 'Sem telemetria'
+          ? 'text-slate-300 bg-white/10 border-white/15'
+          : 'text-emerald-600 bg-emerald-500/10 border-emerald-500/20';
 
   const lineChartData = useMemo(() => {
+    if (resources.length === 0) return [];
     const selectedResources = resources.map((resource) => ({
       resource,
       history: filterHistory(resource, range),
     }));
 
-    const longest = Math.max(...selectedResources.map((item) => item.history.length));
+    const longest = Math.max(0, ...selectedResources.map((item) => item.history.length));
+    if (longest === 0) return [];
 
     return Array.from({ length: longest }, (_, index) => {
       const row: Record<string, string | number> = {};
@@ -400,6 +481,28 @@ const SupabaseMonitoring: React.FC = () => {
         </div>
       </section>
 
+      {loadError && (
+        <section className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 shrink-0" />
+            <p className="font-semibold">{loadError}</p>
+          </div>
+        </section>
+      )}
+
+      {resources.length === 0 ? (
+        <section className="card-boutique p-8 text-center">
+          <Database className="mx-auto h-10 w-10 text-slate-400" />
+          <h2 className="mt-4 text-xl font-black text-slate-950 dark:text-white display-font">
+            Nenhuma telemetria real registrada ainda
+          </h2>
+          <p className="mx-auto mt-2 max-w-xl text-sm text-slate-500 dark:text-slate-400">
+            O painel consulta exclusivamente dados reais em <code>usage_logs</code>, <code>alerts</code> e{' '}
+            <code>notification_channels</code>. Assim que os coletores gravarem medições reais, os gráficos e alertas
+            aparecerão aqui automaticamente.
+          </p>
+        </section>
+      ) : (
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {resources.map((resource) => {
           const pct = getUsagePct(resource);
@@ -467,6 +570,7 @@ const SupabaseMonitoring: React.FC = () => {
           );
         })}
       </section>
+      )}
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.45fr_1fr]">
         <div className="card-boutique p-6">

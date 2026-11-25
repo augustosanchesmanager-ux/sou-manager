@@ -119,6 +119,66 @@ export interface CrossTenantTransactionRow {
   tenant_id: string | null;
 }
 
+export interface BillingPlanAdminRow {
+  slug: string;
+  name: string;
+  price_cents: number;
+  status: string | null;
+}
+
+export interface SubscriptionAdminRow {
+  id: string;
+  tenant_id: string;
+  plan: string;
+  status: string;
+  trial_ends_at: string | null;
+  current_period_end: string | null;
+  canceled_at: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface InvoiceAdminRow {
+  id: string;
+  subscription_id: string | null;
+  tenant_id: string | null;
+  status: string;
+  amount: number;
+  due_date: string | null;
+  paid_at: string | null;
+  created_at: string;
+}
+
+export interface EnterpriseAuditLogRow {
+  id: string;
+  tenant_id: string | null;
+  actor_id: string | null;
+  actor_email: string | null;
+  actor_role: string | null;
+  action: string;
+  category: string | null;
+  severity: string | null;
+  resource_type: string | null;
+  resource_id: string | null;
+  details: Record<string, unknown> | null;
+  ip_address: string | null;
+  created_at: string;
+}
+
+export interface EnterpriseDataExportRow {
+  id: string;
+  tenant_id: string | null;
+  requested_by: string | null;
+  export_type: string;
+  status: string;
+  record_count: number | null;
+  file_url: string | null;
+  file_checksum_sha256: string | null;
+  expires_at: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
 class ProfileRepositoryImpl extends SupabaseRepository {
   private readonly appSlug: AppSlug;
   private readonly hasInjectedDb: boolean;
@@ -451,6 +511,69 @@ class ProfileRepositoryImpl extends SupabaseRepository {
       return this.extractData<Record<string, unknown>>(result, 'Erro ao responder ticket de suporte') ?? {};
     } catch (err) {
       this.throwOnError(err, 'Erro ao responder ticket de suporte');
+    }
+  }
+
+  async listBillingPlans(): Promise<BillingPlanAdminRow[]> {
+    try {
+      const result = await this.db
+        .from('plans')
+        .select('slug, name, price_cents, status')
+        .order('price_cents', { ascending: true });
+      return this.extractData<BillingPlanAdminRow[]>(result, 'Erro ao listar planos de billing') ?? [];
+    } catch (err) {
+      this.throwOnError(err, 'Erro ao listar planos de billing');
+    }
+  }
+
+  async listAllSubscriptions(): Promise<SubscriptionAdminRow[]> {
+    try {
+      const result = await this.db
+        .from('subscriptions')
+        .select('id, tenant_id, plan, status, trial_ends_at, current_period_end, canceled_at, created_at, updated_at')
+        .order('created_at', { ascending: false });
+      return this.extractData<SubscriptionAdminRow[]>(result, 'Erro ao listar assinaturas') ?? [];
+    } catch (err) {
+      this.throwOnError(err, 'Erro ao listar assinaturas');
+    }
+  }
+
+  async listAllInvoices(limit = 500): Promise<InvoiceAdminRow[]> {
+    try {
+      const result = await this.db
+        .from('invoices')
+        .select('id, subscription_id, tenant_id, status, amount, due_date, paid_at, created_at')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      return this.extractData<InvoiceAdminRow[]>(result, 'Erro ao listar faturas') ?? [];
+    } catch (err) {
+      this.throwOnError(err, 'Erro ao listar faturas');
+    }
+  }
+
+  async listEnterpriseAuditLogs(limit = 100): Promise<EnterpriseAuditLogRow[]> {
+    try {
+      const result = await this.db
+        .from('enterprise_audit_logs')
+        .select('id, tenant_id, actor_id, actor_email, actor_role, action, category, severity, resource_type, resource_id, details, ip_address, created_at')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      return this.extractData<EnterpriseAuditLogRow[]>(result, 'Erro ao listar trilha enterprise') ?? [];
+    } catch (err) {
+      this.throwOnError(err, 'Erro ao listar trilha enterprise');
+    }
+  }
+
+  async listEnterpriseDataExports(limit = 100): Promise<EnterpriseDataExportRow[]> {
+    try {
+      const result = await this.db
+        .from('enterprise_data_exports')
+        .select('id, tenant_id, requested_by, export_type, status, record_count, file_url, file_checksum_sha256, expires_at, created_at, completed_at')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      return this.extractData<EnterpriseDataExportRow[]>(result, 'Erro ao listar exportações LGPD') ?? [];
+    } catch (err) {
+      this.throwOnError(err, 'Erro ao listar exportações LGPD');
     }
   }
 }

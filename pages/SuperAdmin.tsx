@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Building2, CreditCard, FileSearch, HandCoins, ScrollText, Users } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { AlertTriangle, Building2, CreditCard, Database, FileSearch, HandCoins, ScrollText, ShieldCheck, TrendingDown, Users } from 'lucide-react';
 import Toast from '../components/Toast';
 import SuperAdminHeader from '../components/superadmin/SuperAdminHeader';
 import SuperAdminFilters from '../components/superadmin/SuperAdminFilters';
@@ -13,9 +14,17 @@ import AuditDrawer from '../components/superadmin/AuditDrawer';
 import AdminActionMenu from '../components/superadmin/AdminActionMenu';
 import { AdminActivity, AdminFilterState, AdminKpi, AdminStatus, AdminTab, AuditEntry, ManagedUserRow, QuickAction, RiskAlert, SubscriptionRequestRow } from '../components/superadmin/types';
 import Button from '../components/ui/Button';
-import { profileRepository } from '../domain/profile/repository';
+import {
+  BillingPlanAdminRow,
+  EnterpriseAuditLogRow,
+  EnterpriseDataExportRow,
+  InvoiceAdminRow,
+  profileRepository,
+  SubscriptionAdminRow,
+} from '../domain/profile/repository';
 import { supportRepository } from '../domain/support/repository';
 import { formatCurrency } from '../shared/format/currency';
+import { calculateExecutiveBillingMetrics } from '../src/modules/superadmin/executiveMetrics';
 
 type TenantRow = { id: string; name: string; slug: string; plan?: string | null; status: string; created_at: string };
 type ProfileRow = { id: string; tenant_id: string | null; full_name: string | null; email?: string | null; role: string | null; status?: string | null; created_at: string; updated_at?: string | null };
@@ -29,9 +38,10 @@ type CompanyRow = { id: string; name: string; slug: string; plan: string; rawSta
 const tabs: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
   { id: 'overview', label: 'Visão Geral', icon: <HandCoins className="h-4 w-4" /> },
   { id: 'companies', label: 'Empresas', icon: <Building2 className="h-4 w-4" /> },
-{ id: 'users', label: 'Usuários', icon: <Users className="h-4 w-4" /> },
-    { id: 'subscriptions', label: 'Solicitações', icon: <CreditCard className="h-4 w-4" /> },
+  { id: 'users', label: 'Usuários', icon: <Users className="h-4 w-4" /> },
+  { id: 'subscriptions', label: 'Solicitações', icon: <CreditCard className="h-4 w-4" /> },
   { id: 'audit', label: 'Auditoria', icon: <ScrollText className="h-4 w-4" /> },
+  { id: 'governance', label: 'Governança & LGPD', icon: <ShieldCheck className="h-4 w-4" /> },
   { id: 'logs', label: 'Alertas', icon: <FileSearch className="h-4 w-4" /> },
 ];
 
@@ -61,6 +71,7 @@ const periodStart = (period: string) => {
 };
 
 const SuperAdmin: React.FC = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<AdminFilterState>(defaultFilters);
   const [search, setSearch] = useState('');
@@ -70,6 +81,8 @@ const SuperAdmin: React.FC = () => {
   const [subscriptionPage, setSubscriptionPage] = useState(1);
   const [companyPage, setCompanyPage] = useState(1);
   const [auditPage, setAuditPage] = useState(1);
+  const [enterpriseAuditPage, setEnterpriseAuditPage] = useState(1);
+  const [exportPage, setExportPage] = useState(1);
   const [mutatingId, setMutatingId] = useState<string | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<AdminActivity | null>(null);
   const [actionMenuOpen, setActionMenuOpen] = useState(false);
@@ -83,7 +96,11 @@ const SuperAdmin: React.FC = () => {
   const [alerts, setAlerts] = useState<AlertRow[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogRow[]>([]);
   const [accessRequests, setAccessRequests] = useState<AccessRequestRow[]>([]);
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [billingPlans, setBillingPlans] = useState<BillingPlanAdminRow[]>([]);
+  const [billingSubscriptions, setBillingSubscriptions] = useState<SubscriptionAdminRow[]>([]);
+  const [billingInvoices, setBillingInvoices] = useState<InvoiceAdminRow[]>([]);
+  const [enterpriseAuditLogs, setEnterpriseAuditLogs] = useState<EnterpriseAuditLogRow[]>([]);
+  const [enterpriseDataExports, setEnterpriseDataExports] = useState<EnterpriseDataExportRow[]>([]);
 
   useEffect(() => {
     const savedView = localStorage.getItem('superadmin-view');
@@ -114,7 +131,11 @@ const SuperAdmin: React.FC = () => {
       profileRepository.listAlerts(100),
       profileRepository.listAuditLogs(100),
       profileRepository.listAccessRequests(100),
-      profileRepository.listRecentTransactionsCrossTenant(500),
+      profileRepository.listBillingPlans(),
+      profileRepository.listAllSubscriptions(),
+      profileRepository.listAllInvoices(500),
+      profileRepository.listEnterpriseAuditLogs(100),
+      profileRepository.listEnterpriseDataExports(100),
     ]);
 
     const failedSources = results.filter((result) => result.status !== 'fulfilled').length;
@@ -131,7 +152,11 @@ const SuperAdmin: React.FC = () => {
     setAlerts(unwrap<AlertRow>(results[4]));
     setAuditLogs(unwrap<AuditLogRow>(results[5]));
     setAccessRequests(unwrap<AccessRequestRow>(results[6]));
-    setTransactions(unwrap<any>(results[7]));
+    setBillingPlans(unwrap<BillingPlanAdminRow>(results[7]));
+    setBillingSubscriptions(unwrap<SubscriptionAdminRow>(results[8]));
+    setBillingInvoices(unwrap<InvoiceAdminRow>(results[9]));
+    setEnterpriseAuditLogs(unwrap<EnterpriseAuditLogRow>(results[10]));
+    setEnterpriseDataExports(unwrap<EnterpriseDataExportRow>(results[11]));
     setLastUpdatedAt(new Date().toISOString());
     if (failedSources > 0) {
       setToast({
@@ -304,17 +329,21 @@ const SuperAdmin: React.FC = () => {
     return rows.sort((a, b) => +new Date(b.dateTime) - +new Date(a.dateTime));
   }, [accessRequests, alerts, auditLogs, profileMap, tenantMap, tickets]);
 
+  const executiveMetrics = useMemo(
+    () => calculateExecutiveBillingMetrics(billingPlans, billingSubscriptions, billingInvoices),
+    [billingInvoices, billingPlans, billingSubscriptions]
+  );
+
   const kpis = useMemo<AdminKpi[]>(() => {
-    const income = transactions.filter((item: any) => item.type === 'income').reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0);
     return [
+      { id: 'kpi-mrr', title: 'MRR (Receita Recorrente)', value: formatCurrency(executiveMetrics.mrr), delta: `ARR ${formatCurrency(executiveMetrics.arr)}`, context: `${executiveMetrics.activePaidCount} assinaturas pagas ativas (Stack A).`, icon: HandCoins, tone: 'gold' },
+      { id: 'kpi-churn', title: 'Churn (30 dias)', value: `${executiveMetrics.churnRatePct.toFixed(1)}%`, delta: `${executiveMetrics.canceledLast30d} cancelamentos • ${executiveMetrics.trialingCount} em trial`, context: `${executiveMetrics.pastDueCount} em atraso • Faturas pagas: ${formatCurrency(executiveMetrics.paidInvoicesTotal)}`, icon: TrendingDown, tone: executiveMetrics.churnRatePct >= 5 ? 'red' : 'emerald' },
       { id: 'kpi-tenants', title: 'Empresas ativas', value: String(tenants.filter((tenant) => tenant.status === 'active').length), delta: `${tenants.length} tenants cadastrados`, context: 'Base real de tenants em operação.', icon: Building2, tone: 'gold' },
       { id: 'kpi-users', title: 'Usuários mapeados', value: String(profiles.length), delta: `${profiles.filter((profile) => (profile.role || '').toLowerCase() === 'manager').length} gestores`, context: 'Perfis reais encontrados em profiles.', icon: Users, tone: 'emerald' },
       { id: 'kpi-requests', title: 'Solicitações pendentes', value: String(plans.filter((plan) => plan.status === 'pending').length + accessRequests.filter((request) => request.status === 'pending').length), delta: `${tickets.filter((ticket) => ticket.status !== 'closed').length} tickets em aberto`, context: 'Fila comercial e operacional atual.', icon: CreditCard, tone: 'blue' },
-      { id: 'kpi-alerts', title: 'Alertas críticos', value: String(alerts.filter((alert) => !alert.resolved_at && alert.level === 'critical').length), delta: `${alertItems.length} alertas ativos`, context: 'Incidentes reais do ambiente.', icon: AlertTriangle, tone: 'red' },
-      { id: 'kpi-finance', title: 'Movimento financeiro', value: formatCurrency(income), delta: `${transactions.length} transações lidas`, context: 'Receitas registradas em transactions.', icon: HandCoins, tone: 'gold' },
-      { id: 'kpi-audit', title: 'Eventos auditados', value: String(auditLogs.length), delta: `${auditLogs.filter((audit) => audit.action === 'DELETE').length} exclusões`, context: 'Trilha real vinda de audit_logs.', icon: ScrollText, tone: 'slate' },
+      { id: 'kpi-alerts', title: 'Alertas & Governança', value: String(alerts.filter((alert) => !alert.resolved_at && alert.level === 'critical').length), delta: `${enterpriseAuditLogs.length} logs enterprise • ${enterpriseDataExports.length} exports LGPD`, context: `${auditLogs.length} eventos em audit_logs.`, icon: AlertTriangle, tone: alerts.some((alert) => !alert.resolved_at && alert.level === 'critical') ? 'red' : 'slate' },
     ];
-  }, [accessRequests, alertItems.length, alerts, auditLogs, plans, profiles, tenants, tickets, transactions]);
+  }, [accessRequests, alerts, auditLogs.length, enterpriseAuditLogs.length, enterpriseDataExports.length, executiveMetrics, plans, profiles, tenants, tickets]);
 
   const filterOptions = useMemo(() => ({
     periods: [{ value: '24h', label: 'Últimas 24h' }, { value: '7d', label: 'Últimos 7 dias' }, { value: '30d', label: 'Últimos 30 dias' }, { value: '90d', label: 'Últimos 90 dias' }],
@@ -328,11 +357,12 @@ const SuperAdmin: React.FC = () => {
   }), [activities, companies, subscriptions, users]);
 
   const quickActions: QuickAction[] = [
+    { id: 'go-monitoring', label: 'Monitoramento Supabase', description: 'Abre telemetria real da infraestrutura (exclusivo SuperAdmin).', tone: 'default' },
+    { id: 'go-governance', label: 'Governança & LGPD', description: 'Consulta enterprise_audit_logs e exportações LGPD.', tone: 'default' },
     { id: 'go-companies', label: 'Abrir empresas', description: 'Mostra a base real de tenants cadastrados.', tone: 'default' },
     { id: 'go-users', label: 'Revisar usuários', description: 'Abre a lista real de perfis.', tone: 'default' },
     { id: 'go-subscriptions', label: 'Ver solicitações', description: 'Mostra os pedidos de plano ativos.', tone: 'default' },
     { id: 'go-audit', label: 'Abrir auditoria', description: 'Vai para a trilha administrativa real.', tone: 'default' },
-    { id: 'go-logs', label: 'Abrir alertas', description: 'Mostra a fila de riscos e monitoramento.', tone: 'default' },
     { id: 'refresh', label: 'Atualizar painel', description: 'Recarrega todos os dados do ambiente.', tone: 'success' },
   ];
 
@@ -349,16 +379,20 @@ const SuperAdmin: React.FC = () => {
       activities: activities.filter((row) => inRange(row.dateTime) && (filters.company === 'all' || row.company === filters.company) && (filters.status === 'all' || normalize(row.status) === normalize(filters.status)) && (filters.movementType === 'all' || row.type === filters.movementType) && (filters.user === 'all' || row.user === filters.user) && matchesSearch([row.type, row.company, row.user, row.origin, row.actor])),
       alerts: alertItems.filter((row) => matchesSearch([row.title, row.description, row.severity, row.cta])),
       audits: audits.filter((row) => inRange(row.when) && matchesSearch([row.actor, row.action, row.origin, row.relatedObject])),
+      enterpriseAudits: enterpriseAuditLogs.filter((row) => matchesSearch([row.actor_email || undefined, row.actor_role || undefined, row.action, row.category || undefined, row.resource_type || undefined, row.severity || undefined])),
+      dataExports: enterpriseDataExports.filter((row) => matchesSearch([row.export_type, row.status, row.tenant_id ? tenantMap[row.tenant_id]?.name : undefined, row.file_checksum_sha256 || undefined])),
     };
-  }, [activities, alertItems, audits, companies, filters, search, subscriptions, users]);
+  }, [activities, alertItems, audits, companies, enterpriseAuditLogs, enterpriseDataExports, filters, search, subscriptions, tenantMap, users]);
 
   const pagedActivities = paginate(filtered.activities, activityPage);
   const pagedUsers = paginate(filtered.users, userPage);
   const pagedSubscriptions = paginate(filtered.subscriptions, subscriptionPage);
   const pagedCompanies = paginate(filtered.companies, companyPage);
+  const pagedEnterpriseAudits = paginate(filtered.enterpriseAudits, enterpriseAuditPage, 10);
+  const pagedDataExports = paginate(filtered.dataExports, exportPage, 10);
 
   const handleExport = () => {
-    const payload = { generatedAt: new Date().toISOString(), filters, search, companies: filtered.companies, users: filtered.users, subscriptions: filtered.subscriptions, activities: filtered.activities, alerts: filtered.alerts, audits: filtered.audits };
+    const payload = { generatedAt: new Date().toISOString(), executiveMetrics, filters, search, companies: filtered.companies, users: filtered.users, subscriptions: filtered.subscriptions, activities: filtered.activities, alerts: filtered.alerts, audits: filtered.audits, enterpriseAudits: filtered.enterpriseAudits, dataExports: filtered.dataExports };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -375,6 +409,8 @@ const SuperAdmin: React.FC = () => {
   const handleAction = (action: QuickAction) => {
     setActionMenuOpen(false);
     if (action.id === 'refresh') { fetchData(); return; }
+    if (action.id === 'go-monitoring') { navigate('/admin/supabase-monitoring'); return; }
+    if (action.id === 'go-governance') { setActiveTab('governance'); return; }
     if (action.id === 'go-companies') setActiveTab('companies');
     if (action.id === 'go-users') setActiveTab('users');
     if (action.id === 'go-subscriptions') setActiveTab('subscriptions');
@@ -543,6 +579,57 @@ const SuperAdmin: React.FC = () => {
     { key: 'riskLevel', label: 'Risco', render: (item) => <span className="capitalize">{item.riskLevel}</span> },
   ];
 
+  const enterpriseAuditColumns: DataColumn<EnterpriseAuditLogRow>[] = [
+    {
+      key: 'actor',
+      label: 'Ator',
+      render: (item) => (
+        <div>
+          <p className="font-bold text-slate-950 dark:text-white">{item.actor_email || item.actor_id || 'Sistema'}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{item.actor_role || 'Sem perfil'}</p>
+        </div>
+      ),
+    },
+    { key: 'category', label: 'Categoria', render: (item) => item.category || '-' },
+    { key: 'action', label: 'Ação', render: (item) => item.action },
+    {
+      key: 'resource',
+      label: 'Recurso',
+      render: (item) => `${item.resource_type || '-'}${item.resource_id ? ` #${item.resource_id.slice(0, 8)}` : ''}`,
+    },
+    { key: 'severity', label: 'Severidade', render: (item) => <span className="capitalize">{item.severity || 'info'}</span> },
+    { key: 'created_at', label: 'Data', render: (item) => formatDateTime(item.created_at) },
+  ];
+
+  const dataExportColumns: DataColumn<EnterpriseDataExportRow>[] = [
+    {
+      key: 'tenant',
+      label: 'Empresa',
+      render: (item) => (item.tenant_id ? tenantMap[item.tenant_id]?.name || item.tenant_id.slice(0, 8) : 'Plataforma'),
+    },
+    { key: 'export_type', label: 'Tipo LGPD', render: (item) => item.export_type },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (item) => (
+        <StatusBadge
+          status={item.status === 'completed' ? 'aprovado' : item.status === 'failed' ? 'critico' : 'pendente'}
+        />
+      ),
+    },
+    { key: 'record_count', label: 'Registros', render: (item) => (item.record_count !== null ? String(item.record_count) : '-') },
+    {
+      key: 'checksum',
+      label: 'Checksum SHA-256',
+      render: (item) => (
+        <span className="font-mono text-xs text-slate-500 dark:text-slate-400">
+          {item.file_checksum_sha256 ? `${item.file_checksum_sha256.slice(0, 12)}…` : '-'}
+        </span>
+      ),
+    },
+    { key: 'created_at', label: 'Solicitado em', render: (item) => formatDateTime(item.created_at) },
+  ];
+
   if (loading) {
     return <section className="rounded-[2rem] border border-slate-200/80 bg-white p-10 text-center dark:border-[#262A33] dark:bg-[#141519]"><div className="mx-auto size-8 animate-spin rounded-full border-2 border-primary border-t-transparent"></div><p className="mt-3 text-sm text-slate-500">Carregando dados administrativos reais...</p></section>;
   }
@@ -562,12 +649,12 @@ const SuperAdmin: React.FC = () => {
             blue: 'info',
           };
           const iconMap: Record<string, string> = {
+            'kpi-mrr': 'payments',
+            'kpi-churn': 'trending_down',
             'kpi-tenants': 'storefront',
             'kpi-users': 'group',
             'kpi-requests': 'credit_card',
             'kpi-alerts': 'warning',
-            'kpi-finance': 'payments',
-            'kpi-audit': 'history_edu',
           };
           return (
             <MetricCard
@@ -581,7 +668,31 @@ const SuperAdmin: React.FC = () => {
           );
         })}
       </section>
-      <section className="card-boutique p-3"><div className="flex flex-wrap gap-2">{tabs.map((tab) => <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold transition ${activeTab === tab.id ? 'bg-slate-900 text-white shadow-lg dark:bg-white dark:text-slate-900' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5'}`}>{tab.icon}{tab.label}</button>)}</div></section>
+      <section className="card-boutique p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-2">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold transition ${activeTab === tab.id ? 'bg-slate-900 text-white shadow-lg dark:bg-white dark:text-slate-900' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5'}`}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => navigate('/admin/supabase-monitoring')}
+            className="rounded-2xl"
+          >
+            <Database className="h-4 w-4" />
+            Monitoramento Supabase
+          </Button>
+        </div>
+      </section>
 
       {activeTab === 'overview' && (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
@@ -602,6 +713,32 @@ const SuperAdmin: React.FC = () => {
       {activeTab === 'users' && <DataTable title="Usuários da plataforma" description="Perfis reais encontrados em profiles." columns={userColumns} rows={pagedUsers.items} page={userPage} totalPages={pagedUsers.totalPages} onPageChange={setUserPage} emptyTitle="Nenhum usuário encontrado" emptyDescription="Não há perfis correspondentes aos filtros." />}
       {activeTab === 'subscriptions' && <DataTable title="Solicitações de plano" description="Mudanças reais de plano vindas de plan_change_requests." columns={subscriptionColumns} rows={pagedSubscriptions.items} page={subscriptionPage} totalPages={pagedSubscriptions.totalPages} onPageChange={setSubscriptionPage} emptyTitle="Nenhuma solicitação encontrada" emptyDescription="Não há solicitações no período." />}
       {activeTab === 'audit' && <DataTable title="Auditoria administrativa" description="Registros reais da tabela audit_logs." columns={auditColumns} rows={pagedAudits.items} page={auditPage} totalPages={pagedAudits.totalPages} onPageChange={setAuditPage} emptyTitle="Nenhum evento auditado" emptyDescription="Não há eventos auditados para os filtros atuais." />}
+      {activeTab === 'governance' && (
+        <div className="space-y-6">
+          <DataTable
+            title="Trilha de Auditoria Enterprise"
+            description="Eventos reais de segurança e compliance lidos de enterprise_audit_logs."
+            columns={enterpriseAuditColumns}
+            rows={pagedEnterpriseAudits.items}
+            page={enterpriseAuditPage}
+            totalPages={pagedEnterpriseAudits.totalPages}
+            onPageChange={setEnterpriseAuditPage}
+            emptyTitle="Nenhum evento enterprise registrado"
+            emptyDescription="A tabela enterprise_audit_logs está ativa e ainda não possui registros para os filtros atuais."
+          />
+          <DataTable
+            title="Exportações de Dados & LGPD"
+            description="Histórico real de solicitações de portabilidade/exportação em enterprise_data_exports."
+            columns={dataExportColumns}
+            rows={pagedDataExports.items}
+            page={exportPage}
+            totalPages={pagedDataExports.totalPages}
+            onPageChange={setExportPage}
+            emptyTitle="Nenhuma exportação LGPD registrada"
+            emptyDescription="A tabela enterprise_data_exports está ativa e ainda não possui solicitações registradas."
+          />
+        </div>
+      )}
       {activeTab === 'logs' && <div className="space-y-6"><AlertStack items={filtered.alerts} onOpenAlert={() => setActiveTab('audit')} /><ActivityTimeline items={pagedActivities.items} onOpenDetails={setSelectedActivity} /></div>}
 
       <AuditDrawer item={selectedActivity} isOpen={Boolean(selectedActivity)} onClose={() => setSelectedActivity(null)} />
