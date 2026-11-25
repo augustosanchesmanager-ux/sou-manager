@@ -3,6 +3,7 @@ import { fetchDashboardAlertsData } from '../services/dailySummaryService';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { logSupabaseError } from '../domain/shared/errors';
+import { businessDateInTimeZone } from '../shared/dates/timezone';
 
 interface AlertItem {
     id: string;
@@ -36,9 +37,9 @@ const DashboardAlerts: React.FC = () => {
 
         setLoading(true);
         try {
-            const todayStr = new Date().toISOString().split('T')[0];
-            const startOfDay = new Date(`${todayStr}T00:00:00`).toISOString();
-            const endOfDay = new Date(`${todayStr}T23:59:59`).toISOString();
+            const todayStr = businessDateInTimeZone();
+            const startOfDay = new Date(`${todayStr}T00:00:00.000-03:00`).toISOString();
+            const endOfDay = new Date(`${todayStr}T23:59:59.999-03:00`).toISOString();
 
             const { appts, products, comandas, promos } = await fetchDashboardAlertsData(
                 tenantId,

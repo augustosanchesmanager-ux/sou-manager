@@ -1,5 +1,5 @@
 import type React from 'react';
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { AppSlug } from '../lib/supabase/schemas';
 import { getSharedClient, hasSupabaseEnv } from '../lib/supabase/client';
 import {
@@ -42,7 +42,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [error, setError] = useState<string | null>(null);
   const requestCounterRef = useRef(0);
 
-  const refreshTenant = async (): Promise<void> => {
+  const refreshTenant = useCallback(async (): Promise<void> => {
     const thisRequest = ++requestCounterRef.current;
     if (!authSession?.user) {
       if (thisRequest !== requestCounterRef.current) return;
@@ -99,11 +99,11 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setLoading(false);
       }
     }
-  };
+  }, [appSlug, authSession?.user]);
 
   useEffect(() => {
     void refreshTenant();
-  }, [appSlug, authSession?.user?.id]);
+  }, [refreshTenant]);
 
   const value = useMemo<TenantContextValue>(
     () => ({
@@ -116,7 +116,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       error,
       refreshTenant,
     }),
-    [error, loading, memberships, role, tenant],
+    [error, loading, memberships, refreshTenant, role, tenant],
   );
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { LoadingOverlay } from '../components/ui/Loading/LoadingOverlay';
 import { getLoadingMessage, type LoadingMessageKey } from '../lib/loadingMessages';
 
@@ -74,27 +74,39 @@ export const LoadingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   }, []);
 
+  const lockedByLoadingRef = useRef(false);
+  const previousOverflowRef = useRef<string>('');
+
   useEffect(() => {
-    if (state.queue.length > 0) {
+    if (state.queue.length > 0 && !lockedByLoadingRef.current) {
+      previousOverflowRef.current = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
+      lockedByLoadingRef.current = true;
+    } else if (state.queue.length === 0 && lockedByLoadingRef.current) {
+      document.body.style.overflow = previousOverflowRef.current;
+      lockedByLoadingRef.current = false;
     }
 
     return () => {
-      document.body.style.overflow = '';
+      if (lockedByLoadingRef.current) {
+        document.body.style.overflow = previousOverflowRef.current;
+        lockedByLoadingRef.current = false;
+      }
     };
   }, [state.queue.length]);
 
+  const contextValue = useMemo<LoadingContextType>(
+    () => ({
+      ...state,
+      showLoading,
+      hideLoading,
+      hideAll,
+    }),
+    [hideAll, hideLoading, showLoading, state],
+  );
+
   return (
-    <LoadingContext.Provider
-      value={{
-        ...state,
-        showLoading,
-        hideLoading,
-        hideAll,
-      }}
-    >
+    <LoadingContext.Provider value={contextValue}>
       {children}
       {state.isLoading && (
         <div className="fixed inset-0 z-[9999] pointer-events-none">

@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { Suspense, useState, useEffect, useRef } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import { RouteErrorBoundary } from './RouteErrorBoundary';
 import Logo from './Logo';
 import ThemeToggle from './ThemeToggle';
 import { useAuth } from '../context/AuthContext';
@@ -14,7 +15,12 @@ import StatusBanner from './billing/StatusBanner';
 import ReleaseNotesModal from './ReleaseNotesModal';
 import { hasUnseenChangelog } from '../src/lib/changelog';
 import { CommandPalette } from './CommandPalette';
-import { supabase } from '../services/supabaseClient';
+import { useTenantOptional } from '../src/context/TenantContext';
+import {
+  formatTenantPlanLabel,
+  normalizeTenantPlanSlug,
+  openAssistedUpgradeChannel,
+} from '../src/lib/billing/assistedUpgrade';
 
 const Layout: React.FC = () => {
   const location = useLocation();
@@ -27,11 +33,13 @@ const Layout: React.FC = () => {
   const [releaseNotesUnseen, setReleaseNotesUnseen] = useState(() => hasUnseenChangelog());
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
-  const [isUpdatingPlan, setIsUpdatingPlan] = useState(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const { user, appSlug, signOut } = useAuth();
+  const tenantContext = useTenantOptional();
+  const currentTenant = tenantContext?.tenant ?? null;
+  const currentPlanSlug = normalizeTenantPlanSlug(currentTenant?.plan);
   const notificationsController = useNotifications('unread');
   const { unreadCount } = notificationsController;
   const isEsteticaApp = appSlug === 'estetica';
@@ -86,9 +94,7 @@ const Layout: React.FC = () => {
     .slice(0, 2)
     .map((part: string) => part[0]?.toUpperCase())
     .join('') || 'SM';
-  const displayPlan = user?.user_metadata?.plan
-    ? `Plano ${user.user_metadata.plan.charAt(0).toUpperCase() + user.user_metadata.plan.slice(1)}`
-    : 'Plano Free';
+  const displayPlan = `Plano ${formatTenantPlanLabel(currentPlanSlug)}`;
   const showMobileBottomNav = isMobileBottomNavRoute(location.pathname, appSlug);
 
   const handleLogout = async () => {
@@ -96,21 +102,17 @@ const Layout: React.FC = () => {
     navigate('/login');
   };
 
-  const handleChangePlan = async (newPlan: string) => {
-    setIsUpdatingPlan(true);
-    try {
-      const { error } = await supabase.auth.updateUser({
-        data: { plan: newPlan },
-      });
-      if (error) throw error;
-      setIsPlanModalOpen(false);
-      setIsUserMenuOpen(false);
-      window.location.reload();
-    } catch (err) {
-      console.error('Erro ao mudar plano:', err);
-    } finally {
-      setIsUpdatingPlan(false);
-    }
+  const handleRequestAssistedUpgrade = (targetPlan: string) => {
+    if (targetPlan === currentPlanSlug) return;
+    openAssistedUpgradeChannel({
+      tenantName: currentTenant?.name,
+      currentPlan: currentPlanSlug,
+      targetPlan,
+      billingCycle,
+      contextReason: 'Seleção de plano no menu principal',
+    });
+    setIsPlanModalOpen(false);
+    setIsUserMenuOpen(false);
   };
 
   const planOptions = isEsteticaApp
@@ -146,7 +148,7 @@ const Layout: React.FC = () => {
       />
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        <header className={`h-16 border-b px-4 sm:px-8 flex items-center justify-between shrink-0 backdrop-blur-md sticky top-0 z-20 transition-colors duration-300 ${
+        <header className={`h-16 border-b px-4 sm:px-8 flex items-center justify-between shrink-0 backdrop-blur-md sticky top-0 z-30 transition-colors duration-300 ${
           isEsteticaApp
             ? 'border-[#DDD2B6] bg-[#F8F5ED]/92'
             : 'border-line dark:border-border-dark bg-background-light/90 dark:bg-surface-dark/90'
@@ -360,7 +362,17 @@ const Layout: React.FC = () => {
         <StatusBanner />
 
         <div className={`flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 main-content ${showMobileBottomNav ? 'pb-24 md:pb-24 lg:pb-8' : ''}`}>
-          <Outlet />
+          <RouteErrorBoundary resetKey={location.pathname}>
+            <Suspense
+              fallback={
+                <div className="flex min-h-[240px] items-center justify-center">
+                  <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-primary" />
+                </div>
+              }
+            >
+              <Outlet />
+            </Suspense>
+          </RouteErrorBoundary>
         </div>
 
         <MobileBottomNav onOpenMenu={() => setIsSidebarOpen(true)} />
@@ -415,18 +427,21 @@ const Layout: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {planOptions.map((p) => (
+              {planOptions.map((p) => {
+                const isCurrentPlan = currentPlanSlug === p.id;
+                return (
                 <button
                   key={p.id}
-                  onClick={() => handleChangePlan(`${p.id}${billingCycle === 'annual' ? '_annual' : ''}`)}
-                  disabled={isUpdatingPlan || (user?.user_metadata?.plan === p.id && !billingCycle)}
+                  type="button"
+                  onClick={() => handleRequestAssistedUpgrade(p.id)}
+                  disabled={isCurrentPlan}
                   className={`flex flex-col items-center p-6 rounded-2xl border transition-all text-center relative overflow-hidden group cursor-pointer ${
-                    user?.user_metadata?.plan?.includes(p.id)
-                      ? 'border-success bg-success/5 ring-1 ring-success/20'
+                    isCurrentPlan
+                      ? 'border-success bg-success/5 ring-1 ring-success/20 cursor-default'
                       : 'border-line dark:border-border-dark hover:border-primary hover:bg-gold-pale dark:hover:bg-card-dark'
                   }`}
                 >
-                  {user?.user_metadata?.plan?.includes(p.id) && (
+                  {isCurrentPlan && (
                     <div className="absolute top-0 right-0 p-2">
                       <span className="material-symbols-outlined text-success text-sm">check_circle</span>
                     </div>
@@ -445,22 +460,21 @@ const Layout: React.FC = () => {
 
                   <div
                     className={`w-full mt-6 py-2 rounded-lg text-[10px] font-bold uppercase transition-all ${
-                      user?.user_metadata?.plan?.includes(p.id)
+                      isCurrentPlan
                         ? 'bg-success text-white'
                         : 'bg-line dark:bg-neutral-800 text-ink-soft group-hover:bg-primary group-hover:text-night'
                     }`}
                   >
-                    {user?.user_metadata?.plan?.includes(p.id) ? 'Plano Atual' : 'Selecionar'}
+                    {isCurrentPlan ? 'Plano Atual' : 'Solicitar Upgrade'}
                   </div>
                 </button>
-              ))}
+              );
+              })}
             </div>
+            <p className="text-[11px] text-center text-ink-soft">
+              A contratação e ativação de planos ocorre em fluxo assistido com nossa equipe comercial (ADR-055).
+            </p>
           </div>
-          {isUpdatingPlan && (
-            <div className="absolute inset-0 bg-card/60 backdrop-blur-sm flex items-center justify-center z-50">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-            </div>
-          )}
         </Modal>
 
         <ReleaseNotesModal

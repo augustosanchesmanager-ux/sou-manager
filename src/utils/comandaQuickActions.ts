@@ -4,6 +4,8 @@
  * detecção de concorrência, ranking de itens frequentes e cálculo de comissões.
  */
 
+import { businessDateInTimeZone } from '../../shared/dates/timezone';
+
 export interface QuickComandaSummary {
   id: string;
   client_id?: string | null;
@@ -50,7 +52,7 @@ export function findActiveOpenComanda(
     return null;
   }
 
-  const todayStr = referenceDate.toISOString().split('T')[0];
+  const todayStr = businessDateInTimeZone(referenceDate);
 
   const found = comandas.find((c) => {
     if (c.status !== 'open') return false;

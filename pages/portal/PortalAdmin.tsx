@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { portalApi } from '../../services/portalApi';
 import { useAuth } from '../../context/AuthContext';
-import Sidebar from '../../components/Sidebar';
 import { Smartphone, Link as LinkIcon, BarChart2, Settings, Copy, Check } from 'lucide-react';
 import AddonModal from '../../components/KioskAddonModal';
 
@@ -102,9 +101,7 @@ const PortalAdmin: React.FC = () => {
     const isEnabled = addon?.status === 'enabled';
 
     return (
-        <div className="flex h-screen bg-[#f8fafc]">
-            <Sidebar isOpen={false} onClose={() => {}} />
-
+        <div className="flex flex-col min-h-full bg-[#f8fafc] rounded-2xl overflow-hidden">
             {showModal && (
                 <AddonModal
                     addonType="CLIENT_PORTAL"
@@ -114,7 +111,7 @@ const PortalAdmin: React.FC = () => {
                 />
             )}
 
-            <div className="flex-1 flex flex-col h-screen overflow-hidden">
+            <div className="flex-1 flex flex-col">
                 <header className="bg-white border-b border-slate-200 px-4 sm:px-8 py-5 flex items-center justify-between shrink-0">
                     <div>
                         <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Portal do Cliente</h1>

@@ -1,5 +1,5 @@
 import { supabase, getClientForTable } from '../../../services/supabaseClient';
-import { toLocalDateKey } from '../../utils/dateTimezone';
+import { businessDateInTimeZone } from '../../../shared/dates/timezone';
 
 export interface BiCockpitMetrics {
   grossRevenue: number;
@@ -193,16 +193,12 @@ export async function fetchBiCockpitData(tenantId: string, period: BiPeriod = '3
   });
 
   const comandasGross = comandas.reduce((sum: number, c: any) => sum + (Number(c.total) || 0), 0);
-  const apptsGross = appointments
-    .filter((a: any) => !['cancelled', 'no_show'].includes(String(a.status).toLowerCase()))
-    .reduce((sum: number, a: any) => sum + (Number(a.price) || 0), 0);
 
-  const effectiveGross = Math.max(incomeFromTx, comandasGross, apptsGross);
+  // Receita bruta realizada: prioriza lançamentos de caixa; usa comandas apenas se não houver transações no período
+  const effectiveGross = incomeFromTx > 0 ? incomeFromTx : comandasGross;
 
-  // Estimativa de comissões (média 45% do bruto) e taxas de banco (2.5%)
-  const estimatedCommissions = effectiveGross * 0.45;
-  const estimatedBankFees = effectiveGross * 0.025;
-  const netRevenue = Math.max(0, effectiveGross - estimatedCommissions - estimatedBankFees - expensesTotal);
+  // Receita líquida baseada apenas em receitas e despesas reais registradas no período
+  const netRevenue = Math.max(0, effectiveGross - expensesTotal);
   const netProfitMargin = effectiveGross > 0 ? (netRevenue / effectiveGross) * 100 : 0;
 
   // Comparativo com período anterior
@@ -235,17 +231,12 @@ export async function fetchBiCockpitData(tenantId: string, period: BiPeriod = '3
     }
   });
 
-  // Ajustar proporção se as comandas não cobrirem todo o faturamento
+  // Composição estritamente baseada nos itens reais de comanda e assinaturas ativas (sem split fabricado)
   const periodClubRevenue = period === 'today'
     ? monthlyClubRevenue / 30
     : period === '7d'
       ? (monthlyClubRevenue / 30) * 7
       : monthlyClubRevenue;
-
-  if (productsRevenue === 0 && servicesRevenue === 0) {
-    servicesRevenue = effectiveGross * 0.85;
-    productsRevenue = effectiveGross * 0.15;
-  }
 
   const compositionTotal = servicesRevenue + productsRevenue + periodClubRevenue || 1;
   const composition: BiRevenueCompositionSlice[] = [
@@ -280,8 +271,8 @@ export async function fetchBiCockpitData(tenantId: string, period: BiPeriod = '3
         return h >= startH && h < startH + 2;
       });
       const g = bucketAppts.reduce((sum: number, a: any) => sum + (Number(a.price) || 0), 0);
-      const exp = idx % 2 === 0 ? expensesTotal / 4 : 0;
-      const net = Math.max(0, g * 0.5 - exp);
+      const exp = 0;
+      const net = Math.max(0, g - exp);
       timeline.push({
         label: bucket,
         date: bucket,
@@ -298,26 +289,23 @@ export async function fetchBiCockpitData(tenantId: string, period: BiPeriod = '3
       const pEnd = new Date(pStart.getTime() + intervalMs);
       const label = pStart.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '');
 
-      const pAppts = validAppointments.filter((a: any) => {
-        const d = new Date(a.start_time);
-        return d >= pStart && d < pEnd;
-      });
-
       const pTxs = transactions.filter((t: any) => {
         const d = new Date(t.date);
         return d >= pStart && d < pEnd;
       });
 
-      let g = pAppts.reduce((sum: number, a: any) => sum + (Number(a.price) || 0), 0);
-      let exp = pTxs.filter((t: any) => t.type === 'expense').reduce((sum: number, t: any) => sum + Math.abs(Number(t.amount) || 0), 0);
-      if (g === 0) g = effectiveGross / pointsCount;
-      if (exp === 0) exp = expensesTotal / pointsCount;
+      const g = pTxs
+        .filter((t: any) => t.type === 'income')
+        .reduce((sum: number, t: any) => sum + Math.abs(Number(t.amount) || 0), 0);
+      const exp = pTxs
+        .filter((t: any) => t.type === 'expense')
+        .reduce((sum: number, t: any) => sum + Math.abs(Number(t.amount) || 0), 0);
 
       timeline.push({
         label,
-        date: toLocalDateKey(pStart),
+        date: businessDateInTimeZone(pStart),
         grossRevenue: Math.round(g),
-        netRevenue: Math.round(Math.max(0, g * 0.48 - exp)),
+        netRevenue: Math.round(Math.max(0, g - exp)),
         expenses: Math.round(exp),
       });
     }
@@ -387,28 +375,33 @@ export async function fetchBiCockpitData(tenantId: string, period: BiPeriod = '3
     color: staffColors[idx % staffColors.length],
   }));
 
-  // Agregar estatísticas por profissional
-  const statsByStaff: Record<string, { count: number; revenue: number; ticket: number; punctual: number; productSales: number }> = {};
+  // Agregar estatísticas reais por profissional (sem fórmulas fabricadas)
+  const statsByStaff: Record<string, { count: number; revenue: number; ticket: number; completionRate: number; productSales: number }> = {};
   activeStaff.forEach((s) => {
     const sAppts = validAppointments.filter((a: any) => a.staff_id === s.id);
     const count = sAppts.length;
+    const completedCount = sAppts.filter((a: any) => String(a.status).toLowerCase() === 'completed').length;
     const revenue = sAppts.reduce((sum: number, a: any) => sum + (Number(a.price) || 0), 0);
     const ticket = count > 0 ? revenue / count : 0;
-    const punctual = Math.min(100, count > 0 ? 85 + (count % 15) : 70);
-    const productSales = count > 0 ? Math.min(100, Math.round((revenue * 0.15) / 10)) : 10;
+    const completionRate = count > 0 ? Math.round((completedCount / count) * 100) : 0;
+    const productSales = comandaItems
+      .filter((it: any) => Boolean(it.product_id) && it.staff_id === s.id)
+      .reduce((sum: number, it: any) => sum + (Number(it.quantity) || 1) * (Number(it.unit_price) || 0), 0);
 
-    statsByStaff[s.id] = { count, revenue, ticket, punctual, productSales };
+    statsByStaff[s.id] = { count, revenue, ticket, completionRate, productSales };
   });
 
   const maxCount = Math.max(1, ...Object.values(statsByStaff).map((v) => v.count));
   const maxRevenue = Math.max(1, ...Object.values(statsByStaff).map((v) => v.revenue));
+  const maxTicket = Math.max(1, ...Object.values(statsByStaff).map((v) => v.ticket));
+  const maxProductSales = Math.max(1, ...Object.values(statsByStaff).map((v) => v.productSales));
 
   const radarAxes = [
     { subject: 'Volume', key: 'count', max: maxCount },
     { subject: 'Faturamento', key: 'revenue', max: maxRevenue },
-    { subject: 'Ticket Médio', key: 'ticket', max: 100 },
-    { subject: 'Pontualidade', key: 'punctual', max: 100 },
-    { subject: 'Venda Balcão', key: 'productSales', max: 100 },
+    { subject: 'Ticket Médio', key: 'ticket', max: maxTicket },
+    { subject: 'Conclusão', key: 'completionRate', max: 100 },
+    { subject: 'Venda Balcão', key: 'productSales', max: maxProductSales },
   ];
 
   const radarPoints: BiStaffRadarPoint[] = radarAxes.map((axis) => {
@@ -420,11 +413,11 @@ export async function fetchBiCockpitData(tenantId: string, period: BiPeriod = '3
     staffProfiles.forEach((profile) => {
       const sStat = statsByStaff[profile.id];
       if (!sStat) {
-        point[profile.name] = 40;
+        point[profile.name] = 0;
         return;
       }
       const rawVal = (sStat as any)[axis.key] || 0;
-      const normalizedScore = Math.min(100, Math.max(20, Math.round((rawVal / axis.max) * 100)));
+      const normalizedScore = axis.max > 0 ? Math.min(100, Math.round((rawVal / axis.max) * 100)) : 0;
       point[profile.name] = normalizedScore;
     });
 

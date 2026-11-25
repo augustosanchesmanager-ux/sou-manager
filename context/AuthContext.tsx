@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { type Session, type User } from '@supabase/supabase-js';
 import {
     DEFAULT_APP_SLUG,
@@ -7,6 +7,7 @@ import {
     type AppSlug,
     type SupabaseSchemaName,
 } from '../src/lib/supabase/schemas';
+import { clearFeatureFlagsCache } from '../src/lib/billing/featureFlagsCache';
 import { supabase } from '../services/supabaseClient';
 import { extractSupabaseError } from '../src/lib/supabase/errors';
 import { useAppOptional } from '../src/context/AppContext';
@@ -15,6 +16,9 @@ import type { TenantRecord, TenantRole, UserTenantMembership } from '../src/lib/
 import { AuthSessionContext } from '../src/context/authContextBase';
 
 export type AccessRole = 'superadmin' | 'manager' | 'barber' | 'receptionist' | 'unknown';
+
+export const isManagerAccessRole = (role: AccessRole): boolean =>
+    role === 'manager' || role === 'superadmin';
 
 interface AuthSessionContextType {
     session: Session | null;
@@ -466,13 +470,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
     }, []);
 
-    const signOut = async () => {
+    const signOut = useCallback(async () => {
         try {
             await supabase.auth.signOut();
         } finally {
             inFlightAccessContextRef.current = null;
             terminalFailureRef.current = null;
             signOutIssuedForTokenRef.current = null;
+            clearFeatureFlagsCache();
             setSession(null);
             setUser(null);
             setResolvedTenantId(null);
@@ -482,13 +487,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setAuthError(null);
             setLoading(false);
         }
-    };
+    }, []);
 
     // Re-resolve o contexto de acesso para o usuário atual.
     // Usado após o provisionamento do tenant (ex: fluxo de registro) para
     // garantir que resolvedTenantId/accessRole/profileStatus estejam frescos
     // antes da navegação — evita o authError sintético "tenant não identificado".
-    const refreshAccessContext = async (): Promise<void> => {
+    const refreshAccessContext = useCallback(async (): Promise<void> => {
         if (!session) return;
         try {
             const authContext = await fetchAccessContext(session);
@@ -499,25 +504,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch (err) {
             console.error('Failed to refresh auth session context:', err);
         }
-    };
+    }, [session]);
+
+    const authSessionValue = useMemo(
+        () => ({ session, user }),
+        [session, user],
+    );
+
+    const authContextValue = useMemo<AuthSessionContextType>(
+        () => ({
+            session,
+            user,
+            resolvedTenantId,
+            accessRole,
+            canAccessSuperAdmin,
+            isSuperAdmin: canAccessSuperAdmin,
+            profileStatus,
+            authError,
+            loading,
+            signOut,
+            refreshAccessContext,
+        }),
+        [
+            accessRole,
+            authError,
+            canAccessSuperAdmin,
+            loading,
+            profileStatus,
+            refreshAccessContext,
+            resolvedTenantId,
+            session,
+            signOut,
+            user,
+        ],
+    );
 
     return (
-        <AuthSessionContext.Provider value={{ session, user }}>
-            <AuthContext.Provider
-                value={{
-                    session,
-                    user,
-                    resolvedTenantId,
-                    accessRole,
-                    canAccessSuperAdmin,
-                    isSuperAdmin: canAccessSuperAdmin,
-                    profileStatus,
-                    authError,
-                    loading,
-                    signOut,
-                    refreshAccessContext,
-                }}
-            >
+        <AuthSessionContext.Provider value={authSessionValue}>
+            <AuthContext.Provider value={authContextValue}>
                 {children}
             </AuthContext.Provider>
         </AuthSessionContext.Provider>

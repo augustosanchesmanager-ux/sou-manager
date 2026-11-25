@@ -7,7 +7,6 @@ import {
   Package,
   CircleDollarSign,
   BarChart3,
-  Bot,
   Settings,
   MonitorDot,
   Bell,
@@ -42,7 +41,6 @@ import {
   ShieldCheck,
   RefreshCw,
   Eye,
-  GitBranch,
   Building2,
   Star,
   type LucideIcon,
@@ -193,7 +191,7 @@ export const buildRawSidebarMenu = ({
       { name: 'Contas a Receber', icon: FileSpreadsheet, path: '/accounts-receivable', module: 'financial', hideFromEsteticaMenu: true },
       { name: 'Contas a Pagar', icon: CreditCard, path: '/expenses', module: 'financial', hideFromEsteticaMenu: true },
       { name: isEsteticaApp ? 'Repasses' : 'Comissões', icon: Percent, path: '/commissions', module: 'commissions' },
-      { name: 'Folha de Pagamento', icon: Wallet, path: '/payroll', module: 'financial', hideFromEsteticaMenu: true },
+      { name: 'Repasse de Comissões', icon: Wallet, path: '/payroll', module: 'financial', hideFromEsteticaMenu: true },
       { name: 'Maquininhas e Taxas', icon: CreditCard, path: '/payment-terminals', module: 'settings', hideFromEsteticaMenu: true },
       // Frente 6 (Zero Mock): módulo Fiscal ocultado até integração de provedor NFS-e real (hoje usa MockFiscalProvider).
       // { name: 'Notas Fiscais (NFS-e)', icon: Receipt, path: '/fiscal', module: 'financial', hideFromEsteticaMenu: true },
@@ -219,9 +217,8 @@ export const buildRawSidebarMenu = ({
     items: [
       { name: 'Dados da Unidade', icon: Settings, path: '/settings', module: 'settings' },
       { name: 'Agendamento Online', icon: Globe, path: '/booking-settings', module: 'portal' },
-      // Frente 1 (Zero Mock): rota /automations ocultada até integração real de disparos.
-      // { name: 'Central de Automações', icon: Bot, path: '/automations', module: 'settings' },
       { name: 'Permissões e Perfis', icon: ShieldCheck, path: '/access-control' },
+      { name: 'Centro Jurídico', icon: ShieldCheck, path: '/legal', operationalAllowed: true },
       { name: 'Sincronização Offline', icon: RefreshCw, path: '/offline-sync', operationalAllowed: true },
     ],
   },
@@ -251,9 +248,8 @@ export const buildRawSidebarMenu = ({
         },
         operationalAllowed: true,
       },
-      { name: 'Observabilidade', icon: Eye, path: '/observability' },
+      { name: 'Observabilidade', icon: Eye, path: '/observability', superAdminOnly: true },
       { name: 'Super Admin', icon: ShieldCheck, path: '/superadmin', superAdminOnly: true },
-      { name: 'Event Versioning', icon: GitBranch, path: '/event-versioning', superAdminOnly: true },
     ],
   },
 ];
