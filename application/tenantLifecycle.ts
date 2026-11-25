@@ -34,7 +34,6 @@
  *   - Eventos publicados apenas após sucesso transacional da RPC
  */
 
-import { createSupabaseClient } from '../domain/shared/supabase-client-factory';
 import { appEventBus } from '../domain/events/app-bus';
 import { createEvent } from '../domain/events/types';
 import type {
@@ -42,11 +41,13 @@ import type {
   TenantSubscriptionUpdatedEvent,
   TenantTrialStartedEvent,
 } from '../domain/events/types';
-
-// ─── RPC Client (subscriptions é tabela compartilhada — public) ──────
-function getRpcClient() {
-  return createSupabaseClient('subscriptions', 'barber');
-}
+import {
+  tenantLifecycleRepository,
+  TenantLifecycleRepositoryImpl,
+  type TenantLifecycleRepository,
+  type TenantRpcClientFactory,
+  type TenantSubscriptionRpcRow,
+} from '../domain/tenant/lifecycleRepository';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -99,7 +100,7 @@ function validatePlan(plan?: TenantPlan): void {
 
 // ─── Mapper ─────────────────────────────────────────────────────────
 
-function toSubscriptionView(row: SubscriptionRow): TenantSubscriptionView {
+function toSubscriptionView(row: TenantSubscriptionRpcRow): TenantSubscriptionView {
   return {
     id: row.id,
     tenantId: row.tenant_id,
@@ -118,9 +119,16 @@ function toSubscriptionView(row: SubscriptionRow): TenantSubscriptionView {
 // ─── Service (Orquestrador) ─────────────────────────────────────────
 
 export class TenantLifecycleServiceImpl {
+  private readonly repo: TenantLifecycleRepository;
+
   constructor(
-    private readonly getClient: () => ReturnType<typeof createSupabaseClient> = getRpcClient,
-  ) {}
+    repoOrClientFactory: TenantLifecycleRepository | TenantRpcClientFactory = tenantLifecycleRepository,
+  ) {
+    this.repo =
+      typeof repoOrClientFactory === 'function'
+        ? new TenantLifecycleRepositoryImpl(repoOrClientFactory)
+        : repoOrClientFactory;
+  }
 
   /**
    * Inicia o trial (draft → trial). Idempotente: se a subscription já
@@ -131,18 +139,8 @@ export class TenantLifecycleServiceImpl {
     validateTenantId(tenantId);
     validatePlan(plan);
 
-    const { data, error } = await this.getClient()
-      .rpc('start_trial', { p_tenant_id: tenantId, p_plan: plan ?? null })
-      .single();
-
-    if (error) {
-      throw new Error(`Erro ao iniciar trial: ${error.message}`);
-    }
-    if (!data) {
-      throw new Error('RPC start_trial retornou resultado inválido');
-    }
-
-    const view = toSubscriptionView(data as SubscriptionRow);
+    const data = await this.repo.startTrial(tenantId, plan);
+    const view = toSubscriptionView(data);
 
     await appEventBus.publish(createEvent<TenantSubscriptionCreatedEvent>({
       eventType: 'TenantSubscriptionCreated',
@@ -188,18 +186,8 @@ export class TenantLifecycleServiceImpl {
   async activate(tenantId: string): Promise<TenantSubscriptionView> {
     validateTenantId(tenantId);
 
-    const { data, error } = await this.getClient()
-      .rpc('activate_subscription', { p_tenant_id: tenantId })
-      .single();
-
-    if (error) {
-      throw new Error(`Erro ao ativar assinatura: ${error.message}`);
-    }
-    if (!data) {
-      throw new Error('RPC activate_subscription retornou resultado inválido');
-    }
-
-    const view = toSubscriptionView(data as SubscriptionRow);
+    const data = await this.repo.activateSubscription(tenantId);
+    const view = toSubscriptionView(data);
 
     await appEventBus.publish(createEvent<TenantSubscriptionUpdatedEvent>({
       eventType: 'TenantSubscriptionUpdated',
@@ -235,18 +223,8 @@ export class TenantLifecycleServiceImpl {
     void reason;
     validateTenantId(tenantId);
 
-    const { data, error } = await this.getClient()
-      .rpc('cancel_subscription', { p_tenant_id: tenantId })
-      .single();
-
-    if (error) {
-      throw new Error(`Erro ao cancelar assinatura: ${error.message}`);
-    }
-    if (!data) {
-      throw new Error('RPC cancel_subscription retornou resultado inválido');
-    }
-
-    const view = toSubscriptionView(data as SubscriptionRow);
+    const data = await this.repo.cancelSubscription(tenantId);
+    const view = toSubscriptionView(data);
 
     await appEventBus.publish(createEvent<TenantSubscriptionUpdatedEvent>({
       eventType: 'TenantSubscriptionUpdated',
@@ -270,15 +248,8 @@ export class TenantLifecycleServiceImpl {
 
   /** Leitura da assinatura do tenant do chamador (get_subscription). */
   async getStatus(): Promise<TenantSubscriptionView | null> {
-    const { data, error } = await this.getClient()
-      .rpc('get_subscription')
-      .single();
-
-    if (error) {
-      throw new Error(`Erro ao consultar assinatura: ${error.message}`);
-    }
-
-    return data ? toSubscriptionView(data as SubscriptionRow) : null;
+    const data = await this.repo.getSubscription();
+    return data ? toSubscriptionView(data) : null;
   }
 
   /**
@@ -301,22 +272,8 @@ export class TenantLifecycleServiceImpl {
     validateTenantId(tenantId);
     validatePlan(plan);
 
-    const { data, error } = await this.getClient()
-      .rpc('change_tenant_plan', {
-        p_tenant_id: tenantId,
-        p_plan: plan,
-        p_reason: reason ?? null,
-      })
-      .single();
-
-    if (error) {
-      throw new Error(`Erro ao alterar plano: ${error.message}`);
-    }
-    if (!data) {
-      throw new Error('RPC change_tenant_plan retornou resultado inválido');
-    }
-
-    const view = toSubscriptionView(data as SubscriptionRow);
+    const data = await this.repo.changeTenantPlan(tenantId, plan, reason);
+    const view = toSubscriptionView(data);
 
     await appEventBus.publish(createEvent<TenantSubscriptionUpdatedEvent>({
       eventType: 'TenantSubscriptionUpdated',

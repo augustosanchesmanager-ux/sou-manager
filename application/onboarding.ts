@@ -32,20 +32,15 @@
  *   - Zero conhecimento de React, UI, navigate, toast
  */
 
-import { createSupabaseClient } from '../domain/shared/supabase-client-factory';
 import { tenantSettingsRepository } from '../domain/tenantSettings/repository';
 import { serviceRepository } from '../domain/service/repository';
+import { tenantLifecycleRepository } from '../domain/tenant/lifecycleRepository';
+import type { TenantLifecycleRepository } from '../domain/tenant/lifecycleRepository';
 import type { TenantSettings, BusinessHours } from '../domain/tenantSettings/types';
 import { appEventBus } from '../domain/events/app-bus';
 import { createEvent } from '../domain/events/types';
 import type { TenantOnboardingCompletedEvent } from '../domain/events/types';
 import { tenantLifecycleService } from './tenantLifecycle';
-
-// ─── RPC Client ──────────────────────────────────────────────────
-
-function getRpcClient() {
-  return createSupabaseClient('tenants', 'barber');
-}
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -169,6 +164,8 @@ function validateOperationalStep(req: SaveOperationalStepRequest): ValidationRes
 // ─── Service ─────────────────────────────────────────────────────
 
 class CompleteOnboardingServiceImpl {
+  constructor(private readonly repo: TenantLifecycleRepository = tenantLifecycleRepository) {}
+
   async getSettings(tenantId: string): Promise<TenantSettings | null> {
     return tenantSettingsRepository.getByTenantId(tenantId);
   }
@@ -179,27 +176,17 @@ class CompleteOnboardingServiceImpl {
       throw new Error(`Dados incompletos: ${validation.errors.join(', ')}`);
     }
 
-    const rpc = getRpcClient();
-
-    const { error } = await rpc.rpc('save_onboarding_step', {
-      p_tenant_id: req.tenantId,
-      p_step: 'company',
-      p_data: {
-        phone: req.phone ?? '',
-        cnpj: req.cnpj ?? '',
-        address_street: req.addressStreet ?? '',
-        address_number: req.addressNumber ?? '',
-        address_city: req.addressCity ?? '',
-        address_state: req.addressState ?? '',
-        address_zip: req.addressZip ?? '',
-        timezone: req.timezone ?? 'America/Sao_Paulo',
-        currency: req.currency ?? 'BRL',
-      },
+    await this.repo.saveOnboardingStep(req.tenantId, 'company', {
+      phone: req.phone ?? '',
+      cnpj: req.cnpj ?? '',
+      address_street: req.addressStreet ?? '',
+      address_number: req.addressNumber ?? '',
+      address_city: req.addressCity ?? '',
+      address_state: req.addressState ?? '',
+      address_zip: req.addressZip ?? '',
+      timezone: req.timezone ?? 'America/Sao_Paulo',
+      currency: req.currency ?? 'BRL',
     });
-
-    if (error) {
-      throw new Error(`Erro ao salvar dados da empresa: ${error.message}`);
-    }
   }
 
   async saveOperationalStep(req: SaveOperationalStepRequest): Promise<void> {
@@ -208,23 +195,13 @@ class CompleteOnboardingServiceImpl {
       throw new Error(`Dados incompletos: ${validation.errors.join(', ')}`);
     }
 
-    const rpc = getRpcClient();
-
-    const { error } = await rpc.rpc('save_onboarding_step', {
-      p_tenant_id: req.tenantId,
-      p_step: 'operational',
-      p_data: {
-        business_hours: req.businessHours ?? null,
-        appointment_interval_minutes: req.appointmentIntervalMinutes ?? 30,
-        default_appointment_duration_minutes: req.defaultAppointmentDurationMinutes ?? 60,
-        booking_horizon_days: req.bookingHorizonDays ?? 30,
-        staff_owned_schedule: req.staffOwnedSchedule ?? true,
-      },
+    await this.repo.saveOnboardingStep(req.tenantId, 'operational', {
+      business_hours: req.businessHours ?? null,
+      appointment_interval_minutes: req.appointmentIntervalMinutes ?? 30,
+      default_appointment_duration_minutes: req.defaultAppointmentDurationMinutes ?? 60,
+      booking_horizon_days: req.bookingHorizonDays ?? 30,
+      staff_owned_schedule: req.staffOwnedSchedule ?? true,
     });
-
-    if (error) {
-      throw new Error(`Erro ao salvar configurações operacionais: ${error.message}`);
-    }
   }
 
   async ensureInitialCatalog(req: EnsureInitialCatalogRequest): Promise<EnsureInitialCatalogResult> {
@@ -245,24 +222,18 @@ class CompleteOnboardingServiceImpl {
       throw new Error(`Dados incompletos: ${validation.errors.join(', ')}`);
     }
 
-    const rpc = getRpcClient();
-
-    const { error } = await rpc.rpc('complete_onboarding', {
-      p_tenant_id: req.tenantId,
-      p_chair_count: req.chairCount ?? null,
-      p_business_hours: req.businessHours ?? null,
-      p_phone: req.phone ?? null,
-      p_cnpj: req.cnpj ?? null,
-      p_address_street: req.addressStreet ?? null,
-      p_address_number: req.addressNumber ?? null,
-      p_address_city: req.addressCity ?? null,
-      p_address_state: req.addressState ?? null,
-      p_address_zip: req.addressZip ?? null,
+    await this.repo.completeOnboarding({
+      tenantId: req.tenantId,
+      chairCount: req.chairCount ?? null,
+      businessHours: req.businessHours ?? null,
+      phone: req.phone ?? null,
+      cnpj: req.cnpj ?? null,
+      addressStreet: req.addressStreet ?? null,
+      addressNumber: req.addressNumber ?? null,
+      addressCity: req.addressCity ?? null,
+      addressState: req.addressState ?? null,
+      addressZip: req.addressZip ?? null,
     });
-
-    if (error) {
-      throw new Error(`Erro ao finalizar onboarding: ${error.message}`);
-    }
 
     await appEventBus.publish(createEvent<TenantOnboardingCompletedEvent>({
       eventType: 'TenantOnboardingCompleted',
