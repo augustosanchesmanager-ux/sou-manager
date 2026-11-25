@@ -1,6 +1,6 @@
 # SMG Platform — Status do Projeto
 
-> Visão instantânea da evolução do projeto. Última atualização: 2026-11-19.
+> Visão instantânea da evolução do projeto. Última atualização: 2026-11-25.
 >
 > **Produto Comercial Ativo:** SMG Barber (único)
 > **Arquitetura:** SMG Platform (multi-tenant, genérica, permanente)
@@ -35,6 +35,7 @@ Scalability       ████████████████████ 1
 6.0.5.4 → 230   (TenantLifecycleService + engine suspend — sem novas violações)
 7.77    → 219   (Zero Biome lint errors em src/ + ratchet da baseline arquitetural)
 7.80    → 221   (PR #323 + PR #324 — baseline 222; ratchet pendente)
+7.86    → 0     (baseline 0 = 0; 0 forbidden · 0 circular — meta atingida)
 Meta   → 0
 ```
 
@@ -241,11 +242,11 @@ Migration Health
 
 | Métrica | Valor |
 |---------|-------|
-| Testes unitários (Vitest) | 2.836 passando (5 skipped) |
-| Arquivos de teste | 201 |
-| Arquivos SQL (`supabase/migrations/`) | 226 |
-| ADRs (`docs/adr/`) | 53 |
-| Repository Guard (`architecture:ci`) | 221 violações (baseline 222) · 0 forbidden · 0 circular |
+| Testes unitários (Vitest) | 2.872+ passando (última contagem registrada no PR #369) |
+| Arquivos de teste | 201+ |
+| Arquivos SQL (`supabase/migrations/`) | 241 |
+| ADRs (`docs/adr/`) | 59 (na `main`) |
+| Repository Guard (`architecture:ci`) | 0 violações (baseline 0) · 0 forbidden · 0 circular |
 
 ---
 
@@ -300,6 +301,7 @@ Migration Health
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| 2026-11-25 | 7.86 | **Consolidação da Rodada de Merges na `main` (PRs #371–#440, commits `f0292ee`..`db73479`) 🟢 MERGE CONCLUÍDO, DEPLOY PENDENTE (`MERGE ≠ DEPLOY PROD`).** **(1) Inteligência & BI (PR #440 / ADR-050):** implementação da Fase 1 do *SMG Barber Intelligence* (`ai-analyst`, políticas RLS e painel de BI). **(2) Redesign de UI (PR #435):** redesign *Atelier Tech* dark-first para Clientes, Produtos, Relatórios, Resumo Diário e Dashboard. **(3) Repository Pattern (PRs #436, #438, #439 / ADR-056):** migração completa dos Lotes 1, 2 e 3 (Tenant & Onboarding, Chef Club, Appointment & Checkout). **(4) Go-to-Market, SuperAdmin, Financeiro & Segurança (PRs #374–#375, #404–#417, #433):** fechamento de `F-02` (guard do outbox) e `F-03` (schema profile), hardening de RLS/grants (`SEC-006`) e route guards (`SEC-007`), remoção de mocks/fail-open (`GTM-003`, `GTM-005`, `AGD-001`, `FIN-003`), entregas `GTM-001`..`GTM-009` (billing assistido, links públicos, SuperAdmin MVP, conformidade LGPD, métricas executivas e monitoramento real), `FIN-002`/`FIN-005`/`FIN-006` e `AGD-002`. **(5) Qualidade UXQ & CI/Infra (PRs #418–#432, #434):** unificação de telas (`UXQ-001`), modais/portais (`UXQ-002`/`UXQ-003`), extração de helpers em Comandas/Recebíveis/Checkout/Agenda (`UXQ-007`), tipagem estrita em BI/Relatórios/Insights (`UXQ-009`), limpeza de código morto (`UXQ-010`), `[functions.import-export]` em `supabase/config.toml` (`PR #432`), ratificação da ADR-024, lint incremental do Biome na raiz e reconciliação da ADR-049 (`PR #434`). **Validação ao vivo na `main` (`db73479`):** `npm run architecture:ci` PASS (`0` violações de repositório, `0` forbidden imports, `0` circular imports — baseline `0 = 0`); `241` arquivos SQL em `supabase/migrations/`; `59` ADRs na `main`. |
 | 2026-11-23 | 7.85 | **F-01 — Loop de `401` em `rpc/get_auth_access_context` (trava de sessão + circuit breaker) — PR #369 (`097c900` na `main`) 🟢 MERGE CONCLUÍDO, DEPLOY PENDENTE.** Causa raiz no consumidor, não no banco: `AuthContext` chamava a RPC protegida sem verificar sessão/token, amplificava cada falha em até 3 fallbacks (`profiles`, `staff`, `get_my_pending_invite_token`) e duplicava a carga fria (`getSession()` + `onAuthStateChange(INITIAL_SESSION)` no mesmo ramo `COLD_BOOT`). Evidência de que o banco estava correto: `anon` → `401 {"code":"42501"}`; JWT inválido → `401 {"code":"PGRST301"}`. Correção em `context/AuthContext.tsx`: `isSessionUsableForAccessContext` (trava por `access_token`/`expires_at`, skew 30 s), `classifyAuthFailure` (`401`/`PGRST301` → terminal + `signOut({ scope: 'local' })` único; `403`/`42501` → terminal sem signOut, preservando onboarding/`AcceptInvite`), single-flight por token + circuit breaker com limpeza no `finally` e reset no `SIGNED_OUT`. Prova ao vivo (JWT inválido injetado): 2 → **1** chamada da RPC, 1+1 → **0** fallbacks, **0** `get_my_pending_invite_token`, sessão local removida + `#/login`. Validação: `typecheck`, `unit` 2872 passed (19/19 no `AuthContext.test.ts`), `build`, `architecture:ci` 0/0/0 e CI do PR #369 completo (`validate`, `typecheck`, `build`, `unit`, `architecture:ci`, `lint advisory`, `e2e smoke advisory`, Vercel preview/staging) com `success`; CI pós-merge run `45076558247` e `Deploy Validation` run `45076636274` com `success`. Registro: `docs/audit/F01_AUTH_401_LOOP_20261122.md`. Frentes abertas: **F-02** (guard do outbox por validade, `domain/events/outbox/supabaseOutbox.ts:157-162`), **F-03** (drift de schema exposto no `.env.local`) e **E-7** (`refreshAccessContext` sem memoização). |
 | 2026-11-19 | 7.84 | **Hotfix de Relatórios — PR #344 (`80cdaff` na `main`) + Deploy PROD (`44537349561`) 🟢 CONCLUÍDOS.** Correção do erro `42703 ("column comandas.paid_at does not exist")` ao carregar `/reports`: em `src/modules/reports/reportsDataService.ts` (`fetchPaidComandasReport` e `fetchFinancialTitlesReport`), removidas as referências inexistentes a `comandas.paid_at` e `comandas.updated_at`, utilizando as colunas reais `closed_at`, `settled_at`, `payment_date_real` e `created_at`. Validação: `typecheck`, `lint`, `vite build`, CI completo do PR #344 (`architecture:ci`, `build`, `typecheck`, `unit`, `validate`, `lint advisory`, `e2e smoke advisory`) e `deploy-production.yml` run `44537349561` (`resolve & validate`, `pre-validate`, `promote` aprovado pelo PO, `post-validate`) todos concluídos com `success`. |
 | 2026-11-19 | 7.83 | **Rodada de Merges PRs #338, #339 e #340 (`42495fc` na `main`) + Deploy PROD + Retificação ao vivo do item 7.78.** **(1) PR #338 (`e84a0fd`):** correção em `pages/Schedule.tsx` para buscar e exibir horários ocupados e checar sobreposição na data selecionada dentro do modal de novo agendamento (`fetchAppointmentsInRange` / `modalDateAppointments`), somada às entregas de `/daily-summary` (seletor de data, fuso `America/Sao_Paulo`, remoção de mocks e modularização em `components/daily-summary/`). **(2) PR #339 (`601b7eb`):** enforcement de fuso `America/Sao_Paulo` e colunas de auditoria em agendamentos (`20261118143317_add_appointment_audit_columns_and_fix_slots_tz.sql`), correções de tipagem (`@types/react`) e modularização de relatórios/exportadores. **(3) PR #340 (`42495fc`):** modularização de `pages/Products.tsx` (`hooks/useProductsController.ts` e `components/products/`) com `0` forbidden imports e ajuste do `pre-validate` para `Production-Validation` + correções de lint (Biome). **(4) Deploy Produção:** run `44428180696` (`deploy-production.yml`) concluído com `success`. **(5) Retificação ao vivo de 7.78 (Exportação Excel):** verificado via Supabase MCP que em Produção (`ushsnmlbeurfvlkieiln`) a migration `20261113094500_storage_exports_bucket.sql`, o bucket privado `exports`, o job `pg_cron` `purge-expired-exports` e a Edge Function `import-export` (`ACTIVE`, v30) **já estão aplicados e ativos** (pendentes apenas em Staging `tjcvuhynckocmvtqykxp` e sem seção em `supabase/config.toml`). **(6) Validação na `main` (`42495fc`):** `npm run test` (`201` arquivos / `2.836` passando, `5` skipped) e `npm run architecture:ci` (`0` erros: `repositoryViolations` `222 → 221`, `forbiddenImports: 0`, `circularImports: 0`). |
