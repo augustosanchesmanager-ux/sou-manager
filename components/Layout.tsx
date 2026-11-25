@@ -148,7 +148,7 @@ const Layout: React.FC = () => {
       />
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        <header className={`h-16 border-b px-4 sm:px-8 flex items-center justify-between shrink-0 backdrop-blur-md sticky top-0 z-20 transition-colors duration-300 ${
+        <header className={`h-16 border-b px-4 sm:px-8 flex items-center justify-between shrink-0 backdrop-blur-md sticky top-0 z-30 transition-colors duration-300 ${
           isEsteticaApp
             ? 'border-[#DDD2B6] bg-[#F8F5ED]/92'
             : 'border-line dark:border-border-dark bg-background-light/90 dark:bg-surface-dark/90'

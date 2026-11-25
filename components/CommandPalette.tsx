@@ -5,6 +5,7 @@
 
 import type React from 'react';
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   Search,
@@ -376,9 +377,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-sm flex items-start justify-center pt-14 sm:pt-20 px-3 sm:px-4 animate-in fade-in duration-150"
+      className="fixed inset-0 z-[110] bg-black/75 backdrop-blur-sm flex items-start justify-center pt-14 sm:pt-20 px-3 sm:px-4 animate-in fade-in duration-150"
       role="dialog"
       aria-modal="true"
       aria-label="Busca Global e Comandos"
@@ -517,6 +518,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

@@ -1,5 +1,7 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+
+let openModalCount = 0;
 
 interface ModalProps {
     isOpen: boolean;
@@ -28,6 +30,7 @@ const Modal: React.FC<ModalProps> = ({
     useEffect(() => {
         if (!isOpen) return;
 
+        openModalCount += 1;
         document.body.classList.add('modal-open');
 
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -41,7 +44,10 @@ const Modal: React.FC<ModalProps> = ({
         document.addEventListener('keydown', handleKeyDown, level === 2);
 
         return () => {
-            document.body.classList.remove('modal-open');
+            openModalCount = Math.max(0, openModalCount - 1);
+            if (openModalCount === 0) {
+                document.body.classList.remove('modal-open');
+            }
             document.removeEventListener('keydown', handleKeyDown, level === 2);
         };
     }, [isOpen, level]);
