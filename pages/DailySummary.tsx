@@ -172,7 +172,7 @@ export const DailySummary: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF6EE] dark:bg-[#0B0A09] text-[#191611] dark:text-[#F4EFE6] transition-colors duration-200 pb-20">
+    <div className="min-h-screen bg-background-light dark:bg-background-dark text-ink dark:text-white transition-colors duration-200 pb-20">
       <DailySummaryHeader
         tenantName={tenantName}
         formattedDate={summaryData?.formattedDate || selectedDate}
@@ -195,21 +195,21 @@ export const DailySummary: React.FC = () => {
       />
 
       {toast.visible && (
-        <div className="fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-xl bg-white dark:bg-[#12100E] border border-amber-500 shadow-2xl text-xs sm:text-sm text-[#191611] dark:text-[#F4EFE6] animate-in fade-in slide-in-from-bottom-2">
-          <div className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-600 dark:text-[#D4A95E] shrink-0">
+        <div className="fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border-dark shadow-2xl text-xs sm:text-sm text-ink animate-in fade-in slide-in-from-bottom-2">
+          <div className="w-7 h-7 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center text-primary-dark shrink-0">
             <Check className="w-4 h-4" />
           </div>
           <div>
             <p className="font-semibold">{toast.title}</p>
-            <p className="text-xs text-[#6B6252] dark:text-[#A69D8E] font-mono">{toast.subtitle}</p>
+            <p className="text-xs text-ink-soft font-mono">{toast.subtitle}</p>
           </div>
         </div>
       )}
 
       <main className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        <div className="mb-6 rounded-2xl bg-white dark:bg-[#12100E] border border-[#E8DFC9] dark:border-[#29241D] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+        <div className="mb-6 rounded-2xl bg-card border border-line p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
           <div className="flex items-start sm:items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-[#D4A95E] shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center text-primary-dark shrink-0">
               {activeShift === 'morning' ? <Sunrise className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </div>
             <div>
@@ -219,11 +219,11 @@ export const DailySummary: React.FC = () => {
                     ? 'Briefing da Manhã (Previsão, Ocupação e Alertas do Dia)'
                     : 'Fechamento da Noite (Caixa Realizado, Comissões e Auditoria)'}
                 </span>
-                <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-[#D4A95E] border border-amber-500/30">
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-primary/20 text-primary-dark border border-primary/30">
                   {activeShift === 'morning' ? `Disparo ${settings.morningTime}` : `Disparo ${settings.eveningTime}`}
                 </span>
               </div>
-              <p className="text-xs text-[#6B6252] dark:text-[#A69D8E] mt-0.5">
+              <p className="text-xs text-ink-soft mt-0.5">
                 {activeShift === 'morning'
                   ? 'Mostra a previsão real da agenda, janelas livres por profissional, clientes do Clube dos Chefes e despesas vencendo na data.'
                   : 'Separa dinheiro real no caixa de créditos do Clube dos Chefes e destaca comandas em aberto antes de encerrar o turno.'}
@@ -231,22 +231,22 @@ export const DailySummary: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0 text-xs font-mono text-[#6B6252] dark:text-stone-400">
-            <span className="px-2.5 py-1 rounded-lg bg-stone-50 dark:bg-[#171411] border border-[#E8DFC9] dark:border-[#29241D]">
-              Data: <strong className="text-amber-700 dark:text-[#D4A95E]">{selectedDate}</strong>
+            <span className="px-2.5 py-1 rounded-lg bg-surface-dark border border-border-dark">
+              Data: <strong className="text-primary-dark">{selectedDate}</strong>
             </span>
           </div>
         </div>
 
         {error && (
-          <div className="mb-6 rounded-2xl bg-red-500/10 border border-red-500/30 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3 text-red-700 dark:text-red-400 text-sm">
+          <div className="mb-6 rounded-2xl bg-danger/20 border border-danger/30 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 text-danger text-sm">
               <AlertTriangle className="w-5 h-5 shrink-0" />
               <span>{error}</span>
             </div>
             <button
               type="button"
               onClick={loadData}
-              className="h-9 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-semibold cursor-pointer shrink-0 transition-colors"
+              className="h-9 px-4 rounded-xl bg-danger hover:bg-danger/90 text-white text-xs font-semibold cursor-pointer shrink-0 transition-colors"
             >
               Tentar novamente
             </button>
@@ -258,13 +258,13 @@ export const DailySummary: React.FC = () => {
             <div className="lg:col-span-7 space-y-6">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[0, 1, 2, 3].map((i) => (
-                  <div key={i} className="h-24 rounded-2xl bg-white dark:bg-[#12100E] border border-[#E8DFC9] dark:border-[#29241D]" />
+                  <div key={i} className="h-24 rounded-2xl bg-card border border-line" />
                 ))}
               </div>
-              <div className="h-64 rounded-2xl bg-white dark:bg-[#12100E] border border-[#E8DFC9] dark:border-[#29241D]" />
+              <div className="h-64 rounded-2xl bg-card border border-line" />
             </div>
             <div className="lg:col-span-5 space-y-6">
-              <div className="h-80 rounded-2xl bg-white dark:bg-[#12100E] border border-[#E8DFC9] dark:border-[#29241D]" />
+              <div className="h-80 rounded-2xl bg-card border border-line" />
             </div>
           </div>
         )}

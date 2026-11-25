@@ -600,15 +600,17 @@ const Clients: React.FC = () => {
     };
 
     return (
-        <div className="space-y-6 max-w-7xl mx-auto w-full animate-fade-in">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="min-h-screen bg-background-dark text-ink max-w-7xl mx-auto w-full animate-fade-in pb-20">
+            {/* ===== TIER 1 — Identidade & Ações ===== */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border-dark pb-6">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Clientes</h2>
-                    <p className="text-slate-500 text-sm">{clients.length} cliente(s) cadastrado(s)</p>
+                    <h2 className="font-display text-2xl font-bold text-white tracking-tight">Clientes</h2>
+                    <p className="text-xs text-ink-soft mt-1">
+                        {clients.length} cliente(s) cadastrado(s) · {labels.clientPlural.toLowerCase()} da base deste tenant
+                    </p>
                 </div>
-                <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-3 w-full md:w-auto">
-                    <button onClick={() => fileInputRef.current?.click()} className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-200 rounded-xl text-sm font-bold hover:bg-slate-200 dark:hover:bg-white/10 transition-all">
+                <div className="flex flex-wrap items-center gap-3">
+                    <button onClick={() => fileInputRef.current?.click()} className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-border-dark bg-card-dark text-ink-soft text-sm font-bold hover:border-primary/40 hover:text-white transition-all">
                         <span className="material-symbols-outlined text-sm">upload_file</span>
                         Importar CSV
                     </button>
@@ -616,7 +618,7 @@ const Clients: React.FC = () => {
                     <button
                         onClick={handleExportCSV}
                         disabled={exportingExcel || processed.length === 0}
-                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-200 rounded-xl text-sm font-bold hover:bg-slate-200 dark:hover:bg-white/10 transition-all disabled:opacity-50"
+                        className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-border-dark bg-card-dark text-ink-soft text-sm font-bold hover:border-primary/40 hover:text-white transition-all disabled:opacity-50 disabled:pointer-events-none"
                     >
                         <span className="material-symbols-outlined text-sm">
                             {exportingExcel ? 'progress_activity' : 'download'}
@@ -625,7 +627,7 @@ const Clients: React.FC = () => {
                     </button>
                     <button
                         onClick={() => setShowModal(true)}
-                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-night rounded-xl text-sm font-bold hover:bg-primary-dark shadow-lg shadow-primary/20 transition-all"
+                        className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-primary to-primary-dark text-night font-bold shadow-lg shadow-primary/20 hover:brightness-105 transition-all"
                     >
                         <span className="material-symbols-outlined text-lg">person_add</span>
                         Novo Cliente
@@ -633,146 +635,148 @@ const Clients: React.FC = () => {
                 </div>
             </div>
 
-            {/* Filters */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                <div className="relative flex-1 max-w-md">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
-                    <input
-                        type="text"
-                        placeholder="Buscar por nome, telefone ou e-mail..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-full bg-white dark:bg-card-dark border border-slate-200 dark:border-border-dark rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-1 focus:ring-primary text-slate-900 dark:text-white transition-all shadow-sm"
-                    />
+            {/* ===== TIER 2 — Filtros (única fonte) ===== */}
+            <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                    <div className="relative flex-1 max-w-md">
+                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft text-lg">search</span>
+                        <input
+                            type="text"
+                            placeholder="Buscar por nome, telefone ou e-mail..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="w-full bg-card-dark border border-border-dark rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-1 focus:ring-primary focus:border-primary text-white transition-all shadow-sm"
+                        />
+                    </div>
+                    <div className="inline-flex self-start sm:self-auto items-center gap-1 p-1 rounded-xl border border-border-dark bg-surface-dark text-xs font-bold">
+                        <button
+                            type="button"
+                            onClick={() => setStatusFilter('active')}
+                            className={`px-3 py-1.5 rounded-lg transition-all ${
+                                statusFilter === 'active'
+                                    ? 'bg-primary/20 text-primary-light border border-primary/30 shadow-xs'
+                                    : 'text-ink-soft hover:text-white hover:bg-white/5 border-transparent'
+                            }`}
+                        >
+                            Ativos ({clients.filter((c) => c.status === 'active').length})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setStatusFilter('inactive')}
+                            className={`px-3 py-1.5 rounded-lg transition-all ${
+                                statusFilter === 'inactive'
+                                    ? 'bg-primary/20 text-primary-light border border-primary/30 shadow-xs'
+                                    : 'text-ink-soft hover:text-white hover:bg-white/5 border-transparent'
+                            }`}
+                        >
+                            Inativos ({clients.filter((c) => c.status !== 'active').length})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setStatusFilter('all')}
+                            className={`px-3 py-1.5 rounded-lg transition-all ${
+                                statusFilter === 'all'
+                                    ? 'bg-primary/20 text-primary-light border border-primary/30 shadow-xs'
+                                    : 'text-ink-soft hover:text-white hover:bg-white/5 border-transparent'
+                            }`}
+                        >
+                            Todos ({clients.length})
+                        </button>
+                    </div>
                 </div>
-                <div className="inline-flex self-start sm:self-auto items-center bg-slate-100 dark:bg-[#141414] border border-slate-200 dark:border-[#262626] p-1 rounded-xl text-xs font-bold">
-                    <button
-                        type="button"
-                        onClick={() => setStatusFilter('active')}
-                        className={`px-3 py-1.5 rounded-lg transition-all ${
-                            statusFilter === 'active'
-                                ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm'
-                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                        }`}
-                    >
-                        Ativos ({clients.filter(c => c.status === 'active').length})
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setStatusFilter('inactive')}
-                        className={`px-3 py-1.5 rounded-lg transition-all ${
-                            statusFilter === 'inactive'
-                                ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm'
-                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                        }`}
-                    >
-                        Inativos ({clients.filter(c => c.status !== 'active').length})
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setStatusFilter('all')}
-                        className={`px-3 py-1.5 rounded-lg transition-all ${
-                            statusFilter === 'all'
-                                ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm'
-                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                        }`}
-                    >
-                        Todos ({clients.length})
-                    </button>
+
+                {/* Inactivity & Retention Tiers Filter */}
+                <div className="flex flex-wrap items-center gap-2 p-3 rounded-xl border border-border-dark bg-card-dark shadow-sm">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-ink-soft flex items-center gap-1.5 shrink-0">
+                        <span className="material-symbols-outlined text-base text-primary-light">schedule</span>
+                        Última Visita:
+                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5 flex-1">
+                        <button
+                            type="button"
+                            onClick={() => setInactivityFilter('all')}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
+                                inactivityFilter === 'all'
+                                    ? 'bg-primary text-night shadow-xs'
+                                    : 'text-ink-soft hover:text-white hover:bg-white/5 border-transparent border border-transparent'
+                            }`}
+                        >
+                            Todas ({clients.length})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setInactivityFilter('active')}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 ${
+                                inactivityFilter === 'active'
+                                    ? 'bg-success/20 text-success border border-success/30 shadow-xs'
+                                    : 'text-ink-soft hover:text-white hover:bg-white/5 border-transparent border border-transparent'
+                            }`}
+                        >
+                            <span className="w-2 h-2 rounded-full bg-success"></span>
+                            Ativos &lt;30d ({clients.filter((c) => getClientInactivityStatus(c.last_visit).tier === 'active').length})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setInactivityFilter('absent')}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 ${
+                                inactivityFilter === 'absent'
+                                    ? 'bg-warning/20 text-warning border border-warning/30 shadow-xs'
+                                    : 'text-ink-soft hover:text-white hover:bg-white/5 border-transparent border border-transparent'
+                            }`}
+                        >
+                            <span className="w-2 h-2 rounded-full bg-warning"></span>
+                            Ausentes 30-60d ({clients.filter((c) => getClientInactivityStatus(c.last_visit).tier === 'absent').length})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setInactivityFilter('critical')}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 ${
+                                inactivityFilter === 'critical'
+                                    ? 'bg-danger/20 text-danger border border-danger/30 shadow-xs'
+                                    : 'text-ink-soft hover:text-white hover:bg-white/5 border-transparent border border-transparent'
+                            }`}
+                        >
+                            <span className="w-2 h-2 rounded-full bg-danger"></span>
+                            Críticos +60d ({clients.filter((c) => getClientInactivityStatus(c.last_visit).tier === 'critical').length})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setInactivityFilter('never')}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 ${
+                                inactivityFilter === 'never'
+                                    ? 'bg-surface-dark text-ink border border-border-dark shadow-xs'
+                                    : 'text-ink-soft hover:text-white hover:bg-white/5 border-transparent border border-transparent'
+                            }`}
+                        >
+                            <span className="w-2 h-2 rounded-full bg-border-dark"></span>
+                            Sem Visitas ({clients.filter((c) => getClientInactivityStatus(c.last_visit).tier === 'never').length})
+                        </button>
+                    </div>
                 </div>
             </div>
-
-            {/* Inactivity & Retention Tiers Filter */}
-            <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-card-dark shadow-sm">
-                <span className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5 mr-1 shrink-0">
-                    <span className="material-symbols-outlined text-base text-primary">schedule</span>
-                    Última Visita:
-                </span>
-                <div className="flex flex-wrap items-center gap-1.5 flex-1">
-                    <button
-                        type="button"
-                        onClick={() => setInactivityFilter('all')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                            inactivityFilter === 'all'
-                                ? 'bg-primary text-night shadow-sm'
-                                : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                        }`}
-                    >
-                        Todas ({clients.length})
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setInactivityFilter('active')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                            inactivityFilter === 'active'
-                                ? 'bg-emerald-600 text-white shadow-sm'
-                                : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400'
-                        }`}
-                    >
-                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                        Ativos &lt;30d ({clients.filter(c => getClientInactivityStatus(c.last_visit).tier === 'active').length})
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setInactivityFilter('absent')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                            inactivityFilter === 'absent'
-                                ? 'bg-amber-600 text-white shadow-sm'
-                                : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400'
-                        }`}
-                    >
-                        <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                        Ausentes 30-60d ({clients.filter(c => getClientInactivityStatus(c.last_visit).tier === 'absent').length})
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setInactivityFilter('critical')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                            inactivityFilter === 'critical'
-                                ? 'bg-rose-600 text-white shadow-sm'
-                                : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400'
-                        }`}
-                    >
-                        <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-                        Críticos +60d ({clients.filter(c => getClientInactivityStatus(c.last_visit).tier === 'critical').length})
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setInactivityFilter('never')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                            inactivityFilter === 'never'
-                                ? 'bg-slate-700 text-white shadow-sm'
-                                : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                        }`}
-                    >
-                        Sem Visitas ({clients.filter(c => getClientInactivityStatus(c.last_visit).tier === 'never').length})
-                    </button>
-                </div>
-            </div>
-
-            {/* Table */}
+            {/* ===== TIER 3 — Tabela ===== */}
             <LoadingBlock loading={loading} message="Carregando clientes..." minHeight="min-h-[400px]">
-                <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden shadow-sm">
+                <div className="bg-card-dark border border-border-dark rounded-2xl overflow-hidden">
                     <div className="overflow-x-auto">
-                        <div className="sm:hidden px-4 py-2 border-b border-slate-100 dark:border-border-dark bg-slate-50/70 dark:bg-white/[0.02] text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                        <div className="sm:hidden px-4 py-2 border-b border-border-dark bg-white/[0.02] text-[10px] font-bold uppercase tracking-wide text-ink-soft">
                             Deslize para ver mais colunas
                         </div>
                         <table className="w-full min-w-[760px]">
-                            <thead className="bg-slate-50 dark:bg-white/5">
-                                <tr className="text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+                            <thead className="bg-white/[0.02]">
+                                <tr className="text-left text-xs font-bold text-ink-soft uppercase tracking-wider">
                                     <th className="px-5 py-3">
-                                        <button onClick={() => handleSort('name')} className="flex items-center gap-1 hover:text-slate-900 dark:hover:text-white transition-colors">
+                                        <button onClick={() => handleSort('name')} className="flex items-center gap-1 hover:text-white transition-colors">
                                             Cliente <span className="material-symbols-outlined text-sm">{sortIcon('name')}</span>
                                         </button>
                                     </th>
                                     <th className="px-5 py-3 hidden md:table-cell">Telefone</th>
                                     <th className="px-5 py-3 hidden lg:table-cell">
-                                        <button onClick={() => handleSort('last_visit')} className="flex items-center gap-1 hover:text-slate-900 dark:hover:text-white transition-colors">
+                                        <button onClick={() => handleSort('last_visit')} className="flex items-center gap-1 hover:text-white transition-colors">
                                             {isEsteticaApp ? 'Último atendimento' : 'Última Visita'} <span className="material-symbols-outlined text-sm">{sortIcon('last_visit')}</span>
                                         </button>
                                     </th>
                                     <th className="px-5 py-3 hidden lg:table-cell">
-                                        <button onClick={() => handleSort('total_spent')} className="flex items-center gap-1 hover:text-slate-900 dark:hover:text-white transition-colors">
+                                        <button onClick={() => handleSort('total_spent')} className="flex items-center gap-1 hover:text-white transition-colors">
                                             Total Gasto <span className="material-symbols-outlined text-sm">{sortIcon('total_spent')}</span>
                                         </button>
                                     </th>
@@ -780,10 +784,10 @@ const Clients: React.FC = () => {
                                     <th className="px-5 py-3 text-right">Ações</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-border-dark">
+                            <tbody className="divide-y divide-border-dark">
                                 {processed.length === 0 && (
                                     <tr>
-                                        <td colSpan={6} className="text-center py-10 text-slate-500 text-sm">
+                                        <td colSpan={6} className="text-center py-12 text-ink-soft text-sm">
                                             {search || statusFilter !== 'all'
                                                 ? 'Nenhum cliente encontrado com os filtros aplicados.'
                                                 : isEsteticaApp
@@ -792,42 +796,42 @@ const Clients: React.FC = () => {
                                         </td>
                                     </tr>
                                 )}
-                                {paginatedClients.map(client => (
-                                    <tr key={client.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                                {paginatedClients.map((client) => (
+                                    <tr key={client.id} className="hover:bg-white/[0.02] transition-colors">
                                         <td className="px-5 py-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="size-9 rounded-full bg-slate-200 dark:bg-slate-700 shrink-0 overflow-hidden border border-slate-200 dark:border-white/5">
+                                                <div className="size-9 rounded-xl bg-surface-dark shrink-0 overflow-hidden border border-border-dark">
                                                     {client.avatar ? (
                                                         <img src={client.avatar} alt={client.name} className="size-full object-cover" />
                                                     ) : (
                                                         <div className="size-full flex items-center justify-center">
-                                                            <span className="material-symbols-outlined text-slate-400 text-sm">person</span>
+                                                            <span className="material-symbols-outlined text-ink-soft text-sm">person</span>
                                                         </div>
                                                     )}
                                                 </div>
                                                 <div>
                                                     <div className="flex flex-wrap items-center gap-2">
-                                                        <p className="text-sm font-bold text-slate-900 dark:text-white">{client.name}</p>
+                                                        <p className="text-sm font-bold text-white">{client.name}</p>
                                                         {!isEsteticaApp && chefClubMap[client.id] && (
-                                                            <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-500/10 text-amber-600 rounded text-[9px] font-black uppercase tracking-tighter" title={`Club dos Chefes: ${chefClubMap[client.id]}`}>
+                                                            <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-primary/10 text-primary-dark border border-primary/20 rounded text-[9px] font-black uppercase tracking-tighter" title={`Club dos Chefes: ${chefClubMap[client.id]}`}>
                                                                 <span className="material-symbols-outlined text-[10px]">workspace_premium</span>
                                                                 Membro
                                                             </span>
                                                         )}
                                                         {client.isDependent && (
-                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 rounded text-[10px] font-bold">
+                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-success/10 text-success border border-success/20 rounded text-[10px] font-bold">
                                                                 <span className="material-symbols-outlined text-[11px]">family_restroom</span>
                                                                 Filho(a) de {client.parentName || 'Responsável'}
                                                             </span>
                                                         )}
                                                         {!client.isDependent && client.dependentsCount > 0 && (
-                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#B88A44]/10 text-[#B88A44] border border-[#B88A44]/25 rounded text-[10px] font-bold">
+                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-primary/10 text-primary-dark border border-primary/20 rounded text-[10px] font-bold">
                                                                 <span className="material-symbols-outlined text-[11px]">family_restroom</span>
                                                                 {client.dependentsCount} {client.dependentsCount === 1 ? 'filho' : 'filhos'}
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <p className="text-[10px] text-slate-500 hidden sm:block">
+                                                    <p className="text-[10px] text-ink-soft hidden sm:block">
                                                         {client.isDependent && client.parentName
                                                             ? `Resp.: ${client.parentName} • ${client.effectivePhone || 'Sem telefone'}`
                                                             : client.email || 'Sem e-mail'}
@@ -836,14 +840,14 @@ const Clients: React.FC = () => {
                                             </div>
                                         </td>
                                         <td className="px-5 py-4 hidden md:table-cell">
-                                            <span className="text-sm text-slate-700 dark:text-slate-300">{client.effectivePhone || client.phone || '-'}</span>
+                                            <span className="text-sm text-ink-soft">{client.effectivePhone || client.phone || '-'}</span>
                                         </td>
-                                        <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-300 hidden lg:table-cell">
+                                        <td className="px-5 py-4 text-sm text-ink-soft hidden lg:table-cell">
                                             {(() => {
                                                 const inact = getClientInactivityStatus(client.last_visit);
                                                 return (
                                                     <div className="flex flex-col items-start gap-1">
-                                                        <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                                                        <span className="text-xs font-semibold text-white">
                                                             {formatDate(client.last_visit)}
                                                         </span>
                                                         <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${inact.badgeClass}`}>
@@ -854,65 +858,62 @@ const Clients: React.FC = () => {
                                                 );
                                             })()}
                                         </td>
-                                        <td className="px-5 py-4 text-sm font-bold text-slate-900 dark:text-white hidden lg:table-cell">{formatCurrency(client.total_spent)}</td>
+                                        <td className="px-5 py-4 text-sm font-bold text-white tabular-nums whitespace-nowrap hidden lg:table-cell">
+                                            {formatCurrency(client.total_spent)}
+                                        </td>
                                         <td className="px-5 py-4">
-                                            <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${client.status === 'active' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                                            <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+                                                client.status === 'active'
+                                                    ? 'bg-success/20 text-success border border-success/30'
+                                                    : 'bg-surface-dark text-ink border border-border-dark'
+                                            }`}>
                                                 {client.status === 'active' ? 'Ativo' : 'Inativo'}
                                             </span>
                                         </td>
                                         <td className="px-5 py-4">
                                             <div className="flex items-center justify-end gap-1.5">
-                                                {/* Ação Primária: Ver Perfil */}
                                                 <button
                                                     type="button"
                                                     onClick={() => void openClientDetails(client)}
-                                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[#B88A44]/10 text-[#B88A44] hover:bg-[#B88A44] hover:text-[#0E0C0A] border border-[#B88A44]/30 transition-all shadow-sm"
+                                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-primary/10 text-primary-dark border border-primary/20 hover:bg-primary hover:text-night transition-all shadow-sm"
                                                     title="Ver Perfil Completo (360°)"
                                                 >
                                                     <span className="material-symbols-outlined text-[15px]">visibility</span>
                                                     <span className="hidden sm:inline">Perfil</span>
                                                 </button>
-
-                                                {/* Atalho Direto WhatsApp (quando houver telefone) */}
                                                 {client.phone && (
                                                     <a
                                                         href={`https://wa.me/55${client.phone.replace(/\D/g, '')}`}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="p-1.5 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg border border-transparent hover:border-emerald-500/30 transition-colors"
+                                                        className="p-1.5 text-success hover:text-white hover:bg-success/20 rounded-lg border border-transparent hover:border-success/30 transition-colors"
                                                         title={`Abrir WhatsApp (${client.phone})`}
                                                     >
                                                         <span className="material-symbols-outlined text-lg">chat</span>
                                                     </a>
                                                 )}
-
-                                                {/* Editar */}
                                                 <button
                                                     type="button"
                                                     onClick={() => handleEditClick(client)}
-                                                    className="p-1.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                                                    className="p-1.5 text-ink-soft hover:text-white hover:bg-white/5 rounded-lg transition-colors"
                                                     title="Editar Dados Básicos"
                                                 >
                                                     <span className="material-symbols-outlined text-lg">edit</span>
                                                 </button>
-
-                                                {/* Virar Assinante */}
                                                 {!isEsteticaApp && (
                                                     <button
                                                         type="button"
                                                         onClick={() => navigate(`/chef-club-subscriptions/new?from=clients&clientId=${client.id}`)}
-                                                        className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 rounded-lg transition-colors"
+                                                        className="p-1.5 text-ink-soft hover:text-primary-light hover:bg-primary/10 rounded-lg transition-colors"
                                                         title="Assinatura Clube"
                                                     >
                                                         <span className="material-symbols-outlined text-lg">workspace_premium</span>
                                                     </button>
                                                 )}
-
-                                                {/* Excluir */}
                                                 <button
                                                     type="button"
                                                     onClick={() => setDeleteTarget(client)}
-                                                    className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-400/10 rounded-lg transition-colors"
+                                                    className="p-1.5 text-ink-soft hover:text-danger hover:bg-danger/10 rounded-lg transition-colors"
                                                     title="Excluir"
                                                 >
                                                     <span className="material-symbols-outlined text-lg">delete</span>
@@ -924,37 +925,32 @@ const Clients: React.FC = () => {
                             </tbody>
                         </table>
                     </div>
-
-                    {/* Paginação */}
                     {processed.length > 0 && (
-                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 border-t border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-[#141210] text-xs text-slate-500 dark:text-slate-400">
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 border-t border-border-dark bg-white/[0.02] text-xs text-ink-soft">
                             <div>
-                                Mostrando <span className="font-bold text-slate-900 dark:text-white">{(currentPage - 1) * itemsPerPage + 1}</span> a{' '}
-                                <span className="font-bold text-slate-900 dark:text-white">{Math.min(currentPage * itemsPerPage, processed.length)}</span> de{' '}
-                                <span className="font-bold text-slate-900 dark:text-white">{processed.length}</span> clientes
+                                Mostrando <span className="font-bold text-white">{(currentPage - 1) * itemsPerPage + 1}</span> a{' '}
+                                <span className="font-bold text-white">{Math.min(currentPage * itemsPerPage, processed.length)}</span> de{' '}
+                                <span className="font-bold text-white">{processed.length}</span> clientes
                             </div>
-
                             {totalPages > 1 && (
                                 <div className="flex items-center gap-2">
                                     <button
                                         type="button"
                                         onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                                         disabled={currentPage === 1}
-                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#2D2A26] bg-white dark:bg-[#0E0C0A] font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border-dark bg-surface-dark font-bold text-ink-soft hover:border-primary/40 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                                     >
                                         <span className="material-symbols-outlined text-sm">chevron_left</span>
                                         Anterior
                                     </button>
-
-                                    <span className="px-2 py-1 font-bold text-slate-700 dark:text-slate-300">
+                                    <span className="px-2 py-1 font-bold text-ink-soft">
                                         Página {currentPage} de {totalPages}
                                     </span>
-
                                     <button
                                         type="button"
                                         onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                                         disabled={currentPage >= totalPages}
-                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#2D2A26] bg-white dark:bg-[#0E0C0A] font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border-dark bg-surface-dark font-bold text-ink-soft hover:border-primary/40 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                                     >
                                         Próxima
                                         <span className="material-symbols-outlined text-sm">chevron_right</span>
@@ -965,7 +961,6 @@ const Clients: React.FC = () => {
                     )}
                 </div>
             </LoadingBlock>
-
             {/* Perfil 360° do Cliente & Fidelização Drawer */}
             <ClientProfile360Drawer
                 isOpen={!!detailClient}
@@ -1000,7 +995,7 @@ const Clients: React.FC = () => {
                 onSelectClient={(target) => void openClientDetails(target)}
             />
 
-            {/* Modal de Edição (Novo!) */}
+            {/* Modal de Edição */}
             <Modal
                 isOpen={!!editingId}
                 onClose={() => { setEditingId(null); setEditForm({}); }}
@@ -1009,47 +1004,46 @@ const Clients: React.FC = () => {
             >
                 <form onSubmit={handleSaveEdit} className="space-y-4">
                     <div>
-                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Nome Completo</label>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Nome Completo</label>
                         <input type="text" required value={editForm.name || ''} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                             title="Nome Completo" placeholder="Ex: Carlos Oliveira"
-                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" />
+                            className="w-full bg-surface-dark border border-border-dark rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Telefone</label>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Telefone</label>
                         <input type="tel" required value={editForm.phone || ''} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
                             title="Telefone" placeholder="(11) 99999-9999"
-                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" />
+                            className="w-full bg-surface-dark border border-border-dark rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Email</label>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Email</label>
                         <input type="email" value={editForm.email || ''} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                             title="E-mail" placeholder="email@exemplo.com"
-                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" />
+                            className="w-full bg-surface-dark border border-border-dark rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data de Nascimento</label>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Data de Nascimento</label>
                         <DatePickerInput value={editForm.birthday || ''} onChange={(e) => setEditForm({ ...editForm, birthday: e.target.value })}
                             title="Data de Nascimento" placeholder="Data de Nascimento"
-                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" />
+                            className="w-full bg-surface-dark border border-border-dark rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Status</label>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Status</label>
                         <select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
                             title="Status do Cliente"
-                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary [color-scheme:light] dark:[color-scheme:dark]">
+                            className="w-full bg-surface-dark border border-border-dark rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all [color-scheme:light] dark:[color-scheme:dark]">
                             <option value="active">Ativo</option>
                             <option value="inactive">Inativo</option>
                         </select>
                     </div>
                     <div className="flex gap-3 pt-2">
                         <button type="button" onClick={() => { setEditingId(null); setEditForm({}); }}
-                            className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">Cancelar</button>
+                            className="flex-1 py-3 rounded-xl text-sm font-bold text-ink-soft bg-surface-dark border border-border-dark hover:bg-white/5 hover:text-white transition-colors">Cancelar</button>
                         <button type="submit"
-                            className="flex-1 py-3 rounded-lg text-sm font-bold text-night bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">Salvar Alterações</button>
+                            className="flex-1 py-3 rounded-xl text-sm font-bold text-night bg-gradient-to-r from-primary to-primary-dark shadow-lg shadow-primary/20 hover:brightness-105 transition-all">Salvar Alterações</button>
                     </div>
                 </form>
             </Modal>
-
             {/* Modal de Criação */}
             <Modal
                 isOpen={showModal}
@@ -1059,38 +1053,37 @@ const Clients: React.FC = () => {
             >
                 <form onSubmit={handleCreateClient} className="space-y-4">
                     <div>
-                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Nome Completo</label>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Nome Completo</label>
                         <input type="text" required value={newForm.name} onChange={(e) => setNewForm({ ...newForm, name: e.target.value })}
                             title="Nome Completo"
-                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" placeholder="Ex: Carlos Oliveira" />
+                            className="w-full bg-surface-dark border border-border-dark rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="Ex: Carlos Oliveira" />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Telefone</label>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Telefone</label>
                         <input type="tel" required value={newForm.phone} onChange={(e) => setNewForm({ ...newForm, phone: e.target.value })}
                             title="Telefone"
-                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" placeholder="(11) 99999-9999" />
+                            className="w-full bg-surface-dark border border-border-dark rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="(11) 99999-9999" />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Email (Opcional)</label>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Email (Opcional)</label>
                         <input type="email" value={newForm.email} onChange={(e) => setNewForm({ ...newForm, email: e.target.value })}
                             title="E-mail"
-                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" placeholder="email@exemplo.com" />
+                            className="w-full bg-surface-dark border border-border-dark rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="email@exemplo.com" />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Data de Nascimento</label>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Data de Nascimento</label>
                         <DatePickerInput value={newForm.birthday} onChange={(e) => setNewForm({ ...newForm, birthday: e.target.value })}
                             title="Data de Nascimento" placeholder="Data de Nascimento"
-                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg p-3 text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-primary" />
+                            className="w-full bg-surface-dark border border-border-dark rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
                     </div>
                     <div className="flex gap-3 pt-2">
                         <button type="button" onClick={() => setShowModal(false)}
-                            className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">Cancelar</button>
+                            className="flex-1 py-3 rounded-xl text-sm font-bold text-ink-soft bg-surface-dark border border-border-dark hover:bg-white/5 hover:text-white transition-colors">Cancelar</button>
                         <button type="submit"
-                            className="flex-1 py-3 rounded-lg text-sm font-bold text-night bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">Salvar</button>
+                            className="flex-1 py-3 rounded-xl text-sm font-bold text-night bg-gradient-to-r from-primary to-primary-dark shadow-lg shadow-primary/20 hover:brightness-105 transition-all">Salvar</button>
                     </div>
                 </form>
             </Modal>
-
             {/* Delete Confirmation Modal */}
             <Modal
                 isOpen={!!deleteTarget}
@@ -1100,22 +1093,22 @@ const Clients: React.FC = () => {
             >
                 {deleteTarget && (
                     <div className="text-center">
-                        <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <div className="w-16 h-16 bg-danger/20 text-danger rounded-full flex items-center justify-center mx-auto mb-4">
                             <span className="material-symbols-outlined text-3xl">warning</span>
                         </div>
-                        <p className="text-sm text-slate-500 mb-6">Tem certeza que deseja excluir <strong>{deleteTarget.name}</strong>? Esta ação não pode ser desfeita.</p>
+                        <p className="text-sm text-ink-soft mb-6">Tem certeza que deseja excluir <strong className="text-white">{deleteTarget.name}</strong>? Esta ação não pode ser desfeita.</p>
                         <div className="flex gap-3">
                             <button
                                 onClick={() => setDeleteTarget(null)}
                                 disabled={deleting}
-                                className="flex-1 py-3 rounded-lg text-sm font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors disabled:opacity-60"
+                                className="flex-1 py-3 rounded-xl text-sm font-bold text-ink-soft bg-surface-dark border border-border-dark hover:bg-white/5 hover:text-white transition-colors disabled:opacity-60"
                             >
                                 Cancelar
                             </button>
                             <button
                                 onClick={handleDelete}
                                 disabled={deleting}
-                                className="flex-1 py-3 rounded-lg text-sm font-bold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-60"
+                                className="flex-1 py-3 rounded-xl text-sm font-bold text-white bg-danger hover:bg-danger/90 transition-colors disabled:opacity-60"
                             >
                                 {deleting ? 'Excluindo...' : 'Excluir'}
                             </button>
@@ -1123,7 +1116,6 @@ const Clients: React.FC = () => {
                     </div>
                 )}
             </Modal>
-
             {/* IMPORT PREVIEW MODAL */}
             <Modal
                 isOpen={isImportModalOpen}
@@ -1133,59 +1125,59 @@ const Clients: React.FC = () => {
             >
                 {importPreview && (
                     <div className="space-y-4">
-                        <div className="p-3 bg-teal-500/10 border border-teal-500/20 rounded-lg">
-                            <p className="text-[10px] text-teal-700 dark:text-teal-300 font-bold uppercase mb-1">Revisão de Dados</p>
-                            <p className="text-xs text-slate-600 dark:text-slate-300">
-                                <strong>{importPreview.fileName}</strong> — {importPreview.totalRows} linha(s) lida(s).
+                        <div className="p-3 bg-primary/10 border border-primary/20 rounded-xl">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-primary-dark mb-1">Revisão de Dados</p>
+                            <p className="text-xs text-ink-soft">
+                                <strong className="text-white">{importPreview.fileName}</strong> — {importPreview.totalRows} linha(s) lida(s).
                                 Nada é gravado até a confirmação.
                             </p>
                             <div className="flex flex-wrap gap-2 mt-2 text-xs font-bold">
-                                <span className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">{importPreview.validRows.length} válida(s)</span>
-                                <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400">{importPreview.duplicateRows.length} duplicada(s)</span>
-                                <span className="px-2 py-1 rounded-full bg-red-500/10 text-red-600 dark:text-red-400">{importPreview.invalidRows.length} inválida(s)</span>
+                                <span className="px-2 py-1 rounded-full bg-success/20 text-success border border-success/30">{importPreview.validRows.length} válida(s)</span>
+                                <span className="px-2 py-1 rounded-full bg-warning/20 text-warning border border-warning/30">{importPreview.duplicateRows.length} duplicada(s)</span>
+                                <span className="px-2 py-1 rounded-full bg-danger/20 text-danger border border-danger/30">{importPreview.invalidRows.length} inválida(s)</span>
                             </div>
                             {importPreview.warnings.length > 0 && (
-                                <ul className="mt-2 text-[11px] text-amber-600 dark:text-amber-400 list-disc list-inside space-y-0.5">
+                                <ul className="mt-2 text-[11px] text-warning list-disc list-inside space-y-0.5">
                                     {importPreview.warnings.slice(0, 5).map((w, i) => <li key={i}>{w}</li>)}
                                 </ul>
                             )}
                         </div>
 
-                        <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-border-dark overflow-hidden">
+                        <div className="bg-card-dark rounded-xl border border-border-dark overflow-hidden">
                             <div className="overflow-x-auto max-h-[50vh] custom-scrollbar">
                                 <table className="w-full text-left">
-                                    <thead className="bg-slate-50 dark:bg-slate-800/50 sticky top-0 z-10 border-b border-slate-200 dark:border-border-dark">
+                                    <thead className="bg-white/[0.02] sticky top-0 z-10 border-b border-border-dark">
                                         <tr>
-                                            <th className="px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">#</th>
-                                            <th className="px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Nome Completo</th>
-                                            <th className="px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Telefone</th>
-                                            <th className="px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Email</th>
-                                            <th className="px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Nascimento</th>
-                                            <th className="px-4 py-3 text-xs uppercase font-bold text-slate-500 tracking-wider">Status</th>
+                                            <th className="px-4 py-3 text-[10px] uppercase font-bold text-ink-soft tracking-wider">#</th>
+                                            <th className="px-4 py-3 text-[10px] uppercase font-bold text-ink-soft tracking-wider">Nome Completo</th>
+                                            <th className="px-4 py-3 text-[10px] uppercase font-bold text-ink-soft tracking-wider">Telefone</th>
+                                            <th className="px-4 py-3 text-[10px] uppercase font-bold text-ink-soft tracking-wider">Email</th>
+                                            <th className="px-4 py-3 text-[10px] uppercase font-bold text-ink-soft tracking-wider">Nascimento</th>
+                                            <th className="px-4 py-3 text-[10px] uppercase font-bold text-ink-soft tracking-wider">Status</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-border-dark text-sm">
+                                    <tbody className="divide-y divide-border-dark text-sm">
                                         {importPreview.rows.map((row) => (
-                                            <tr key={row.rowNumber} className="hover:bg-slate-50 dark:hover:bg-white/5">
-                                                <td className="px-4 py-3 text-xs text-slate-400">{row.rowNumber}</td>
-                                                <td className="px-4 py-3 text-slate-900 dark:text-slate-300">{row.values.name || '—'}</td>
-                                                <td className="px-4 py-3 text-slate-900 dark:text-slate-300">{row.values.phone || '—'}</td>
-                                                <td className="px-4 py-3 text-slate-900 dark:text-slate-300">{row.values.email || '—'}</td>
-                                                <td className="px-4 py-3 text-slate-900 dark:text-slate-300">{row.values.birthday || '—'}</td>
+                                            <tr key={row.rowNumber} className="hover:bg-white/[0.02]">
+                                                <td className="px-4 py-3 text-xs text-ink-soft">{row.rowNumber}</td>
+                                                <td className="px-4 py-3 text-sm text-ink-soft">{row.values.name || '—'}</td>
+                                                <td className="px-4 py-3 text-sm text-ink-soft">{row.values.phone || '—'}</td>
+                                                <td className="px-4 py-3 text-sm text-ink-soft">{row.values.email || '—'}</td>
+                                                <td className="px-4 py-3 text-sm text-ink-soft">{row.values.birthday || '—'}</td>
                                                 <td className="px-4 py-3">
                                                     {row.status === 'valid' && (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold uppercase">Válida</span>
+                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-success/20 text-success border border-success/30 text-[10px] font-bold uppercase">Válida</span>
                                                     )}
                                                     {row.status === 'duplicate' && (
                                                         <div className="flex flex-col gap-1">
-                                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-bold uppercase w-fit">Duplicada</span>
-                                                            {row.duplicateOf && <span className="text-[11px] text-amber-600 dark:text-amber-400">{row.duplicateOf}</span>}
+                                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-warning/20 text-warning border border-warning/30 text-[10px] font-bold uppercase w-fit">Duplicada</span>
+                                                            {row.duplicateOf && <span className="text-[11px] text-warning">{row.duplicateOf}</span>}
                                                         </div>
                                                     )}
                                                     {row.status === 'invalid' && (
                                                         <div className="flex flex-col gap-1">
-                                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-bold uppercase w-fit">Inválida</span>
-                                                            {row.errors.map((e, i) => <span key={i} className="text-[11px] text-red-600 dark:text-red-400">{e}</span>)}
+                                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-danger/20 text-danger border border-danger/30 text-[10px] font-bold uppercase w-fit">Inválida</span>
+                                                            {row.errors.map((e, i) => <span key={i} className="text-[11px] text-danger">{e}</span>)}
                                                         </div>
                                                     )}
                                                 </td>
@@ -1197,7 +1189,7 @@ const Clients: React.FC = () => {
                         </div>
 
                         {importPreview.duplicateRows.length > 0 && (
-                            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+                            <label className="flex items-center gap-2 text-sm text-ink-soft cursor-pointer select-none">
                                 <input
                                     type="checkbox"
                                     checked={includeDuplicates}
@@ -1208,18 +1200,17 @@ const Clients: React.FC = () => {
                             </label>
                         )}
 
-                        <div className="flex gap-3 justify-end pt-4 border-t border-slate-200 dark:border-border-dark mt-6">
-                            <button type="button" onClick={() => { setIsImportModalOpen(false); setImportPreview(null); }} className="px-6 py-2.5 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">
+                        <div className="flex gap-3 justify-end pt-4 border-t border-border-dark mt-6">
+                            <button type="button" onClick={() => { setIsImportModalOpen(false); setImportPreview(null); }} className="px-6 py-2.5 rounded-lg text-sm font-bold text-ink-soft bg-surface-dark border border-border-dark hover:bg-white/5 hover:text-white transition-colors">
                                 Descartar Arquivo
                             </button>
-                            <button type="button" onClick={handleConfirmImport} disabled={loading || (importPreview.validRows.length + (includeDuplicates ? importPreview.duplicateRows.length : 0)) === 0} className="px-8 py-2.5 rounded-lg text-sm font-bold text-night bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2">
+                            <button type="button" onClick={handleConfirmImport} disabled={loading || (importPreview.validRows.length + (includeDuplicates ? importPreview.duplicateRows.length : 0)) === 0} className="px-8 py-2.5 rounded-lg text-sm font-bold text-night bg-gradient-to-r from-primary to-primary-dark shadow-lg shadow-primary/20 hover:brightness-105 transition-all flex items-center justify-center gap-2">
                                 {loading ? <div className="size-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : `Salvar ${importPreview.validRows.length + (includeDuplicates ? importPreview.duplicateRows.length : 0)} Cliente(s)`}
                             </button>
                         </div>
                     </div>
                 )}
             </Modal>
-
             {/* Modal de Reengajamento WhatsApp */}
             <ClientReengagementModal
                 isOpen={isReengagementOpen}

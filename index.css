@@ -37,6 +37,7 @@
 
   /* Status / Charts ONLY - never used as brand voice */
   --color-success: #178A50;
+  --color-warning: #F59E0B;
   --color-danger: #C92A2A;
 
   /* Delta indicators (variam no dark para manter AA sobre superfícies escuras) */
@@ -116,6 +117,7 @@
   --color-sched-no-show-strong: #A79C8A;
   --color-delta-up: #34D399;
   --color-delta-down: #F87171;
+  --color-warning: #FBBF24;
 }
 
 /* ===== Repaginada Base ===== */
