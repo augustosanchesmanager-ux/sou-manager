@@ -148,6 +148,145 @@ export interface FinancialTitleRow {
 
 const CHUNK_SIZE = 150;
 
+interface RawComandaQueryRow {
+  id: string;
+  client_id: string | null;
+  staff_id: string | null;
+  status: string | null;
+  total: number | string | null;
+  discount: number | string | null;
+  payment_method: string | null;
+  closure_mode: string | null;
+  financial_effect: boolean | null;
+  closed_at: string | null;
+  settled_at: string | null;
+  payment_date_real: string | null;
+  created_at: string;
+}
+
+interface RawComandaItemQueryRow {
+  id: string;
+  comanda_id: string;
+  service_id: string | null;
+  product_id: string | null;
+  product_name: string | null;
+  quantity: number | string | null;
+  unit_price: number | string | null;
+  staff_id: string | null;
+}
+
+interface RawClientNameRow {
+  id: string;
+  name: string | null;
+  phone?: string | null;
+}
+
+interface RawStaffCommissionRow {
+  id: string;
+  name: string;
+  role: string | null;
+  status?: string | null;
+  commission_rate?: number | null;
+  product_commission_rate?: number | null;
+}
+
+interface RawTransactionQueryRow {
+  id: string;
+  source_id: string | null;
+  amount: number | string | null;
+  payment_method: string | null;
+  status: string | null;
+  type: string | null;
+}
+
+interface RawAppointmentQueryRow {
+  id: string;
+  client_id: string | null;
+  staff_id: string | null;
+  service_id: string | null;
+  start_time: string;
+  end_time: string | null;
+  status: string | null;
+  notes?: string | null;
+}
+
+interface RawServiceDurationRow {
+  id: string;
+  name: string | null;
+  duration: number | string | null;
+}
+
+interface RawProductQueryRow {
+  id: string;
+  name: string | null;
+  category: string | null;
+  price: number | string | null;
+  sale_price: number | string | null;
+  cost_price: number | string | null;
+  stock_quantity: number | string | null;
+  minimum_stock: number | string | null;
+  min_stock_alert: number | string | null;
+  active: boolean | null;
+}
+
+interface RawBarberAdvanceQueryRow {
+  id: string;
+  staff_id: string;
+  amount: number | string | null;
+  issued_at: string;
+  notes: string | null;
+  reversed_at: string | null;
+}
+
+interface JoinedClientRelation {
+  name?: string | null;
+}
+
+interface RawClubReceivableRow {
+  id: string;
+  customer_id: string | null;
+  due_date: string | null;
+  amount: number | string | null;
+  status: string | null;
+  paid_at: string | null;
+  clients?: JoinedClientRelation | JoinedClientRelation[] | null;
+}
+
+interface RawFiadoComandaRow {
+  id: string;
+  client_id: string | null;
+  total: number | string | null;
+  discount: number | string | null;
+  status: string | null;
+  is_fiado: boolean | null;
+  fiado_due_date: string | null;
+  fiado_marked_at: string | null;
+  closed_at: string | null;
+  settled_at: string | null;
+  payment_date_real: string | null;
+  created_at: string | null;
+  clients?: JoinedClientRelation | JoinedClientRelation[] | null;
+}
+
+interface RawAccountPayableRow {
+  id: string;
+  name: string | null;
+  amount: number | string | null;
+  due_date: string | null;
+  category: string | null;
+  status: string | null;
+  paid_at: string | null;
+  notes: string | null;
+}
+
+const extractJoinedClientName = (
+  relation: JoinedClientRelation | JoinedClientRelation[] | null | undefined
+): string | null => {
+  if (!relation) return null;
+  if (Array.isArray(relation)) return relation[0]?.name ?? null;
+  return relation.name ?? null;
+};
+
 export function buildBrtRangeBounds(dateFrom: string, dateTo: string) {
   const startIso = `${dateFrom}T00:00:00.000-03:00`;
   const endIso = `${dateTo}T23:59:59.999-03:00`;
@@ -198,7 +337,7 @@ export function classifyPaymentMethod(rawMethod?: string | null, isClub?: boolea
 }
 
 async function fetchInChunks<T>(
-  client: any,
+  client: ReturnType<typeof getScopedClient>,
   table: string,
   column: string,
   ids: string[],
@@ -221,7 +360,7 @@ async function fetchInChunks<T>(
       throw new Error(`Falha ao consultar ${table}: ${error.message}`);
     }
     if (Array.isArray(data)) {
-      results.push(...data);
+      results.push(...(data as unknown as T[]));
     }
   }
   return results;
@@ -263,7 +402,7 @@ export async function fetchPaidComandasReport(
   }
 
   // Filtrar estritamente por closed_at / settled_at no range BRT (fallback seguro apenas se nulo em legado)
-  const paidComandas = (rawComandas || []).filter((c: any) => {
+  const paidComandas = ((rawComandas as RawComandaQueryRow[] | null) || []).filter((c) => {
     const effectiveDate = c.closed_at || c.settled_at || c.payment_date_real || c.created_at;
     return isTimestampInRange(effectiveDate, startMs, endMs);
   });
@@ -272,11 +411,11 @@ export async function fetchPaidComandasReport(
     return { comandas: [], allocatedItems: [] };
   }
 
-  const comandaIds = paidComandas.map((c: any) => c.id);
-  const clientIds = paidComandas.map((c: any) => c.client_id).filter(Boolean) as string[];
+  const comandaIds = paidComandas.map((c) => c.id);
+  const clientIds = paidComandas.map((c) => c.client_id).filter((id): id is string => Boolean(id));
 
   const [itemsData, clientsData, staffData, transactionsData] = await Promise.all([
-    fetchInChunks<any>(
+    fetchInChunks<RawComandaItemQueryRow>(
       barberSupabase,
       'comanda_items',
       'comanda_id',
@@ -284,7 +423,7 @@ export async function fetchPaidComandasReport(
       'id, comanda_id, service_id, product_id, product_name, quantity, unit_price, staff_id',
       tenantId
     ),
-    fetchInChunks<any>(
+    fetchInChunks<RawClientNameRow>(
       barberSupabase,
       'clients',
       'id',
@@ -296,8 +435,8 @@ export async function fetchPaidComandasReport(
       .from('staff')
       .select('id, name, role, commission_rate, product_commission_rate')
       .eq('tenant_id', tenantId)
-      .then((res) => res.data || []),
-    fetchInChunks<any>(
+      .then((res) => (res.data as RawStaffCommissionRow[] | null) || []),
+    fetchInChunks<RawTransactionQueryRow>(
       barberSupabase,
       'transactions',
       'source_id',
@@ -308,20 +447,20 @@ export async function fetchPaidComandasReport(
   ]);
 
   const clientMap = new Map<string, string>();
-  clientsData.forEach((cl: any) => { clientMap.set(cl.id, cl.name || 'Cliente Balcão'); });
+  clientsData.forEach((cl) => { clientMap.set(cl.id, cl.name || 'Cliente Balcão'); });
 
-  const staffMap = new Map<string, any>();
-  staffData.forEach((st: any) => { staffMap.set(st.id, st); });
+  const staffMap = new Map<string, RawStaffCommissionRow>();
+  staffData.forEach((st) => { staffMap.set(st.id, st); });
 
-  const itemsByComanda = new Map<string, any[]>();
-  itemsData.forEach((it: any) => {
+  const itemsByComanda = new Map<string, RawComandaItemQueryRow[]>();
+  itemsData.forEach((it) => {
     const list = itemsByComanda.get(it.comanda_id) || [];
     list.push(it);
     itemsByComanda.set(it.comanda_id, list);
   });
 
-  const txByComanda = new Map<string, any[]>();
-  transactionsData.forEach((tx: any) => {
+  const txByComanda = new Map<string, RawTransactionQueryRow[]>();
+  transactionsData.forEach((tx) => {
     if (tx.type === 'income' && tx.source_id) {
       const list = txByComanda.get(tx.source_id) || [];
       list.push(tx);
@@ -375,7 +514,7 @@ export async function fetchPaidComandasReport(
     // Montar RawComandaItem[] para passar no motor determinístico
     // Schema real de `comanda_items`: service_id/product_id, product_name, unit_price.
     // Não existem colunas item_type, name, price, discount nem commission_rate por linha.
-    const rawInputs: RawComandaItem[] = rawItemsForComanda.map((item: any) => {
+    const rawInputs: RawComandaItem[] = rawItemsForComanda.map((item) => {
       const effectiveStaffId = item.staff_id || c.staff_id || '';
       const staffMember = staffMap.get(effectiveStaffId);
       const barberName = staffMember?.name || 'Sem profissional';
@@ -442,8 +581,11 @@ export async function fetchPaidComandasReport(
         staffSet.add(it.barber_name);
       }
     });
-    if (staffSet.size === 0 && c.staff_id && staffMap.has(c.staff_id)) {
-      staffSet.add(staffMap.get(c.staff_id).name);
+    if (staffSet.size === 0 && c.staff_id) {
+      const fallbackStaff = staffMap.get(c.staff_id);
+      if (fallbackStaff?.name) {
+        staffSet.add(fallbackStaff.name);
+      }
     }
 
     resultComandas.push({
@@ -496,29 +638,30 @@ export async function fetchAppointmentsReport(
 
   if (!appts || appts.length === 0) return [];
 
-  const clientIds = appts.map((a: any) => a.client_id).filter(Boolean);
-  const serviceIds = appts.map((a: any) => a.service_id).filter(Boolean);
+  const typedAppts = appts as RawAppointmentQueryRow[];
+  const clientIds = typedAppts.map((a) => a.client_id).filter((id): id is string => Boolean(id));
+  const serviceIds = typedAppts.map((a) => a.service_id).filter((id): id is string => Boolean(id));
 
   const [clientsData, servicesData, staffData] = await Promise.all([
-    fetchInChunks<any>(barberSupabase, 'clients', 'id', clientIds, 'id, name, phone', tenantId),
-    fetchInChunks<any>(barberSupabase, 'services', 'id', serviceIds, 'id, name, duration', tenantId),
+    fetchInChunks<RawClientNameRow>(barberSupabase, 'clients', 'id', clientIds, 'id, name, phone', tenantId),
+    fetchInChunks<RawServiceDurationRow>(barberSupabase, 'services', 'id', serviceIds, 'id, name, duration', tenantId),
     sharedSupabase
       .from('staff')
       .select('id, name')
       .eq('tenant_id', tenantId)
-      .then((res) => res.data || []),
+      .then((res) => (res.data as Array<{ id: string; name: string | null }> | null) || []),
   ]);
 
   const clientMap = new Map<string, { name: string; phone: string }>();
-  clientsData.forEach((c: any) => { clientMap.set(c.id, { name: c.name || 'Cliente', phone: c.phone || '' }); });
+  clientsData.forEach((c) => { clientMap.set(c.id, { name: c.name || 'Cliente', phone: c.phone || '' }); });
 
   const serviceMap = new Map<string, { name: string; duration: number }>();
-  servicesData.forEach((s: any) => { serviceMap.set(s.id, { name: s.name || 'Serviço', duration: Number(s.duration || 30) }); });
+  servicesData.forEach((s) => { serviceMap.set(s.id, { name: s.name || 'Serviço', duration: Number(s.duration || 30) }); });
 
   const staffMap = new Map<string, string>();
-  staffData.forEach((st: any) => { staffMap.set(st.id, st.name || 'Profissional'); });
+  staffData.forEach((st) => { staffMap.set(st.id, st.name || 'Profissional'); });
 
-  return appts.map((a: any) => {
+  return typedAppts.map((a) => {
     const clientInfo = (a.client_id && clientMap.get(a.client_id)) || { name: 'Cliente', phone: '' };
     const serviceInfo = (a.service_id && serviceMap.get(a.service_id)) || { name: 'Atendimento', duration: 30 };
 
@@ -579,7 +722,7 @@ export async function fetchProductsReport(
     throw error;
   }
 
-  const catalogItems: ProductCatalogItem[] = (productsData || []).map((p: any) => {
+  const catalogItems: ProductCatalogItem[] = ((productsData as RawProductQueryRow[] | null) || []).map((p) => {
     const stock = Number(p.stock_quantity ?? 0);
     // Schema real: `minimum_stock` (o campo `min_stock` não existe em produção).
     const minStock = Number(p.minimum_stock ?? p.min_stock_alert ?? 0);
@@ -806,7 +949,7 @@ export async function fetchProductSalesByStaffReport(
     throw new Error(`Falha ao consultar equipe: ${staffRes.error.message}`);
   }
 
-  const staffList: StaffBasicInfo[] = (staffRes.data ?? []).map((row: any) => ({
+  const staffList: StaffBasicInfo[] = ((staffRes.data as RawStaffCommissionRow[] | null) ?? []).map((row) => ({
     id: row.id,
     name: row.name || 'Colaborador',
     role: row.role || 'other',
@@ -846,7 +989,7 @@ export async function fetchBarberAdvancesInPeriod(
     return [];
   }
 
-  return (data || []).map((row: any) => ({
+  return ((data as RawBarberAdvanceQueryRow[] | null) || []).map((row) => ({
     id: row.id,
     staffId: row.staff_id,
     amount: Number(row.amount || 0),
@@ -897,7 +1040,7 @@ export async function fetchFinancialTitlesReport(
 
   // 1. Mensalidades do Clube dos Chefes
   if (!clubRes.error && Array.isArray(clubRes.data)) {
-    for (const r of clubRes.data as any[]) {
+    for (const r of clubRes.data as unknown as RawClubReceivableRow[]) {
       const targetDate = dateField === 'paid_at' ? r.paid_at : r.due_date;
       if (!isTimestampInRange(targetDate, startMs, endMs)) continue;
 
@@ -910,7 +1053,7 @@ export async function fetchFinancialTitlesReport(
         dueDate: r.due_date || '',
         paidAt: r.paid_at || null,
         description: 'Mensalidade Clube dos Chefes',
-        partyName: r.clients?.name || 'Assinante Clube',
+        partyName: extractJoinedClientName(r.clients) || 'Assinante Clube',
         category: 'Assinatura Clube',
         amount: Number(r.amount || 0),
         status: isPaid ? 'paid' : isOverdue ? 'overdue' : 'pending',
@@ -921,7 +1064,7 @@ export async function fetchFinancialTitlesReport(
 
   // 2. Comandas faturadas a prazo (is_fiado === true, ADR-045)
   if (!fiadoRes.error && Array.isArray(fiadoRes.data)) {
-    for (const c of fiadoRes.data as any[]) {
+    for (const c of fiadoRes.data as unknown as RawFiadoComandaRow[]) {
       const dueDate = c.fiado_due_date || (c.fiado_marked_at || c.created_at || '').slice(0, 10);
       const paidAt = c.status === 'paid' || c.status === 'closed' ? c.settled_at || c.payment_date_real || c.closed_at : null;
       const targetDate = dateField === 'paid_at' ? paidAt : dueDate;
@@ -936,7 +1079,7 @@ export async function fetchFinancialTitlesReport(
         dueDate,
         paidAt,
         description: `Comanda Fiado #${String(c.id).slice(0, 6).toUpperCase()}`,
-        partyName: c.clients?.name || 'Cliente',
+        partyName: extractJoinedClientName(c.clients) || 'Cliente',
         category: 'Fiado / A Prazo',
         amount: roundCurrency(Math.max(0, Number(c.total || 0) - Number(c.discount || 0))),
         status: isPaid ? 'paid' : isOverdue ? 'overdue' : 'pending',
@@ -948,7 +1091,7 @@ export async function fetchFinancialTitlesReport(
   // 3. Contas a Pagar (accounts_payable)
   const payables: FinancialTitleRow[] = [];
   if (!payableRes.error && Array.isArray(payableRes.data)) {
-    for (const p of payableRes.data as any[]) {
+    for (const p of payableRes.data as unknown as RawAccountPayableRow[]) {
       const targetDate = dateField === 'paid_at' ? p.paid_at : p.due_date;
       if (!isTimestampInRange(targetDate, startMs, endMs)) continue;
 

@@ -56,6 +56,56 @@ const diffDays = (a: Date, b: Date) => Math.floor((a.getTime() - b.getTime()) / 
 
 const APP_SLUG_FOR_BI = 'barber' as const;
 
+interface InsightsTransactionRow {
+  id: string;
+  amount: number | string | null;
+  date: string;
+  type: string | null;
+  payment_method: string | null;
+}
+
+interface InsightsAppointmentRow {
+  id: string;
+  status: string | null;
+  start_time: string;
+  client_id: string | null;
+  staff_id: string | null;
+  staff_name?: string | null;
+  service_name: string | null;
+  price: number | string | null;
+  hidden_from_schedule?: boolean | null;
+}
+
+interface InsightsClientRow {
+  id: string;
+  name: string;
+  created_at: string;
+  last_visit: string | null;
+  total_spent: number | string | null;
+}
+
+interface InsightsStaffRow {
+  id: string;
+  name: string;
+  avatar?: string | null;
+}
+
+interface InsightsProductRow {
+  id: string;
+  name: string;
+  stock_quantity: number | null;
+  minimum_stock: number | null;
+}
+
+interface InsightsComandaRow {
+  id: string;
+  total: number | string | null;
+  staff_id: string | null;
+  client_id: string | null;
+  status: string | null;
+  created_at: string;
+}
+
 export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
   const { tenantId } = useAuth();
   const barberSupabase = getScopedClient('barber');
@@ -163,56 +213,58 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
           .eq('status', 'paid'),
       ]);
 
-      const transactions = transactionsRes.error ? [] : (transactionsRes.data || []);
-      const appointments = appointmentsRes.error ? [] : (appointmentsRes.data || []);
-      const clients = clientsRes.error ? [] : (clientsRes.data || []);
-      const staff = staffRes.error ? [] : (staffRes.data || []);
-      const products = productsRes.error ? [] : (productsRes.data || []);
+      const transactions: InsightsTransactionRow[] = transactionsRes.error ? [] : ((transactionsRes.data as InsightsTransactionRow[] | null) || []);
+      const appointments: InsightsAppointmentRow[] = appointmentsRes.error ? [] : ((appointmentsRes.data as InsightsAppointmentRow[] | null) || []);
+      const clients: InsightsClientRow[] = clientsRes.error ? [] : ((clientsRes.data as InsightsClientRow[] | null) || []);
+      const staff: InsightsStaffRow[] = staffRes.error ? [] : ((staffRes.data as InsightsStaffRow[] | null) || []);
+      const products: InsightsProductRow[] = productsRes.error ? [] : ((productsRes.data as InsightsProductRow[] | null) || []);
       const comandaItems = comandaItemsRes.error ? [] : (comandaItemsRes.data || []);
-      const comandas = comandasRes.error ? [] : (comandasRes.data || []);
+      const comandas: InsightsComandaRow[] = comandasRes.error ? [] : ((comandasRes.data as InsightsComandaRow[] | null) || []);
+      void comandaItems;
 
       // Funções normais para filtrar (não useMemo dentro de useCallback)
-      const filteredTransactions = transactions.filter((t: any) => {
+      const filteredTransactions = transactions.filter((t) => {
         const d = new Date(t.date);
         return d >= from && d <= to;
       });
 
-      const prevTransactions = transactions.filter((t: any) => {
+      const prevTransactions = transactions.filter((t) => {
         const d = new Date(t.date);
         return d >= prevFrom && d < prevTo;
       });
 
-      const filteredAppointments = appointments.filter((a: any) => {
+      const filteredAppointments = appointments.filter((a) => {
         const d = new Date(a.start_time);
         return d >= from && d <= to;
       });
 
-      const prevAppointments = appointments.filter((a: any) => {
+      const prevAppointments = appointments.filter((a) => {
         const d = new Date(a.start_time);
         return d >= prevFrom && d < prevTo;
       });
 
       // Financial KPIs
       const income = filteredTransactions
-        .filter((t: any) => t.type === 'income')
-        .reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+        .filter((t) => t.type === 'income')
+        .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
       const expenses = filteredTransactions
-        .filter((t: any) => t.type === 'expense')
-        .reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+        .filter((t) => t.type === 'expense')
+        .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
       const prevIncome = prevTransactions
-        .filter((t: any) => t.type === 'income')
-        .reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+        .filter((t) => t.type === 'income')
+        .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
       const prevExpenses = prevTransactions
-        .filter((t: any) => t.type === 'expense')
-        .reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+        .filter((t) => t.type === 'expense')
+        .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+      void prevExpenses;
 
       const profit = income - expenses;
       const profitMargin = income > 0 ? (profit / income) * 100 : 0;
       const revenueGrowth = prevIncome > 0 ? ((income - prevIncome) / prevIncome) * 100 : 0;
 
-      const incomeCount = filteredTransactions.filter((t: any) => t.type === 'income').length;
+      const incomeCount = filteredTransactions.filter((t) => t.type === 'income').length;
       const avgTicket = incomeCount > 0 ? income / incomeCount : 0;
-      const prevIncomeCount = prevTransactions.filter((t: any) => t.type === 'income').length;
+      const prevIncomeCount = prevTransactions.filter((t) => t.type === 'income').length;
       const prevAvgTicket = prevIncomeCount > 0 ? prevIncome / prevIncomeCount : 0;
       const avgTicketGrowth = prevAvgTicket > 0 ? ((avgTicket - prevAvgTicket) / prevAvgTicket) * 100 : 0;
 
@@ -229,28 +281,28 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
       };
 
       // Client KPIs
-      const newClients = clients.filter((c: any) => {
+      const newClients = clients.filter((c) => {
         const d = new Date(c.created_at);
         return d >= from && d <= to;
       }).length;
 
-      const prevNewClients = clients.filter((c: any) => {
+      const prevNewClients = clients.filter((c) => {
         const d = new Date(c.created_at);
         return d >= prevFrom && d < prevTo;
       }).length;
 
       const prevVisitorIds = new Set(
         prevAppointments
-          .filter((a: any) => a.status !== 'cancelled' && !a.hidden_from_schedule)
-          .map((a: any) => a.client_id)
-          .filter(Boolean)
+          .filter((a) => a.status !== 'cancelled' && !a.hidden_from_schedule)
+          .map((a) => a.client_id)
+          .filter((id): id is string => Boolean(id))
       );
 
       const currentVisitorIds = new Set(
         filteredAppointments
-          .filter((a: any) => a.status !== 'cancelled' && !a.hidden_from_schedule)
-          .map((a: any) => a.client_id)
-          .filter(Boolean)
+          .filter((a) => a.status !== 'cancelled' && !a.hidden_from_schedule)
+          .map((a) => a.client_id)
+          .filter((id): id is string => Boolean(id))
       );
 
       let returning = 0;
@@ -261,15 +313,15 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
       const retentionRate = prevVisitorIds.size > 0 ? (returning / prevVisitorIds.size) * 100 : 0;
       const newClientsGrowth = prevNewClients > 0 ? ((newClients - prevNewClients) / prevNewClients) * 100 : 0;
 
-      const inactiveClients60Days = clients.filter((c: any) => {
+      const inactiveClients60Days = clients.filter((c) => {
         if (!c.last_visit) return true;
         return diffDays(to, new Date(c.last_visit)) > 60;
       }).length;
 
       const clientVisits: Record<string, Date[]> = {};
       appointments
-        .filter((a: any) => a.status !== 'cancelled' && !a.hidden_from_schedule && a.client_id)
-        .forEach((a: any) => {
+        .filter((a): a is InsightsAppointmentRow & { client_id: string } => a.status !== 'cancelled' && !a.hidden_from_schedule && Boolean(a.client_id))
+        .forEach((a) => {
           if (!clientVisits[a.client_id]) clientVisits[a.client_id] = [];
           clientVisits[a.client_id].push(new Date(a.start_time));
         });
@@ -298,9 +350,9 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
 
       // Operational KPIs
       const totalAppts = filteredAppointments.length;
-      const completedAppts = filteredAppointments.filter((a: any) => a.status === 'completed').length;
-      const cancelledAppts = filteredAppointments.filter((a: any) => a.status === 'cancelled').length;
-      const noShowAppts = filteredAppointments.filter((a: any) => a.status === 'no_show' || a.status === 'no-show').length;
+      const completedAppts = filteredAppointments.filter((a) => a.status === 'completed').length;
+      const cancelledAppts = filteredAppointments.filter((a) => a.status === 'cancelled').length;
+      const noShowAppts = filteredAppointments.filter((a) => a.status === 'no_show' || a.status === 'no-show').length;
 
       const operations: OperationalKPIs = {
         totalAppointments: totalAppts,
@@ -315,8 +367,8 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
       // Analytics
       const serviceMap: Record<string, TopService> = {};
       filteredAppointments
-        .filter((a: any) => a.service_name && a.status !== 'cancelled' && !a.hidden_from_schedule)
-        .forEach((a: any) => {
+        .filter((a): a is InsightsAppointmentRow & { service_name: string } => Boolean(a.service_name) && a.status !== 'cancelled' && !a.hidden_from_schedule)
+        .forEach((a) => {
           if (!serviceMap[a.service_name]) {
             serviceMap[a.service_name] = { name: a.service_name, count: 0, revenue: 0 };
           }
@@ -329,25 +381,25 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
         .slice(0, 6);
 
       const staffMap: Record<string, TopProfessional> = {};
-      staff.forEach((s: any) => {
+      staff.forEach((s) => {
         staffMap[s.id] = { id: s.id, name: s.name, revenue: 0, appointments: 0, avgTicket: 0 };
       });
 
       const staffAppointments: Record<string, number> = {};
       filteredAppointments
-        .filter((a: any) => a.status === 'completed' && a.staff_id)
-        .forEach((a: any) => {
+        .filter((a): a is InsightsAppointmentRow & { staff_id: string } => a.status === 'completed' && Boolean(a.staff_id))
+        .forEach((a) => {
           if (!staffAppointments[a.staff_id]) staffAppointments[a.staff_id] = 0;
           staffAppointments[a.staff_id]++;
         });
 
       comandas
-        .filter((cmd: any) => {
+        .filter((cmd) => {
           const d = new Date(cmd.created_at);
           return d >= from && d <= to;
         })
-        .forEach((cmd: any) => {
-          if (staffMap[cmd.staff_id]) {
+        .forEach((cmd) => {
+          if (cmd.staff_id && staffMap[cmd.staff_id]) {
             staffMap[cmd.staff_id].revenue += Number(cmd.total) || 0;
           }
         });
@@ -364,7 +416,7 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
 
       const spendMap: Record<string, number> = {};
       const visitCountMap: Record<string, number> = {};
-      comandas.forEach((cmd: any) => {
+      comandas.forEach((cmd) => {
         if (cmd.client_id) {
           spendMap[cmd.client_id] = (spendMap[cmd.client_id] || 0) + (Number(cmd.total) || 0);
           visitCountMap[cmd.client_id] = (visitCountMap[cmd.client_id] || 0) + 1;
@@ -372,7 +424,7 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
       });
 
       const topClients = clients
-        .map((c: any) => ({
+        .map((c) => ({
           id: c.id,
           name: c.name,
           ltv: spendMap[c.id] || Number(c.total_spent) || 0,
@@ -383,8 +435,8 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
 
       const methodMap: Record<string, number> = {};
       filteredTransactions
-        .filter((t: any) => t.type === 'income')
-        .forEach((t: any) => {
+        .filter((t) => t.type === 'income')
+        .forEach((t) => {
           const m = t.payment_method || 'Outros';
           methodMap[m] = (methodMap[m] || 0) + (Number(t.amount) || 0);
         });
@@ -396,13 +448,13 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
       const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
       const now = new Date();
       const revenueEvolutionMap: Record<string, { income: number; expense: number }> = {};
-      
+
       for (let i = 5; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         revenueEvolutionMap[months[d.getMonth()]] = { income: 0, expense: 0 };
       }
 
-      transactions.forEach((t: any) => {
+      transactions.forEach((t) => {
         const d = new Date(t.date);
         const key = months[d.getMonth()];
         if (revenueEvolutionMap[key]) {
@@ -419,8 +471,8 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
         })
       );
 
-      const lowStockProducts = products.filter((p: any) =>
-        p.minimum_stock && p.stock_quantity <= p.minimum_stock
+      const lowStockProducts = products.filter((p) =>
+        Boolean(p.minimum_stock) && (p.stock_quantity ?? 0) <= (p.minimum_stock ?? 0)
       );
 
       const insights: string[] = [];
@@ -450,9 +502,10 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
         },
         insights,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logSupabaseError('[useBusinessInsights] Erro ao buscar dados do BI', error, { tenantId, period: filters.period });
-      setData(prev => ({ ...prev, loading: false, error: error.message }));
+      const message = error instanceof Error ? error.message : 'Erro ao buscar dados do BI';
+      setData(prev => ({ ...prev, loading: false, error: message }));
     }
   }, [tenantId, filters.period]);
 
