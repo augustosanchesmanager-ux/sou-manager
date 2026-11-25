@@ -52,9 +52,9 @@
 
 ## `UXQ-006` — P1-08: Fechar ponto cego de Lint e reconciliar CI (`ADR-024`)
 
-- **Status:** `TODO` | **Prioridade:** `P1` | **Issue:** [#394](https://github.com/augustosanchesmanager-ux/sou-manager/issues/394) | **Sprint:** Sprint 4
-- **Dependências:** Aprovação PO + ADR (mudança de CI)
-- **Escopo:** Expandir `biome check` de `src/` para `pages/`, `components/`, `services/`, `hooks/`, `context/`, `domain/` e `application/`; formalizar `ADR-024`.
+- **Status:** `DONE` | **Prioridade:** `P1` | **Issue:** [#394](https://github.com/augustosanchesmanager-ux/sou-manager/issues/394) | **Sprint:** Sprint 4
+- **Dependências:** Aprovação PO + ADR (mudança de CI — `ADR-024` aceito em `2026-11-25`)
+- **Escopo:** Expandir `biome check` de `src/` para `pages/`, `components/`, `services/`, `hooks/`, `context/`, `domain/` e `application/` (`lint:root` + `lint:changed` incremental no CI); formalizar `ADR-024`.
 
 ## `UXQ-007` — P2-01: Decomposição incremental dos 4 super-monólitos
 
