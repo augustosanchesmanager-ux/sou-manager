@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Modal from '../ui/Modal';
+import ConfirmDialog from '../ui/ConfirmDialog';
 import {
   CUSTOMER_VOUCHERS_UNAVAILABLE_MESSAGE,
   cancelCustomerVoucher,
@@ -183,10 +184,17 @@ const CustomerVouchersSection: React.FC<CustomerVouchersSectionProps> = ({
     }
   };
 
-  const handleUse = async (voucher: CustomerVoucher) => {
+  const [pendingUseVoucher, setPendingUseVoucher] = useState<CustomerVoucher | null>(null);
+
+  const handleUse = (voucher: CustomerVoucher) => {
     if (!tenantId) return;
-    const confirmed = window.confirm('Marcar este voucher como usado? Isso não altera valores financeiros nesta fase.');
-    if (!confirmed) return;
+    setPendingUseVoucher(voucher);
+  };
+
+  const confirmUseVoucher = async () => {
+    if (!tenantId || !pendingUseVoucher) return;
+    const voucher = pendingUseVoucher;
+    setPendingUseVoucher(null);
 
     setActionId(voucher.id);
     try {
@@ -496,6 +504,16 @@ const CustomerVouchersSection: React.FC<CustomerVouchersSectionProps> = ({
           </div>
         </div>
       </Modal>
+      <ConfirmDialog
+        isOpen={Boolean(pendingUseVoucher)}
+        onClose={() => setPendingUseVoucher(null)}
+        onConfirm={confirmUseVoucher}
+        title="Marcar voucher como usado"
+        message="Marcar este voucher como usado? Isso não altera valores financeiros nesta fase."
+        confirmLabel="Confirmar uso"
+        variant="primary"
+        level={2}
+      />
     </div>
   );
 };

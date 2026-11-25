@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { kioskRepository } from '../domain/kiosk/repository';
 import { useAuth } from '../context/AuthContext';
 import AddonModal, { AddonModalTheme } from '../components/KioskAddonModal';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
+import Toast from '../components/Toast';
 import { RefreshCw, LayoutDashboard, MonitorSmartphone, Settings, BarChart2 } from 'lucide-react';
 import QRCode from 'react-qr-code';
 
@@ -42,6 +44,9 @@ const KioskAdmin: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+    const [confirmDisableAddon, setConfirmDisableAddon] = useState(false);
+    const [deviceToDelete, setDeviceToDelete] = useState<string | null>(null);
 
     // New device form
     const [newDeviceName, setNewDeviceName] = useState('');
@@ -144,13 +149,19 @@ const KioskAdmin: React.FC = () => {
         }
     };
 
-    const handleDisableAddon = async () => {
+    const handleDisableAddon = () => {
         if (saving) return;
-        if (!confirm('Desabilitar o add-on Totem + QR? O totem e o QR Code ficarão inacessíveis.')) return;
+        setConfirmDisableAddon(true);
+    };
+
+    const confirmDisableTotemAddon = async () => {
+        if (saving) return;
+        setConfirmDisableAddon(false);
         setSaving(true);
         try {
             await kioskRepository.disableTotemQrAddon(tenantId);
             await loadAddon();
+            setToast({ message: 'Add-on Totem + QR desabilitado.', type: 'info' });
         } finally {
             setSaving(false);
         }
@@ -170,7 +181,7 @@ const KioskAdmin: React.FC = () => {
             await kioskRepository.updateTotemQrLimits(tenantId, currentLimits);
 
             await loadAddon();
-            alert('Configurações salvas com sucesso!');
+            setToast({ message: 'Configurações salvas com sucesso!', type: 'success' });
         } finally {
             setSaving(false);
         }
@@ -221,7 +232,7 @@ const KioskAdmin: React.FC = () => {
             setLogoUrl(base64);
         } catch (err) {
             console.error(err);
-            alert('Falha ao processar a imagem do logo.');
+            setToast({ message: 'Falha ao processar a imagem do logo.', type: 'error' });
         } finally {
             if (logoInputRef.current) logoInputRef.current.value = '';
         }
@@ -235,7 +246,7 @@ const KioskAdmin: React.FC = () => {
             setAmbientImages([...ambientImages, base64]);
         } catch (err) {
             console.error(err);
-            alert('Falha ao processar a imagem. Tente de novo.');
+            setToast({ message: 'Falha ao processar a imagem. Tente de novo.', type: 'error' });
         } finally {
             if (ambientInputRef.current) ambientInputRef.current.value = '';
         }
@@ -267,10 +278,17 @@ const KioskAdmin: React.FC = () => {
         await loadDevices();
     };
 
-    const deleteDevice = async (deviceId: string) => {
-        if (!confirm('Remover este dispositivo?')) return;
-        await kioskRepository.deleteDevice(deviceId);
+    const deleteDevice = (deviceId: string) => {
+        setDeviceToDelete(deviceId);
+    };
+
+    const confirmDeleteDevice = async () => {
+        if (!deviceToDelete) return;
+        const id = deviceToDelete;
+        setDeviceToDelete(null);
+        await kioskRepository.deleteDevice(id);
         await loadDevices();
+        setToast({ message: 'Dispositivo removido.', type: 'info' });
     };
 
     const getTotemUrl = (slug?: string) => {
@@ -283,6 +301,23 @@ const KioskAdmin: React.FC = () => {
 
     return (
         <div className="flex flex-col min-h-full bg-slate-900 rounded-2xl overflow-hidden">
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+            <ConfirmDialog
+                isOpen={confirmDisableAddon}
+                onClose={() => setConfirmDisableAddon(false)}
+                onConfirm={confirmDisableTotemAddon}
+                title="Desabilitar Totem + QR"
+                message="Desabilitar o add-on Totem + QR? O totem e o QR Code ficarão inacessíveis."
+                confirmLabel="Desabilitar"
+            />
+            <ConfirmDialog
+                isOpen={Boolean(deviceToDelete)}
+                onClose={() => setDeviceToDelete(null)}
+                onConfirm={confirmDeleteDevice}
+                title="Remover dispositivo"
+                message="Remover este dispositivo?"
+                confirmLabel="Remover"
+            />
             <main className="flex-1" style={{ background: '#0f172a', padding: '32px' }}>
 
                 {showModal && (
@@ -404,7 +439,7 @@ const KioskAdmin: React.FC = () => {
                                                             <button
                                                                 onClick={() => {
                                                                     navigator.clipboard.writeText(getTotemUrl());
-                                                                    alert('Link copiado!');
+                                                                    setToast({ message: 'Link copiado!', type: 'success' });
                                                                 }}
                                                                 className="text-slate-500 hover:text-white transition-colors p-2"
                                                             >

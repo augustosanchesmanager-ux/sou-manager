@@ -3,6 +3,8 @@ import { portalApi } from '../../services/portalApi';
 import { useAuth } from '../../context/AuthContext';
 import { Smartphone, Link as LinkIcon, BarChart2, Settings, Copy, Check } from 'lucide-react';
 import AddonModal from '../../components/KioskAddonModal';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
+import Toast from '../../components/Toast';
 
 interface AddonInfo {
     status: 'enabled' | 'disabled';
@@ -19,6 +21,8 @@ const PortalAdmin: React.FC = () => {
     const [showModal, setShowModal] = useState(false);
     const [saving, setSaving] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [confirmDisableOpen, setConfirmDisableOpen] = useState(false);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     // Settings
     const [settingsTheme, setSettingsTheme] = useState('default');
@@ -67,11 +71,17 @@ const PortalAdmin: React.FC = () => {
         }
     };
 
-    const handleDisableAddon = async () => {
+    const handleDisableAddon = () => {
         if (!tenantId) return;
-        if (!confirm('Desabilitar o Portal do Cliente? Os clientes não conseguirão acessar.')) return;
+        setConfirmDisableOpen(true);
+    };
+
+    const confirmDisableAddon = async () => {
+        if (!tenantId) return;
+        setConfirmDisableOpen(false);
         await portalApi.disableClientPortalAddon(tenantId);
         await loadAddon();
+        setToast({ message: 'Portal do Cliente desabilitado.', type: 'info' });
     };
 
     const handleSaveSettings = async () => {
@@ -84,7 +94,7 @@ const PortalAdmin: React.FC = () => {
                 cancellation_window_hours: cancellWindow,
             });
             await loadAddon();
-            alert('Configurações salvas!');
+            setToast({ message: 'Configurações salvas!', type: 'success' });
         } finally {
             setSaving(false);
         }
@@ -102,6 +112,15 @@ const PortalAdmin: React.FC = () => {
 
     return (
         <div className="flex flex-col min-h-full bg-[#f8fafc] rounded-2xl overflow-hidden">
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+            <ConfirmDialog
+                isOpen={confirmDisableOpen}
+                onClose={() => setConfirmDisableOpen(false)}
+                onConfirm={confirmDisableAddon}
+                title="Desabilitar Portal do Cliente"
+                message="Desabilitar o Portal do Cliente? Os clientes não conseguirão acessar."
+                confirmLabel="Desabilitar"
+            />
             {showModal && (
                 <AddonModal
                     addonType="CLIENT_PORTAL"

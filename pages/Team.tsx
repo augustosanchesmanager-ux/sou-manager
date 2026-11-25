@@ -623,10 +623,14 @@ const Team: React.FC = () => {
                         phone: form.phone,
                         commission_rate: editableFields.commission_rate
                     }, tenantId);
+                    setToast({ message: `${memberLabel} cadastrado com sucesso!`, type: 'success' });
                 } catch (updateErr) {
                     console.warn('Supplementary staff update failed:', updateErr);
+                    setToast({
+                        message: `${memberLabel} criado, mas não foi possível salvar telefone/comissão. Edite o cadastro para completar.`,
+                        type: 'error',
+                    });
                 }
-                setToast({ message: `${memberLabel} cadastrado com sucesso!`, type: 'success' });
             } else {
                 setToast({ message: `${memberLabel} cadastrado com sucesso!`, type: 'success' });
             }

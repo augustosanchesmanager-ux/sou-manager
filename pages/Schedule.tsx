@@ -77,11 +77,11 @@ import { AppointmentActionMenu } from '../components/schedule/AppointmentActionM
 import { DailyReconciliationBar } from '../components/schedule/DailyReconciliationBar';
 import { type QueueAppointment } from '../src/utils/barberQueue';
 import { triggerHapticFeedback } from '../src/utils/feedbackSensory';
-import { comandaScheduleSyncService } from '../services/comandaScheduleSyncService';
 import {
+  comandaScheduleSyncService,
   appointmentComandaSyncService,
   AppointmentComandaSyncError,
-} from '../services/appointmentComandaSyncService';
+} from '../application/appointment/comandaSync';
 import { canModifyLinkedComanda, type CascadingCancelEvaluation } from '@/src/utils/comandaScheduleSync';
 import {
   DURATION_PRESETS,

@@ -453,6 +453,8 @@ const Checkout: React.FC = () => {
     const [relatedAppointmentId, setRelatedAppointmentId] = useState<string | null>(checkoutState?.appointmentId || null);
     const [loading, setLoading] = useState(true);
     const finishLockRef = React.useRef(false);
+    const registerPaymentLockRef = React.useRef(false);
+    const unlockComandaLockRef = React.useRef(false);
     const comandaRequestKeyRef = React.useRef(generateIdempotencyKey('comanda'));
     const supportsOpenComandaState = true;
     const incomeCategory = checkoutEntryMode === 'pdv'
@@ -1330,12 +1332,14 @@ const Checkout: React.FC = () => {
     };
 
     const handleManualUnlockComanda = async () => {
+        if (unlockComandaLockRef.current) return;
         if (!comandaId || !tenantId) return;
         const trimmedReason = unlockReason.trim();
         if (!trimmedReason) {
             setToast({ message: 'Informe o motivo para desbloquear a comanda.', type: 'error' });
             return;
         }
+        unlockComandaLockRef.current = true;
         setIsUnlockingComanda(true);
         try {
             await unblockComanda({
@@ -1353,6 +1357,7 @@ const Checkout: React.FC = () => {
         } catch (err: any) {
             setToast({ message: err?.message || 'Não foi possível desbloquear a comanda.', type: 'error' });
         } finally {
+            unlockComandaLockRef.current = false;
             setIsUnlockingComanda(false);
         }
     };
@@ -1523,6 +1528,7 @@ const Checkout: React.FC = () => {
     };
 
     const handleRegisterComandaPayment = async () => {
+        if (registerPaymentLockRef.current) return;
         const amount = parseFloat(registerAmount);
         if (!Number.isFinite(amount) || amount <= 0) {
             setToast({ message: 'Informe um valor maior que zero.', type: 'error' });
@@ -1541,6 +1547,7 @@ const Checkout: React.FC = () => {
             return;
         }
 
+        registerPaymentLockRef.current = true;
         setIsRegisteringPayment(true);
         try {
             // F-10 / ADR-036: Snapshot contábil da maquininha em pagamentos parciais/antecipados
@@ -1589,6 +1596,7 @@ const Checkout: React.FC = () => {
             console.error('Save error details:', err);
             setToast({ message: err?.message ? `Erro: ${err.message}` : 'Não foi possível registrar o pagamento.', type: 'error' });
         } finally {
+            registerPaymentLockRef.current = false;
             setIsRegisteringPayment(false);
         }
     };

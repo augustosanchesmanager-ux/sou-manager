@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useRecurringBills, BILL_CATEGORIES } from '../src/hooks/useRecurringBills';
 import type { RecurringBill } from '../src/hooks/useRecurringBills';
 import Modal from './ui/Modal';
+import ConfirmDialog from './ui/ConfirmDialog';
 import Toast from './Toast';
 import { formatCurrency } from '../shared/format/currency';
 
@@ -31,6 +32,7 @@ export const RecurringBillsWidget: React.FC<RecurringBillsWidgetProps> = ({ embe
 
   const [isExpanded, setIsExpanded] = useState(!embedded);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [editingBill, setEditingBill] = useState<RecurringBill | null>(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -127,8 +129,14 @@ export const RecurringBillsWidget: React.FC<RecurringBillsWidgetProps> = ({ embe
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir esta conta?')) return;
+  const handleDelete = (id: string) => {
+    setConfirmDeleteId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!confirmDeleteId) return;
+    const id = confirmDeleteId;
+    setConfirmDeleteId(null);
 
     try {
       await deleteBill(id);
@@ -152,6 +160,14 @@ export const RecurringBillsWidget: React.FC<RecurringBillsWidgetProps> = ({ embe
   return (
     <div className="space-y-4">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      <ConfirmDialog
+        isOpen={Boolean(confirmDeleteId)}
+        onClose={() => setConfirmDeleteId(null)}
+        onConfirm={confirmDelete}
+        title="Excluir conta fixa"
+        message="Tem certeza que deseja excluir esta conta?"
+        confirmLabel="Excluir"
+      />
 
       {/* Header Collapsible */}
       <button
