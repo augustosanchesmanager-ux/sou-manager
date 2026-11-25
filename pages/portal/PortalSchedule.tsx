@@ -7,6 +7,7 @@ import {
     scheduleBlocksApi,
 } from '../../services/scheduleBlocksApi';
 import { usePortalAuth } from '../../components/PortalAuthProvider';
+import Toast from '../../components/Toast';
 import { ChevronLeft, Scissors, User, Calendar as CalendarIcon, Clock, CheckCircle } from 'lucide-react';
 import { shouldAppearOnSchedule } from '../../src/lib/staff/roles';
 import { getLocalDayRangeIso, getTodayDateKey, toLocalDateKey } from '../../src/utils/dateTimezone';
@@ -30,6 +31,7 @@ const PortalSchedule: React.FC = () => {
     const [tenant, setTenant] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     const [step, setStep] = useState<ScheduleStep>('service');
     const [services, setServices] = useState<Service[]>([]);
@@ -88,7 +90,7 @@ const PortalSchedule: React.FC = () => {
 
         } catch (e: any) {
             console.error(e);
-            alert(e.message);
+            setToast({ message: e?.message || 'Erro ao carregar dados do agendamento.', type: 'error' });
         } finally {
             setLoading(false);
         }
@@ -189,7 +191,7 @@ const PortalSchedule: React.FC = () => {
             setStep('success');
         } catch (e) {
             console.error(e);
-            alert('Erro ao agendar horário.');
+            setToast({ message: 'Erro ao agendar horário.', type: 'error' });
         } finally {
             setSubmitting(false);
         }
@@ -198,6 +200,7 @@ const PortalSchedule: React.FC = () => {
     if (loading || !tenant) {
         return (
             <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+                {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
                 <div className="w-8 h-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
             </div>
         );
@@ -230,6 +233,7 @@ const PortalSchedule: React.FC = () => {
 
     return (
         <div className={`min-h-screen flex flex-col ${t.bg} ${t.text}`} style={{ fontFamily: isSanchez ? "'Playfair Display', serif" : "'Inter', sans-serif" }}>
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
             {/* Header */}
             <header className={`px-6 py-5 flex items-center gap-4 sticky top-0 z-20 ${isSanchez ? 'bg-[#090909]/90 border-b border-[#d4a017]/20 backdrop-blur-md' : 'bg-[#0f172a]/90 border-b border-white/5 backdrop-blur-md'}`}>
