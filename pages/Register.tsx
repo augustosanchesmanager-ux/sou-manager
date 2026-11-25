@@ -4,6 +4,8 @@ import Logo from '../components/Logo';
 import { supabase } from '../services/supabaseClient';
 import { tenantProvisioningService } from '../application/tenantProvisioning';
 import { useAuth } from '../context/AuthContext';
+import { REQUIRED_ONBOARDING_DOCUMENTS } from '../src/lib/legal/documents';
+import { legalRepository } from '../domain/legal/repository';
 
 const Register: React.FC = () => {
     const navigate = useNavigate();
@@ -22,13 +24,22 @@ const Register: React.FC = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [acceptedLegal, setAcceptedLegal] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!acceptedLegal) {
+            setError('É obrigatório ler e aceitar os Termos de Uso e a Política de Privacidade (LGPD) para criar sua conta.');
+            return;
+        }
         setLoading(true);
         setError(null);
+
+        const acceptedAtIso = new Date().toISOString();
+        const termsDoc = REQUIRED_ONBOARDING_DOCUMENTS.find((d) => d.type === 'terms_of_service');
+        const privacyDoc = REQUIRED_ONBOARDING_DOCUMENTS.find((d) => d.type === 'privacy_policy');
 
         try {
             const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
@@ -39,6 +50,9 @@ const Register: React.FC = () => {
                         first_name: firstName,
                         last_name: lastName,
                         shop_name: shopName,
+                        legal_terms_version: termsDoc?.version ?? '1.0.0-draft',
+                        legal_privacy_version: privacyDoc?.version ?? '1.0.0-draft',
+                        legal_accepted_at: acceptedAtIso,
                     },
                     emailRedirectTo: window.location.origin,
                 }
@@ -59,6 +73,11 @@ const Register: React.FC = () => {
                     firstName,
                     lastName,
                 });
+                await Promise.allSettled(
+                    REQUIRED_ONBOARDING_DOCUMENTS.map((doc) =>
+                        legalRepository.recordAcceptance(doc.type, doc.version)
+                    )
+                );
 
                 await refreshAccessContext();
                 await refreshTenant();
@@ -226,11 +245,29 @@ const Register: React.FC = () => {
                                 </div>
                             </div>
 
+                            {/* Aceite Eletrônico Obrigatório (LGPD / Termos de Uso — nunca pré-marcado) */}
+                            <label className="flex items-start gap-2.5 pt-1 text-xs text-slate-300 cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={acceptedLegal}
+                                    onChange={(e) => setAcceptedLegal(e.target.checked)}
+                                    required
+                                    className="mt-0.5 size-4 rounded border-white/20 bg-white/5 accent-amber-400"
+                                />
+                                <span>
+                                    Li e concordo com os{' '}
+                                    <Link to="/legal" target="_blank" rel="noreferrer" className="text-amber-400 underline underline-offset-2 hover:text-amber-300">
+                                        Termos de Uso e Política de Privacidade (LGPD)
+                                    </Link>{' '}
+                                    vigentes.
+                                </span>
+                            </label>
+
                             {/* Submit Button */}
                             <div className="pt-2">
                                 <button
                                     type="submit"
-                                    disabled={loading}
+                                    disabled={loading || !acceptedLegal}
                                     className="w-full py-3.5 px-4 rounded-xl font-bold text-sm tracking-wide bg-white hover:bg-slate-100 text-night shadow-[0_0_20px_rgba(255,255,255,0.12)] transition-all flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-50"
                                 >
                                     {loading ? 'Criando Conta...' : 'Criar Conta'}

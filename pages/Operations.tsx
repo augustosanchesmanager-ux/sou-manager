@@ -84,10 +84,13 @@ const Operations: React.FC = () => {
             })
         ).sort((a, b) => a.start_time.localeCompare(b.start_time));
 
-        // Fetch low stock items
+        // Fetch low stock items respecting each product's configured minimum_stock
         const allProducts = await stockRepository.listProducts(tenantId);
         const products = allProducts
-            .filter((p) => p.stock_quantity <= 5)
+            .filter((p) => {
+                const threshold = Number(p.minimum_stock) > 0 ? Number(p.minimum_stock) : 5;
+                return p.stock_quantity <= threshold;
+            })
             .slice(0, 5)
             .map((p) => ({
                 id: p.id,
@@ -96,10 +99,14 @@ const Operations: React.FC = () => {
                 minimum_stock: p.minimum_stock,
             }));
 
-        // Fetch staff for execution participants
+        // Fetch staff for execution participants (case-insensitive role match)
         const allStaff = await staffRepository.list(tenantId);
         const staff = allStaff
-            .filter((s) => s.status === 'active' && (s.role === 'Barber' || s.role === 'Manager'))
+            .filter(
+                (s) =>
+                    String(s.status || '').toLowerCase() === 'active' &&
+                    ['barber', 'manager', 'owner', 'admin'].includes(String(s.role || '').toLowerCase()),
+            )
             .map((s) => ({ id: s.id, name: s.name }));
 
         setAppointments(appts);
@@ -128,10 +135,9 @@ const Operations: React.FC = () => {
             );
 
             const attendedCount = completedAppointmentIds.length;
-            const totalRevenue = Object.values(comandaSummaryMap).reduce(
-                (sum, item) => sum + (Number(item.total) || 0),
-                0,
-            );
+            const totalRevenue = Object.values(comandaSummaryMap)
+                .filter((item) => item.status === 'paid' || item.status === 'closed')
+                .reduce((sum, item) => sum + (Number(item.total) || 0), 0);
             const avg = attendedCount > 0 ? totalRevenue / attendedCount : 0;
             setStats({ 
                 attended: attendedCount, 

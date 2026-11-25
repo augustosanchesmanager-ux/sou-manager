@@ -472,7 +472,12 @@ class ClientRepositoryImpl extends SupabaseRepository {
 
   async cleanupDependencies(
     clientId: string,
+    tenantId: string,
   ): Promise<Array<{ table: string; status: 'success' | 'error'; detail?: string }>> {
+    if (!tenantId) {
+      throw new Error('tenantId é obrigatório para cleanupDependencies.');
+    }
+
     const ignoredCleanupErrorCodes = new Set(['42P01', '42703', '42501', 'PGRST116']);
     const cleanupLog: Array<{ table: string; status: 'success' | 'error'; detail?: string }> = [];
 
@@ -482,6 +487,7 @@ class ClientRepositoryImpl extends SupabaseRepository {
     const { data: clientComandas, error: comandasReadError } = await barberDb
       .from('comandas')
       .select('id')
+      .eq('tenant_id', tenantId)
       .eq('client_id', clientId);
 
     if (!comandasReadError && clientComandas && clientComandas.length > 0) {
@@ -489,6 +495,7 @@ class ClientRepositoryImpl extends SupabaseRepository {
       const { error: itemsError } = await barberDb
         .from('comanda_items')
         .delete()
+        .eq('tenant_id', tenantId)
         .in('comanda_id', comandaIds);
       if (itemsError && !ignoredCleanupErrorCodes.has(String((itemsError as any).code || ''))) {
         cleanupLog.push({ table: 'comanda_items', status: 'error', detail: itemsError.message });
@@ -509,7 +516,11 @@ class ClientRepositoryImpl extends SupabaseRepository {
           ? barberDb
           : sharedDb;
       const clientField = table === 'customer_vouchers' ? 'customer_id' : 'client_id';
-      const { error } = await targetClient.from(table).delete().eq(clientField, clientId);
+      const { error } = await targetClient
+        .from(table)
+        .delete()
+        .eq('tenant_id', tenantId)
+        .eq(clientField, clientId);
       if (error) {
         const code = String((error as any).code || '');
         if (ignoredCleanupErrorCodes.has(code)) {
@@ -569,6 +580,7 @@ export interface ClientRepository extends IRepository<Client> {
   getOneById(id: string, tenantId: string): Promise<{ id: string; name: string; phone: string } | null>;
   cleanupDependencies(
     clientId: string,
+    tenantId: string,
   ): Promise<Array<{ table: string; status: 'success' | 'error'; detail?: string }>>;
 }
 

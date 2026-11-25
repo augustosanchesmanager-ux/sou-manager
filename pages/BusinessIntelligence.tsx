@@ -7,6 +7,8 @@ import { useTheme } from '../context/ThemeContext';
 import { useSearchParams } from 'react-router-dom';
 import { useBusinessInsights } from '../src/hooks/useBusinessInsights';
 import { useAuth } from '../context/AuthContext';
+import { useTenantOptional } from '../src/context/TenantContext';
+import { businessDateInTimeZone } from '../shared/dates/timezone';
 import { RevenueAreaChart, ExpenseChart, StaffPerformanceCard, ProductSalesChart, AppointmentTimeline } from '../components/charts';
 import MetricCard from '../components/ui/MetricCard';
 import { biService } from '../services/biService';
@@ -41,6 +43,8 @@ type ActiveBiTab = 'cockpit' | 'forecast' | 'executive' | 'staff' | 'heatmap' | 
 const BusinessIntelligence: React.FC = () => {
     const { theme } = useTheme();
     const { tenantId } = useAuth();
+    const tenantContext = useTenantOptional();
+    const unitName = tenantContext?.tenant?.name || 'sua unidade';
     const [searchParams] = useSearchParams();
 
     const initialPeriod = (searchParams.get('period') as any) || '30d';
@@ -206,7 +210,7 @@ const BusinessIntelligence: React.FC = () => {
                 });
                 setHeatmapCells(cells);
 
-                // 2. Produtividade por Barbeiro (Rubens, Heron, Lucas)
+                // 2. Produtividade real por profissional
                 const staffMap: Record<
                     string,
                     { name: string; appointments: number; revenue: number }
@@ -224,12 +228,18 @@ const BusinessIntelligence: React.FC = () => {
                     }
                 });
 
-                // Comissões teóricas (50% de média padrão na barbearia, salvo rateio customizado)
-                const staffList: StaffProductivityDetail[] = Object.entries(staffMap).map(
+                const staffRows = await staffRepository.list(tenantId).catch(() => []);
+                const commissionRateByStaff = new Map<string, number>();
+                staffRows.forEach((st: any) => {
+                    commissionRateByStaff.set(st.id, Number(st.commission_rate) || 0);
+                });
+
+                const staffProductivityList: StaffProductivityDetail[] = Object.entries(staffMap).map(
                     ([staffId, info]) => {
                         const totalGrossRevenue = info.revenue;
                         const avgTicket = info.appointments > 0 ? totalGrossRevenue / info.appointments : 0;
-                        const totalCommission = totalGrossRevenue * 0.5; // taxa base padrão
+                        const rate = (commissionRateByStaff.get(staffId) ?? 0) / 100;
+                        const totalCommission = totalGrossRevenue * rate;
                         const netShopMargin = totalGrossRevenue - totalCommission;
                         const netMarginPercent = totalGrossRevenue > 0 ? (netShopMargin / totalGrossRevenue) * 100 : 0;
 
@@ -245,10 +255,10 @@ const BusinessIntelligence: React.FC = () => {
                         };
                     }
                 );
-                setStaffDetails(staffList);
+                setStaffDetails(staffProductivityList);
 
                 // 3. Liquidez Real e Conciliação Bancária
-                const txData = await biService.fetchBiTransactions(tenantId, fromIso.split('T')[0]);
+                const txData = await biService.fetchBiTransactions(tenantId, businessDateInTimeZone(fromDate));
 
                 let totalGross = 0;
                 let bankingFees = 0;
@@ -268,12 +278,8 @@ const BusinessIntelligence: React.FC = () => {
                     }
                 });
 
-                // Se o faturamento em transactions for menor que nos agendamentos, usar a maior base real
-                const effectiveGross = Math.max(
-                    totalGross,
-                    staffList.reduce((acc, s) => acc + s.totalGrossRevenue, 0)
-                );
-                const totalCommissions = staffList.reduce((acc, s) => acc + s.totalCommission, 0);
+                const effectiveGross = totalGross;
+                const totalCommissions = staffProductivityList.reduce((acc, s) => acc + s.totalCommission, 0);
 
                 // Buscar contagem de transações conciliadas
                 const stmtTxs = await biService.fetchBankStatementStatuses(tenantId);
@@ -281,9 +287,8 @@ const BusinessIntelligence: React.FC = () => {
                 const reconciledCount = stmtTxs.filter((s) => s.status === 'reconciled').length;
                 const unreconciledCount = stmtTxs.filter((s) => s.status === 'pending').length;
 
-                // Estimar taxa de maquininha em ~2.5% do bruto caso ainda não haja taxa lançada
-                const effectiveBankingFees = bankingFees > 0 ? bankingFees : effectiveGross * 0.025;
-                const netOperatingCash = effectiveGross - totalCommissions - effectiveBankingFees;
+                const effectiveBankingFees = bankingFees;
+                const netOperatingCash = effectiveGross - totalCommissions - effectiveBankingFees - otherExpenses;
                 const netMarginPercent = effectiveGross > 0 ? (netOperatingCash / effectiveGross) * 100 : 0;
 
                 setLiquidity({
@@ -360,7 +365,7 @@ const BusinessIntelligence: React.FC = () => {
                             Painel de Decisão Estratégica
                         </h1>
                         <p className="mt-1 max-w-2xl text-xs sm:text-sm text-ink-soft">
-                            DRE gerencial de liquidez, produtividade dos barbeiros e mapas de calor de ociosidade da grade da Sanchez Barber.
+                            DRE gerencial de liquidez, produtividade da equipe e mapas de calor de ociosidade da grade da {unitName}.
                         </p>
                     </div>
 
@@ -477,7 +482,7 @@ const BusinessIntelligence: React.FC = () => {
                 </div>
             )}
 
-            {/* ABA 2: Produtividade dos Barbeiros (Rubens, Heron, Lucas) */}
+            {/* ABA 2: Produtividade da Equipe */}
             {activeTab === 'staff' && (
                 <div className="space-y-6">
                     <StaffProfitabilityTable staffDetails={staffDetails} />

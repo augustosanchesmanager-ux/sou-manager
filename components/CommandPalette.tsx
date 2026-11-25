@@ -29,7 +29,13 @@ import {
   Star,
   type LucideIcon,
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { type AccessRole, isManagerAccessRole, useAuth } from '../context/AuthContext';
+import { useFeatureFlags } from '../src/hooks/useFeatureFlags';
+import { isAppModuleEnabled } from '../src/lib/apps/modules';
+import type { FeatureKey } from '../domain/billing/featureKey';
+
+type CommandAppSlug = Parameters<typeof isAppModuleEnabled>[0];
+type CommandModuleSlug = Parameters<typeof isAppModuleEnabled>[1];
 
 export interface CommandItem {
   id: string;
@@ -39,6 +45,15 @@ export interface CommandItem {
   path: string;
   icon: LucideIcon;
   keywords: string[];
+  managerOnly?: boolean;
+  feature?: FeatureKey;
+  moduleName?: CommandModuleSlug;
+}
+
+export interface CommandPaletteFilterOptions {
+  accessRole?: AccessRole;
+  appSlug?: CommandAppSlug;
+  canFeature?: (feature: FeatureKey) => boolean;
 }
 
 interface CommandPaletteProps {
@@ -46,7 +61,10 @@ interface CommandPaletteProps {
   onClose: () => void;
 }
 
-export const buildCommandPaletteItems = (tenantSlug?: string): CommandItem[] => {
+export const buildCommandPaletteItems = (
+  tenantSlug?: string,
+  options?: CommandPaletteFilterOptions,
+): CommandItem[] => {
   const list: CommandItem[] = [
     // Páginas
     {
@@ -84,6 +102,8 @@ export const buildCommandPaletteItems = (tenantSlug?: string): CommandItem[] => 
       path: '/cash-closing',
       icon: Receipt,
       keywords: ['fechamento', 'caixa', 'turno', 'conferencia', 'sangria'],
+      managerOnly: true,
+      feature: 'cash_closing',
     },
     {
       id: 'page-payroll',
@@ -93,6 +113,7 @@ export const buildCommandPaletteItems = (tenantSlug?: string): CommandItem[] => 
       path: '/payroll',
       icon: CircleDollarSign,
       keywords: ['payroll', 'comissao', 'repasse', 'vale', 'pagamento', 'salario', 'barbeiro'],
+      managerOnly: true,
     },
     {
       id: 'page-services',
@@ -102,6 +123,7 @@ export const buildCommandPaletteItems = (tenantSlug?: string): CommandItem[] => 
       path: '/services',
       icon: Scissors,
       keywords: ['servico', 'corte', 'barba', 'preco', 'catalogo', 'duracao'],
+      managerOnly: true,
     },
     {
       id: 'page-clients',
@@ -111,6 +133,7 @@ export const buildCommandPaletteItems = (tenantSlug?: string): CommandItem[] => 
       path: '/clients',
       icon: Users,
       keywords: ['cliente', 'contato', 'telefone', 'historico', 'fidelidade'],
+      managerOnly: true,
     },
     {
       id: 'page-team',
@@ -120,6 +143,7 @@ export const buildCommandPaletteItems = (tenantSlug?: string): CommandItem[] => 
       path: '/team',
       icon: Users,
       keywords: ['equipe', 'time', 'barbeiro', 'profissional', 'gerente', 'staff'],
+      managerOnly: true,
     },
     {
       id: 'page-products',
@@ -129,6 +153,7 @@ export const buildCommandPaletteItems = (tenantSlug?: string): CommandItem[] => 
       path: '/products',
       icon: Package,
       keywords: ['produto', 'estoque', 'pomada', 'oleo', 'venda', 'item'],
+      managerOnly: true,
     },
     {
       id: 'page-reports',
@@ -138,6 +163,7 @@ export const buildCommandPaletteItems = (tenantSlug?: string): CommandItem[] => 
       path: '/reports',
       icon: BarChart3,
       keywords: ['relatorio', 'financeiro', 'faturamento', 'dre', 'grafico', 'vendas'],
+      managerOnly: true,
     },
     {
       id: 'page-quality',
@@ -147,6 +173,7 @@ export const buildCommandPaletteItems = (tenantSlug?: string): CommandItem[] => 
       path: '/quality',
       icon: Star,
       keywords: ['avaliacao', 'feedback', 'nps', 'satisfacao', 'reputacao', 'google', 'reviews'],
+      managerOnly: true,
     },
     {
       id: 'page-settings',
@@ -156,6 +183,7 @@ export const buildCommandPaletteItems = (tenantSlug?: string): CommandItem[] => 
       path: '/settings',
       icon: Settings,
       keywords: ['configuracao', 'ajuste', 'empresa', 'logo', 'horario', 'unidade'],
+      managerOnly: true,
     },
     {
       id: 'page-chef-club',
@@ -165,6 +193,9 @@ export const buildCommandPaletteItems = (tenantSlug?: string): CommandItem[] => 
       path: '/chef-club-subscriptions',
       icon: Crown,
       keywords: ['clube', 'chef', 'assinatura', 'recorrente', 'socio', 'membro'],
+      managerOnly: true,
+      moduleName: 'chef_club',
+      feature: 'chef_club',
     },
     {
       id: 'page-chef-club-receivables',
@@ -174,6 +205,9 @@ export const buildCommandPaletteItems = (tenantSlug?: string): CommandItem[] => 
       path: '/chef-club-receivables',
       icon: Receipt,
       keywords: ['clube', 'cobranca', 'fatura', 'recebivel', 'inadimplencia', 'renovacao'],
+      managerOnly: true,
+      moduleName: 'chef_club',
+      feature: 'chef_club',
     },
     {
       id: 'page-chef-club-plans',
@@ -183,6 +217,9 @@ export const buildCommandPaletteItems = (tenantSlug?: string): CommandItem[] => 
       path: '/chef-club-plans',
       icon: Sparkles,
       keywords: ['clube', 'plano', 'beneficio', 'mensalidade', 'creditos'],
+      managerOnly: true,
+      moduleName: 'chef_club',
+      feature: 'chef_club',
     },
     // Ações Rápidas
     {
@@ -211,6 +248,7 @@ export const buildCommandPaletteItems = (tenantSlug?: string): CommandItem[] => 
       path: '/services',
       icon: PlusCircle,
       keywords: ['cadastrar', 'novo', 'servico', 'criar'],
+      managerOnly: true,
     },
     {
       id: 'action-new-client',
@@ -220,6 +258,7 @@ export const buildCommandPaletteItems = (tenantSlug?: string): CommandItem[] => 
       path: '/clients',
       icon: PlusCircle,
       keywords: ['cadastrar', 'novo', 'cliente', 'adicionar'],
+      managerOnly: true,
     },
   ];
 
@@ -235,12 +274,30 @@ export const buildCommandPaletteItems = (tenantSlug?: string): CommandItem[] => 
     });
   }
 
-  return list;
+  if (!options) {
+    return list;
+  }
+
+  const { accessRole, appSlug, canFeature } = options;
+
+  return list.filter((item) => {
+    if (item.managerOnly && accessRole && !isManagerAccessRole(accessRole)) {
+      return false;
+    }
+    if (item.moduleName && appSlug && !isAppModuleEnabled(appSlug, item.moduleName)) {
+      return false;
+    }
+    if (item.feature && canFeature && !canFeature(item.feature)) {
+      return false;
+    }
+    return true;
+  });
 };
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
-  const { tenant } = useAuth();
+  const { tenant, accessRole, appSlug } = useAuth();
+  const { can } = useFeatureFlags();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -248,7 +305,10 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
 
   const tenantSlug = tenant?.slug;
 
-  const commands: CommandItem[] = useMemo(() => buildCommandPaletteItems(tenantSlug), [tenantSlug]);
+  const commands: CommandItem[] = useMemo(
+    () => buildCommandPaletteItems(tenantSlug, { accessRole, appSlug, canFeature: can }),
+    [tenantSlug, accessRole, appSlug, can],
+  );
 
   // Filter commands by search query
   const filteredCommands = useMemo(() => {

@@ -172,9 +172,8 @@ export function useCashClosing(
     const fetchRequestIdRef = useRef(0);
 
     const getDayRange = useCallback((dateStr: string) => {
-        const d = new Date(dateStr + 'T00:00:00');
-        const start = d.toISOString();
-        const end = new Date(d.getTime() + 24 * 60 * 60 * 1000 - 1).toISOString();
+        const start = new Date(`${dateStr}T00:00:00.000-03:00`).toISOString();
+        const end = new Date(`${dateStr}T23:59:59.999-03:00`).toISOString();
         return { start, end };
     }, []);
 
