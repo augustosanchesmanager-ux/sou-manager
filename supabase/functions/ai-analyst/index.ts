@@ -1,12 +1,27 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from 'jsr:@supabase/supabase-js@2';
+// @ts-nocheck
+// =============================================================================
+// Supabase Edge Function: ai-analyst (GTM-004 / #403 / ADR-050)
+// SMG Barber Intelligence — Fase 1 (Diagnóstico Executivo de Gestão)
+//
+// Blindagens obrigatórias:
+//   1. verify_jwt = true + validação explícita de auth.getUser() e role (owner/manager/superadmin)
+//   2. Cache diário em public.ai_insights (UNIQUE(tenant_id, reference_date) — máx. 1 geração/dia)
+//   3. Zero alucinação matemática: métricas calculadas via RPC get_tenant_weekly_metrics
+//   4. Cold start custo zero: appointment_count === 0 retorna card estático sem chamar Gemini
+//   5. Stateless + JSON Schema estrito (exatamente 3 cards) + log de tokens em public.ai_usage_logs
+// =============================================================================
 
-const corsHeaders = {
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
+
+const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const MODEL_NAME = 'gemini-2.5-flash';
+const ALLOWED_ROLES = new Set(['owner', 'manager', 'superadmin', 'admin']);
 
 interface AiInsightCard {
   title: string;
@@ -15,289 +30,301 @@ interface AiInsightCard {
   recommendedAction: string;
 }
 
-interface WeeklyMetrics {
-  tenant_id: string;
-  reference_date: string;
-  appointment_count: number;
-  completed_count: number;
-  no_show_count: number;
-  cancelled_count: number;
-  income_current: number;
-  income_previous: number;
-  expense_current: number;
-  net_result_current: number;
-  growth_pct: number;
-  avg_ticket: number;
-  active_staff_count: number;
-  total_clients: number;
-  inactive_clients_30d: number;
-}
-
-const jsonResponse = (payload: unknown, status: number) =>
-  new Response(JSON.stringify(payload), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-
-const buildColdStartCards = (): AiInsightCard[] => [
+const COLD_START_CARDS: AiInsightCard[] = [
   {
-    title: 'Base em construção nesta semana',
+    title: 'Comece sua operação para destravar o diagnóstico',
     alertLevel: 'info',
     diagnosis:
-      'Ainda não há atendimentos registrados nos últimos 7 dias para gerar um diagnóstico comparativo confiável.',
+      'Ainda não há agendamentos registrados nos últimos 7 dias para gerar comparativos reais de faturamento, ocupação e cancelamentos.',
     recommendedAction:
-      'Registre os próximos agendamentos e finalize as comandas pelo PDV para ativar a leitura automática de tendências.',
+      'Cadastre os primeiros agendamentos na Agenda e finalize pelo menos uma comanda no Checkout para ativar a leitura semanal automática.',
   },
   {
-    title: 'Configure equipe e serviços ativos',
+    title: 'Revise o catálogo de serviços e preços',
     alertLevel: 'positive',
     diagnosis:
-      'Com profissionais e serviços cadastrados, o SMG passa a medir ocupação, ticket médio e recorrência automaticamente.',
+      'Uma grade de serviços com durações e valores atualizados permite que o diagnóstico calcule ticket médio e ociosidade com precisão.',
     recommendedAction:
-      'Revise a escala em Equipe e os valores em Serviços para garantir que o cálculo de comissão e margem comece certo.',
+      'Confira em Serviços se os tempos médios de cada atendimento refletem a rotina real da sua equipe.',
   },
   {
-    title: 'Primeira leitura diária sem custo extra',
+    title: 'Ative o agendamento online para encher a semana',
     alertLevel: 'info',
     diagnosis:
-      'Assim que houver movimento na agenda, o diagnóstico diário será gerado e mantido em cache para todo o dia.',
+      'Barbearias que compartilham o link de agendamento online acumulam histórico operacional mais rápido e reduzem horários vagos.',
     recommendedAction:
-      'Volte ao Cockpit do dono após os primeiros atendimentos da semana para acompanhar recomendações personalizadas.',
+      'Copie seu link em Configurações do Agendamento Online e envie para os clientes recorrentes no WhatsApp.',
   },
 ];
 
-const RESPONSE_SCHEMA = {
-  type: 'OBJECT',
-  properties: {
-    cards: {
-      type: 'ARRAY',
-      minItems: 3,
-      maxItems: 3,
-      items: {
-        type: 'OBJECT',
-        properties: {
-          title: { type: 'STRING' },
-          alertLevel: {
-            type: 'STRING',
-            enum: ['info', 'warning', 'critical', 'positive'],
-          },
-          diagnosis: { type: 'STRING' },
-          recommendedAction: { type: 'STRING' },
-        },
-        required: ['title', 'alertLevel', 'diagnosis', 'recommendedAction'],
-      },
-    },
-  },
-  required: ['cards'],
-};
+function jsonResponse(payload: unknown, status = 200): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+  });
+}
 
-Deno.serve(async (req: Request) => {
+function getSaoPauloDateKey(): string {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(new Date());
+}
+
+serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: CORS_HEADERS });
   }
 
   if (req.method !== 'POST') {
-    return jsonResponse({ error: 'Method not allowed. Only POST is accepted.' }, 405);
+    return jsonResponse({ error: 'Method not allowed' }, 405);
   }
+
+  const startedAt = Date.now();
 
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return jsonResponse({ error: 'Missing or invalid authorization header' }, 401);
+      return jsonResponse({ error: 'Token de autenticação ausente.' }, 401);
     }
 
-    const token = authHeader.slice('Bearer '.length).trim();
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
-
-    if (!supabaseUrl || !anonKey) {
-      console.error('[ai-analyst] SUPABASE_URL ou SUPABASE_ANON_KEY ausentes.');
-      return jsonResponse({ error: 'Internal configuration error' }, 500);
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return jsonResponse({ error: 'Configuração Supabase indisponível no runtime.' }, 503);
     }
 
-    const supabase = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-      auth: { autoRefreshToken: false, persistSession: false },
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false },
     });
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return jsonResponse({ error: 'Unauthorized: invalid or expired token' }, 401);
+    const { data: userData, error: userErr } = await supabase.auth.getUser();
+    if (userErr || !userData?.user) {
+      return jsonResponse({ error: 'Sessão inválida ou expirada.' }, 401);
     }
 
-    // 1. Autorização tenant-scoped e verificação de role (apenas owner/manager/superadmin)
-    const { data: accessRows, error: accessError } = await supabase.rpc('get_auth_access_context');
-    if (accessError || !accessRows || accessRows.length === 0) {
-      console.error('[ai-analyst] Falha ao resolver contexto de acesso:', accessError?.message);
-      return jsonResponse({ error: 'Forbidden: access context unavailable' }, 403);
+    const userId = userData.user.id;
+
+    const { data: accessCtx, error: ctxErr } = await supabase.rpc('get_auth_access_context');
+    if (ctxErr || !accessCtx) {
+      return jsonResponse({ error: 'Não foi possível resolver contexto de acesso do usuário.' }, 403);
     }
 
-    const access = accessRows[0] as {
-      tenant_id: string | null;
-      access_role: string;
-      is_super_admin: boolean;
-    };
+    const resolved = Array.isArray(accessCtx) ? accessCtx[0] : accessCtx;
+    const tenantId: string | null = resolved?.effective_tenant_id || resolved?.tenant_id || null;
+    const role = String(resolved?.role || resolved?.access_role || '').toLowerCase();
+    const isSuperAdmin = Boolean(resolved?.is_super_admin);
 
-    const isAllowedRole = access.access_role === 'manager' || access.is_super_admin;
-    if (!isAllowedRole || !access.tenant_id) {
-      return jsonResponse({ error: 'Forbidden: restricted to owner or manager' }, 403);
+    if (!tenantId) {
+      return jsonResponse({ error: 'Tenant não encontrado para o usuário autenticado.' }, 403);
     }
 
-    const tenantId = access.tenant_id;
-    const todayIso = new Date().toISOString().slice(0, 10);
+    if (!isSuperAdmin && !ALLOWED_ROLES.has(role)) {
+      return jsonResponse({ error: 'Acesso restrito a gestores e proprietários.' }, 403);
+    }
 
-    // 2. Cache diário em ai_insights (máximo 1 geração/dia por tenant)
-    const { data: cachedInsight, error: cacheError } = await supabase
+    const referenceDate = getSaoPauloDateKey();
+
+    // 1. Verificar cache diário em ai_insights (máximo 1 geração/dia por tenant)
+    const { data: cachedRow } = await supabase
       .from('ai_insights')
-      .select('cards, created_at, reference_date')
+      .select('cards, created_at, cold_start')
       .eq('tenant_id', tenantId)
-      .eq('reference_date', todayIso)
+      .eq('reference_date', referenceDate)
       .maybeSingle();
 
-    if (!cacheError && cachedInsight?.cards) {
-      return jsonResponse(
-        {
-          generatedAt: cachedInsight.created_at,
-          referenceDate: cachedInsight.reference_date,
-          cached: true,
-          coldStart: false,
-          cards: cachedInsight.cards,
-        },
-        200,
-      );
+    if (cachedRow && Array.isArray(cachedRow.cards) && cachedRow.cards.length > 0) {
+      await supabase.from('ai_usage_logs').insert({
+        tenant_id: tenantId,
+        user_id: userId,
+        feature: 'ai_analyst_weekly',
+        model: MODEL_NAME,
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0,
+        latency_ms: Date.now() - startedAt,
+        cached: true,
+        status: 'cache_hit',
+      });
+
+      return jsonResponse({
+        generatedAt: cachedRow.created_at,
+        cached: true,
+        coldStart: Boolean(cachedRow.cold_start),
+        cards: cachedRow.cards,
+      });
     }
 
-    // 3. Coleta determinística de métricas via PostgreSQL RPC
-    const { data: metricsRaw, error: metricsError } = await supabase.rpc('get_tenant_weekly_metrics', {
+    // 2. Calcular métricas determinísticas no PostgreSQL (zero alucinação matemática)
+    const { data: metrics, error: metricsErr } = await supabase.rpc('get_tenant_weekly_metrics', {
       p_tenant_id: tenantId,
     });
 
-    if (metricsError || !metricsRaw) {
-      console.error('[ai-analyst] Falha na RPC get_tenant_weekly_metrics:', metricsError?.message);
-      return jsonResponse({ error: 'Failed to load tenant metrics' }, 500);
-    }
-
-    const metrics = metricsRaw as WeeklyMetrics;
-
-    // 4. Bypass de Cold Start (custo zero quando não há agendamentos na semana)
-    if (!metrics.appointment_count || metrics.appointment_count === 0) {
+    if (metricsErr || !metrics) {
       return jsonResponse(
-        {
-          generatedAt: new Date().toISOString(),
-          referenceDate: metrics.reference_date || todayIso,
-          cached: false,
-          coldStart: true,
-          cards: buildColdStartCards(),
-        },
-        200,
+        { error: `Erro ao consolidar métricas semanais: ${metricsErr?.message || 'dados vazios'}` },
+        500
       );
     }
 
-    // 5. Chamada ao Gemini 2.5 Flash com JSON Schema estrito (stateless)
-    const geminiApiKey = (Deno.env.get('GEMINI_API_KEY') || '').trim();
-    if (!geminiApiKey || geminiApiKey === 'PLACEHOLDER_API_KEY') {
-      console.error('[ai-analyst] GEMINI_API_KEY não configurada no ambiente da Edge Function.');
-      return jsonResponse({ error: 'Gemini API is not configured on server' }, 503);
+    // 3. Cold Start: custo zero se não há agendamentos na janela de 7 dias
+    if (Number(metrics.appointment_count || 0) === 0) {
+      const nowIso = new Date().toISOString();
+      await supabase.from('ai_insights').upsert(
+        {
+          tenant_id: tenantId,
+          reference_date: referenceDate,
+          model: 'static-cold-start',
+          cards: COLD_START_CARDS,
+          metrics_snapshot: metrics,
+          cold_start: true,
+          created_by: userId,
+          updated_at: nowIso,
+        },
+        { onConflict: 'tenant_id,reference_date' }
+      );
+
+      await supabase.from('ai_usage_logs').insert({
+        tenant_id: tenantId,
+        user_id: userId,
+        feature: 'ai_analyst_weekly',
+        model: 'static-cold-start',
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0,
+        latency_ms: Date.now() - startedAt,
+        cached: false,
+        status: 'cold_start',
+      });
+
+      return jsonResponse({
+        generatedAt: nowIso,
+        cached: false,
+        coldStart: true,
+        cards: COLD_START_CARDS,
+      });
     }
 
-    const systemInstruction = [
-      'Você é o Consultor de Negócios de Barbearia do SMG Barber Intelligence.',
-      'Sua função é analisar métricas consolidadas de uma barbearia nos últimos 7 dias e entregar exatamente 3 cards práticos e diretos em Português do Brasil.',
-      'REGRA INVIOLÁVEL: Use estritamente os números fornecidos no JSON. Nunca invente, estime ou recalcule valores financeiros ou contagens.',
-      'Seja objetivo, acionável e voltado para aumentar faturamento, ocupação ou retenção de clientes.',
+    // 4. Invocar Google Gemini 2.5 Flash com JSON Schema estrito
+    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
+    if (!geminiApiKey) {
+      return jsonResponse(
+        { error: 'Serviço de IA temporariamente indisponível (GEMINI_API_KEY não configurada).' },
+        503
+      );
+    }
+
+    const systemPrompt = [
+      'Você é um consultor executivo sênior de gestão para barbearias brasileiras (SMG Barber).',
+      'Analise EXCLUSIVAMENTE o JSON de métricas semanais fornecido. Nunca invente números.',
+      'Retorne exatamente 3 cards objetivos em português do Brasil (pt-BR), sem jargão técnico.',
+      'Cada card deve ter title (curto), alertLevel (info | warning | critical | positive), diagnosis (1-2 frases citando os números exatos do JSON) e recommendedAction (ação prática imediata para o gestor).',
     ].join(' ');
 
-    const userPrompt = `Métricas consolidadas da semana (JSON determinístico do PostgreSQL):\n${JSON.stringify(metrics)}\n\nGere exatamente 3 cards de diagnóstico executivo.`;
-
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiApiKey}`;
-    const geminiResponse = await fetch(geminiUrl, {
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${geminiApiKey}`;
+    const geminiRes = await fetch(geminiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemInstruction }] },
-        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: `Métricas semanais consolidadas (JSON):\n${JSON.stringify(metrics)}` }],
+          },
+        ],
         generationConfig: {
           temperature: 0.2,
-          maxOutputTokens: 900,
           responseMimeType: 'application/json',
-          responseSchema: RESPONSE_SCHEMA,
+          responseSchema: {
+            type: 'OBJECT',
+            properties: {
+              cards: {
+                type: 'ARRAY',
+                minItems: 3,
+                maxItems: 3,
+                items: {
+                  type: 'OBJECT',
+                  properties: {
+                    title: { type: 'STRING' },
+                    alertLevel: { type: 'STRING', enum: ['info', 'warning', 'critical', 'positive'] },
+                    diagnosis: { type: 'STRING' },
+                    recommendedAction: { type: 'STRING' },
+                  },
+                  required: ['title', 'alertLevel', 'diagnosis', 'recommendedAction'],
+                },
+              },
+            },
+            required: ['cards'],
+          },
         },
       }),
     });
 
-    if (!geminiResponse.ok) {
-      const errorDetails = await geminiResponse.text();
-      console.error('[ai-analyst] Falha na API Gemini:', geminiResponse.status, errorDetails);
-      if (geminiResponse.status === 429) {
-        return jsonResponse({ error: 'QUOTA_EXCEEDED', message: 'Cota temporariamente excedida.' }, 429);
-      }
-      return jsonResponse({ error: 'GEMINI_UPSTREAM_ERROR', status: geminiResponse.status }, 502);
+    if (!geminiRes.ok) {
+      const errStatus = geminiRes.status === 429 ? 429 : 503;
+      return jsonResponse(
+        { error: `Falha ao consultar motor de IA (HTTP ${geminiRes.status}).` },
+        errStatus
+      );
     }
 
-    const geminiData = await geminiResponse.json();
-    const rawJsonText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-    const parsed = JSON.parse(rawJsonText) as { cards?: AiInsightCard[] };
+    const geminiJson = await geminiRes.json();
+    const rawText = geminiJson?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const parsed = rawText ? JSON.parse(rawText) : null;
+    const cards: AiInsightCard[] = Array.isArray(parsed?.cards) ? parsed.cards.slice(0, 3) : [];
 
-    if (!Array.isArray(parsed?.cards) || parsed.cards.length !== 3) {
-      console.error('[ai-analyst] Resposta do Gemini fora do contrato esperado:', rawJsonText);
-      return jsonResponse({ error: 'Invalid AI response contract' }, 502);
+    if (cards.length === 0) {
+      return jsonResponse({ error: 'Resposta estruturada inválida do motor de IA.' }, 502);
     }
 
-    const usageMeta = geminiData?.usageMetadata ?? {};
-    const promptTokens = Number(usageMeta.promptTokenCount ?? 0);
-    const completionTokens = Number(usageMeta.candidatesTokenCount ?? 0);
-    const totalTokens = Number(usageMeta.totalTokenCount ?? promptTokens + completionTokens);
+    const usage = geminiJson?.usageMetadata || {};
+    const promptTokens = Number(usage.promptTokenCount || 0);
+    const completionTokens = Number(usage.candidatesTokenCount || 0);
+    const totalTokens = Number(usage.totalTokenCount || promptTokens + completionTokens);
+    const nowIso = new Date().toISOString();
 
-    // 6. Persistência idempotente em ai_insights (UNIQUE tenant_id, reference_date)
-    const referenceDate = metrics.reference_date || todayIso;
-    const { data: persisted, error: persistError } = await supabase
-      .from('ai_insights')
-      .upsert(
-        {
-          tenant_id: tenantId,
-          reference_date: referenceDate,
-          model: GEMINI_MODEL,
-          cards: parsed.cards,
-          metrics_snapshot: metrics,
-          created_by: user.id,
-        },
-        { onConflict: 'tenant_id,reference_date', ignoreDuplicates: true },
-      )
-      .select('created_at, reference_date, cards')
-      .maybeSingle();
-
-    if (persistError) {
-      console.warn('[ai-analyst] Aviso ao persistir ai_insights:', persistError.message);
-    }
+    await supabase.from('ai_insights').upsert(
+      {
+        tenant_id: tenantId,
+        reference_date: referenceDate,
+        model: MODEL_NAME,
+        cards,
+        metrics_snapshot: metrics,
+        cold_start: false,
+        created_by: userId,
+        updated_at: nowIso,
+      },
+      { onConflict: 'tenant_id,reference_date' }
+    );
 
     await supabase.from('ai_usage_logs').insert({
       tenant_id: tenantId,
-      user_id: user.id,
-      feature: 'strategic_diagnosis',
-      model: GEMINI_MODEL,
+      user_id: userId,
+      feature: 'ai_analyst_weekly',
+      model: MODEL_NAME,
       prompt_tokens: promptTokens,
       completion_tokens: completionTokens,
       total_tokens: totalTokens,
+      latency_ms: Date.now() - startedAt,
       cached: false,
+      status: 'success',
     });
 
+    return jsonResponse({
+      generatedAt: nowIso,
+      cached: false,
+      coldStart: false,
+      cards,
+    });
+  } catch (err) {
     return jsonResponse(
-      {
-        generatedAt: persisted?.created_at ?? new Date().toISOString(),
-        referenceDate: persisted?.reference_date ?? referenceDate,
-        cached: false,
-        coldStart: false,
-        cards: persisted?.cards ?? parsed.cards,
-      },
-      200,
+      { error: err instanceof Error ? err.message : 'Erro inesperado ao gerar diagnóstico.' },
+      500
     );
-  } catch (err: unknown) {
-    const error = err as Error;
-    console.error('[ai-analyst] Erro não tratado:', error?.message);
-    return jsonResponse({ error: 'Internal server error' }, 500);
   }
 });

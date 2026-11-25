@@ -1,77 +1,54 @@
-# ADR-050: SMG Barber Intelligence — Fase 1 (Diagnóstico Inteligente de Gestão)
+# ADR-050: SMG Barber Intelligence — Fase 1 (Diagnóstico Executivo com IA Embarcada)
 
-**Status:** Accepted (2026-11-19 — aprovado pelo PO para execução da Fase 1)  
-**Date:** 2026-11-19  
-**Deciders:** PO (Augusto) + Antigravity (`project-planner`)  
+**Status:** Accepted (2026-11-25 — aprovação explícita do PO para criação do ADR-050 e implementação da Fase 1 / `#403`)
+**Date:** 2026-11-25
+**Deciders:** PO (Augusto) + Antigravity
 **References:**
-- [`docs/PLAN-smg-barber-intelligence.md`](../PLAN-smg-barber-intelligence.md) — Plano detalhado da Fase 1
-- [`AGENTS.md`](../../AGENTS.md) — Regras multi-tenant, RLS, governança de ADRs e migrations
-- [`supabase/functions/gemini-assistant/index.ts`](../../supabase/functions/gemini-assistant/index.ts) — Protótipo legado mantido intacto para o `SupportWidget.tsx`
-- [`pages/StrategicDashboard.tsx`](../../pages/StrategicDashboard.tsx) — Alvo de integração UI (rota `/strategic-dashboard`)
+- Issue [#403](https://github.com/augustosanchesmanager-ux/sou-manager/issues/403) (`GTM-004`)
+- `docs/PLAN-smg-barber-intelligence.md`
+- `docs/backlog/go-to-market.md`
+- `AGENTS.md` (roadmap congelado: novas tabelas, RPC e Edge Function exigem ADR aprovado pelo PO)
 
 ---
 
 ## Context
 
-1. O SMG já possui um protótipo inicial de chamada ao Gemini em `supabase/functions/gemini-assistant/index.ts` consumido por `components/SupportWidget.tsx`, porém sem:
-   - verificação server-side de `tenant_id` e `role` (`owner`/`manager`);
-   - coleta determinística de métricas via PostgreSQL RPC;
-   - cache persistido por tenant/dia ou auditoria de consumo de tokens;
-   - saída estruturada por JSON Schema estrito.
-2. O produto precisa evoluir para **IA Invisível e Orientada a Ação (Embedded AI)** sem gerar custo imprevisível, risco de vazamento cross-tenant ou alucinação matemática.
-3. Auditoria de rotas realizada em `App.tsx` e `components/Sidebar.tsx` confirmou dois pontos estratégicos:
-   - `/strategic-dashboard` (`pages/StrategicDashboard.tsx`, `"Visão Estratégica"`): protegida por `ManagerRoute` (sem `FeatureRoute` adicional), funcionando como cockpit diário de KPIs e alertas do gestor.
-   - `/bi` (`pages/BusinessIntelligence.tsx`, `"Inteligência (BI)"`): protegida por `ManagerRoute` + `FeatureRoute feature="bi"`, voltada para exploração analítica profunda.
+O módulo de Business Intelligence (`/bi`, unificado em `UXQ-001` / PR `#423`) exibe métricas operacionais e financeiras consolidadas para donos e gestores de barbearias, mas ainda exige leitura manual de múltiplos gráficos para identificar gargalos semanais (queda de faturamento, aumento de cancelamentos/no-show, ociosidade).
 
 ## Problem
 
-Como introduzir o **Diagnóstico Inteligente de Gestão (Fase 1)** na stack do SMG garantindo:
-1. **Isolamento estrito multi-tenant** (`tenant_id` + RLS + validação de role no backend);
-2. **Zero alucinação matemática** sobre faturamento, ticket médio, ocupação ou no-show;
-3. **Previsibilidade de custos** (evitar chamadas duplicadas ou em loop e custo zero para tenants sem histórico);
-4. **Zero regressão** no `SupportWidget.tsx` / `gemini-assistant` existente.
+Como entregar diagnósticos executivos acionáveis com IA embarcada **sem**:
+1. alucinação matemática (LLM nunca calcula `SUM`/`AVG`/`COUNT`);
+2. vazamento cross-tenant (isolamento estrito por `tenant_id` via RLS e validação server-side);
+3. explosão de custo de API (cache diário obrigatório + bypass de custo zero para cold start);
+4. exposição de escrita autônoma em dados financeiros ou de agenda.
 
 ## Decision
 
-1. **Nova Edge Function dedicada (`supabase/functions/ai-analyst/index.ts`):**
-   - Valida JWT do usuário via Supabase Auth (`getUser(token)`).
-   - Resolve `tenant_id` e `role` no servidor, exigindo `owner` ou `manager` (retorna `403` para demais perfis).
-   - Mantém `gemini-assistant` intacta para o `SupportWidget.tsx`.
+Aprovar a implementação da **Fase 1 do SMG Barber Intelligence** com arquitetura 100% somente-leitura:
 
-2. **Coleta determinística via PostgreSQL RPC (`public.get_tenant_weekly_metrics(p_tenant_id uuid)`):**
-   - Calcula no PostgreSQL (`SUM`, `AVG`, `COUNT`) as métricas consolidadas dos últimos 7 dias vs. 7 dias anteriores, incluindo `appointment_count`.
-   - Valida autorização tenant-scoped via `auth.uid()` / helpers centrais (`current_tenant_id_from_auth_uid()`), retornando um JSON enxuto (~1 KB).
-
-3. **Tratamento de Cold Start (custo zero):**
-   - Se `appointment_count = 0`, a Edge Function **não** chama a API do Gemini: retorna um payload estático de boas-vindas orientando o preenchimento inicial da agenda/comandas (0 tokens consumidos).
-
-4. **Provedor e Structured Output:**
-   - **Google Gemini 2.5 Flash** com `GEMINI_API_KEY` armazenada exclusivamente como secret da Edge Function.
-   - Chamada *stateless* com `responseSchema` estrito retornando exatamente 3 cards (`title`, `alertLevel`, `diagnosis`, `recommendedAction`).
-
-5. **Persistência, Cache Diário e Auditoria (`ai_insights` e `ai_usage_logs`):**
-   - **`public.ai_insights`:** armazena o diagnóstico gerado com restrição **`UNIQUE (tenant_id, reference_date)`** (evita condições de corrida caso dois gestores abram o painel simultaneamente). Limite na Fase 1: máximo **1 geração/dia por tenant**.
-   - **`public.ai_usage_logs`:** registra `tenant_id`, `user_id`, `model`, `prompt_tokens`, `completion_tokens`, `total_tokens` e `created_at` para observabilidade de unit economics.
-   - Ambas as tabelas terão RLS habilitada usando `current_tenant_id_from_auth_uid()` e `current_is_super_admin_from_auth_uid()`.
-   - *Nota de escopo:* Hard cap mensal por plano/assinatura (`tenants.monthly_ai_credits`) fica explicitamente adiado para a Fase 2.
-
-6. **Integração no Front-end (`pages/StrategicDashboard.tsx`):**
-   - O componente de 3 cards no padrão *Atelier Tech* será integrado em `pages/StrategicDashboard.tsx` (ponto focal diário de `owner`/`manager`), consumindo a Edge Function via serviço tipado dedicado (`services/aiAnalystService.ts`).
+1. **Persistência & Isolamento (`supabase/migrations/20261125070000_gtm004_ai_intelligence_phase1.sql`):**
+   - Tabela `public.ai_insights` com `tenant_id NOT NULL`, `reference_date date NOT NULL`, `UNIQUE(tenant_id, reference_date)` (cache diário idempotente) e RLS via `current_tenant_id_from_auth_uid()` / `current_is_super_admin_from_auth_uid()`.
+   - Tabela `public.ai_usage_logs` com `tenant_id NOT NULL`, modelo, `prompt_tokens`, `completion_tokens`, `total_tokens`, latência e RLS multi-tenant.
+   - RPC determinística `public.get_tenant_weekly_metrics(p_tenant_id uuid)` (`SECURITY DEFINER`, `SET search_path = public`), validando `auth.uid()` + pertencimento ao tenant (ou superadmin) e retornando JSON enxuto (~1 KB) com métricas da semana atual vs semana anterior e `appointment_count`.
+2. **Edge Function dedicada (`supabase/functions/ai-analyst/index.ts`, `verify_jwt = true` em `supabase/config.toml`):**
+   - Valida JWT e restringe acesso a `owner`, `manager` e `superadmin` (demais roles recebem `403`).
+   - Verifica cache diário em `ai_insights` antes de qualquer chamada externa (0 tokens em cache hit).
+   - Executa `get_tenant_weekly_metrics`; se `appointment_count = 0`, retorna diagnóstico de cold start estático (0 tokens).
+   - Invoca **Google Gemini 2.5 Flash** (`GEMINI_API_KEY`) com `responseMimeType: "application/json"` e `responseSchema` estrito retornando exatamente 3 cards (`title`, `alertLevel`, `diagnosis`, `recommendedAction`).
+   - Persiste cache (`upsert` em `ai_insights`) e auditoria de consumo (`ai_usage_logs`).
+3. **Front-end (`/bi`):**
+   - Serviço tipado `src/modules/intelligence/aiAnalystService.ts` (via `getSharedClient()` — nunca `createClient` cru).
+   - Painel *Atelier Tech* `components/bi/AiIntelligencePanel.tsx` integrado ao `pages/BusinessIntelligence.tsx` (restrito a `manager`/`owner`/`superadmin`, respeitando a paleta SMG sem violeta/roxo).
 
 ## Alternatives Considered
 
-- **A — Evoluir `gemini-assistant` in-place:** Rejeitada para evitar risco de regressão no `SupportWidget.tsx` e manter a nova arquitetura isolada.
-- **B — Integrar primeiro em `pages/BusinessIntelligence.tsx` (`/bi`):** Rejeitada porque `/bi` é restrita por `FeatureRoute("bi")` e tem perfil de exploração periódica, enquanto `/strategic-dashboard` é o painel diário de decisão do dono/gerente.
-- **C — Enviar transações brutas para o LLM calcular métricas:** Rejeitada por alto custo de tokens e risco de alucinação matemática.
-- **D — Implementar hard cap mensal (`monthly_ai_credits`) já na Fase 1:** Adiada para a Fase 2 por decisão do PO, mantendo a Fase 1 enxuta com trava diária (`1 geração/dia`).
+- **A — Chamar Gemini diretamente do browser com `VITE_GEMINI_API_KEY`:** rejeitada por expor chave, impedir controle de custo centralizado e burlar cache diário/auditoria.
+- **B — Permitir que a IA consulte SQL livre:** rejeitada por risco de segurança multi-tenant e alucinação.
 
 ## Consequences
 
-### Positivas
-- Zero risco de alucinação numérica (PostgreSQL calcula, Gemini interpreta).
-- Custo estritamente limitado por `UNIQUE (tenant_id, reference_date)` e bypass em cold start (`appointment_count = 0`).
-- Isolamento total de falhas em relação ao `SupportWidget.tsx`.
-
-### Negativas / Trade-offs
-- Na Fase 1, o gestor visualiza no máximo 1 diagnóstico atualizado por dia (sem botão de regeneração múltipla no mesmo dia até a Fase 2).
-- Requer criação de 2 tabelas novas (`ai_insights`, `ai_usage_logs`), 1 RPC e 1 Edge Function, demandando aprovação do PO para este ADR e para a futura migration remota.
+- **Positivas:** diagnóstico diário acionável com custo previsível (máx. 1 chamada/dia/tenant), zero alucinação numérica e isolamento multi-tenant garantido no banco.
+- **Requisitos operacionais de deploy (governança separada):**
+  - Aplicar a migration no banco remoto de produção exige autorização explícita do PO.
+  - Deploy da Edge Function `ai-analyst` e verificação do secret `GEMINI_API_KEY` no Supabase de produção.

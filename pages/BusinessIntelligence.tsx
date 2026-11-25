@@ -22,6 +22,7 @@ import { ScheduleHeatmap } from '../components/bi/ScheduleHeatmap';
 import { StaffProfitabilityTable } from '../components/bi/StaffProfitabilityTable';
 import { LiquidityWaterfallCard } from '../components/bi/LiquidityWaterfallCard';
 import { StrategicForecastCard } from '../components/bi/StrategicForecastCard';
+import { AiIntelligencePanel } from '../components/bi/AiIntelligencePanel';
 import { fetchBiCockpitData, type BiCockpitData, type BiPeriod } from '../src/modules/bi/biCockpitService';
 import {
     ScheduleHeatmapCell,
@@ -416,6 +417,7 @@ const BusinessIntelligence: React.FC = () => {
             {/* ABA 0: Cockpit Executivo Atelier Tech (Visão Geral) */}
             {activeTab === 'cockpit' && (
                 <div className="space-y-6">
+                    <AiIntelligencePanel unitName={unitName} />
                     {cockpitData ? (
                         <BiExecutiveCockpit data={cockpitData} loading={cockpitLoading} />
                     ) : (
