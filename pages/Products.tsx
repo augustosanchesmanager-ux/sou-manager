@@ -37,14 +37,14 @@ export const Products: React.FC = () => {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
+                        <div className="w-10 h-10 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center text-primary-dark">
                             <Package className="w-5 h-5" />
                         </div>
                         <div>
-                            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                            <h1 className="font-display text-2xl md:text-3xl font-bold text-white tracking-tight">
                                 Controle de Estoque
                             </h1>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">
+                            <p className="text-sm text-ink-soft">
                                 Visão 360: Venda, Insumos de Bancada, Combos e Conferência Física
                             </p>
                         </div>
@@ -57,25 +57,25 @@ export const Products: React.FC = () => {
                         variant="secondary"
                         onClick={() => controller.setIsSuppliersModalOpen(true)}
                         leftIcon="truck"
-                        className="border border-slate-700 hover:border-amber-500/50"
+                        className="border border-border-dark hover:border-primary/40"
                     >
-                        <Truck className="w-4 h-4 mr-1 text-amber-400" />
+                        <Truck className="w-4 h-4 mr-1 text-primary-light" />
                         Fornecedores
                     </Button>
 
                     <Button
                         variant="secondary"
                         onClick={() => controller.handleOpenPurchase()}
-                        className="border border-slate-700 hover:border-emerald-500/50"
+                        className="border border-border-dark hover:border-primary/40"
                     >
-                        <ShoppingCart className="w-4 h-4 mr-1 text-emerald-400" />
+                        <ShoppingCart className="w-4 h-4 mr-1 text-primary-light" />
                         Adicionar compra ao estoque
                     </Button>
 
                     <Button
                         variant="primary"
                         onClick={controller.handleOpenNewProduct}
-                        className="bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-semibold"
+                        className="bg-gradient-to-r from-primary to-primary-dark text-night font-bold shadow-lg shadow-primary/20 hover:brightness-105 transition-all"
                     >
                         <Plus className="w-4 h-4 mr-1" />
                         + Produto

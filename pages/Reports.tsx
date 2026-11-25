@@ -55,6 +55,7 @@ import {
   type FinancialSubTab,
 } from '../components/reports/ReportsFinancialTab';
 import { ReportsChefClubTab } from '../components/reports/ReportsChefClubTab';
+import MetricCard from '../components/ui/MetricCard';
 
 export type ReportsTabKey = 'sales' | 'appointments' | 'products' | 'financial' | 'chefclub';
 
@@ -471,22 +472,27 @@ const Reports: React.FC = () => {
     { key: 'chefclub', label: 'Clube dos Chefes', icon: <Award className="w-4 h-4" /> },
   ];
 
+  const totalRevenue = useMemo(() => paidComandas.reduce((s, c) => s + Number(c.appliedTotal || 0), 0), [paidComandas]);
+  const totalPaidComandas = useMemo(() => paidComandas.length, [paidComandas]);
+  const totalAppointments = useMemo(() => appointments.length, [appointments]);
+  const activeSubs = chefClubStats.activeSubscriptions;
+
   return (
-    <div className="min-h-screen bg-[#0E0C0A] text-[#F5F5F0] p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="min-h-screen bg-background-dark text-ink p-4 sm:p-6 lg:p-8 space-y-6">
       {toast && (
         <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />
       )}
 
-      {/* Cabeçalho Global e Ações */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-[#2D2A26] pb-6">
+      {/* ===== TIER 1 — Identidade, Período Único & CTAs ===== */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-border-dark pb-6">
         <div>
-          <span className="text-[11px] font-semibold uppercase tracking-widest text-[#B88A44]">
-            Gestão & Inteligência
+          <span className="text-[11px] font-bold uppercase tracking-widest text-primary-light">
+            Gestão &amp; Inteligência
           </span>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#F5F5F0] mt-1">
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-white mt-1 tracking-tight">
             Relatórios
           </h1>
-          <p className="text-xs text-stone-400 mt-1">
+          <p className="text-xs text-ink-soft mt-1">
             Separação clara entre faturamento liquidado, operação da cadeira, giro de produtos e extrato de comissões.
           </p>
         </div>
@@ -496,9 +502,9 @@ const Reports: React.FC = () => {
             type="button"
             onClick={loadReportData}
             disabled={loading}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-[#141210] border border-[#2D2A26] text-stone-300 hover:border-[#B88A44]/50 hover:text-[#F5F5F0] transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-card-dark border border-border-dark text-ink-soft hover:border-primary/40 hover:text-white transition-colors disabled:opacity-50 disabled:pointer-events-none"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#B88A44]' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-primary' : ''}`} />
             Atualizar
           </button>
 
@@ -506,27 +512,28 @@ const Reports: React.FC = () => {
             getPayload={getExportPayload}
             baseFilename={exportFilename}
             disabled={loading}
+            className="bg-card-dark border border-border-dark text-ink-soft hover:border-primary/40 hover:text-white"
           />
         </div>
       </div>
 
-      {/* Barra Global de Período + Navegação em 5 Abas */}
+      {/* ===== TIER 2 — Período + Abas (segmented control) ===== */}
       <div className="space-y-4">
-        <div className="bg-[#141210] border border-[#2D2A26] rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="bg-card-dark border border-border-dark rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <DateRangeFilter
             startDate={dateFrom}
             endDate={dateTo}
             onStartDateChange={(newStart) => setDateRange(newStart, dateTo)}
             onEndDateChange={(newEnd) => setDateRange(dateFrom, newEnd)}
           />
-          <div className="text-xs text-stone-400">
-            Período ativo: <strong className="text-[#F5F5F0]">{periodLabel}</strong>
+          <div className="text-xs text-ink-soft">
+            Período ativo: <strong className="text-primary-light">{periodLabel}</strong>
           </div>
         </div>
 
-        {/* Navegação de Abas */}
+        {/* Navegação de Abas — Segmented Control */}
         <div
-          className="flex flex-wrap items-center gap-2 border-b border-[#2D2A26] pb-3"
+          className="inline-flex items-center gap-1 p-1 bg-night/60 border border-border-dark/60 rounded-2xl"
           role="tablist"
         >
           {tabsConfig.map((tab) => {
@@ -538,39 +545,72 @@ const Reports: React.FC = () => {
                 role="tab"
                 aria-selected={isActive}
                 onClick={() => setActiveTab(tab.key)}
-                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 border ${
+                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-150 flex items-center gap-2 ${
                   isActive
-                    ? 'bg-[#B88A44] text-[#0E0C0A] border-[#B88A44] shadow-md'
-                    : 'bg-[#141210] text-stone-300 border-[#2D2A26] hover:border-[#B88A44]/50 hover:text-[#F5F5F0]'
+                    ? 'bg-primary/20 text-primary-light border border-primary/30 shadow-xs'
+                    : 'text-ink-soft hover:text-white hover:bg-white/5 border-transparent'
                 }`}
               >
                 {tab.icon}
-                <span>{tab.label}</span>
+                <span className="hidden sm:inline">{tab.label}</span>
               </button>
             );
           })}
         </div>
       </div>
 
+      {/* Resumo rápido da aba ativa (KPIs contextuais) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricCard
+          label="Faturamento no Período"
+          value={totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          helper={`• ${totalPaidComandas} comanda(s) paga(s)`}
+          icon="trending_up"
+          tone="brass"
+        />
+        <MetricCard
+          label="Atendimentos no Período"
+          value={totalAppointments.toLocaleString('pt-BR')}
+          helper="Agendamentos realizados"
+          icon="calendar"
+          tone="info"
+        />
+        <MetricCard
+          label="Assinaturas Ativas"
+          value={activeSubs.toLocaleString('pt-BR')}
+          helper="Clube dos Chefes"
+          icon="award"
+          tone="brass"
+        />
+        <MetricCard
+          label="Produtos no Catálogo"
+          value={productCatalog.length.toLocaleString('pt-BR')}
+          helper="Itens cadastrados"
+          icon="package"
+          tone="neutral"
+        />
+      </div>
+
       {/* Aviso persistente de carga parcial (não depende do toast de 4s) */}
       {loadIssues.length > 0 && (
         <div
           role="alert"
-          className="rounded-xl border border-red-900/60 bg-red-950/40 px-4 py-3 text-xs text-red-200"
+          className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger/90"
         >
-          <div className="flex items-center gap-2 font-semibold text-red-300">
-            <AlertTriangle className="w-4 h-4" />
+          <div className="flex items-center gap-2 font-semibold text-danger">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
             Alguns dados não puderam ser carregados
           </div>
-          <p className="mt-1 text-red-200/90">
-            Seções afetadas: <strong>{loadIssues.join(' · ')}</strong>. Os demais blocos abaixo
-            continuam exibindo os dados disponíveis. Use “Atualizar” para tentar novamente.
+          <p className="mt-1 text-danger/80">
+            Seções afetadas: <strong className="text-danger">{loadIssues.join(' · ')}</strong>. Os
+            demais blocos abaixo continuam exibindo os dados disponíveis. Use “Atualizar” para tentar
+            novamente.
           </p>
         </div>
       )}
 
-      {/* Conteúdo da Aba Selecionada */}
-      <div className="pt-2">
+      {/* ===== TIER 3 — Conteúdo da Aba Selecionada ===== */}
+      <div className="pt-4">
         {activeTab === 'sales' && (
           <ReportsSalesTab
             comandas={paidComandas}
