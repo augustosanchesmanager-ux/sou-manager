@@ -112,8 +112,8 @@ Inspeção read-only ao vivo em Produção (`ushsnmlbeurfvlkieiln`) na Sprint 0 
 
 ## `SEC-005` — Gate de deploy pré-atribuição (`ADR-049`)
 
-- **Status:** `BLOCKED`
+- **Status:** `DONE` (implementado em `.github/workflows/deploy-production.yml` com job `pre-validate` bloqueando `promote`; validado ao vivo em Produção no run `#45519577522`, 4/4 SUCCESS)
 - **Prioridade:** `P1`
 - **GitHub Issue:** [#395](https://github.com/augustosanchesmanager-ux/sou-manager/issues/395)
-- **Dependências:** Autorização explícita do PO para alteração de CI (`AGENTS.md` §5) + Authorization Record.
+- **Dependências:** `ADR-049` (`Accepted` em `2026-11-17`) + autorização do PO.
 - **Escopo:** Executar health check e E2E smoke contra a URL candidata antes de `vercel promote` em `.github/workflows/deploy-production.yml`.

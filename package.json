@@ -9,6 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "biome check src/ --no-errors-on-unmatched",
+    "lint:root": "biome check pages/ components/ services/ hooks/ context/ domain/ application/ --no-errors-on-unmatched",
+    "lint:changed": "biome check --changed --since=origin/main --no-errors-on-unmatched",
     "lint:fix": "biome check src/ --write --no-errors-on-unmatched",
     "test": "vitest run",
     "test:e2e": "playwright test",

@@ -1,7 +1,7 @@
 # ADR-024: Regularização dos CI Workflows + Política Operacional de Override
 
-**Status:** Proposed (awaiting PO approval via PR)
-**Date:** 2026-09-21
+**Status:** Accepted (2026-11-25 — PO aprovou formalmente a regularização de CI + expansão incremental do Biome na raiz / `#394`)
+**Date:** 2026-09-21 (Ratificado em 2026-11-25)
 **Deciders:** PO (Augusto) + OpenCode
 **G0:** FASE 6 — Production Readiness, follow-up do item 6.1 (CI/CD); saneamento de governance drift identificado em R5-AUDIT
 **References:** ADR-022 (política original); `docs/audit/M5_R5_AUDIT_*.md` (audit que identificou o gap); `docs/audit/6.1.4_SMG_PR_APPROVE_AUTOMATION.md` (contexto da automação de PR approve); `docs/runbooks/ci-gate-override.md` (runbook operacional companheiro); `AGENTS.md` (regra "Sem ADR, nenhuma mudança estrutural poderá ser feita")
