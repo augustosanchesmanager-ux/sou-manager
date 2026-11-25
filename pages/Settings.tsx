@@ -9,7 +9,6 @@ import { supabase } from '../services/supabaseClient';
 import { tenantGoalsRepository } from '../domain/tenantGoals/repository';
 import { useNotificationPreferences } from '../src/hooks/useNotificationPreferences';
 import { useViaCep } from '../src/hooks/useViaCep';
-import { PaymentTerminalsSection } from '../components/settings/PaymentTerminalsSection';
 import { AuditPinSection } from '../components/settings/AuditPinSection';
 import {
     REFUND_METHODS,
@@ -904,8 +903,23 @@ const Settings: React.FC = () => {
                 </section>
             )}
 
-            {/* F10: Maquininhas de Cartão e Taxas (PDV Avançado) */}
-            {isManagement && <PaymentTerminalsSection />}
+            {/* F10 / UXQ-001 (#389): Maquininhas consolidado na tela dedicada /payment-terminals */}
+            {isManagement && (
+                <section className="bg-white dark:bg-card-dark p-6 rounded-2xl border border-slate-200 dark:border-border-dark shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white">Maquininhas e Taxas de Cartão</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                            Gerencie adquirentes, taxas de débito/crédito e política de repasse em uma única tela dedicada.
+                        </p>
+                    </div>
+                    <a
+                        href="#/payment-terminals"
+                        className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-primary text-night text-sm font-bold hover:opacity-90 transition-opacity shrink-0"
+                    >
+                        Abrir Maquininhas e Taxas
+                    </a>
+                </section>
+            )}
 
             {/* AUDIT-PIN-COMPETENCE: autoatendimento do PIN gerencial */}
             {isManagement && <AuditPinSection />}

@@ -4,6 +4,7 @@ import { usePaymentTerminals } from '../../src/hooks/usePaymentTerminals';
 import type { TerminalAcquirer, TerminalRateMethod } from '../../domain/paymentTerminal/types';
 import { cardFeeRepository } from '../../domain/paymentTerminal/cardFeeRepository';
 import type { CardFeePolicy } from '../../domain/paymentTerminal/cardFeeSplitEngine';
+import ConfirmDialog from '../ui/ConfirmDialog';
 
 const POPULAR_ACQUIRERS: TerminalAcquirer[] = [
   'Stone',
@@ -30,6 +31,7 @@ export const PaymentTerminalsSection: React.FC = () => {
   const { tenantId } = useAuth();
   const [globalPolicy, setGlobalPolicy] = useState<CardFeePolicy>('gross');
   const [policySaving, setPolicySaving] = useState(false);
+  const [terminalToDelete, setTerminalToDelete] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     if (tenantId) {
@@ -300,11 +302,7 @@ export const PaymentTerminalsSection: React.FC = () => {
                       </button>
                     )}
                     <button
-                      onClick={() => {
-                        if (confirm(`Deseja remover a maquininha "${terminal.name}"?`)) {
-                          deleteTerminal(terminal.id);
-                        }
-                      }}
+                      onClick={() => setTerminalToDelete({ id: terminal.id, name: terminal.name })}
                       title="Excluir maquininha"
                       className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors"
                     >
@@ -483,6 +481,19 @@ export const PaymentTerminalsSection: React.FC = () => {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        isOpen={Boolean(terminalToDelete)}
+        onClose={() => setTerminalToDelete(null)}
+        onConfirm={() => {
+          if (!terminalToDelete) return;
+          const id = terminalToDelete.id;
+          setTerminalToDelete(null);
+          void deleteTerminal(id);
+        }}
+        title="Excluir maquininha"
+        message={terminalToDelete ? `Deseja remover a maquininha "${terminalToDelete.name}"?` : ''}
+        confirmLabel="Remover"
+      />
     </section>
   );
 };

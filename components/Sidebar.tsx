@@ -207,7 +207,6 @@ export const buildRawSidebarMenu = ({
       { name: 'Avaliações e Satisfação', icon: Star, path: '/quality', hideFromEsteticaMenu: true },
       { name: 'Resumo Diário', icon: FileSpreadsheet, path: '/daily-summary', module: 'reports', hideFromEsteticaMenu: true },
       { name: 'Inteligência (BI)', icon: PieChart, path: '/bi', module: 'reports', hideFromEsteticaMenu: true },
-      { name: 'Visão Estratégica', icon: Activity, path: '/strategic-dashboard', module: 'reports', hideFromEsteticaMenu: true },
     ],
   },
   {

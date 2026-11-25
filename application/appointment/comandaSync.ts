@@ -4,6 +4,13 @@ import { comandaItemRepository } from '../../domain/comanda/item-repository';
 import { comandaPaymentRepository } from '../../domain/comanda/comandaPaymentRepository';
 import type { Comanda } from '../../domain/comanda/types';
 import type { ComandaSyncResult } from './types';
+import {
+    appointmentComandaSyncService,
+    AppointmentComandaSyncError,
+} from '../../services/appointmentComandaSyncService';
+import { comandaScheduleSyncService } from '../../services/comandaScheduleSyncService';
+
+export { appointmentComandaSyncService, AppointmentComandaSyncError, comandaScheduleSyncService };
 
 export interface SyncComandaInput {
     tenantId: string;

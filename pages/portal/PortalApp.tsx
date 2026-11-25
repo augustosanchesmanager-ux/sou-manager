@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { portalApi } from '../../services/portalApi';
 import { usePortalAuth } from '../../components/PortalAuthProvider';
+import Toast from '../../components/Toast';
 import { LogOut, Calendar, Clock, User, AlertCircle, X, Star } from 'lucide-react';
 
 const PortalApp: React.FC = () => {
@@ -14,6 +15,7 @@ const PortalApp: React.FC = () => {
     const [pastAppts, setPastAppts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     // Action Modal State
     const [actionAppt, setActionAppt] = useState<any>(null);
@@ -89,7 +91,10 @@ const PortalApp: React.FC = () => {
             : (tenant.limits?.reschedule_window_hours || 0);
 
         if (!checkCanAction(upcomingAppt.start_time, limitHours)) {
-            alert(`Para ${type === 'cancel' ? 'cancelar' : 'reagendar'}, a antecedência exigida é de ${limitHours}h.\nPor favor, entre em contato com a barbearia.`);
+            setToast({
+                message: `Para ${type === 'cancel' ? 'cancelar' : 'reagendar'}, a antecedência exigida é de ${limitHours}h. Por favor, entre em contato com a barbearia.`,
+                type: 'info',
+            });
             return;
         }
 
@@ -117,7 +122,7 @@ const PortalApp: React.FC = () => {
             }
         } catch (error) {
             console.error(error);
-            alert("Erro ao processar sua solicitação.");
+            setToast({ message: 'Erro ao processar sua solicitação.', type: 'error' });
         } finally {
             setActionLoading(false);
         }
@@ -140,16 +145,16 @@ const PortalApp: React.FC = () => {
             });
 
             // Mark appointment as 'completed' so it doesn't get reviewed again (or handled differently based on business logic)
-            // Or just alert success since we don't have a specific column to hide reviewed appts yet.
+            // Or just notify success since we don't have a specific column to hide reviewed appts yet.
 
             setReviewAppt(null);
             setRating(0);
             setComment('');
-            alert('Avaliação enviada com sucesso! Muito obrigado.');
+            setToast({ message: 'Avaliação enviada com sucesso! Muito obrigado.', type: 'success' });
             // Optionally reload past appointments to hide the review button if we add a 'is_reviewed' flag later
         } catch (error) {
             console.error(error);
-            alert('Erro ao enviar avaliação.');
+            setToast({ message: 'Erro ao enviar avaliação.', type: 'error' });
         } finally {
             setReviewLoading(false);
         }
@@ -198,6 +203,7 @@ const PortalApp: React.FC = () => {
 
     return (
         <div className={`min-h-screen flex flex-col ${t.bg} ${t.text}`} style={{ fontFamily: isSanchez ? "'Playfair Display', serif" : "'Inter', sans-serif" }}>
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
             {/* Header */}
             <header className={`px-6 py-5 flex items-center justify-between sticky top-0 z-20 ${isSanchez ? 'bg-[#090909]/90 border-b border-[#d4a017]/20 backdrop-blur-md' : 'bg-[#0f172a]/90 border-b border-white/5 backdrop-blur-md'}`}>

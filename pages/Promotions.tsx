@@ -5,6 +5,7 @@ import { supplyRepository } from '../domain/supply/repository';
 import Button from '../components/ui/Button';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 import DatePickerInput from '../components/ui/DatePickerInput';
 import { getTodayDateKey, toLocalDateKey } from '../src/utils/dateTimezone';
 import { useAuth } from '../context/AuthContext';
@@ -25,6 +26,7 @@ const Promotions: React.FC = () => {
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [form, setForm] = useState<Partial<Promotion>>({
         title: '',
         target_type: 'all',
@@ -105,9 +107,15 @@ const Promotions: React.FC = () => {
         }
     };
 
-    const deletePromo = async (id: string) => {
+    const deletePromo = (id: string) => {
         if (!tenantId) return;
-        if (!confirm('Deseja excluir esta promoção?')) return;
+        setConfirmDeleteId(id);
+    };
+
+    const confirmDeletePromo = async () => {
+        if (!tenantId || !confirmDeleteId) return;
+        const id = confirmDeleteId;
+        setConfirmDeleteId(null);
         try {
             await promotionRepository.remove(id, tenantId);
             setToast({ message: 'Promoção excluída', type: 'info' });
@@ -127,6 +135,14 @@ const Promotions: React.FC = () => {
     return (
         <div className="space-y-6 animate-fade-in">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+            <ConfirmDialog
+                isOpen={Boolean(confirmDeleteId)}
+                onClose={() => setConfirmDeleteId(null)}
+                onConfirm={confirmDeletePromo}
+                title="Excluir promoção"
+                message="Deseja excluir esta promoção?"
+                confirmLabel="Excluir"
+            />
 
             <div className="flex justify-between items-center sm:flex-row flex-col gap-4">
                 <div>
