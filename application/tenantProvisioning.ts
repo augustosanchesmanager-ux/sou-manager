@@ -34,16 +34,11 @@
  *   - Evento TenantCreated é publicado apenas para tenants novos
  */
 
-import { createSupabaseClient } from '../domain/shared/supabase-client-factory';
 import { appEventBus } from '../domain/events/app-bus';
 import { createEvent } from '../domain/events/types';
 import type { TenantCreatedEvent } from '../domain/events/types';
-
-// ─── RPC Client ──────────────────────────────────────────────────
-
-function getRpcClient() {
-  return createSupabaseClient('tenants', 'barber');
-}
+import { tenantLifecycleRepository } from '../domain/tenant/lifecycleRepository';
+import type { TenantLifecycleRepository } from '../domain/tenant/lifecycleRepository';
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -78,12 +73,14 @@ function validateProvisioning(req: ProvisionTenantRequest): void {
 // ─── Service (Orquestrador) ─────────────────────────────────────
 
 class TenantProvisioningServiceImpl {
+  constructor(private readonly repo: TenantLifecycleRepository = tenantLifecycleRepository) {}
+
   /**
    * Orquestra o provisioning completo de um novo tenant.
    *
    * O Application Service decide:
    *   - Validar entrada
-   *   - Chamar RPC para criar tenant + profile
+   *   - Delegar ao repositório a criação transacional de tenant + profile
    *   - Publicar evento de domínio
    *   - Retornar resultado
    *
@@ -97,29 +94,14 @@ class TenantProvisioningServiceImpl {
     // 1. Validar entrada (regra de negócio)
     validateProvisioning(req);
 
-    // 2. Chamar RPC (trabalho transacional apenas)
-    const rpc = getRpcClient();
-    const { data, error } = await rpc.rpc('provision_new_tenant', {
-      p_user_id: req.userId,
-      p_tenant_name: req.tenantName,
-      p_first_name: req.firstName,
-      p_last_name: req.lastName,
-      p_app_slug: req.appSlug ?? 'barber',
-    }).single();
-
-    if (error) {
-      throw new Error(`Erro ao criar tenant: ${error.message}`);
-    }
-
-    const result = data as {
-      tenant_id: string;
-      slug: string;
-      already_exists: boolean;
-    };
-
-    if (!result?.tenant_id) {
-      throw new Error('RPC provision_new_tenant retornou resultado inválido');
-    }
+    // 2. Delegar ao repositório (trabalho transacional apenas)
+    const result = await this.repo.provisionNewTenant({
+      userId: req.userId,
+      tenantName: req.tenantName,
+      firstName: req.firstName,
+      lastName: req.lastName,
+      appSlug: req.appSlug ?? 'barber',
+    });
 
     // 3. Decisão de negócio: publicar evento apenas para tenants novos
     if (!result.already_exists) {

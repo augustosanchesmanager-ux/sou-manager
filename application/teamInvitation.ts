@@ -19,7 +19,6 @@
  *   - Renderização de UI
  */
 
-import { createSupabaseClient } from '../domain/shared/supabase-client-factory';
 import { appEventBus } from '../domain/events/app-bus';
 import { createEvent } from '../domain/events/types';
 import type { StaffAcceptedEvent, StaffInvitedEvent } from '../domain/events/types';
@@ -32,11 +31,6 @@ import type {
   InviteRole,
   InvitationView,
 } from '../domain/invitation/types';
-
-// ─── RPC Client (escopo public — convites sao tabela compartilhada) ──
-function getRpcClient() {
-  return createSupabaseClient('team_invitations', 'barber');
-}
 
 // ─── Types ───────────────────────────────────────────────────────
 

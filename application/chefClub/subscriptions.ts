@@ -15,33 +15,21 @@ import {
 } from '../../domain/chefClub';
 import { chefClubSubscriptionRepository } from '../../domain/chefClub/subscription-repository';
 import { chefClubCreditRepository } from '../../domain/chefClub/credit-repository';
-import { createSupabaseClient } from '../../domain/shared/supabase-client-factory';
-import type { DatabaseClient } from '../../domain/shared/database-client';
+import { chefClubRpcRepository } from '../../domain/chefClub/rpc-repository';
 import { ChefClubError } from './types';
 import type { CreateSubscriptionParams } from './types';
-
-// ─── RPC Helper ─────────────────────────────────────────────────
-
-let rpcClient: DatabaseClient | null = null;
-
-function getRpcClient(): DatabaseClient {
-    if (!rpcClient) {
-        rpcClient = createSupabaseClient('customer_subscriptions', 'barber');
-    }
-    return rpcClient;
-}
 
 // ─── Create ──────────────────────────────────────────────────────
 
 export const createSubscription = async (params: CreateSubscriptionParams): Promise<string> => {
     const { tenantId, clientId, planId, billingDay, replaceExisting } = params;
 
-    const { data, error } = await getRpcClient().rpc('create_chef_club_subscription', {
-        p_tenant_id: tenantId,
-        p_client_id: clientId,
-        p_plan_id: planId,
-        p_billing_day: billingDay,
-        p_replace_existing: replaceExisting || false,
+    const { data, error } = await chefClubRpcRepository.createSubscription({
+        tenantId,
+        clientId,
+        planId,
+        billingDay,
+        replaceExisting: replaceExisting || false,
     });
 
     if (error) {
