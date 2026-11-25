@@ -543,6 +543,7 @@ const Reports: React.FC = () => {
                 key={tab.key}
                 type="button"
                 role="tab"
+                aria-label={tab.label}
                 aria-selected={isActive}
                 onClick={() => setActiveTab(tab.key)}
                 className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-150 flex items-center gap-2 ${
