@@ -16,25 +16,13 @@ import {
 import { isCycleDateValid } from '../../domain/chefClub';
 import { chefClubSubscriptionRepository } from '../../domain/chefClub/subscription-repository';
 import { chefClubCreditRepository } from '../../domain/chefClub/credit-repository';
+import { chefClubRpcRepository } from '../../domain/chefClub/rpc-repository';
 import { receivableRepository } from '../../domain/receivable/repository';
-import { createSupabaseClient } from '../../domain/shared/supabase-client-factory';
-import type { DatabaseClient } from '../../domain/shared/database-client';
 import { ChefClubError } from './types';
 import type { DeductCreditsParams } from './types';
 import { appEventBus } from '../../domain/events/app-bus';
 import { createEvent } from '../../domain/events/types';
 import type { CreditsDeductedEvent } from '../../domain/events/types';
-
-// ─── RPC Helper ─────────────────────────────────────────────────
-
-let rpcClient: DatabaseClient | null = null;
-
-function getRpcClient(): DatabaseClient {
-    if (!rpcClient) {
-        rpcClient = createSupabaseClient('customer_subscriptions', 'barber');
-    }
-    return rpcClient;
-}
 
 // ─── Resolve Subscription (read-only) ────────────────────────────
 
@@ -117,11 +105,11 @@ export const hasAvailableCredits = (serviceBalances: ServiceBalanceEntry[]): boo
 export const deductCredits = async (params: DeductCreditsParams): Promise<void> => {
     const { tenantId, subscriptionId, serviceId, amount, reference } = params;
 
-    const { error } = await getRpcClient().rpc('deduct_chef_club_credits', {
-        p_subscription_id: subscriptionId,
-        p_service_id: serviceId,
-        p_amount: amount,
-        p_reference: reference,
+    const { error } = await chefClubRpcRepository.deductCredits({
+        subscriptionId,
+        serviceId,
+        amount,
+        reference,
     });
 
     if (error) {

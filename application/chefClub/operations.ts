@@ -10,20 +10,8 @@ import { generateReceivables, payReceivable } from './receivables';
 import { appEventBus } from '../../domain/events/app-bus';
 import { createEvent } from '../../domain/events/types';
 import type { SubscriptionCreatedEvent, SubscriptionCancelledEvent } from '../../domain/events/types';
-import { createSupabaseClient } from '../../domain/shared/supabase-client-factory';
-import type { DatabaseClient } from '../../domain/shared/database-client';
+import { chefClubRpcRepository } from '../../domain/chefClub/rpc-repository';
 import { ChefClubError } from './types';
-
-// ─── RPC Helper ─────────────────────────────────────────────────
-
-let rpcClient: DatabaseClient | null = null;
-
-function getRpcClient(): DatabaseClient {
-    if (!rpcClient) {
-        rpcClient = createSupabaseClient('customer_subscriptions', 'barber');
-    }
-    return rpcClient;
-}
 
 // ─── Activate Plan (create subscription + generate receivables) ──
 
@@ -125,12 +113,12 @@ export const cancelSubscriptionWithReceivables = async (
 ): Promise<{ subscriptionCancelled: boolean; receivablesCancelled: number }> => {
     const { subscriptionId, tenantId, cancelReceivables, cancelReason, cancelObservation } = params;
 
-    const { data, error } = await getRpcClient().rpc('cancel_subscription_with_receivables', {
-        p_subscription_id: subscriptionId,
-        p_tenant_id: tenantId,
-        p_cancel_receivables: cancelReceivables,
-        p_cancel_reason: cancelReason ?? null,
-        p_cancel_observation: cancelObservation ?? null,
+    const { data, error } = await chefClubRpcRepository.cancelSubscriptionWithReceivables({
+        subscriptionId,
+        tenantId,
+        cancelReceivables,
+        cancelReason: cancelReason ?? null,
+        cancelObservation: cancelObservation ?? null,
     });
 
     if (error) {
