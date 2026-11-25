@@ -85,6 +85,11 @@ port = 54321
 # As Edge Functions residem no diretório padrão "supabase/functions".
 # Configurações por função na v2 usam seções [functions.<slug>].
 
+[functions.import-export]
+# Alinhado com Produção (FIN-004 / #402): exige JWT autenticado (verify_jwt = true)
+# e valida auth.getUser() + tenant_id internamente antes de gravar no bucket `exports`.
+verify_jwt = true
+
 # Habilita o servidor local de Edge Functions
 # local = true
 
