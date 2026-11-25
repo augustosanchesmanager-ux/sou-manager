@@ -64,8 +64,8 @@
 
 ## `UXQ-008` — P2-02: Migrar 11 `application/` services diretos no Supabase para Repository Pattern
 
-- **Status:** `TODO` | **Prioridade:** `P2` | **Issue:** [#398](https://github.com/augustosanchesmanager-ux/sou-manager/issues/398) | **Sprint:** Sprint 5+
-- **Dependências:** ADR obrigatório (`ROADMAP.md:556`)
+- **Status:** `DONE` | **Prioridade:** `P2` | **Issue:** [#398](https://github.com/augustosanchesmanager-ux/sou-manager/issues/398) | **Sprint:** Sprint 5+
+- **Dependências:** `ADR-056` (`Accepted` em `2026-11-25`) — concluído em 3 lotes (Tenant & Onboarding, Chef Club, Agendamento & Checkout).
 
 ## `UXQ-009` — P2-03: Eliminar 560 `any` e consolidar utilitários
 
