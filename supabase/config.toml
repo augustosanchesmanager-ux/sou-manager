@@ -90,6 +90,11 @@ port = 54321
 # e valida auth.getUser() + tenant_id internamente antes de gravar no bucket `exports`.
 verify_jwt = true
 
+[functions.ai-analyst]
+# GTM-004 (#403 / ADR-050): Diagnóstico Executivo SMG Barber Intelligence (Fase 1).
+# Exige JWT autenticado + validação interna de tenant_id e role (owner/manager/superadmin).
+verify_jwt = true
+
 # Habilita o servidor local de Edge Functions
 # local = true
 

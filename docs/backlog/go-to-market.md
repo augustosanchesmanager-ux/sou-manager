@@ -164,9 +164,9 @@ Conectar Executive Dashboard (MRR/ARR/Churn sobre o stack único de billing), re
 
 ## `GTM-004` — SMG Barber Intelligence (Fase 1)
 
-- **Status:** `BLOCKED`
+- **Status:** `DONE` (ADR-050 aceito em `2026-11-25`; migration, Edge Function `ai-analyst`, serviço e painel `/bi` implementados; aplicação remota em PROD aguarda autorização final do PO)
 - **Prioridade:** `P2`
 - **GitHub Issue:** [#403](https://github.com/augustosanchesmanager-ux/sou-manager/issues/403)
 - **Sprint:** Sprint 5+
-- **Dependências:** Autorização explícita do PO para criação do `ADR-050` (roadmap congelado)
+- **Dependências:** `ADR-050` (`Accepted` em `2026-11-25`)
 - **Escopo:** Plano em `docs/PLAN-smg-barber-intelligence.md` (`ai-analyst`, `ai_insights`, `ai_usage_logs` e UI *Atelier Tech*).
