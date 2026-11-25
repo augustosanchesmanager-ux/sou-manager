@@ -29,8 +29,8 @@ import { comandaRepository } from '../domain/comanda/repository';
 import { comandaItemRepository } from '../domain/comanda/item-repository';
 import { comandaPaymentRepository } from '../domain/comanda/comandaPaymentRepository';
 import { serviceExecutionParticipantRepository } from '../domain/comanda/participant-repository';
-import { createSupabaseClient } from '../domain/shared/supabase-client-factory';
-import type { DatabaseClient } from '../domain/shared/database-client';
+import { comandaSettlementRepository } from '../domain/comanda/settlement-repository';
+import { chefClubRpcRepository } from '../domain/chefClub/rpc-repository';
 import { settleCheckoutComandaAndEnqueue } from '../src/lib/finance/settlement';
 import type { OutboxEnqueueData } from '../src/lib/finance/settlement';
 import {
@@ -41,17 +41,6 @@ import {
 import { appEventBus } from '../domain/events/app-bus';
 import { createEvent } from '../domain/events/types';
 import type { CheckoutCompletedEvent } from '../domain/events/types';
-
-// ─── RPC Client (for legacy functions not yet in repositories) ──
-
-let rpcClient: DatabaseClient | null = null;
-
-function getRpcClient(): DatabaseClient {
-    if (!rpcClient) {
-        rpcClient = createSupabaseClient('comandas', 'barber');
-    }
-    return rpcClient;
-}
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -673,8 +662,8 @@ class CheckoutApplicationServiceImpl {
                 comandaId,
                 appointmentId: req.relatedAppointmentId,
                 tenantId: req.tenantId,
-                supabase: getRpcClient() as any,
-                clientDb: getRpcClient() as any,
+                supabase: comandaSettlementRepository.getClient() as any,
+                clientDb: comandaSettlementRepository.getClient() as any,
                 paymentMethod: req.paymentMethod,
                 paidAmount: req.total,
                 paymentDateReal,
@@ -741,7 +730,7 @@ class CheckoutApplicationServiceImpl {
         await closeZeroAmountComanda({
             comandaId,
             tenantId,
-            supabase: getRpcClient() as any,
+            supabase: comandaSettlementRepository.getClient() as any,
             origin: req.zeroCloseOrigin || 'house_courtesy',
             source: 'checkout',
             authorizedBy: req.userId,
@@ -766,11 +755,11 @@ class CheckoutApplicationServiceImpl {
     ): Promise<void> {
         const results = await Promise.allSettled(
             creditItems.map(creditItem =>
-                getRpcClient().rpc('deduct_chef_club_credits', {
-                    p_subscription_id: chefClubInfo.id,
-                    p_service_id: creditItem.service_id,
-                    p_amount: 1,
-                    p_reference: `Comanda #${comandaId} - ${creditItem.name}`,
+                chefClubRpcRepository.deductCredits({
+                    subscriptionId: chefClubInfo.id,
+                    serviceId: creditItem.service_id || '',
+                    amount: 1,
+                    reference: `Comanda #${comandaId} - ${creditItem.name}`,
                 })
             )
         );

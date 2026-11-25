@@ -7,11 +7,10 @@
  */
 
 import { appointmentRepository } from '../../domain/appointment/repository';
+import { appointmentRpcRepository } from '../../domain/appointment/rpc-repository';
 import { comandaRepository } from '../../domain/comanda/repository';
 import { serviceRepository } from '../../domain/service/repository';
 import { tenantRepository } from '../../domain/tenant/repository';
-import { createSupabaseClient } from '../../domain/shared/supabase-client-factory';
-import type { DatabaseClient } from '../../domain/shared/database-client';
 import { appEventBus } from '../../domain/events/app-bus';
 import { createEvent } from '../../domain/events/types';
 import type { AppointmentCreatedEvent, AppointmentCancelledEvent, TenantFirstAppointmentReachedEvent } from '../../domain/events/types';
@@ -25,17 +24,6 @@ import type {
 } from './types';
 import { AppointmentError } from './types';
 import { syncComandaForAppointmentUpdate } from './comandaSync';
-
-// ─── RPC Client (for appointment creation RPCs) ──────────────────
-
-let rpcClient: DatabaseClient | null = null;
-
-function getRpcClient(): DatabaseClient {
-    if (!rpcClient) {
-        rpcClient = createSupabaseClient('appointments', 'barber');
-    }
-    return rpcClient;
-}
 
 export async function createAppointment(params: CreateAppointmentParams): Promise<CreateAppointmentResult> {
     const {
@@ -90,7 +78,7 @@ export async function createAppointment(params: CreateAppointmentParams): Promis
         rpcParams.p_is_overbooked = isOverbooked || false;
     }
 
-    const { data, error } = await getRpcClient().rpc(rpcName, rpcParams);
+    const { data, error } = await appointmentRpcRepository.createAppointmentRpc(rpcName, rpcParams);
 
     if (error) {
         console.error('[SMG][APPOINTMENT][CREATE] RPC failed:', error);
@@ -308,11 +296,11 @@ export async function cancelAppointment(params: CancelAppointmentParams): Promis
     const comandasWithPayment: typeof comandas = [];
     for (const comanda of comandas) {
         try {
-            const { data: paymentCheck } = await getRpcClient().rpc('check_comanda_has_valid_payments', {
-                p_tenant_id: tenantId,
-                p_comanda_id: comanda.id,
-            });
-            if (paymentCheck && (paymentCheck as any).has_valid_payments === true) {
+            const { data: paymentCheck } = await appointmentRpcRepository.checkComandaHasValidPayments(
+                tenantId,
+                comanda.id,
+            );
+            if (paymentCheck && paymentCheck.has_valid_payments === true) {
                 comandasWithPayment.push(comanda);
             }
         } catch (err) {
@@ -346,18 +334,18 @@ export async function cancelAppointment(params: CancelAppointmentParams): Promis
         // M4-P1 'estornar': reverte pagamento antes de cancelar a comanda (append-only).
         if (paymentDecision === 'estornar' && comandasWithPayment.some((c) => c.id === comanda.id)) {
             try {
-                const { data: paymentSummary } = await getRpcClient().rpc('get_comanda_payment_summary', {
-                    p_tenant_id: tenantId,
-                    p_comanda_id: comanda.id,
-                });
-                const payments = (paymentSummary as any)?.payments || [];
+                const { data: paymentSummary } = await appointmentRpcRepository.getComandaPaymentSummary(
+                    tenantId,
+                    comanda.id,
+                );
+                const payments = paymentSummary?.payments || [];
                 for (const payment of payments) {
-                    await getRpcClient().rpc('reverse_comanda_payment', {
-                        p_tenant_id: tenantId,
-                        p_comanda_payment_id: payment.id,
-                        p_motivo: cancellationReason || `Cancelamento de agendamento (${cancellationType})`,
-                        p_refund_method: 'internal_credit',
-                        p_actor_id: userId,
+                    await appointmentRpcRepository.reverseComandaPayment({
+                        tenantId,
+                        comandaPaymentId: payment.id,
+                        motivo: cancellationReason || `Cancelamento de agendamento (${cancellationType})`,
+                        refundMethod: 'internal_credit',
+                        actorId: userId,
                     });
                 }
             } catch (err) {
