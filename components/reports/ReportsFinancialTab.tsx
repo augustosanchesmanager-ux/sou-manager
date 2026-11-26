@@ -182,14 +182,14 @@ export const ReportsFinancialTab: React.FC<ReportsFinancialTabProps> = ({
     <div className="space-y-6">
       {/* Sub-seletor em Pills */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="inline-flex rounded-xl bg-[#141210] border border-[#2D2A26] p-1">
+        <div className="inline-flex rounded-xl bg-card border border-line p-1">
           <button
             type="button"
             onClick={() => onChangeSubTab('commissions')}
             className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
               subTab === 'commissions'
-                ? 'bg-[#B88A44] text-[#0E0C0A] shadow'
-                : 'text-stone-400 hover:text-[#F5F5F0]'
+                ? 'bg-primary text-night shadow'
+                : 'text-ink-soft hover:text-ink'
             }`}
           >
             Extrato de Comissões
@@ -199,8 +199,8 @@ export const ReportsFinancialTab: React.FC<ReportsFinancialTabProps> = ({
             onClick={() => onChangeSubTab('receivables')}
             className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
               subTab === 'receivables'
-                ? 'bg-[#B88A44] text-[#0E0C0A] shadow'
-                : 'text-stone-400 hover:text-[#F5F5F0]'
+                ? 'bg-primary text-night shadow'
+                : 'text-ink-soft hover:text-ink'
             }`}
           >
             Contas a Receber ({receivables.length})
@@ -210,8 +210,8 @@ export const ReportsFinancialTab: React.FC<ReportsFinancialTabProps> = ({
             onClick={() => onChangeSubTab('payables')}
             className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
               subTab === 'payables'
-                ? 'bg-[#B88A44] text-[#0E0C0A] shadow'
-                : 'text-stone-400 hover:text-[#F5F5F0]'
+                ? 'bg-primary text-night shadow'
+                : 'text-ink-soft hover:text-ink'
             }`}
           >
             Contas a Pagar ({payables.length})
@@ -221,13 +221,13 @@ export const ReportsFinancialTab: React.FC<ReportsFinancialTabProps> = ({
         {/* Filtro contextual */}
         {subTab === 'commissions' ? (
           <div className="flex items-center gap-2">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
               Barbeiro:
             </label>
             <select
               value={selectedBarberId}
               onChange={(e) => onSelectBarberId(e.target.value)}
-              className="bg-[#141210] border border-[#2D2A26] rounded-lg px-3 py-2 text-xs text-[#F5F5F0] focus:border-[#B88A44] focus:outline-none min-w-[200px]"
+              className="bg-card border border-line rounded-lg px-3 py-2 text-xs text-ink focus:border-primary focus:outline-none min-w-[200px]"
             >
               <option value="all">Todos os barbeiros</option>
               {availableBarbers.map((b) => (
@@ -239,13 +239,13 @@ export const ReportsFinancialTab: React.FC<ReportsFinancialTabProps> = ({
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
               Filtrar por data de:
             </label>
             <select
               value={dateFieldMode}
               onChange={(e) => onChangeDateFieldMode(e.target.value as 'due_date' | 'paid_at')}
-              className="bg-[#141210] border border-[#2D2A26] rounded-lg px-3 py-2 text-xs text-[#F5F5F0] focus:border-[#B88A44] focus:outline-none"
+              className="bg-card border border-line rounded-lg px-3 py-2 text-xs text-ink focus:border-primary focus:outline-none"
             >
               <option value="due_date">Vencimento</option>
               <option value="paid_at">Data de Baixa / Pagamento</option>
@@ -259,22 +259,22 @@ export const ReportsFinancialTab: React.FC<ReportsFinancialTabProps> = ({
         <div className="space-y-6">
           {/* 4 Cards Executivos do Extrato */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            <div className="bg-[#141210] border border-[#2D2A26] rounded-xl p-5 flex flex-col justify-between">
+            <div className="bg-card border border-line rounded-xl p-5 flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
                   Valor de Tabela (Bruto)
                 </span>
-                <Scissors className="w-4 h-4 text-stone-400" />
+                <Scissors className="w-4 h-4 text-ink-soft" />
               </div>
-              <div className="mt-3 text-2xl font-bold text-[#F5F5F0]">
+              <div className="mt-3 text-2xl font-bold text-ink">
                 {fmtBRL(commissionMetrics.grossProduction)}
               </div>
-              <div className="mt-1 text-xs text-stone-500">Produção cheia antes de descontos</div>
+              <div className="mt-1 text-xs text-ink-soft">Produção cheia antes de descontos</div>
             </div>
 
-            <div className="bg-[#141210] border border-[#2D2A26] rounded-xl p-5 flex flex-col justify-between">
+            <div className="bg-card border border-line rounded-xl p-5 flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
                   Descontos Rateados
                 </span>
                 <Percent className="w-4 h-4 text-amber-500" />
@@ -282,34 +282,34 @@ export const ReportsFinancialTab: React.FC<ReportsFinancialTabProps> = ({
               <div className="mt-3 text-2xl font-bold text-amber-400">
                 - {fmtBRL(commissionMetrics.totalDiscounts)}
               </div>
-              <div className="mt-1 text-xs text-stone-500">Diretos + Globais da comanda</div>
+              <div className="mt-1 text-xs text-ink-soft">Diretos + Globais da comanda</div>
             </div>
 
-            <div className="bg-[#141210] border border-[#2D2A26] rounded-xl p-5 flex flex-col justify-between">
+            <div className="bg-card border border-line rounded-xl p-5 flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
                   Valor Aplicado (Base Real)
                 </span>
-                <CheckCircle2 className="w-4 h-4 text-[#B88A44]" />
+                <CheckCircle2 className="w-4 h-4 text-primary-dark dark:text-primary" />
               </div>
-              <div className="mt-3 text-2xl font-bold text-[#F5F5F0]">
+              <div className="mt-3 text-2xl font-bold text-ink">
                 {fmtBRL(commissionMetrics.appliedBase)}
               </div>
-              <div className="mt-1 text-xs text-stone-500">Base exata de incidência da comissão</div>
+              <div className="mt-1 text-xs text-ink-soft">Base exata de incidência da comissão</div>
             </div>
 
-            <div className="bg-[#141210] border border-[#B88A44]/50 rounded-xl p-5 flex flex-col justify-between shadow-lg">
+            <div className="bg-card border border-primary/50 rounded-xl p-5 flex flex-col justify-between shadow-lg">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-[#B88A44]">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-primary-dark dark:text-primary">
                   Comissão & Líquido
                 </span>
-                <Wallet className="w-4 h-4 text-[#B88A44]" />
+                <Wallet className="w-4 h-4 text-primary-dark dark:text-primary" />
               </div>
-              <div className="mt-2 text-2xl font-bold text-[#F5F5F0]">
+              <div className="mt-2 text-2xl font-bold text-ink">
                 {fmtBRL(commissionMetrics.totalCommission)}
               </div>
-              <div className="mt-2 pt-2 border-t border-[#2D2A26] flex flex-col gap-0.5 text-[11px]">
-                <div className="flex justify-between text-stone-400">
+              <div className="mt-2 pt-2 border-t border-line flex flex-col gap-0.5 text-[11px]">
+                <div className="flex justify-between text-ink-soft">
                   <span>Vales / Adiantamentos:</span>
                   <span className="text-amber-400">- {fmtBRL(commissionMetrics.totalAdvances)}</span>
                 </div>
@@ -322,30 +322,30 @@ export const ReportsFinancialTab: React.FC<ReportsFinancialTabProps> = ({
           </div>
 
           {/* Tabela Analítica de Comissões (10 Colunas) */}
-          <div className="bg-[#141210] border border-[#2D2A26] rounded-xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-[#2D2A26] flex flex-wrap items-center justify-between gap-2">
+          <div className="bg-card border border-line rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-line flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h3 className="text-sm font-semibold text-[#F5F5F0]">
+                <h3 className="text-sm font-semibold text-ink">
                   Extrato Analítico de Comissões (Rateio Proporcional)
                 </h3>
-                <p className="text-[11px] text-stone-400 mt-0.5">
+                <p className="text-[11px] text-ink-soft mt-0.5">
                   Comissões calculadas estritamente sobre o Valor Aplicado após rateio de descontos. PDF exporta em formato Paisagem.
                 </p>
               </div>
-              <span className="text-xs text-stone-400">{filteredCommissionItems.length} item(ns)</span>
+              <span className="text-xs text-ink-soft">{filteredCommissionItems.length} item(ns)</span>
             </div>
 
             {loading ? (
-              <div className="p-8 text-center text-xs text-stone-400">Calculando extrato de comissões...</div>
+              <div className="p-8 text-center text-xs text-ink-soft">Calculando extrato de comissões...</div>
             ) : filteredCommissionItems.length === 0 ? (
-              <div className="p-8 text-center text-xs text-stone-400">
+              <div className="p-8 text-center text-xs text-ink-soft">
                 Nenhum item faturado encontrado para o profissional/período selecionado.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-[#2D2A26] bg-[#0E0C0A] text-[10px] uppercase tracking-wider text-[#B88A44]">
+                    <tr className="border-b border-line bg-cream text-[10px] uppercase tracking-wider text-primary-dark dark:text-primary">
                       <th className="py-3 px-3 font-semibold">Data / Baixa</th>
                       <th className="py-3 px-3 font-semibold">Comanda</th>
                       <th className="py-3 px-3 font-semibold">Cliente</th>
@@ -358,36 +358,36 @@ export const ReportsFinancialTab: React.FC<ReportsFinancialTabProps> = ({
                       <th className="py-3 px-3 font-semibold text-right">Comissão (R$)</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#2D2A26]/60 text-xs text-[#F5F5F0]">
+                  <tbody className="divide-y divide-line/60 text-xs text-ink">
                     {filteredCommissionItems.map((it) => (
-                      <tr key={`${it.comanda_id}-${it.id}`} className="hover:bg-[#1C1916] transition-colors">
-                        <td className="py-2.5 px-3 text-stone-300 whitespace-nowrap">
+                      <tr key={`${it.comanda_id}-${it.id}`} className="hover:bg-cream/80 dark:bg-white/5 transition-colors">
+                        <td className="py-2.5 px-3 text-ink whitespace-nowrap">
                           {fmtDateTime(it.closedAt)}
                         </td>
-                        <td className="py-2.5 px-3 font-mono text-[#B88A44]">{it.comandaShortId}</td>
+                        <td className="py-2.5 px-3 font-mono text-primary-dark dark:text-primary">{it.comandaShortId}</td>
                         <td className="py-2.5 px-3 font-medium truncate max-w-[140px]">
                           {it.clientName}
                         </td>
                         <td className="py-2.5 px-3">
-                          <div className="font-medium text-[#F5F5F0]">{it.item_name}</div>
+                          <div className="font-medium text-ink">{it.item_name}</div>
                           {selectedBarberId === 'all' && (
-                            <div className="text-[10px] text-stone-400">{it.barber_name}</div>
+                            <div className="text-[10px] text-ink-soft">{it.barber_name}</div>
                           )}
                         </td>
-                        <td className="py-2.5 px-3 text-stone-300">{it.paymentMethodLabel}</td>
-                        <td className="py-2.5 px-3 text-right text-stone-300">
+                        <td className="py-2.5 px-3 text-ink">{it.paymentMethodLabel}</td>
+                        <td className="py-2.5 px-3 text-right text-ink">
                           {fmtBRL(it.catalog_price)}
                         </td>
                         <td className="py-2.5 px-3 text-right text-amber-400">
                           {it.total_discount > 0 ? `- ${fmtBRL(it.total_discount)}` : '-'}
                         </td>
-                        <td className="py-2.5 px-3 text-right font-semibold text-[#F5F5F0]">
+                        <td className="py-2.5 px-3 text-right font-semibold text-ink">
                           {fmtBRL(it.applied_amount)}
                         </td>
-                        <td className="py-2.5 px-3 text-right text-stone-400">
+                        <td className="py-2.5 px-3 text-right text-ink-soft">
                           {it.commission_rate}%
                         </td>
-                        <td className="py-2.5 px-3 text-right font-bold text-[#B88A44]">
+                        <td className="py-2.5 px-3 text-right font-bold text-primary-dark dark:text-primary">
                           {fmtBRL(it.commission_amount)}
                         </td>
                       </tr>
@@ -405,42 +405,42 @@ export const ReportsFinancialTab: React.FC<ReportsFinancialTabProps> = ({
         <div className="space-y-6">
           {/* 4 Cards Executivos Financeiros */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            <div className="bg-[#141210] border border-[#2D2A26] rounded-xl p-5 flex flex-col justify-between">
+            <div className="bg-card border border-line rounded-xl p-5 flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
                   Total a Receber
                 </span>
                 <ArrowDownCircle className="w-4 h-4 text-emerald-400" />
               </div>
-              <div className="mt-3 text-2xl font-bold text-[#F5F5F0]">
+              <div className="mt-3 text-2xl font-bold text-ink">
                 {fmtBRL(titlesMetrics.recTotal)}
               </div>
-              <div className="mt-1 text-xs text-stone-400">
+              <div className="mt-1 text-xs text-ink-soft">
                 Liquidado: {fmtBRL(titlesMetrics.recPaid)} | Pendente: {fmtBRL(titlesMetrics.recPending)}
               </div>
             </div>
 
-            <div className="bg-[#141210] border border-[#2D2A26] rounded-xl p-5 flex flex-col justify-between">
+            <div className="bg-card border border-line rounded-xl p-5 flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
                   Total a Pagar
                 </span>
                 <ArrowUpCircle className="w-4 h-4 text-amber-500" />
               </div>
-              <div className="mt-3 text-2xl font-bold text-[#F5F5F0]">
+              <div className="mt-3 text-2xl font-bold text-ink">
                 {fmtBRL(titlesMetrics.payTotal)}
               </div>
-              <div className="mt-1 text-xs text-stone-400">
+              <div className="mt-1 text-xs text-ink-soft">
                 Liquidado: {fmtBRL(titlesMetrics.payPaid)} | Pendente: {fmtBRL(titlesMetrics.payPending)}
               </div>
             </div>
 
-            <div className="bg-[#141210] border border-[#B88A44]/50 rounded-xl p-5 flex flex-col justify-between">
+            <div className="bg-card border border-primary/50 rounded-xl p-5 flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-[#B88A44]">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-primary-dark dark:text-primary">
                   Saldo Previsto (Receber - Pagar)
                 </span>
-                <Scale className="w-4 h-4 text-[#B88A44]" />
+                <Scale className="w-4 h-4 text-primary-dark dark:text-primary" />
               </div>
               <div
                 className={`mt-3 text-2xl font-bold ${
@@ -449,12 +449,12 @@ export const ReportsFinancialTab: React.FC<ReportsFinancialTabProps> = ({
               >
                 {fmtBRL(titlesMetrics.projectedBalance)}
               </div>
-              <div className="mt-1 text-xs text-stone-400">Resultado líquido dos títulos</div>
+              <div className="mt-1 text-xs text-ink-soft">Resultado líquido dos títulos</div>
             </div>
 
-            <div className="bg-[#141210] border border-[#2D2A26] rounded-xl p-5 flex flex-col justify-between">
+            <div className="bg-card border border-line rounded-xl p-5 flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
                   Inadimplência / Vencidos
                 </span>
                 <AlertCircle className="w-4 h-4 text-red-400" />
@@ -462,7 +462,7 @@ export const ReportsFinancialTab: React.FC<ReportsFinancialTabProps> = ({
               <div className="mt-3 text-2xl font-bold text-red-400">
                 {fmtBRL(titlesMetrics.overdueTotal)}
               </div>
-              <div className="mt-1 text-xs text-stone-500">Títulos com vencimento expirado</div>
+              <div className="mt-1 text-xs text-ink-soft">Títulos com vencimento expirado</div>
             </div>
           </div>
 
@@ -475,23 +475,23 @@ export const ReportsFinancialTab: React.FC<ReportsFinancialTabProps> = ({
                 : 'Contas a Pagar (Despesas & Obrigações)';
 
             return (
-              <div className="bg-[#141210] border border-[#2D2A26] rounded-xl overflow-hidden">
-                <div className="px-5 py-4 border-b border-[#2D2A26] flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-[#F5F5F0]">{titleLabel}</h3>
-                  <span className="text-xs text-stone-400">{activeRows.length} título(s)</span>
+              <div className="bg-card border border-line rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-line flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-ink">{titleLabel}</h3>
+                  <span className="text-xs text-ink-soft">{activeRows.length} título(s)</span>
                 </div>
 
                 {loading ? (
-                  <div className="p-8 text-center text-xs text-stone-400">Carregando títulos...</div>
+                  <div className="p-8 text-center text-xs text-ink-soft">Carregando títulos...</div>
                 ) : activeRows.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-stone-400">
+                  <div className="p-8 text-center text-xs text-ink-soft">
                     Nenhum título encontrado para o período selecionado.
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                       <thead>
-                        <tr className="border-b border-[#2D2A26] bg-[#0E0C0A] text-[10px] uppercase tracking-wider text-[#B88A44]">
+                        <tr className="border-b border-line bg-cream text-[10px] uppercase tracking-wider text-primary-dark dark:text-primary">
                           <th className="py-3 px-4 font-semibold">Vencimento</th>
                           <th className="py-3 px-4 font-semibold">Tipo</th>
                           <th className="py-3 px-4 font-semibold">Descrição / Origem</th>
@@ -501,10 +501,10 @@ export const ReportsFinancialTab: React.FC<ReportsFinancialTabProps> = ({
                           <th className="py-3 px-4 font-semibold text-center">Status</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#2D2A26]/60 text-xs text-[#F5F5F0]">
+                      <tbody className="divide-y divide-line/60 text-xs text-ink">
                         {activeRows.map((row) => (
-                          <tr key={row.id} className="hover:bg-[#1C1916] transition-colors">
-                            <td className="py-3 px-4 text-stone-300 whitespace-nowrap">
+                          <tr key={row.id} className="hover:bg-cream/80 dark:bg-white/5 transition-colors">
+                            <td className="py-3 px-4 text-ink whitespace-nowrap">
                               {fmtDate(row.dueDate)}
                             </td>
                             <td className="py-3 px-4">
@@ -517,8 +517,8 @@ export const ReportsFinancialTab: React.FC<ReportsFinancialTabProps> = ({
                               </span>
                             </td>
                             <td className="py-3 px-4 font-medium">{row.description}</td>
-                            <td className="py-3 px-4 text-stone-300">{row.partyName}</td>
-                            <td className="py-3 px-4 text-stone-400">{row.category}</td>
+                            <td className="py-3 px-4 text-ink">{row.partyName}</td>
+                            <td className="py-3 px-4 text-ink-soft">{row.category}</td>
                             <td className="py-3 px-4 text-right font-semibold">
                               {fmtBRL(row.amount)}
                             </td>

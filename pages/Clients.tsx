@@ -602,7 +602,7 @@ const Clients: React.FC = () => {
     return (
         <div className="min-h-screen bg-background-dark text-ink max-w-7xl mx-auto w-full animate-fade-in pb-20">
             {/* ===== TIER 1 — Identidade & Ações ===== */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border-dark pb-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-line pb-6">
                 <div>
                     <h2 className="font-display text-2xl font-bold text-white tracking-tight">Clientes</h2>
                     <p className="text-xs text-ink-soft mt-1">
@@ -610,7 +610,7 @@ const Clients: React.FC = () => {
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                    <button onClick={() => fileInputRef.current?.click()} className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-border-dark bg-card-dark text-ink-soft text-sm font-bold hover:border-primary/40 hover:text-white transition-all">
+                    <button onClick={() => fileInputRef.current?.click()} className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-line bg-card text-ink-soft text-sm font-bold hover:border-primary/40 hover:text-white transition-all">
                         <span className="material-symbols-outlined text-sm">upload_file</span>
                         Importar CSV
                     </button>
@@ -618,7 +618,7 @@ const Clients: React.FC = () => {
                     <button
                         onClick={handleExportCSV}
                         disabled={exportingExcel || processed.length === 0}
-                        className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-border-dark bg-card-dark text-ink-soft text-sm font-bold hover:border-primary/40 hover:text-white transition-all disabled:opacity-50 disabled:pointer-events-none"
+                        className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-line bg-card text-ink-soft text-sm font-bold hover:border-primary/40 hover:text-white transition-all disabled:opacity-50 disabled:pointer-events-none"
                     >
                         <span className="material-symbols-outlined text-sm">
                             {exportingExcel ? 'progress_activity' : 'download'}
@@ -645,10 +645,10 @@ const Clients: React.FC = () => {
                             placeholder="Buscar por nome, telefone ou e-mail..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="w-full bg-card-dark border border-border-dark rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-1 focus:ring-primary focus:border-primary text-white transition-all shadow-sm"
+                            className="w-full bg-card border border-line rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-1 focus:ring-primary focus:border-primary text-white transition-all shadow-sm"
                         />
                     </div>
-                    <div className="inline-flex self-start sm:self-auto items-center gap-1 p-1 rounded-xl border border-border-dark bg-surface-dark text-xs font-bold">
+                    <div className="inline-flex self-start sm:self-auto items-center gap-1 p-1 rounded-xl border border-line bg-cream text-xs font-bold">
                         <button
                             type="button"
                             onClick={() => setStatusFilter('active')}
@@ -686,7 +686,7 @@ const Clients: React.FC = () => {
                 </div>
 
                 {/* Inactivity & Retention Tiers Filter */}
-                <div className="flex flex-wrap items-center gap-2 p-3 rounded-xl border border-border-dark bg-card-dark shadow-sm">
+                <div className="flex flex-wrap items-center gap-2 p-3 rounded-xl border border-line bg-card shadow-sm">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-ink-soft flex items-center gap-1.5 shrink-0">
                         <span className="material-symbols-outlined text-base text-primary-light">schedule</span>
                         Última Visita:
@@ -744,7 +744,7 @@ const Clients: React.FC = () => {
                             onClick={() => setInactivityFilter('never')}
                             className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 ${
                                 inactivityFilter === 'never'
-                                    ? 'bg-surface-dark text-ink border border-border-dark shadow-xs'
+                                    ? 'bg-cream text-ink border border-line shadow-xs'
                                     : 'text-ink-soft hover:text-white hover:bg-white/5 border-transparent border border-transparent'
                             }`}
                         >
@@ -756,9 +756,9 @@ const Clients: React.FC = () => {
             </div>
             {/* ===== TIER 3 — Tabela ===== */}
             <LoadingBlock loading={loading} message="Carregando clientes..." minHeight="min-h-[400px]">
-                <div className="bg-card-dark border border-border-dark rounded-2xl overflow-hidden">
+                <div className="bg-card border border-line rounded-2xl overflow-hidden">
                     <div className="overflow-x-auto">
-                        <div className="sm:hidden px-4 py-2 border-b border-border-dark bg-white/[0.02] text-[10px] font-bold uppercase tracking-wide text-ink-soft">
+                        <div className="sm:hidden px-4 py-2 border-b border-line bg-white/[0.02] text-[10px] font-bold uppercase tracking-wide text-ink-soft">
                             Deslize para ver mais colunas
                         </div>
                         <table className="w-full min-w-[760px]">
@@ -800,7 +800,7 @@ const Clients: React.FC = () => {
                                     <tr key={client.id} className="hover:bg-white/[0.02] transition-colors">
                                         <td className="px-5 py-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="size-9 rounded-xl bg-surface-dark shrink-0 overflow-hidden border border-border-dark">
+                                                <div className="size-9 rounded-xl bg-cream shrink-0 overflow-hidden border border-line">
                                                     {client.avatar ? (
                                                         <img src={client.avatar} alt={client.name} className="size-full object-cover" />
                                                     ) : (
@@ -865,7 +865,7 @@ const Clients: React.FC = () => {
                                             <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
                                                 client.status === 'active'
                                                     ? 'bg-success/20 text-success border border-success/30'
-                                                    : 'bg-surface-dark text-ink border border-border-dark'
+                                                    : 'bg-cream text-ink border border-line'
                                             }`}>
                                                 {client.status === 'active' ? 'Ativo' : 'Inativo'}
                                             </span>
@@ -926,7 +926,7 @@ const Clients: React.FC = () => {
                         </table>
                     </div>
                     {processed.length > 0 && (
-                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 border-t border-border-dark bg-white/[0.02] text-xs text-ink-soft">
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 border-t border-line bg-white/[0.02] text-xs text-ink-soft">
                             <div>
                                 Mostrando <span className="font-bold text-white">{(currentPage - 1) * itemsPerPage + 1}</span> a{' '}
                                 <span className="font-bold text-white">{Math.min(currentPage * itemsPerPage, processed.length)}</span> de{' '}
@@ -938,7 +938,7 @@ const Clients: React.FC = () => {
                                         type="button"
                                         onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                                         disabled={currentPage === 1}
-                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border-dark bg-surface-dark font-bold text-ink-soft hover:border-primary/40 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-line bg-cream font-bold text-ink-soft hover:border-primary/40 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                                     >
                                         <span className="material-symbols-outlined text-sm">chevron_left</span>
                                         Anterior
@@ -950,7 +950,7 @@ const Clients: React.FC = () => {
                                         type="button"
                                         onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                                         disabled={currentPage >= totalPages}
-                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border-dark bg-surface-dark font-bold text-ink-soft hover:border-primary/40 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-line bg-cream font-bold text-ink-soft hover:border-primary/40 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                                     >
                                         Próxima
                                         <span className="material-symbols-outlined text-sm">chevron_right</span>
@@ -1007,38 +1007,38 @@ const Clients: React.FC = () => {
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Nome Completo</label>
                         <input type="text" required value={editForm.name || ''} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                             title="Nome Completo" placeholder="Ex: Carlos Oliveira"
-                            className="w-full bg-surface-dark border border-border-dark rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
+                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Telefone</label>
                         <input type="tel" required value={editForm.phone || ''} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
                             title="Telefone" placeholder="(11) 99999-9999"
-                            className="w-full bg-surface-dark border border-border-dark rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
+                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Email</label>
                         <input type="email" value={editForm.email || ''} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                             title="E-mail" placeholder="email@exemplo.com"
-                            className="w-full bg-surface-dark border border-border-dark rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
+                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Data de Nascimento</label>
                         <DatePickerInput value={editForm.birthday || ''} onChange={(e) => setEditForm({ ...editForm, birthday: e.target.value })}
                             title="Data de Nascimento" placeholder="Data de Nascimento"
-                            className="w-full bg-surface-dark border border-border-dark rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
+                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Status</label>
                         <select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
                             title="Status do Cliente"
-                            className="w-full bg-surface-dark border border-border-dark rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all [color-scheme:light] dark:[color-scheme:dark]">
+                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all [color-scheme:light] dark:[color-scheme:dark]">
                             <option value="active">Ativo</option>
                             <option value="inactive">Inativo</option>
                         </select>
                     </div>
                     <div className="flex gap-3 pt-2">
                         <button type="button" onClick={() => { setEditingId(null); setEditForm({}); }}
-                            className="flex-1 py-3 rounded-xl text-sm font-bold text-ink-soft bg-surface-dark border border-border-dark hover:bg-white/5 hover:text-white transition-colors">Cancelar</button>
+                            className="flex-1 py-3 rounded-xl text-sm font-bold text-ink-soft bg-cream border border-line hover:bg-white/5 hover:text-white transition-colors">Cancelar</button>
                         <button type="submit"
                             className="flex-1 py-3 rounded-xl text-sm font-bold text-night bg-gradient-to-r from-primary to-primary-dark shadow-lg shadow-primary/20 hover:brightness-105 transition-all">Salvar Alterações</button>
                     </div>
@@ -1056,29 +1056,29 @@ const Clients: React.FC = () => {
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Nome Completo</label>
                         <input type="text" required value={newForm.name} onChange={(e) => setNewForm({ ...newForm, name: e.target.value })}
                             title="Nome Completo"
-                            className="w-full bg-surface-dark border border-border-dark rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="Ex: Carlos Oliveira" />
+                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="Ex: Carlos Oliveira" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Telefone</label>
                         <input type="tel" required value={newForm.phone} onChange={(e) => setNewForm({ ...newForm, phone: e.target.value })}
                             title="Telefone"
-                            className="w-full bg-surface-dark border border-border-dark rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="(11) 99999-9999" />
+                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="(11) 99999-9999" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Email (Opcional)</label>
                         <input type="email" value={newForm.email} onChange={(e) => setNewForm({ ...newForm, email: e.target.value })}
                             title="E-mail"
-                            className="w-full bg-surface-dark border border-border-dark rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="email@exemplo.com" />
+                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="email@exemplo.com" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Data de Nascimento</label>
                         <DatePickerInput value={newForm.birthday} onChange={(e) => setNewForm({ ...newForm, birthday: e.target.value })}
                             title="Data de Nascimento" placeholder="Data de Nascimento"
-                            className="w-full bg-surface-dark border border-border-dark rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
+                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
                     </div>
                     <div className="flex gap-3 pt-2">
                         <button type="button" onClick={() => setShowModal(false)}
-                            className="flex-1 py-3 rounded-xl text-sm font-bold text-ink-soft bg-surface-dark border border-border-dark hover:bg-white/5 hover:text-white transition-colors">Cancelar</button>
+                            className="flex-1 py-3 rounded-xl text-sm font-bold text-ink-soft bg-cream border border-line hover:bg-white/5 hover:text-white transition-colors">Cancelar</button>
                         <button type="submit"
                             className="flex-1 py-3 rounded-xl text-sm font-bold text-night bg-gradient-to-r from-primary to-primary-dark shadow-lg shadow-primary/20 hover:brightness-105 transition-all">Salvar</button>
                     </div>
@@ -1101,7 +1101,7 @@ const Clients: React.FC = () => {
                             <button
                                 onClick={() => setDeleteTarget(null)}
                                 disabled={deleting}
-                                className="flex-1 py-3 rounded-xl text-sm font-bold text-ink-soft bg-surface-dark border border-border-dark hover:bg-white/5 hover:text-white transition-colors disabled:opacity-60"
+                                className="flex-1 py-3 rounded-xl text-sm font-bold text-ink-soft bg-cream border border-line hover:bg-white/5 hover:text-white transition-colors disabled:opacity-60"
                             >
                                 Cancelar
                             </button>
@@ -1143,10 +1143,10 @@ const Clients: React.FC = () => {
                             )}
                         </div>
 
-                        <div className="bg-card-dark rounded-xl border border-border-dark overflow-hidden">
+                        <div className="bg-card rounded-xl border border-line overflow-hidden">
                             <div className="overflow-x-auto max-h-[50vh] custom-scrollbar">
                                 <table className="w-full text-left">
-                                    <thead className="bg-white/[0.02] sticky top-0 z-10 border-b border-border-dark">
+                                    <thead className="bg-white/[0.02] sticky top-0 z-10 border-b border-line">
                                         <tr>
                                             <th className="px-4 py-3 text-[10px] uppercase font-bold text-ink-soft tracking-wider">#</th>
                                             <th className="px-4 py-3 text-[10px] uppercase font-bold text-ink-soft tracking-wider">Nome Completo</th>
@@ -1200,8 +1200,8 @@ const Clients: React.FC = () => {
                             </label>
                         )}
 
-                        <div className="flex gap-3 justify-end pt-4 border-t border-border-dark mt-6">
-                            <button type="button" onClick={() => { setIsImportModalOpen(false); setImportPreview(null); }} className="px-6 py-2.5 rounded-lg text-sm font-bold text-ink-soft bg-surface-dark border border-border-dark hover:bg-white/5 hover:text-white transition-colors">
+                        <div className="flex gap-3 justify-end pt-4 border-t border-line mt-6">
+                            <button type="button" onClick={() => { setIsImportModalOpen(false); setImportPreview(null); }} className="px-6 py-2.5 rounded-lg text-sm font-bold text-ink-soft bg-cream border border-line hover:bg-white/5 hover:text-white transition-colors">
                                 Descartar Arquivo
                             </button>
                             <button type="button" onClick={handleConfirmImport} disabled={loading || (importPreview.validRows.length + (includeDuplicates ? importPreview.duplicateRows.length : 0)) === 0} className="px-8 py-2.5 rounded-lg text-sm font-bold text-night bg-gradient-to-r from-primary to-primary-dark shadow-lg shadow-primary/20 hover:brightness-105 transition-all flex items-center justify-center gap-2">

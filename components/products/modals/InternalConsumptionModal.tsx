@@ -110,7 +110,7 @@ export const InternalConsumptionModal: React.FC<InternalConsumptionModalProps> =
                     <Button
                         type="submit"
                         variant="primary"
-                        className="bg-[#B88A44] hover:brightness-110 text-[#0E0C0A] font-semibold"
+                        className="bg-primary hover:brightness-110 text-[#0E0C0A] font-semibold"
                     >
                         Confirmar Retirada
                     </Button>
