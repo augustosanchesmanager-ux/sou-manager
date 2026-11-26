@@ -62,42 +62,50 @@ export const StaffProfitabilityTable: React.FC<StaffProfitabilityTableProps> = (
         )}
       </div>
 
-      {/* Gráfico Comparativo: Faturamento vs Comissão vs Margem da Casa */}
+      {/* Gráfico Comparativo em Barras Verticais: Faturamento vs Comissão vs Margem da Casa */}
       {chartData.length > 0 && (
-        <div className="h-64 w-full min-w-0 pt-2">
-          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-            <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-              <XAxis dataKey="name" tick={{ fill: '#64748B', fontSize: 12 }} axisLine={false} />
-              <YAxis
-                tick={{ fill: '#64748B', fontSize: 11 }}
-                axisLine={false}
-                tickFormatter={(v) => `R$${v}`}
-              />
-              <Tooltip
-                formatter={(val: any) => formatBRL(Number(val))}
-                contentStyle={{
-                  backgroundColor: '#0F172A',
-                  border: 'none',
-                  borderRadius: '8px',
-                  color: '#FFF',
-                  fontSize: '12px',
-                }}
-              />
-              <Legend
-                wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}
-                formatter={(value) => {
-                  if (value === 'faturamento') return 'Faturamento Bruto';
-                  if (value === 'comissao') return 'Comissão do Barbeiro';
-                  if (value === 'margemBarbearia') return 'Margem Líquida da Barbearia';
-                  return value;
-                }}
-              />
-              <Bar dataKey="faturamento" fill="#B88A44" radius={[4, 4, 0, 0]} barSize={22} />
-              <Bar dataKey="comissao" fill="#94A3B8" radius={[4, 4, 0, 0]} barSize={22} />
-              <Bar dataKey="margemBarbearia" fill="#10B981" radius={[4, 4, 0, 0]} barSize={22} />
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="space-y-2">
+          <div className="text-xs text-ink-soft bg-cream border border-line rounded-lg px-3.5 py-2">
+            <strong className="text-ink">Leitura das barras verticais:</strong> cada grupo de colunas compara o{' '}
+            <strong className="text-ink">Faturamento Bruto</strong> gerado pelo barbeiro com o{' '}
+            <strong className="text-ink">Repasse de Comissão</strong> e o que sobra de{' '}
+            <strong className="text-success">Margem Líquida para a Barbearia</strong>.
+          </div>
+          <div className="h-64 w-full min-w-0 pt-2">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+              <BarChart data={chartData} layout="horizontal" margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                <XAxis dataKey="name" tick={{ fill: '#64748B', fontSize: 12 }} axisLine={false} />
+                <YAxis
+                  tick={{ fill: '#64748B', fontSize: 11 }}
+                  axisLine={false}
+                  tickFormatter={(v) => `R$${v}`}
+                />
+                <Tooltip
+                  formatter={(val: any) => formatBRL(Number(val))}
+                  contentStyle={{
+                    backgroundColor: '#1A1610',
+                    border: '1px solid #2D2618',
+                    borderRadius: '8px',
+                    color: '#F5F1E6',
+                    fontSize: '12px',
+                  }}
+                />
+                <Legend
+                  wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}
+                  formatter={(value) => {
+                    if (value === 'faturamento') return 'Faturamento Bruto';
+                    if (value === 'comissao') return 'Comissão do Barbeiro';
+                    if (value === 'margemBarbearia') return 'Margem Líquida da Barbearia';
+                    return value;
+                  }}
+                />
+                <Bar dataKey="faturamento" fill="#B88A44" radius={[4, 4, 0, 0]} barSize={24} />
+                <Bar dataKey="comissao" fill="#94A3B8" radius={[4, 4, 0, 0]} barSize={24} />
+                <Bar dataKey="margemBarbearia" fill="#178A50" radius={[4, 4, 0, 0]} barSize={24} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       )}
 

@@ -22,6 +22,7 @@ import { ScheduleHeatmap } from '../components/bi/ScheduleHeatmap';
 import { StaffProfitabilityTable } from '../components/bi/StaffProfitabilityTable';
 import { LiquidityWaterfallCard } from '../components/bi/LiquidityWaterfallCard';
 import { StrategicForecastCard } from '../components/bi/StrategicForecastCard';
+import { ServiceMatrixCard } from '../components/bi/ServiceMatrixCard';
 import { AiIntelligencePanel } from '../components/bi/AiIntelligencePanel';
 import { fetchBiCockpitData, type BiCockpitData, type BiPeriod } from '../src/modules/bi/biCockpitService';
 import {
@@ -513,14 +514,19 @@ const BusinessIntelligence: React.FC = () => {
             {activeTab === 'legacy_charts' && (
                 <div className="space-y-6">
                     {/* Charts Row */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <div className="lg:col-span-2 bg-card p-6 rounded-xl border border-line shadow-sm">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-base font-bold text-ink flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-gold-deep text-base bg-gold-soft p-1.5 rounded-lg">show_chart</span>
-                                    Evolução do Faturamento
-                                </h3>
-                                <span className="text-[10px] font-bold text-ink-soft uppercase">Últimos Meses</span>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-card p-6 rounded-xl border border-line shadow-sm space-y-4">
+                            <div className="flex justify-between items-start gap-3">
+                                <div>
+                                    <h3 className="text-base font-bold text-ink flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-primary-dark dark:text-primary text-base bg-gold-soft p-1.5 rounded-lg">show_chart</span>
+                                        Evolução do Faturamento (Últimos 6 Meses)
+                                    </h3>
+                                    <p className="text-xs text-ink-soft mt-1">
+                                        Compara entradas reais vs despesas mês a mês no fuso de Brasília, sem somar anos diferentes.
+                                    </p>
+                                </div>
+                                <span className="text-[10px] font-bold text-ink-soft uppercase shrink-0">Receita × Despesa</span>
                             </div>
                             <div className="h-[280px] w-full min-w-0">
                                 <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
@@ -528,7 +534,10 @@ const BusinessIntelligence: React.FC = () => {
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E8DFC9" />
                                         <XAxis dataKey="month" stroke="#6B6252" fontSize={11} tickLine={false} />
                                         <YAxis stroke="#6B6252" fontSize={11} tickLine={false} tickFormatter={(v) => `R$${v}`} />
-                                        <Tooltip contentStyle={tooltipStyle} />
+                                        <Tooltip
+                                            formatter={(value: number | string) => formatCurrency(Number(value) || 0)}
+                                            contentStyle={tooltipStyle}
+                                        />
                                         <Bar dataKey="income" name="Receita" fill="#D99A2B" radius={[4, 4, 0, 0]} />
                                         <Bar dataKey="expense" name="Despesa" fill="#C92A2A" radius={[4, 4, 0, 0]} />
                                     </BarChart>
@@ -536,30 +545,8 @@ const BusinessIntelligence: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Top Serviços */}
-                        <div className="bg-card p-6 rounded-xl border border-line shadow-sm">
-                            <h3 className="text-base font-bold text-ink flex items-center gap-2 mb-4">
-                                <span className="material-symbols-outlined text-gold-deep text-base bg-gold-soft p-1.5 rounded-lg">content_cut</span>
-                                Serviços Mais Vendidos
-                            </h3>
-                            {data.analytics.topServices.length > 0 ? (
-                                <div className="space-y-3">
-                                    {data.analytics.topServices.slice(0, 5).map((srv, idx) => (
-                                        <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-gold-pale/40">
-                                            <div>
-                                                <p className="text-xs font-bold text-ink">{srv.name}</p>
-                                                <p className="text-[10px] text-ink-soft">{srv.count} realizados</p>
-                                            </div>
-                                            <span className="text-xs font-bold text-[#178A50]">
-                                                {formatCurrency(srv.revenue)}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <p className="text-xs text-ink-soft">Sem dados de serviços.</p>
-                            )}
-                        </div>
+                        {/* Matriz Estratégica 2×2 de Serviços (ADR-057) */}
+                        <ServiceMatrixCard services={data.analytics.topServices} />
                     </div>
                 </div>
             )}
