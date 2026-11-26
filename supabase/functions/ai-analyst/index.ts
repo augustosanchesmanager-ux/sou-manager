@@ -22,6 +22,19 @@ const CORS_HEADERS = {
 
 const MODEL_NAME = 'gemini-2.5-flash';
 const ALLOWED_ROLES = new Set(['owner', 'manager', 'superadmin', 'admin']);
+const COPILOT_DAILY_LIMIT = 20;
+const VALID_COPILOT_ACTIONS = new Set(['campaign', 'paid_traffic', 'goals', 'free_chat']);
+
+const ACTION_INSTRUCTIONS: Record<string, string> = {
+  campaign:
+    'Monte uma campanha prática de WhatsApp/automação para recuperar clientes inativos ou preencher horários ociosos usando os dados reais da barbearia. Inclua oferta clara, público-alvo, passos de execução e uma mensagem pronta para enviar no WhatsApp.',
+  paid_traffic:
+    'Monte um plano de tráfego pago local (Instagram/Facebook Ads ou Google) para barbearia focado nos horários de menor movimento e serviços de maior margem. Inclua segmentação de raio/público, oferta, passos de execução e um texto/roteiro pronto de anúncio.',
+  goals:
+    'Sugira metas semanais e mensais realistas de faturamento, ticket médio, recorrência (Clube) e desempenho por barbeiro com base nos números reais fornecidos. Inclua passos práticos de acompanhamento com a equipe e uma mensagem curta de alinhamento para enviar no grupo da equipe.',
+  free_chat:
+    'Responda diretamente à pergunta do gestor com foco empresarial prático para barbearias modernas (automação, tráfego pago, recorrência e margem). Sempre baseie a resposta nos dados reais fornecidos e entregue passos acionáveis.',
+};
 
 interface AiInsightCard {
   title: string;
@@ -128,6 +141,174 @@ serve(async (req: Request) => {
     }
 
     const referenceDate = getSaoPauloDateKey();
+
+    let requestBody: Record<string, unknown> = {};
+    try {
+      const rawBody = await req.text();
+      if (rawBody && rawBody.trim()) {
+        const parsedBody = JSON.parse(rawBody);
+        if (parsedBody && typeof parsedBody === 'object') {
+          requestBody = parsedBody as Record<string, unknown>;
+        }
+      }
+    } catch {
+      requestBody = {};
+    }
+
+    const mode = requestBody.mode === 'strategy_copilot' ? 'strategy_copilot' : 'daily_diagnosis';
+
+    // =========================================================================
+    // FASE 2 (ADR-057): Copiloto Estratégico Interativo (botões de ação + chat)
+    // =========================================================================
+    if (mode === 'strategy_copilot') {
+      const actionTypeRaw = String(requestBody.actionType || 'free_chat');
+      const actionType = VALID_COPILOT_ACTIONS.has(actionTypeRaw) ? actionTypeRaw : 'free_chat';
+      const userPrompt = String(requestBody.prompt || '').trim().slice(0, 1000);
+
+      if (actionType === 'free_chat' && userPrompt.length === 0) {
+        return jsonResponse({ error: 'Digite uma pergunta ou escolha uma ação estratégica.' }, 400);
+      }
+
+      // Rate limit diário server-side por tenant via ai_usage_logs
+      const dayStartIso = `${referenceDate}T00:00:00-03:00`;
+      const { count: usedToday } = await supabase
+        .from('ai_usage_logs')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId)
+        .eq('feature', 'ai_strategy_copilot')
+        .eq('status', 'success')
+        .gte('created_at', dayStartIso);
+
+      const usedCount = Number(usedToday || 0);
+      if (usedCount >= COPILOT_DAILY_LIMIT) {
+        return jsonResponse(
+          { error: `Limite diário de ${COPILOT_DAILY_LIMIT} consultas do Copiloto IA atingido hoje. Volte amanhã!` },
+          429
+        );
+      }
+
+      const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
+      if (!geminiApiKey) {
+        return jsonResponse(
+          { error: 'Serviço de IA temporariamente indisponível (GEMINI_API_KEY não configurada).' },
+          503
+        );
+      }
+
+      // Métricas determinísticas do PostgreSQL (zero alucinação matemática)
+      const { data: metrics } = await supabase.rpc('get_tenant_weekly_metrics', {
+        p_tenant_id: tenantId,
+      });
+
+      const biContext =
+        requestBody.biContext && typeof requestBody.biContext === 'object'
+          ? requestBody.biContext
+          : null;
+
+      const historyRaw = Array.isArray(requestBody.history) ? requestBody.history.slice(-6) : [];
+      const historyLines = historyRaw
+        .filter((h: unknown) => h && typeof h === 'object')
+        .map((h: Record<string, unknown>) => {
+          const speaker = h.role === 'assistant' ? 'Copiloto' : 'Gestor';
+          return `${speaker}: ${String(h.content || '').slice(0, 400)}`;
+        })
+        .join('\n');
+
+      const copilotSystemPrompt = [
+        'Você é o Copiloto Estratégico do SMG Barber, especialista experiente na gestão de barbearias brasileiras modernas que atuam com automação de WhatsApp, tráfego pago local (Meta/Google Ads), Club de assinaturas e alta recorrência.',
+        'Use EXCLUSIVAMENTE os números reais fornecidos nos JSONs de contexto (nunca invente valores ou percentuais que não estejam nos dados).',
+        'Fale em português do Brasil (pt-BR), direto ao ponto, como um consultor prático que ajuda o dono da barbearia a executar hoje mesmo.',
+        'Retorne JSON estrito com: headline (título curto), summary (diagnóstico direto de 2-3 frases citando os dados reais), steps (3 a 5 passos práticos com step e detail), readyMessage (mensagem pronta de WhatsApp ou roteiro de anúncio copiável) e kpiToTrack (como medir o resultado em 7 dias).',
+      ].join(' ');
+
+      const userParts = [
+        `Objetivo (${actionType}): ${ACTION_INSTRUCTIONS[actionType]}`,
+        userPrompt ? `Pergunta/Contexto adicional do gestor: ${userPrompt}` : '',
+        historyLines ? `Histórico recente da conversa:\n${historyLines}` : '',
+        `Métricas semanais oficiais (PostgreSQL):\n${JSON.stringify(metrics || {})}`,
+        biContext ? `Resumo adicional do painel BI:\n${JSON.stringify(biContext).slice(0, 2000)}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n\n');
+
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${geminiApiKey}`;
+      const geminiRes = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: copilotSystemPrompt }] },
+          contents: [{ role: 'user', parts: [{ text: userParts }] }],
+          generationConfig: {
+            temperature: 0.35,
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: 'OBJECT',
+              properties: {
+                headline: { type: 'STRING' },
+                summary: { type: 'STRING' },
+                steps: {
+                  type: 'ARRAY',
+                  minItems: 3,
+                  maxItems: 5,
+                  items: {
+                    type: 'OBJECT',
+                    properties: {
+                      step: { type: 'STRING' },
+                      detail: { type: 'STRING' },
+                    },
+                    required: ['step', 'detail'],
+                  },
+                },
+                readyMessage: { type: 'STRING' },
+                kpiToTrack: { type: 'STRING' },
+              },
+              required: ['headline', 'summary', 'steps', 'readyMessage', 'kpiToTrack'],
+            },
+          },
+        }),
+      });
+
+      if (!geminiRes.ok) {
+        const errStatus = geminiRes.status === 429 ? 429 : 503;
+        return jsonResponse(
+          { error: `Falha ao consultar Copiloto IA (HTTP ${geminiRes.status}).` },
+          errStatus
+        );
+      }
+
+      const geminiJson = await geminiRes.json();
+      const rawText = geminiJson?.candidates?.[0]?.content?.parts?.[0]?.text;
+      const plan = rawText ? JSON.parse(rawText) : null;
+
+      if (!plan || !plan.headline || !Array.isArray(plan.steps)) {
+        return jsonResponse({ error: 'Resposta estruturada inválida do Copiloto IA.' }, 502);
+      }
+
+      const usage = geminiJson?.usageMetadata || {};
+      const promptTokens = Number(usage.promptTokenCount || 0);
+      const completionTokens = Number(usage.candidatesTokenCount || 0);
+      const totalTokens = Number(usage.totalTokenCount || promptTokens + completionTokens);
+
+      await supabase.from('ai_usage_logs').insert({
+        tenant_id: tenantId,
+        user_id: userId,
+        feature: 'ai_strategy_copilot',
+        model: MODEL_NAME,
+        prompt_tokens: promptTokens,
+        completion_tokens: completionTokens,
+        total_tokens: totalTokens,
+        latency_ms: Date.now() - startedAt,
+        cached: false,
+        status: 'success',
+      });
+
+      return jsonResponse({
+        generatedAt: new Date().toISOString(),
+        actionType,
+        remainingToday: Math.max(0, COPILOT_DAILY_LIMIT - (usedCount + 1)),
+        plan,
+      });
+    }
 
     // 1. Verificar cache diário em ai_insights (máximo 1 geração/dia por tenant)
     const { data: cachedRow } = await supabase

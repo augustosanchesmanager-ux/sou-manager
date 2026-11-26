@@ -418,7 +418,18 @@ const BusinessIntelligence: React.FC = () => {
             {/* ABA 0: Cockpit Executivo Atelier Tech (Visão Geral) */}
             {activeTab === 'cockpit' && (
                 <div className="space-y-6">
-                    <AiIntelligencePanel unitName={unitName} />
+                    <AiIntelligencePanel
+                        unitName={unitName}
+                        biContext={{
+                            revenue: data.financial.revenue,
+                            avgTicket: data.financial.avgTicket,
+                            profitMargin: data.financial.profitMargin,
+                            inactiveClients60Days: data.clients.inactiveClients60Days,
+                            retentionRate: data.clients.retentionRate,
+                            topServices: data.analytics.topServices.slice(0, 6),
+                            staffCount: staffList.length,
+                        }}
+                    />
                     {cockpitData ? (
                         <BiExecutiveCockpit data={cockpitData} loading={cockpitLoading} />
                     ) : (
