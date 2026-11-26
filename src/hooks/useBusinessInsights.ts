@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase, getScopedClient, getClientForTable } from '../../services/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
 import { logSupabaseError } from '../lib/supabase/errors';
+import { buildRevenueEvolutionSeries } from '../modules/bi/biAnalyticsHelpers';
 import type {
   BusinessPeriod,
   BusinessInsightsFilters,
@@ -445,31 +446,7 @@ export const useBusinessInsights = (filters: BusinessInsightsFilters) => {
         value,
       }));
 
-      const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-      const now = new Date();
-      const revenueEvolutionMap: Record<string, { income: number; expense: number }> = {};
-
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        revenueEvolutionMap[months[d.getMonth()]] = { income: 0, expense: 0 };
-      }
-
-      transactions.forEach((t) => {
-        const d = new Date(t.date);
-        const key = months[d.getMonth()];
-        if (revenueEvolutionMap[key]) {
-          if (t.type === 'income') revenueEvolutionMap[key].income += Number(t.amount) || 0;
-          else revenueEvolutionMap[key].expense += Number(t.amount) || 0;
-        }
-      });
-
-      const revenueEvolution: RevenueEvolutionPoint[] = Object.entries(revenueEvolutionMap).map(
-        ([month, data]) => ({
-          month,
-          income: data.income,
-          expense: data.expense,
-        })
-      );
+      const revenueEvolution: RevenueEvolutionPoint[] = buildRevenueEvolutionSeries(transactions);
 
       const lowStockProducts = products.filter((p) =>
         Boolean(p.minimum_stock) && (p.stock_quantity ?? 0) <= (p.minimum_stock ?? 0)
