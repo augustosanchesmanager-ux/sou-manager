@@ -10,32 +10,32 @@
 
 | ID | Título | Prioridade | Issue | Status |
 |---|---|---|---|---|
-| `SEC-001` | **F-01:** Loop de `401` em `rpc/get_auth_access_context` (trava de sessão + circuit breaker) (`PR #369`) | `P0` | — | `REVIEW` |
-| `SEC-002` | **F-03:** Drift de schema exposto (`Accept-Profile` / `Content-Profile`) (`PR #375`) | `P0` | — | `REVIEW` |
-| `SEC-006` | **P0-01:** Hardening final de RLS, Grants e reconciliação de Produção (`PR #407`) | `P0` | [#376](https://github.com/augustosanchesmanager-ux/sou-manager/issues/376) | `REVIEW` |
-| `SEC-007` | **P0-02:** Blindar guards (`ManagerRoute` allow-list), `CommandPalette` e filtro `tenant_id` (`PR #405`) | `P0` | [#377](https://github.com/augustosanchesmanager-ux/sou-manager/issues/377) | `REVIEW` |
-| `SEC-003` | **E-7:** Memoizar `refreshAccessContext` em `AuthContext.tsx` *(consolidada em `UXQ-004`, `PR #417`)* | `P1` | [#392](https://github.com/augustosanchesmanager-ux/sou-manager/issues/392) | `REVIEW` |
-| `SEC-004` | Remover `auth.admin` do browser e consolidar `/admin` em `/superadmin` *(consolidada em `GTM-007`, `PR #414`)* | `P0` | [#383](https://github.com/augustosanchesmanager-ux/sou-manager/issues/383) | `REVIEW` |
-| `SEC-005` | Gate de deploy pré-atribuição (`ADR-049` em `deploy-production.yml`) (`PR #434`) | `P1` | [#395](https://github.com/augustosanchesmanager-ux/sou-manager/issues/395) | `REVIEW` |
+| `SEC-001` | **F-01:** Loop de `401` em `rpc/get_auth_access_context` (trava de sessão + circuit breaker) (`PR #369`) | `P0` | — | `DONE` |
+| `SEC-002` | **F-03:** Drift de schema exposto (`Accept-Profile` / `Content-Profile`) (`PR #375`) | `P0` | — | `DONE` |
+| `SEC-006` | **P0-01:** Hardening final de RLS, Grants e reconciliação de Produção (`PR #407`) | `P0` | [#376](https://github.com/augustosanchesmanager-ux/sou-manager/issues/376) | `DONE` |
+| `SEC-007` | **P0-02:** Blindar guards (`ManagerRoute` allow-list), `CommandPalette` e filtro `tenant_id` (`PR #405`) | `P0` | [#377](https://github.com/augustosanchesmanager-ux/sou-manager/issues/377) | `DONE` |
+| `SEC-003` | **E-7:** Memoizar `refreshAccessContext` em `AuthContext.tsx` *(consolidada em `UXQ-004`, `PR #417`)* | `P1` | [#392](https://github.com/augustosanchesmanager-ux/sou-manager/issues/392) | `DONE` |
+| `SEC-004` | Remover `auth.admin` do browser e consolidar `/admin` em `/superadmin` *(consolidada em `GTM-007`, `PR #414`)* | `P0` | [#383](https://github.com/augustosanchesmanager-ux/sou-manager/issues/383) | `DONE` |
+| `SEC-005` | Gate de deploy pré-atribuição (`ADR-049` em `deploy-production.yml`) (`PR #434`) | `P1` | [#395](https://github.com/augustosanchesmanager-ux/sou-manager/issues/395) | `DONE` |
 
 ---
 
 ## `SEC-001` — F-01: Loop de `401` em `rpc/get_auth_access_context`
 
-- **Status:** `REVIEW`
+- **Status:** `DONE`
 - **Prioridade:** `P0`
 - **Tipo:** `Bugfix`
 - **Dependências:** Aprovação do PO no `deploy-production.yml` para publicar em produção
 
 ### Escopo & Evidência
 - Implementado no PR #369 (`097c900` na `main`) — registro em `docs/audit/F01_AUTH_401_LOOP_20261122.md`.
-- Aguardando promoção controlada em produção para mover para `DONE`.
+- Promovido em produção no Run #45609827004.
 
 ---
 
 ## `SEC-002` — F-03: Drift de schema exposto (`Accept-Profile` / `Content-Profile`)
 
-- **Status:** `REVIEW`
+- **Status:** `DONE`
 - **Prioridade:** `P0`
 - **Tipo:** `Hardening`
 - **Dependências:** Camada B (Dashboard Supabase em produção sob decisão do PO)
@@ -48,7 +48,7 @@
 
 ## `SEC-006` — P0-01: Hardening final de RLS, Grants e reconciliação de Produção
 
-- **Status:** `REVIEW` (`PR #407` mergeado na `main`; aguardando migration/deploy controlado em produção)
+- **Status:** `DONE` (`PR #407` mergeado na `main`; aplicado e promovido em produção no Run #45609827004)
 - **Prioridade:** `P0`
 - **GitHub Issue:** [#376](https://github.com/augustosanchesmanager-ux/sou-manager/issues/376)
 - **Sprint:** Sprint 1
@@ -72,7 +72,7 @@ Inspeção read-only ao vivo em Produção (`ushsnmlbeurfvlkieiln`) na Sprint 0 
 
 ## `SEC-007` — P0-02: Blindar guards (`ManagerRoute` allow-list), `CommandPalette` e filtro `tenant_id`
 
-- **Status:** `REVIEW` (`PR #405` mergeado na `main`; aguardando deploy controlado em produção)
+- **Status:** `DONE` (`PR #405` mergeado na `main`; promovido em produção no Run #45609827004)
 - **Prioridade:** `P0`
 - **GitHub Issue:** [#377](https://github.com/augustosanchesmanager-ux/sou-manager/issues/377)
 - **Sprint:** Sprint 1
@@ -96,7 +96,7 @@ Inspeção read-only ao vivo em Produção (`ushsnmlbeurfvlkieiln`) na Sprint 0 
 
 ## `SEC-003` — E-7: Memoizar `refreshAccessContext` em `AuthContext.tsx`
 
-- **Status:** `REVIEW` (consolidada com `UXQ-004` em [#392](https://github.com/augustosanchesmanager-ux/sou-manager/issues/392), `PR #417` mergeado na `main`)
+- **Status:** `DONE` (consolidada com `UXQ-004` em [#392](https://github.com/augustosanchesmanager-ux/sou-manager/issues/392), `PR #417` mergeado na `main`)
 - **Prioridade:** `P1`
 - **Escopo:** Envolver `refreshAccessContext` em `useCallback` junto à memoização completa dos providers em `UXQ-004`.
 
@@ -104,7 +104,7 @@ Inspeção read-only ao vivo em Produção (`ushsnmlbeurfvlkieiln`) na Sprint 0 
 
 ## `SEC-004` — Remover `auth.admin` do browser e consolidar `/admin` em `/superadmin`
 
-- **Status:** `REVIEW` (elevada para `P0` e consolidada com `GTM-007` em [#383](https://github.com/augustosanchesmanager-ux/sou-manager/issues/383), `PR #414` mergeado na `main`)
+- **Status:** `DONE` (elevada para `P0` e consolidada com `GTM-007` em [#383](https://github.com/augustosanchesmanager-ux/sou-manager/issues/383), `PR #414` mergeado na `main`)
 - **Prioridade:** `P0`
 - **Escopo:** Embora `App.tsx:293` já use `SuperAdminRoute`, `pages/Admin.tsx` ainda chama `supabase.auth.admin.getUserById()` no browser, possui botões falsos e viola CHECK constraints — será removida após migrar mutações válidas para `/superadmin` em `GTM-007`.
 
@@ -112,7 +112,7 @@ Inspeção read-only ao vivo em Produção (`ushsnmlbeurfvlkieiln`) na Sprint 0 
 
 ## `SEC-005` — Gate de deploy pré-atribuição (`ADR-049`)
 
-- **Status:** `REVIEW` (`PR #434` mergeado na `main`; implementado em `.github/workflows/deploy-production.yml` com job `pre-validate` bloqueando `promote`; validado ao vivo em Produção no run `#45519577522`, 4/4 SUCCESS)
+- **Status:** `DONE` (`PR #434` mergeado na `main`; implementado em `.github/workflows/deploy-production.yml` com job `pre-validate` bloqueando `promote`; validado ao vivo em Produção no run `#45519577522`, 4/4 SUCCESS)
 - **Prioridade:** `P1`
 - **GitHub Issue:** [#395](https://github.com/augustosanchesmanager-ux/sou-manager/issues/395)
 - **Dependências:** `ADR-049` (`Accepted` em `2026-11-17`) + autorização do PO.
