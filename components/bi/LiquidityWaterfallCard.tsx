@@ -97,6 +97,15 @@ export const LiquidityWaterfallCard: React.FC<LiquidityWaterfallCardProps> = ({ 
         </div>
       </div>
 
+      {/* Guia Explicativo para o Gestor */}
+      <div className="p-3.5 rounded-xl bg-cream border border-line text-xs text-ink-soft leading-relaxed">
+        <strong className="text-ink">Como ler este DRE:</strong> comece pelo{' '}
+        <strong className="text-ink">Faturamento Bruto</strong> (tudo o que entrou nas comandas pagas),
+        desconte o que vai para os barbeiros (<strong className="text-ink">Comissões</strong>) e o que fica
+        nas operadoras (<strong className="text-ink">Taxas de Cartão</strong>). O resultado final é a{' '}
+        <strong className="text-success">Margem Líquida Real</strong> — o dinheiro que efetivamente sobra no caixa da casa.
+      </div>
+
       {/* Régua de Conciliação Bancária Integrada */}
       <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2">

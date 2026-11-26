@@ -80,29 +80,37 @@ export const StrategicForecastCard: React.FC<StrategicForecastCardProps> = ({
     const bookedRevenue = futureAppts.reduce((sum, a) => sum + (Number(a.price) || 0), 0);
     const bookedCount = futureAppts.length;
 
-    // Run-rate estimado (clientes avulsos / encaixes com base na média diária real recente)
-    // Se há poucos agendamentos antecipados (comum em barbearias onde muito cliente agenda no dia),
-    // o modelo projeta com base no histórico recente + agendamentos firmados
-    const baselineDaily = recentDailyAverage > 0 ? recentDailyAverage : 450;
-    const projectedWalkIns = Math.max(0, baselineDaily * horizonDays - bookedRevenue * 0.4);
+    // Run-rate estimado com transparência: usa média diária real recente (sem valor inventado quando zerado)
+    const hasHistoricalBaseline = recentDailyAverage > 0;
+    const baselineDaily = hasHistoricalBaseline ? recentDailyAverage : 0;
+    const projectedWalkIns = hasHistoricalBaseline
+      ? Math.max(0, baselineDaily * horizonDays - bookedRevenue * 0.4)
+      : 0;
     const totalProjectedRevenue = Math.round(bookedRevenue + projectedWalkIns);
 
-    // Repasse médio aos barbeiros (50%) e taxas bancárias (~2.5%)
+    // Referência de repasse médio aos barbeiros (50%) e taxas bancárias (~2.5%) — explicitada na memória de cálculo
     const projectedCommission = Math.round(totalProjectedRevenue * 0.5);
     const projectedFees = Math.round(totalProjectedRevenue * 0.025);
     const projectedNetMargin = totalProjectedRevenue - projectedCommission - projectedFees;
-    const netMarginPercent = totalProjectedRevenue > 0 ? (projectedNetMargin / totalProjectedRevenue) * 100 : 47.5;
+    const netMarginPercent = totalProjectedRevenue > 0 ? (projectedNetMargin / totalProjectedRevenue) * 100 : 0;
 
-    // Meta sugerida para o período (baseada em 110% da média)
-    const periodTarget = Math.round(baselineDaily * horizonDays * 1.15);
-    const targetProgress = Math.min(100, Math.round((totalProjectedRevenue / periodTarget) * 100));
-
-    // Capacidade estimada: 3 barbeiros x 7 cortes/dia x dias do horizonte
-    const totalSalonCapacity = 3 * 8 * horizonDays;
-    const estimatedAppointments = Math.round(
-      bookedCount + (projectedWalkIns / (baselineDaily > 0 ? 55 : 45))
+    // Meta sugerida para o período (+15% sobre a média histórica, ou +15% sobre o já agendado)
+    const periodTarget = Math.round(
+      hasHistoricalBaseline ? baselineDaily * horizonDays * 1.15 : Math.max(bookedRevenue * 1.15, 0)
     );
-    const projectedOccupancy = Math.min(95, Math.round((estimatedAppointments / totalSalonCapacity) * 100));
+    const targetGap = Math.max(0, periodTarget - totalProjectedRevenue);
+    const targetProgress = periodTarget > 0 ? Math.min(100, Math.round((totalProjectedRevenue / periodTarget) * 100)) : 0;
+
+    // Capacidade real baseada na quantidade de barbeiros ativos (8 atendimentos/dia por profissional)
+    const activeBarbersCount = Math.max(1, staffList.length);
+    const totalSalonCapacity = activeBarbersCount * 8 * horizonDays;
+    const avgTicketRef = bookedCount > 0 ? Math.max(30, bookedRevenue / bookedCount) : 55;
+    const estimatedAppointments = Math.round(
+      bookedCount + (projectedWalkIns > 0 ? projectedWalkIns / avgTicketRef : 0)
+    );
+    const projectedOccupancy = Math.min(100, Math.round((estimatedAppointments / totalSalonCapacity) * 100));
+    const extraApptsNeededPerDay =
+      targetGap > 0 && avgTicketRef > 0 ? Math.ceil(targetGap / avgTicketRef / horizonDays) : 0;
 
     // Timeline diária para o gráfico de evolução
     const timelineData = [];
@@ -151,15 +159,21 @@ export const StrategicForecastCard: React.FC<StrategicForecastCardProps> = ({
     });
 
     return {
+      hasHistoricalBaseline,
+      baselineDaily,
       bookedRevenue,
       bookedCount,
+      projectedWalkIns: Math.round(projectedWalkIns),
       totalProjectedRevenue,
       projectedNetMargin,
       netMarginPercent,
       periodTarget,
+      targetGap,
       targetProgress,
       estimatedAppointments,
       projectedOccupancy,
+      extraApptsNeededPerDay,
+      activeBarbersCount,
       timelineData,
       staffBreakdown,
     };
@@ -444,12 +458,37 @@ export const StrategicForecastCard: React.FC<StrategicForecastCardProps> = ({
             </div>
           </div>
 
-          {/* Dica Estratégica Atelier Tech */}
-          <div className="p-3 bg-[#B88A44]/10 rounded-lg border border-[#B88A44]/30 mt-4 flex items-start gap-2.5">
-            <Sparkles className="w-4 h-4 text-[#D99A2B] shrink-0 mt-0.5" />
-            <p className="text-[11px] text-stone-300 leading-relaxed">
-              <strong className="text-[#F3D9A4]">Ação recomendada:</strong> Sextas e sábados concentram 68% da demanda. Para os dias de menor volume (terça e quarta), acione disparos segmentados no Motor de Retorno para preenchimento de horários ociosos.
-            </p>
+          {/* Memória de Cálculo & Ação Recomendada (Dinâmica e Explicativa) */}
+          <div className="p-3.5 bg-primary/10 rounded-lg border border-primary/30 mt-4 space-y-2">
+            <div className="flex items-start gap-2">
+              <Sparkles className="w-4 h-4 text-primary-dark dark:text-[#D99A2B] shrink-0 mt-0.5" />
+              <div className="text-[11px] text-stone-200 leading-relaxed space-y-1">
+                <p>
+                  <strong className="text-[#F3D9A4]">Como chegamos nesta previsão:</strong>{' '}
+                  {forecast.hasHistoricalBaseline ? (
+                    <>
+                      somamos os <strong>{formatBRL(forecast.bookedRevenue)}</strong> já confirmados na grade ({forecast.bookedCount} agend.) com a estimativa de demanda avulsa baseada na sua média recente de <strong>{formatBRL(forecast.baselineDaily)}/dia</strong> ({forecast.activeBarbersCount} barbeiro(s) ativo(s)).
+                    </>
+                  ) : (
+                    <>
+                      ainda não há histórico diário suficiente para projetar encaixes; exibindo apenas os <strong>{formatBRL(forecast.bookedRevenue)}</strong> já confirmados na agenda.
+                    </>
+                  )}
+                </p>
+                <p>
+                  <strong className="text-[#F3D9A4]">Próxima ação recomendada:</strong>{' '}
+                  {forecast.targetGap > 0 ? (
+                    <>
+                      faltam <strong>{formatBRL(forecast.targetGap)}</strong> para bater a meta do período (~<strong>{forecast.extraApptsNeededPerDay} atendimento(s)/dia</strong> a mais). Acione o Motor de Retorno ou uma oferta de combo nos horários ociosos do Mapa de Calor.
+                    </>
+                  ) : (
+                    <>
+                      a projeção já alcança a meta do período. Foque em aumentar o ticket médio oferecendo serviços do quadrante <strong>Oportunidades</strong> e produtos na bancada.
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
