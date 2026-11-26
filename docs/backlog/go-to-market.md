@@ -10,21 +10,21 @@
 
 | ID | Título | Prioridade | Issue | Status |
 |---|---|---|---|---|
-| `GTM-005` | **P0-03:** Remover mocks ativos (`/orders/:id`, `/event-versioning`), restringir `/observability` e fail-fast demo (`PR #406`) | `P0` | [#378](https://github.com/augustosanchesmanager-ux/sou-manager/issues/378) | `REVIEW` |
-| `GTM-006` | **P0-04:** Corrigir links públicos quebrados, redirects e reset de senha (`HashRouter`) (`PR #408`) | `P0` | [#379](https://github.com/augustosanchesmanager-ux/sou-manager/issues/379) | `REVIEW` |
-| `GTM-003` | Limpar resíduos de `/automations` simulada em `localStorage` ou definir backend real (`PR #410`) | `P0` | [#386](https://github.com/augustosanchesmanager-ux/sou-manager/issues/386) | `REVIEW` |
-| `GTM-001` | **P0-05:** Eliminar split-brain de planos, conectar CTA `Upgrade`, unificar Billing Stack (ADR) e Stripe (`PR #411`) | `P0` | [#380](https://github.com/augustosanchesmanager-ux/sou-manager/issues/380) | `REVIEW` |
-| `GTM-002` | Remover hardcodes de cliente único e métricas fabricadas no BI *(consolidada em `FIN-002`, `PR #413`)* | `P0` | [#381](https://github.com/augustosanchesmanager-ux/sou-manager/issues/381) | `REVIEW` |
-| `GTM-007` | **P0-08 (`+SEC-004`):** Reconstruir `/superadmin` (MVP Operacional) e remover `pages/Admin.tsx` (`PR #414`) | `P0` | [#383](https://github.com/augustosanchesmanager-ux/sou-manager/issues/383) | `REVIEW` |
-| `GTM-008` | **P0-09:** Implementar Compliance Jurídico & LGPD Mínimo Viável (Fase 6.0.6) (`PR #415`) | `P0` | [#384](https://github.com/augustosanchesmanager-ux/sou-manager/issues/384) | `REVIEW` |
-| `GTM-009` | **P2-05:** Super Admin Avançado (Executive MRR/Churn, `SupabaseMonitoring` real e Exports LGPD) (`PR #433`) | `P2` | [#401](https://github.com/augustosanchesmanager-ux/sou-manager/issues/401) | `REVIEW` |
-| `GTM-004` | SMG Barber Intelligence — Fase 1 (`ai-analyst` + `ai_insights` + `ADR-050`) (`PR #440`) | `P2` | [#403](https://github.com/augustosanchesmanager-ux/sou-manager/issues/403) | `REVIEW` |
+| `GTM-005` | **P0-03:** Remover mocks ativos (`/orders/:id`, `/event-versioning`), restringir `/observability` e fail-fast demo (`PR #406`) | `P0` | [#378](https://github.com/augustosanchesmanager-ux/sou-manager/issues/378) | `DONE` |
+| `GTM-006` | **P0-04:** Corrigir links públicos quebrados, redirects e reset de senha (`HashRouter`) (`PR #408`) | `P0` | [#379](https://github.com/augustosanchesmanager-ux/sou-manager/issues/379) | `DONE` |
+| `GTM-003` | Limpar resíduos de `/automations` simulada em `localStorage` ou definir backend real (`PR #410`) | `P0` | [#386](https://github.com/augustosanchesmanager-ux/sou-manager/issues/386) | `DONE` |
+| `GTM-001` | **P0-05:** Eliminar split-brain de planos, conectar CTA `Upgrade`, unificar Billing Stack (ADR) e Stripe (`PR #411`) | `P0` | [#380](https://github.com/augustosanchesmanager-ux/sou-manager/issues/380) | `DONE` |
+| `GTM-002` | Remover hardcodes de cliente único e métricas fabricadas no BI *(consolidada em `FIN-002`, `PR #413`)* | `P0` | [#381](https://github.com/augustosanchesmanager-ux/sou-manager/issues/381) | `DONE` |
+| `GTM-007` | **P0-08 (`+SEC-004`):** Reconstruir `/superadmin` (MVP Operacional) e remover `pages/Admin.tsx` (`PR #414`) | `P0` | [#383](https://github.com/augustosanchesmanager-ux/sou-manager/issues/383) | `DONE` |
+| `GTM-008` | **P0-09:** Implementar Compliance Jurídico & LGPD Mínimo Viável (Fase 6.0.6) (`PR #415`) | `P0` | [#384](https://github.com/augustosanchesmanager-ux/sou-manager/issues/384) | `DONE` |
+| `GTM-009` | **P2-05:** Super Admin Avançado (Executive MRR/Churn, `SupabaseMonitoring` real e Exports LGPD) (`PR #433`) | `P2` | [#401](https://github.com/augustosanchesmanager-ux/sou-manager/issues/401) | `DONE` |
+| `GTM-004` | SMG Barber Intelligence — Fase 1 (`ai-analyst` + `ai_insights` + `ADR-050`) (`PR #440`) | `P2` | [#403](https://github.com/augustosanchesmanager-ux/sou-manager/issues/403) | `DONE` |
 
 ---
 
 ## `GTM-005` — P0-03: Remover mocks ativos, restringir `/observability` e fail-fast demo
 
-- **Status:** `REVIEW` (`PR #406` mergeado na `main`; aguardando deploy controlado em produção)
+- **Status:** `DONE` (`PR #406` mergeado na `main`; promovido em produção no Run #45609827004)
 - **Prioridade:** `P0`
 - **GitHub Issue:** [#378](https://github.com/augustosanchesmanager-ux/sou-manager/issues/378)
 - **Sprint:** Sprint 1
@@ -46,7 +46,7 @@
 
 ## `GTM-006` — P0-04: Corrigir links públicos quebrados, redirects e reset de senha (`HashRouter`)
 
-- **Status:** `REVIEW` (`PR #408` mergeado na `main`; aguardando deploy controlado em produção)
+- **Status:** `DONE` (`PR #408` mergeado na `main`; promovido em produção no Run #45609827004)
 - **Prioridade:** `P0`
 - **GitHub Issue:** [#379](https://github.com/augustosanchesmanager-ux/sou-manager/issues/379)
 - **Sprint:** Sprint 1
@@ -69,7 +69,7 @@
 
 ## `GTM-003` — Central de Automações (`/automations`) sem Mock em `localStorage`
 
-- **Status:** `REVIEW` (`PR #410` mergeado na `main`; aguardando deploy controlado em produção)
+- **Status:** `DONE` (`PR #410` mergeado na `main`; promovido em produção no Run #45609827004)
 - **Prioridade:** `P0`
 - **GitHub Issue:** [#386](https://github.com/augustosanchesmanager-ux/sou-manager/issues/386)
 - **Sprint:** Sprint 1
@@ -86,7 +86,7 @@ A rota `/automations` já está comentada em `App.tsx:304`, porém o `lazy()` im
 
 ## `GTM-001` — P0-05: Eliminar split-brain de planos, conectar CTA `Upgrade`, Billing Stack e Stripe
 
-- **Status:** `REVIEW` (`PR #411` mergeado na `main`; aguardando deploy controlado em produção)
+- **Status:** `DONE` (`PR #411` mergeado na `main`; promovido em produção no Run #45609827004)
 - **Prioridade:** `P0`
 - **GitHub Issue:** [#380](https://github.com/augustosanchesmanager-ux/sou-manager/issues/380)
 - **Sprint:** Sprint 2
@@ -109,7 +109,7 @@ A rota `/automations` já está comentada em `App.tsx:304`, porém o `lazy()` im
 
 ## `GTM-002` — Remoção de Hardcodes de Cliente Único e Métricas Fabricadas no BI
 
-- **Status:** `REVIEW` (consolidada com `FIN-002` em [#381](https://github.com/augustosanchesmanager-ux/sou-manager/issues/381), `PR #413` mergeado na `main`)
+- **Status:** `DONE` (consolidada com `FIN-002` em [#381](https://github.com/augustosanchesmanager-ux/sou-manager/issues/381), `PR #413` mergeado na `main`)
 - **Prioridade:** `P0`
 - **Escopo:** Além de remover `"Sanchez Barber"`, `"Rubens, Heron, Lucas"` e `"augusto@sanchezbarber.com.br"`, elimina cálculos fabricados (`Math.max`, 45%/50%, 85%/15%, radar fake) e corrige fuso UTC vs BRT em `FIN-002`.
 
@@ -117,7 +117,7 @@ A rota `/automations` já está comentada em `App.tsx:304`, porém o `lazy()` im
 
 ## `GTM-007` — P0-08 (`+SEC-004`): Reconstruir `/superadmin` (MVP Operacional) e remover `Admin.tsx`
 
-- **Status:** `REVIEW` (`PR #414` mergeado na `main`; aguardando deploy controlado em produção)
+- **Status:** `DONE` (`PR #414` mergeado na `main`; promovido em produção no Run #45609827004)
 - **Prioridade:** `P0`
 - **GitHub Issue:** [#383](https://github.com/augustosanchesmanager-ux/sou-manager/issues/383)
 - **Sprint:** Sprint 3
@@ -136,7 +136,7 @@ A rota `/automations` já está comentada em `App.tsx:304`, porém o `lazy()` im
 
 ## `GTM-008` — P0-09: Implementar Compliance Jurídico & LGPD Mínimo Viável (Fase 6.0.6)
 
-- **Status:** `REVIEW` (`PR #415` mergeado na `main`; aguardando migration/deploy controlado em produção)
+- **Status:** `DONE` (`PR #415` mergeado na `main`; aplicado e promovido em produção no Run #45609827004)
 - **Prioridade:** `P0`
 - **GitHub Issue:** [#384](https://github.com/augustosanchesmanager-ux/sou-manager/issues/384)
 - **Sprint:** Sprint 3
@@ -151,7 +151,7 @@ A rota `/automations` já está comentada em `App.tsx:304`, porém o `lazy()` im
 
 ## `GTM-009` — P2-05: Super Admin Avançado
 
-- **Status:** `REVIEW` (`PR #433` mergeado na `main`; aguardando deploy controlado em produção)
+- **Status:** `DONE` (`PR #433` mergeado na `main`; promovido em produção no Run #45609827004)
 - **Prioridade:** `P2`
 - **GitHub Issue:** [#401](https://github.com/augustosanchesmanager-ux/sou-manager/issues/401)
 - **Sprint:** Sprint 5+
@@ -164,7 +164,7 @@ Conectar Executive Dashboard (MRR/ARR/Churn sobre o stack único de billing), re
 
 ## `GTM-004` — SMG Barber Intelligence (Fase 1)
 
-- **Status:** `REVIEW` (`PR #440` mergeado na `main`; ADR-050 aceito em `2026-11-25`; migration, Edge Function `ai-analyst`, serviço e painel `/bi` implementados; aplicação remota em PROD aguarda autorização final do PO)
+- **Status:** `DONE` (`PR #440` mergeado na `main`; ADR-050 aceito em `2026-11-25`; migration, Edge Function `ai-analyst`, serviço e painel `/bi` implementados; aplicado e promovido em produção no Run #45609827004)
 - **Prioridade:** `P2`
 - **GitHub Issue:** [#403](https://github.com/augustosanchesmanager-ux/sou-manager/issues/403)
 - **Sprint:** Sprint 5+
