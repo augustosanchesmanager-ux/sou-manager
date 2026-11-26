@@ -34,7 +34,7 @@ export const InventoryAuditPinModal: React.FC<InventoryAuditPinModalProps> = ({
             maxWidth="sm"
         >
             <form onSubmit={onSubmit} className="space-y-4">
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-xs text-stone-300">
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-xs text-ink">
                     Você está prestes a atualizar o saldo físico de{' '}
                     <strong className="text-amber-400">{discrepanciesCount} produto(s)</strong>{' '}
                     com um impacto financeiro de{' '}

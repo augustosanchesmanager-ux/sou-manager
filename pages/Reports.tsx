@@ -478,18 +478,18 @@ const Reports: React.FC = () => {
   const activeSubs = chefClubStats.activeSubscriptions;
 
   return (
-    <div className="min-h-screen bg-background-dark text-ink p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="min-h-screen bg-cream text-ink p-4 sm:p-6 lg:p-8 space-y-6">
       {toast && (
         <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />
       )}
 
       {/* ===== TIER 1 — Identidade, Período Único & CTAs ===== */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-border-dark pb-6">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-line pb-6">
         <div>
-          <span className="text-[11px] font-bold uppercase tracking-widest text-primary-light">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-primary-dark dark:text-primary-light">
             Gestão &amp; Inteligência
           </span>
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-white mt-1 tracking-tight">
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-ink mt-1 tracking-tight">
             Relatórios
           </h1>
           <p className="text-xs text-ink-soft mt-1">
@@ -502,7 +502,7 @@ const Reports: React.FC = () => {
             type="button"
             onClick={loadReportData}
             disabled={loading}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-card-dark border border-border-dark text-ink-soft hover:border-primary/40 hover:text-white transition-colors disabled:opacity-50 disabled:pointer-events-none"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-card border border-line text-ink-soft hover:border-primary/40 hover:text-ink transition-colors disabled:opacity-50 disabled:pointer-events-none"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-primary' : ''}`} />
             Atualizar
@@ -512,14 +512,14 @@ const Reports: React.FC = () => {
             getPayload={getExportPayload}
             baseFilename={exportFilename}
             disabled={loading}
-            className="bg-card-dark border border-border-dark text-ink-soft hover:border-primary/40 hover:text-white"
+            className="bg-card border border-line text-ink-soft hover:border-primary/40 hover:text-ink"
           />
         </div>
       </div>
 
       {/* ===== TIER 2 — Período + Abas (segmented control) ===== */}
       <div className="space-y-4">
-        <div className="bg-card-dark border border-border-dark rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="bg-card border border-line rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <DateRangeFilter
             startDate={dateFrom}
             endDate={dateTo}
@@ -527,13 +527,13 @@ const Reports: React.FC = () => {
             onEndDateChange={(newEnd) => setDateRange(dateFrom, newEnd)}
           />
           <div className="text-xs text-ink-soft">
-            Período ativo: <strong className="text-primary-light">{periodLabel}</strong>
+            Período ativo: <strong className="text-primary-dark dark:text-primary-light">{periodLabel}</strong>
           </div>
         </div>
 
         {/* Navegação de Abas — Segmented Control */}
         <div
-          className="inline-flex items-center gap-1 p-1 bg-night/60 border border-border-dark/60 rounded-2xl"
+          className="inline-flex items-center gap-1 p-1 bg-card border border-line rounded-2xl"
           role="tablist"
         >
           {tabsConfig.map((tab) => {
@@ -548,8 +548,8 @@ const Reports: React.FC = () => {
                 onClick={() => setActiveTab(tab.key)}
                 className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-150 flex items-center gap-2 ${
                   isActive
-                    ? 'bg-primary/20 text-primary-light border border-primary/30 shadow-xs'
-                    : 'text-ink-soft hover:text-white hover:bg-white/5 border-transparent'
+                    ? 'bg-primary/15 text-primary-dark dark:text-primary-light border border-primary/30 shadow-xs'
+                    : 'text-ink-soft hover:text-ink hover:bg-cream dark:hover:bg-white/5 border-transparent'
                 }`}
               >
                 {tab.icon}
@@ -573,21 +573,21 @@ const Reports: React.FC = () => {
           label="Atendimentos no Período"
           value={totalAppointments.toLocaleString('pt-BR')}
           helper="Agendamentos realizados"
-          icon="calendar"
+          icon="calendar_month"
           tone="info"
         />
         <MetricCard
           label="Assinaturas Ativas"
           value={activeSubs.toLocaleString('pt-BR')}
           helper="Clube dos Chefes"
-          icon="award"
+          icon="workspace_premium"
           tone="brass"
         />
         <MetricCard
           label="Produtos no Catálogo"
           value={productCatalog.length.toLocaleString('pt-BR')}
           helper="Itens cadastrados"
-          icon="package"
+          icon="inventory_2"
           tone="neutral"
         />
       </div>

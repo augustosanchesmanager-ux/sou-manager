@@ -94,11 +94,11 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                             onClick={() => onChange({ ...form, purpose: 'internal_use' })}
                             className={`p-2.5 rounded-lg border text-xs font-medium transition-all ${
                                 form.purpose === 'internal_use'
-                                    ? 'bg-[#B88A44]/20 border-[#B88A44] text-[#B88A44]'
-                                    : 'bg-[#0E0C0A] border-[#2D2A26] text-stone-400 hover:border-[#B88A44]/50'
+                                    ? 'bg-primary/20 border-primary text-primary-dark dark:text-primary'
+                                    : 'bg-cream border-line text-ink-soft hover:border-primary/50'
                             }`}
                         >
-                            <Scissors className="w-4 h-4 mx-auto mb-1 text-[#B88A44]" />
+                            <Scissors className="w-4 h-4 mx-auto mb-1 text-primary-dark dark:text-primary" />
                             Uso Interno (Bancada)
                         </button>
 

@@ -461,14 +461,14 @@ const CashClosingPage: React.FC = () => {
 
             {/* Verificação Pré-Fechamento: Alerta de Comandas Abertas do Dia */}
             {!closing.loading && closing.openComandasCount > 0 && (
-                <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-start gap-3">
-                        <AlertTriangle className="size-5 text-amber-400 shrink-0 mt-0.5" />
+                        <AlertTriangle className="size-5 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
                         <div>
-                            <p className="text-sm font-bold text-amber-300">
+                            <p className="text-sm font-bold text-amber-950 dark:text-amber-200">
                                 Atenção: {closing.openComandasCount} comanda(s) do dia ainda estão em aberto
                             </p>
-                            <p className="text-xs text-amber-200/80 mt-0.5">
+                            <p className="text-xs text-amber-900/90 dark:text-amber-100/85 mt-0.5">
                                 Finalize ou confira as comandas em andamento antes de lacrar o turno para evitar divergências na gaveta.
                             </p>
                         </div>
@@ -476,7 +476,7 @@ const CashClosingPage: React.FC = () => {
                     <button
                         type="button"
                         onClick={() => navigate('/comandas')}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold bg-[#B88A44] text-[#0E0C0A] hover:brightness-110 transition-all shrink-0"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold bg-primary text-night hover:brightness-110 transition-all shrink-0"
                     >
                         Visualizar Comandas Abertas
                     </button>
