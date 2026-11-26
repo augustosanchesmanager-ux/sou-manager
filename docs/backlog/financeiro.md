@@ -10,27 +10,27 @@
 
 | ID | Título | Prioridade | Issue | Status |
 |---|---|---|---|---|
-| `FIN-001` | **F-02:** Guard de sessão e circuit breaker no polling do outbox (`PR #374`) | `P0` | — | `REVIEW` |
-| `FIN-002` | **P0-06 (`+GTM-002`):** Sanear métricas fabricadas em `/bi`, hardcodes e fuso `UTC` vs `BRT` / `closed_at` (`PR #413`) | `P0` | [#381](https://github.com/augustosanchesmanager-ux/sou-manager/issues/381) | `REVIEW` |
-| `FIN-005` | **P0-07:** Migrar `/categories` e políticas de taxa (`cardFeeRepository`) de `localStorage` para Supabase (`PR #412`) | `P0` | [#382](https://github.com/augustosanchesmanager-ux/sou-manager/issues/382) | `REVIEW` |
-| `FIN-006` | **P1-01:** Consolidar `useFeatureFlags` (20 RPCs → 1 RPC Batch) e higiene de cache (`PR #416`) | `P1` | [#387](https://github.com/augustosanchesmanager-ux/sou-manager/issues/387) | `REVIEW` |
-| `FIN-003` | Corrigir timeouts em `fiscalService.test.ts` e `stockRepository.test.ts` + definir escopo NFS-e (`PR #420`) | `P1` | [#396](https://github.com/augustosanchesmanager-ux/sou-manager/issues/396) | `REVIEW` |
-| `FIN-004` | Alinhar Staging e `config.toml` da exportação Excel (`import-export`) (`PR #432`) | `P2` | [#402](https://github.com/augustosanchesmanager-ux/sou-manager/issues/402) | `REVIEW` |
+| `FIN-001` | **F-02:** Guard de sessão e circuit breaker no polling do outbox (`PR #374`) | `P0` | — | `DONE` |
+| `FIN-002` | **P0-06 (`+GTM-002`):** Sanear métricas fabricadas em `/bi`, hardcodes e fuso `UTC` vs `BRT` / `closed_at` (`PR #413`) | `P0` | [#381](https://github.com/augustosanchesmanager-ux/sou-manager/issues/381) | `DONE` |
+| `FIN-005` | **P0-07:** Migrar `/categories` e políticas de taxa (`cardFeeRepository`) de `localStorage` para Supabase (`PR #412`) | `P0` | [#382](https://github.com/augustosanchesmanager-ux/sou-manager/issues/382) | `DONE` |
+| `FIN-006` | **P1-01:** Consolidar `useFeatureFlags` (20 RPCs → 1 RPC Batch) e higiene de cache (`PR #416`) | `P1` | [#387](https://github.com/augustosanchesmanager-ux/sou-manager/issues/387) | `DONE` |
+| `FIN-003` | Corrigir timeouts em `fiscalService.test.ts` e `stockRepository.test.ts` + definir escopo NFS-e (`PR #420`) | `P1` | [#396](https://github.com/augustosanchesmanager-ux/sou-manager/issues/396) | `DONE` |
+| `FIN-004` | Alinhar Staging e `config.toml` da exportação Excel (`import-export`) (`PR #432`) | `P2` | [#402](https://github.com/augustosanchesmanager-ux/sou-manager/issues/402) | `DONE` |
 
 ---
 
 ## `FIN-001` — F-02: Guard de sessão e circuit breaker no polling do outbox
 
-- **Status:** `REVIEW`
+- **Status:** `DONE`
 - **Prioridade:** `P0`
 - **Tipo:** `Bugfix`
-- **Escopo & Evidência:** PR #374 mergeado (`b87e0cb`); registro em `docs/audit/F02_OUTBOX_AUTH_GUARD_20261123.md`. Aguardando deploy controlado em produção.
+- **Escopo & Evidência:** PR #374 mergeado (`b87e0cb`); registro em `docs/audit/F02_OUTBOX_AUTH_GUARD_20261123.md`. Promovido em produção no Run #45609827004.
 
 ---
 
 ## `FIN-002` — P0-06 (`+GTM-002`): Sanear `/bi`, hardcodes e fuso `UTC` vs `BRT` / `closed_at`
 
-- **Status:** `REVIEW` (`PR #413` mergeado na `main`; aguardando deploy controlado em produção)
+- **Status:** `DONE` (`PR #413` mergeado na `main`; promovido em produção no Run #45609827004)
 - **Prioridade:** `P0`
 - **GitHub Issue:** [#381](https://github.com/augustosanchesmanager-ux/sou-manager/issues/381)
 - **Sprint:** Sprint 2
@@ -53,7 +53,7 @@
 
 ## `FIN-005` — P0-07: Migrar `/categories` e políticas de taxa (`cardFeeRepository`) para Supabase
 
-- **Status:** `REVIEW` (`PR #412` mergeado na `main`; aguardando migration/deploy controlado em produção)
+- **Status:** `DONE` (`PR #412` mergeado na `main`; aplicado e promovido em produção no Run #45609827004)
 - **Prioridade:** `P0`
 - **GitHub Issue:** [#382](https://github.com/augustosanchesmanager-ux/sou-manager/issues/382)
 - **Sprint:** Sprint 2
@@ -72,7 +72,7 @@
 
 ## `FIN-006` — P1-01: Consolidar `useFeatureFlags` (20 RPCs → 1 RPC Batch) e higiene de cache
 
-- **Status:** `REVIEW` (`PR #416` mergeado na `main`; aguardando RPC batch/deploy controlado em produção)
+- **Status:** `DONE` (`PR #416` mergeado na `main`; aplicado e promovido em produção no Run #45609827004)
 - **Prioridade:** `P1`
 - **GitHub Issue:** [#387](https://github.com/augustosanchesmanager-ux/sou-manager/issues/387)
 - **Sprint:** Sprint 4
@@ -87,7 +87,7 @@
 
 ## `FIN-003` — Estabilizar testes de Fiscal/Estoque e definir escopo NFS-e
 
-- **Status:** `REVIEW` (`PR #420` mergeado na `main`; aguardando deploy controlado em produção)
+- **Status:** `DONE` (`PR #420` mergeado na `main`; promovido em produção no Run #45609827004)
 - **Prioridade:** `P1`
 - **GitHub Issue:** [#396](https://github.com/augustosanchesmanager-ux/sou-manager/issues/396)
 - **Sprint:** Sprint 4
@@ -101,7 +101,7 @@
 
 ## `FIN-004` — Alinhar Staging e `config.toml` da Exportação Excel (`import-export`)
 
-- **Status:** `REVIEW` (`PR #432` mergeado na `main`; aguardando deploy controlado em produção)
+- **Status:** `DONE` (`PR #432` mergeado na `main`; promovido em produção no Run #45609827004)
 - **Prioridade:** `P2`
 - **GitHub Issue:** [#402](https://github.com/augustosanchesmanager-ux/sou-manager/issues/402)
 - **Sprint:** Sprint 5+

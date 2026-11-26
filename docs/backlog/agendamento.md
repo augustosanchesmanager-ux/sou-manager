@@ -10,14 +10,14 @@
 
 | ID | Título | Prioridade | Issue | Status |
 |---|---|---|---|---|
-| `AGD-001` | Isolar/remover mock `"Barbearia Dom Zé"` do bundle de Agendamento Público (`/agendar/:slug`) (`PR #409`) | `P0` | [#385](https://github.com/augustosanchesmanager-ux/sou-manager/issues/385) | `REVIEW` |
-| `AGD-002` | **P1-02:** Unificar Sync Agenda ↔ Comanda (3 caminhos → 1) e blindar concorrência no Checkout (`PR #422`) | `P1` | [#388](https://github.com/augustosanchesmanager-ux/sou-manager/issues/388) | `REVIEW` |
+| `AGD-001` | Isolar/remover mock `"Barbearia Dom Zé"` do bundle de Agendamento Público (`/agendar/:slug`) (`PR #409`) | `P0` | [#385](https://github.com/augustosanchesmanager-ux/sou-manager/issues/385) | `DONE` |
+| `AGD-002` | **P1-02:** Unificar Sync Agenda ↔ Comanda (3 caminhos → 1) e blindar concorrência no Checkout (`PR #422`) | `P1` | [#388](https://github.com/augustosanchesmanager-ux/sou-manager/issues/388) | `DONE` |
 
 ---
 
 ## `AGD-001` — Isolar/remover mock `"Barbearia Dom Zé"` do bundle de Agendamento Público
 
-- **Status:** `REVIEW` (`PR #409` mergeado na `main`; aguardando deploy controlado em produção)
+- **Status:** `DONE` (`PR #409` mergeado na `main`; promovido em produção no Run #45609827004)
 - **Prioridade:** `P0`
 - **GitHub Issue:** [#385](https://github.com/augustosanchesmanager-ux/sou-manager/issues/385)
 - **Sprint:** Sprint 1
@@ -36,7 +36,7 @@ Na verificação da Sprint 0 em `src/pages/public/booking/hooks/bookingService.t
 
 ## `AGD-002` — P1-02: Unificar Sync Agenda ↔ Comanda (3 caminhos → 1) e blindar concorrência no Checkout
 
-- **Status:** `REVIEW` (`PR #422` mergeado na `main`; aguardando deploy controlado em produção)
+- **Status:** `DONE` (`PR #422` mergeado na `main`; promovido em produção no Run #45609827004)
 - **Prioridade:** `P1`
 - **GitHub Issue:** [#388](https://github.com/augustosanchesmanager-ux/sou-manager/issues/388)
 - **Sprint:** Sprint 4
