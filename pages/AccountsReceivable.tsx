@@ -72,6 +72,7 @@ import {
     type ClubReceivableRecord,
     type ReceiptRecord,
     type ActiveTab,
+    type AgingFilter,
     type ARListEntry,
     type FinancialReversalRecord,
     CLIENT_FALLBACK_LABEL,
@@ -83,6 +84,8 @@ import {
     createFiadoOutboxData,
     normalizePaymentMethod,
     getClientData,
+    getDaysOverdue,
+    matchesAgingFilter,
     extractClientNameFromTransactionDescription,
 } from './AccountsReceivable/receivablesHelpers';
 
@@ -160,7 +163,7 @@ const AccountsReceivable: React.FC = () => {
     const [paidComandaSettlements, setPaidComandaSettlements] = useState<PaidComandaSettlement[]>([]);
     const [clubReceivables, setClubReceivables] = useState<ClubReceivableRecord[]>([]);
     const [pendingReceipts, setPendingReceipts] = useState<ReceiptRecord[]>([]);
-    const [agingFilter, setAgingFilter] = useState<'all' | '1_7' | '8_30' | '30_plus'>('all');
+    const [agingFilter, setAgingFilter] = useState<AgingFilter>('all');
     const [quickClubEntry, setQuickClubEntry] = useState<AREntry | null>(null);
     const [clubSettling, setClubSettling] = useState(false);
     const clubSettlementLockRef = React.useRef(false);
@@ -871,12 +874,8 @@ const AccountsReceivable: React.FC = () => {
                 if (!haystack.includes(searchTerm)) return false;
             }
 
-            if (agingFilter !== 'all') {
-                const days = getDaysOverdue(entry.dateValue);
-                if (days <= 0) return false;
-                if (agingFilter === '1_7' && (days < 1 || days > 7)) return false;
-                if (agingFilter === '8_30' && (days < 8 || days > 30)) return false;
-                if (agingFilter === '30_plus' && days <= 30) return false;
+            if (!matchesAgingFilter(entry.dateValue, agingFilter)) {
+                return false;
             }
 
             return true;
@@ -893,16 +892,6 @@ const AccountsReceivable: React.FC = () => {
             return secondDate - firstDate;
         });
     }, [tabbedEntries, listFilters, sortKey, agingFilter]);
-
-    const getDaysOverdue = (rawDate?: string | null): number => {
-        if (!rawDate) return 0;
-        const targetStr = String(rawDate).slice(0, 10);
-        const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-        const targetMs = new Date(`${targetStr}T12:00:00-03:00`).getTime();
-        const todayMs = new Date(`${todayStr}T12:00:00-03:00`).getTime();
-        if (!Number.isFinite(targetMs) || !Number.isFinite(todayMs)) return 0;
-        return Math.round((todayMs - targetMs) / (1000 * 60 * 60 * 24));
-    };
 
     const buildWhatsAppChargeLink = (
         phone: string | null | undefined,
@@ -1592,24 +1581,26 @@ const AccountsReceivable: React.FC = () => {
 
                 {/* Sub-filtro de Faixas de Atraso (Aging) */}
                 {executiveCards.overdueCount > 0 && activeTab !== 'creditos' && activeTab !== 'historico' && (
-                    <div className="flex flex-wrap items-center gap-1.5 bg-[#141210] border border-[#2D2A26] rounded-xl p-1">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-stone-400 px-2">
+                    <div className="flex flex-wrap items-center gap-1.5 bg-card border border-line rounded-xl p-1">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-soft px-2">
                             Atrasos:
                         </span>
-                        {[
-                            { key: 'all', label: 'Todos Atrasos' },
-                            { key: '1_7', label: '1 a 7 dias' },
-                            { key: '8_30', label: '8 a 30 dias' },
-                            { key: '30_plus', label: '+30 dias (Crítico)' },
-                        ].map((ag) => (
+                        {(
+                            [
+                                { key: 'all', label: 'Todos Atrasos' },
+                                { key: '1_7', label: '1 a 7 dias' },
+                                { key: '8_30', label: '8 a 30 dias' },
+                                { key: '30_plus', label: '+30 dias (Crítico)' },
+                            ] as const
+                        ).map((ag) => (
                             <button
                                 key={ag.key}
                                 type="button"
-                                onClick={() => setAgingFilter(ag.key as any)}
+                                onClick={() => setAgingFilter(ag.key)}
                                 className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${
                                     agingFilter === ag.key
-                                        ? 'bg-red-500/20 text-red-300 border border-red-500/40'
-                                        : 'text-stone-400 hover:text-[#F5F5F0]'
+                                        ? 'bg-danger/15 text-danger dark:text-red-300 border border-danger/40'
+                                        : 'text-ink-soft hover:text-ink'
                                 }`}
                             >
                                 {ag.label}

@@ -211,3 +211,29 @@ export const extractClientNameFromTransactionDescription = (description?: string
     const clientName = clientMatch?.[1]?.trim();
     return clientName || CLIENT_FALLBACK_LABEL;
 };
+
+export type AgingFilter = 'all' | '1_7' | '8_30' | '30_plus';
+
+export const getDaysOverdue = (rawDate?: string | null, referenceDateStr?: string): number => {
+    if (!rawDate) return 0;
+    const targetStr = String(rawDate).slice(0, 10);
+    const todayStr =
+        referenceDateStr ?? new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+    const targetMs = new Date(`${targetStr}T12:00:00-03:00`).getTime();
+    const todayMs = new Date(`${todayStr}T12:00:00-03:00`).getTime();
+    if (!Number.isFinite(targetMs) || !Number.isFinite(todayMs)) return 0;
+    return Math.round((todayMs - targetMs) / (1000 * 60 * 60 * 24));
+};
+
+export const matchesAgingFilter = (
+    rawDate: string | null | undefined,
+    agingFilter: AgingFilter,
+    referenceDateStr?: string
+): boolean => {
+    if (agingFilter === 'all') return true;
+    const days = getDaysOverdue(rawDate, referenceDateStr);
+    if (days <= 0) return false;
+    if (agingFilter === '1_7') return days >= 1 && days <= 7;
+    if (agingFilter === '8_30') return days >= 8 && days <= 30;
+    return days > 30;
+};

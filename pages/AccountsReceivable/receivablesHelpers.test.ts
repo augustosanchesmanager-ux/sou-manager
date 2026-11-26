@@ -5,6 +5,8 @@ import {
   extractClientNameFromTransactionDescription,
   getAppointmentStartTime,
   getClientData,
+  getDaysOverdue,
+  matchesAgingFilter,
   normalizePaymentMethod,
 } from './receivablesHelpers';
 
@@ -35,5 +37,27 @@ describe('pages/AccountsReceivable/receivablesHelpers (UXQ-007 #397)', () => {
     expect(outbox.eventType).toBe('CheckoutCompleted');
     expect(outbox.payload.operationType).toBe('create_commission_record');
     expect(outbox.payload.idempotencyKey).toContain('cmd-1');
+  });
+
+  it('should_compute_days_overdue_safely_for_valid_and_invalid_dates', () => {
+    const today = '2026-11-26';
+    expect(getDaysOverdue('2026-11-26T15:00:00Z', today)).toBe(0);
+    expect(getDaysOverdue('2026-11-23', today)).toBe(3);
+    expect(getDaysOverdue('2026-10-20', today)).toBe(37);
+    expect(getDaysOverdue('2026-11-30', today)).toBe(-4);
+    expect(getDaysOverdue(null, today)).toBe(0);
+    expect(getDaysOverdue('invalid-date', today)).toBe(0);
+  });
+
+  it('should_filter_aging_buckets_without_throwing', () => {
+    const today = '2026-11-26';
+    expect(matchesAgingFilter('2026-11-26', 'all', today)).toBe(true);
+    expect(matchesAgingFilter('2026-11-26', '1_7', today)).toBe(false);
+    expect(matchesAgingFilter('2026-11-21', '1_7', today)).toBe(true);
+    expect(matchesAgingFilter('2026-11-10', '1_7', today)).toBe(false);
+    expect(matchesAgingFilter('2026-11-10', '8_30', today)).toBe(true);
+    expect(matchesAgingFilter('2026-10-20', '8_30', today)).toBe(false);
+    expect(matchesAgingFilter('2026-10-20', '30_plus', today)).toBe(true);
+    expect(matchesAgingFilter(null, '30_plus', today)).toBe(false);
   });
 });
