@@ -106,13 +106,13 @@ export const ReportsAppointmentsTab: React.FC<ReportsAppointmentsTabProps> = ({
         );
       case 'scheduled':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-[#B88A44]/15 text-[#B88A44] border border-[#B88A44]/30">
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-primary/15 text-primary-dark dark:text-primary border border-primary/30">
             Agendado / Confirmado
           </span>
         );
       case 'cancelled':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-stone-500/20 text-stone-300 border border-stone-500/30">
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-stone-500/20 text-ink border border-stone-500/30">
             Cancelado
           </span>
         );
@@ -128,15 +128,15 @@ export const ReportsAppointmentsTab: React.FC<ReportsAppointmentsTabProps> = ({
   return (
     <div className="space-y-6">
       {/* Filtros da Aba Atendimentos */}
-      <div className="flex flex-wrap items-center gap-3 bg-[#141210] border border-[#2D2A26] rounded-xl p-4">
+      <div className="flex flex-wrap items-center gap-3 bg-card border border-line rounded-xl p-4">
         <div className="flex flex-col gap-1 min-w-[200px]">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-stone-400">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-ink-soft">
             Profissional
           </label>
           <select
             value={selectedStaff}
             onChange={(e) => onSelectStaff(e.target.value)}
-            className="bg-[#0E0C0A] border border-[#2D2A26] rounded-lg px-3 py-2 text-xs text-[#F5F5F0] focus:border-[#B88A44] focus:outline-none"
+            className="bg-cream border border-line rounded-lg px-3 py-2 text-xs text-ink focus:border-primary focus:outline-none"
           >
             <option value="all">Todos os profissionais</option>
             {availableStaff.map((name) => (
@@ -148,13 +148,13 @@ export const ReportsAppointmentsTab: React.FC<ReportsAppointmentsTabProps> = ({
         </div>
 
         <div className="flex flex-col gap-1 min-w-[200px]">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-stone-400">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-ink-soft">
             Status Operacional
           </label>
           <select
             value={selectedStatus}
             onChange={(e) => onSelectStatus(e.target.value as AppointmentStatusFilter)}
-            className="bg-[#0E0C0A] border border-[#2D2A26] rounded-lg px-3 py-2 text-xs text-[#F5F5F0] focus:border-[#B88A44] focus:outline-none"
+            className="bg-cream border border-line rounded-lg px-3 py-2 text-xs text-ink focus:border-primary focus:outline-none"
           >
             <option value="all">Todos os status</option>
             <option value="completed">Concluídos</option>
@@ -165,7 +165,7 @@ export const ReportsAppointmentsTab: React.FC<ReportsAppointmentsTabProps> = ({
         </div>
 
         <div className="ml-auto text-right">
-          <span className="text-[11px] text-stone-400">
+          <span className="text-[11px] text-ink-soft">
             Visão 100% operacional de ocupação da cadeira (independente do caixa).
           </span>
         </div>
@@ -173,57 +173,57 @@ export const ReportsAppointmentsTab: React.FC<ReportsAppointmentsTabProps> = ({
 
       {/* 4 Cards Executivos */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div className="bg-[#141210] border border-[#2D2A26] rounded-xl p-5 flex flex-col justify-between">
+        <div className="bg-card border border-line rounded-xl p-5 flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
               Total de Agendamentos
             </span>
-            <Calendar className="w-4 h-4 text-[#B88A44]" />
+            <Calendar className="w-4 h-4 text-primary-dark dark:text-primary" />
           </div>
-          <div className="mt-3 text-2xl font-bold text-[#F5F5F0]">{metrics.total}</div>
-          <div className="mt-1 text-xs text-stone-500">Horários marcados no período</div>
+          <div className="mt-3 text-2xl font-bold text-ink">{metrics.total}</div>
+          <div className="mt-1 text-xs text-ink-soft">Horários marcados no período</div>
         </div>
 
-        <div className="bg-[#141210] border border-[#2D2A26] rounded-xl p-5 flex flex-col justify-between">
+        <div className="bg-card border border-line rounded-xl p-5 flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
               Taxa de Conclusão
             </span>
             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           </div>
           <div className="mt-3 text-2xl font-bold text-emerald-400">{metrics.completionRate}%</div>
-          <div className="mt-1 text-xs text-stone-500">{metrics.completedCount} atendimentos realizados</div>
+          <div className="mt-1 text-xs text-ink-soft">{metrics.completedCount} atendimentos realizados</div>
         </div>
 
-        <div className="bg-[#141210] border border-[#2D2A26] rounded-xl p-5 flex flex-col justify-between">
+        <div className="bg-card border border-line rounded-xl p-5 flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
               Furos de Agenda
             </span>
             <AlertTriangle className="w-4 h-4 text-amber-500" />
           </div>
           <div className="mt-3 text-2xl font-bold text-amber-400">
-            {metrics.gapsCount} <span className="text-sm font-normal text-stone-400">({metrics.gapRate}%)</span>
+            {metrics.gapsCount} <span className="text-sm font-normal text-ink-soft">({metrics.gapRate}%)</span>
           </div>
-          <div className="mt-1 text-xs text-stone-500">Cancelamentos + No-Shows</div>
+          <div className="mt-1 text-xs text-ink-soft">Cancelamentos + No-Shows</div>
         </div>
 
-        <div className="bg-[#141210] border border-[#B88A44]/50 rounded-xl p-5 flex flex-col justify-between">
+        <div className="bg-card border border-primary/50 rounded-xl p-5 flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-[#B88A44]">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-primary-dark dark:text-primary">
               Horas em Cadeira
             </span>
-            <Clock className="w-4 h-4 text-[#B88A44]" />
+            <Clock className="w-4 h-4 text-primary-dark dark:text-primary" />
           </div>
-          <div className="mt-3 text-2xl font-bold text-[#F5F5F0]">{metrics.hoursFormatted}</div>
-          <div className="mt-1 text-xs text-stone-400">Produtividade em serviços concluídos</div>
+          <div className="mt-3 text-2xl font-bold text-ink">{metrics.hoursFormatted}</div>
+          <div className="mt-1 text-xs text-ink-soft">Produtividade em serviços concluídos</div>
         </div>
       </div>
 
       {/* Resumo por Profissional */}
       {staffSummary.length > 0 && (
-        <div className="bg-[#141210] border border-[#2D2A26] rounded-xl p-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-[#B88A44] mb-3">
+        <div className="bg-card border border-line rounded-xl p-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-primary-dark dark:text-primary mb-3">
             Resumo Operacional por Profissional
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -233,14 +233,14 @@ export const ReportsAppointmentsTab: React.FC<ReportsAppointmentsTabProps> = ({
               return (
                 <div
                   key={st.staffName}
-                  className="bg-[#0E0C0A] border border-[#2D2A26] rounded-lg p-3 flex flex-col gap-1"
+                  className="bg-cream border border-line rounded-lg p-3 flex flex-col gap-1"
                 >
-                  <div className="text-xs font-semibold text-[#F5F5F0] truncate">{st.staffName}</div>
-                  <div className="flex items-center justify-between text-[11px] text-stone-400 mt-1">
+                  <div className="text-xs font-semibold text-ink truncate">{st.staffName}</div>
+                  <div className="flex items-center justify-between text-[11px] text-ink-soft mt-1">
                     <span>Concluídos: <strong className="text-emerald-400">{st.completed}</strong>/{st.total}</span>
                     <span>Furos: <strong className="text-amber-400">{st.gaps}</strong></span>
                   </div>
-                  <div className="text-[10px] text-stone-500">
+                  <div className="text-[10px] text-ink-soft">
                     Tempo produtivo: {hrs}h {String(mins).padStart(2, '0')}m
                   </div>
                 </div>
@@ -251,25 +251,25 @@ export const ReportsAppointmentsTab: React.FC<ReportsAppointmentsTabProps> = ({
       )}
 
       {/* Tabela Analítica */}
-      <div className="bg-[#141210] border border-[#2D2A26] rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-[#2D2A26] flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-[#F5F5F0]">
+      <div className="bg-card border border-line rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-line flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-ink">
             Detalhamento de Atendimentos & Agendamentos
           </h3>
-          <span className="text-xs text-stone-400">{filteredAppointments.length} registro(s)</span>
+          <span className="text-xs text-ink-soft">{filteredAppointments.length} registro(s)</span>
         </div>
 
         {loading ? (
-          <div className="p-8 text-center text-xs text-stone-400">Carregando agendamentos...</div>
+          <div className="p-8 text-center text-xs text-ink-soft">Carregando agendamentos...</div>
         ) : filteredAppointments.length === 0 ? (
-          <div className="p-8 text-center text-xs text-stone-400">
+          <div className="p-8 text-center text-xs text-ink-soft">
             Nenhum agendamento encontrado para os filtros selecionados.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-[#2D2A26] bg-[#0E0C0A] text-[10px] uppercase tracking-wider text-[#B88A44]">
+                <tr className="border-b border-line bg-cream text-[10px] uppercase tracking-wider text-primary-dark dark:text-primary">
                   <th className="py-3 px-4 font-semibold">Data / Hora</th>
                   <th className="py-3 px-4 font-semibold">Cliente</th>
                   <th className="py-3 px-4 font-semibold">Telefone</th>
@@ -279,15 +279,15 @@ export const ReportsAppointmentsTab: React.FC<ReportsAppointmentsTabProps> = ({
                   <th className="py-3 px-4 font-semibold text-center">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#2D2A26]/60 text-xs text-[#F5F5F0]">
+              <tbody className="divide-y divide-line/60 text-xs text-ink">
                 {filteredAppointments.map((a) => (
-                  <tr key={a.id} className="hover:bg-[#1C1916] transition-colors">
-                    <td className="py-3 px-4 text-stone-300 whitespace-nowrap">{fmtDateTime(a.startTime)}</td>
+                  <tr key={a.id} className="hover:bg-cream/80 dark:bg-white/5 transition-colors">
+                    <td className="py-3 px-4 text-ink whitespace-nowrap">{fmtDateTime(a.startTime)}</td>
                     <td className="py-3 px-4 font-medium">{a.clientName}</td>
-                    <td className="py-3 px-4 text-stone-400 font-mono text-[11px]">{a.clientPhone || '-'}</td>
-                    <td className="py-3 px-4 text-stone-300">{a.staffName}</td>
+                    <td className="py-3 px-4 text-ink-soft font-mono text-[11px]">{a.clientPhone || '-'}</td>
+                    <td className="py-3 px-4 text-ink">{a.staffName}</td>
                     <td className="py-3 px-4 text-stone-200">{a.serviceNames}</td>
-                    <td className="py-3 px-4 text-right text-stone-400">{a.durationMinutes} min</td>
+                    <td className="py-3 px-4 text-right text-ink-soft">{a.durationMinutes} min</td>
                     <td className="py-3 px-4 text-center">{renderStatusBadge(a.statusCategory)}</td>
                   </tr>
                 ))}

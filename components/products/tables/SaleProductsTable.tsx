@@ -20,10 +20,10 @@ export const SaleProductsTable: React.FC<SaleProductsTableProps> = ({
     onDelete,
 }) => {
     return (
-        <div className="bg-[#141210] border border-[#2D2A26] rounded-xl overflow-hidden">
+        <div className="bg-card border border-line rounded-xl overflow-hidden">
             <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-stone-300">
-                    <thead className="bg-[#0E0C0A] text-[10px] uppercase tracking-wider text-[#B88A44] border-b border-[#2D2A26]">
+                <table className="w-full text-left text-sm text-ink">
+                    <thead className="bg-cream text-[10px] uppercase tracking-wider text-primary-dark dark:text-primary border-b border-line">
                         <tr>
                             <th className="py-3 px-4 font-semibold">Produto</th>
                             <th className="py-3 px-4 font-semibold">Categoria</th>
@@ -34,16 +34,16 @@ export const SaleProductsTable: React.FC<SaleProductsTableProps> = ({
                             <th className="py-3 px-4 font-semibold text-right">Ações Rápidas</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#2D2A26]/60">
+                    <tbody className="divide-y divide-line/60">
                         {loading ? (
                             <tr>
-                                <td colSpan={7} className="py-8 text-center text-stone-400 text-xs">
+                                <td colSpan={7} className="py-8 text-center text-ink-soft text-xs">
                                     Carregando produtos...
                                 </td>
                             </tr>
                         ) : products.length === 0 ? (
                             <tr>
-                                <td colSpan={7} className="py-8 text-center text-stone-400 text-xs">
+                                <td colSpan={7} className="py-8 text-center text-ink-soft text-xs">
                                     Nenhum produto para venda encontrado.
                                 </td>
                             </tr>
@@ -57,33 +57,33 @@ export const SaleProductsTable: React.FC<SaleProductsTableProps> = ({
                                         : null;
 
                                 return (
-                                    <tr key={prod.id} className="hover:bg-[#1C1916] transition-colors">
+                                    <tr key={prod.id} className="hover:bg-cream/80 dark:bg-white/5 transition-colors">
                                         <td className="py-3 px-4">
-                                            <div className="font-medium text-[#F5F5F0]">{prod.name}</div>
-                                            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-stone-400">
+                                            <div className="font-medium text-ink">{prod.name}</div>
+                                            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-ink-soft">
                                                 {prod.brand && <span>{prod.brand}</span>}
-                                                <span className="px-1.5 py-0.2 rounded bg-[#B88A44]/10 text-[#B88A44] border border-[#B88A44]/20 text-[10px]">
+                                                <span className="px-1.5 py-0.2 rounded bg-primary/10 text-primary-dark dark:text-primary border border-primary/20 text-[10px]">
                                                     {prod.purpose === 'both' ? 'Híbrido' : 'Venda'}
                                                 </span>
                                             </div>
                                         </td>
                                         <td className="py-3 px-4">
-                                            <span className="px-2 py-0.5 rounded text-xs bg-[#0E0C0A] border border-[#2D2A26] text-stone-300">
+                                            <span className="px-2 py-0.5 rounded text-xs bg-cream border border-line text-ink">
                                                 {prod.category || 'Geral'}
                                             </span>
                                         </td>
                                         <td className="py-3 px-4 text-right">
-                                            <div className="text-stone-300 text-xs">{formatCurrency(prod.cost_price)}</div>
+                                            <div className="text-ink text-xs">{formatCurrency(prod.cost_price)}</div>
                                             {marginPct !== null && (
                                                 <div className="text-[10px] font-semibold text-emerald-400">
                                                     Margem {marginPct}%
                                                 </div>
                                             )}
                                         </td>
-                                        <td className="py-3 px-4 text-right font-semibold text-[#F5F5F0]">
+                                        <td className="py-3 px-4 text-right font-semibold text-ink">
                                             {formatCurrency(prod.sale_price)}
                                         </td>
-                                        <td className="py-3 px-4 text-center text-[#B88A44] font-medium text-xs">
+                                        <td className="py-3 px-4 text-center text-primary-dark dark:text-primary font-medium text-xs">
                                             {prod.commission_rate}%
                                         </td>
                                         <td className="py-3 px-4 text-center">
@@ -109,7 +109,7 @@ export const SaleProductsTable: React.FC<SaleProductsTableProps> = ({
                                                     type="button"
                                                     onClick={() => onOpenPurchase(prod)}
                                                     title="Ajustar / Entrada de Estoque"
-                                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-[#B88A44]/15 text-[#B88A44] border border-[#B88A44]/30 hover:bg-[#B88A44] hover:text-[#0E0C0A] transition-colors"
+                                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-primary/15 text-primary-dark dark:text-primary border border-primary/30 hover:bg-primary hover:text-[#0E0C0A] transition-colors"
                                                 >
                                                     <ShoppingCart className="w-3.5 h-3.5" />
                                                     Entrada
@@ -118,7 +118,7 @@ export const SaleProductsTable: React.FC<SaleProductsTableProps> = ({
                                                     type="button"
                                                     onClick={() => onOpenEdit(prod)}
                                                     title="Editar produto"
-                                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-[#0E0C0A] text-stone-300 border border-[#2D2A26] hover:border-[#B88A44]/50 hover:text-[#F5F5F0] transition-colors"
+                                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-cream text-ink border border-line hover:border-primary/50 hover:text-ink transition-colors"
                                                 >
                                                     <Edit2 className="w-3.5 h-3.5" />
                                                     Editar
@@ -127,7 +127,7 @@ export const SaleProductsTable: React.FC<SaleProductsTableProps> = ({
                                                     type="button"
                                                     onClick={() => onDelete(prod)}
                                                     title="Remover produto"
-                                                    className="p-1.5 rounded-lg hover:bg-rose-500/15 text-stone-400 hover:text-rose-400 transition-colors"
+                                                    className="p-1.5 rounded-lg hover:bg-rose-500/15 text-ink-soft hover:text-rose-400 transition-colors"
                                                 >
                                                     <Trash2 className="w-3.5 h-3.5" />
                                                 </button>

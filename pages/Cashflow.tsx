@@ -896,24 +896,24 @@ const Cashflow: React.FC = () => {
             ) : (
                 <>
 
-            {/* 4 Cards Executivos Claros (Atelier Tech) */}
+            {/* 4 Cards Executivos Claros (Atelier Tech — mantidos escuros com contraste reforcado) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 <div className="bg-[#141210] border border-[#2D2A26] rounded-xl p-5 flex flex-col justify-between">
                     <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-300">
                             Saldo Anterior
                         </span>
-                        <Wallet className="w-4 h-4 text-stone-400" />
+                        <Wallet className="w-4 h-4 text-stone-300" />
                     </div>
                     <div className="mt-3 text-2xl font-bold text-[#F5F5F0]">
                         {formatCurrency(previousBalance)}
                     </div>
-                    <div className="mt-1 text-xs text-stone-500">Acumulado antes do período</div>
+                    <div className="mt-1 text-xs text-stone-300">Acumulado antes do período</div>
                 </div>
 
                 <div className="bg-[#141210] border border-emerald-500/30 rounded-xl p-5 flex flex-col justify-between">
                     <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-300">
                             Entradas no Período (+)
                         </span>
                         <ArrowUpCircle className="w-4 h-4 text-emerald-400" />
@@ -921,14 +921,14 @@ const Cashflow: React.FC = () => {
                     <div className="mt-3 text-2xl font-bold text-emerald-400">
                         + {formatCurrency(totalEntradas)}
                     </div>
-                    <div className="mt-1 text-xs text-stone-400">
+                    <div className="mt-1 text-xs text-stone-300">
                         {entries.filter((entry) => entry.type === 'entrada').length} lançamento(s)
                     </div>
                 </div>
 
                 <div className="bg-[#141210] border border-red-500/30 rounded-xl p-5 flex flex-col justify-between">
                     <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold uppercase tracking-wider text-red-400">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-red-300">
                             Saídas no Período (-)
                         </span>
                         <ArrowDownCircle className="w-4 h-4 text-red-400" />
@@ -936,22 +936,22 @@ const Cashflow: React.FC = () => {
                     <div className="mt-3 text-2xl font-bold text-red-400">
                         - {formatCurrency(totalSaidas)}
                     </div>
-                    <div className="mt-1 text-xs text-stone-400">
+                    <div className="mt-1 text-xs text-stone-300">
                         {entries.filter((entry) => entry.type === 'saida').length} lançamento(s)
                     </div>
                 </div>
 
                 <div className="bg-[#141210] border border-[#B88A44]/50 rounded-xl p-5 flex flex-col justify-between shadow-lg">
                     <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold uppercase tracking-wider text-[#B88A44]">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-[#E0B872]">
                             Saldo Final (=)
                         </span>
-                        <Scale className="w-4 h-4 text-[#B88A44]" />
+                        <Scale className="w-4 h-4 text-[#E0B872]" />
                     </div>
                     <div className={`mt-3 text-2xl font-bold ${saldoFinal >= 0 ? 'text-[#F5F5F0]' : 'text-red-400'}`}>
                         {formatCurrency(saldoFinal)}
                     </div>
-                    <div className="mt-1 text-xs text-stone-400">Saldo Anterior + Entradas - Saídas</div>
+                    <div className="mt-1 text-xs text-stone-300">Saldo Anterior + Entradas - Saídas</div>
                 </div>
             </div>
 

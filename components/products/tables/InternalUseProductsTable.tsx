@@ -19,10 +19,10 @@ export const InternalUseProductsTable: React.FC<InternalUseProductsTableProps> =
 }) => {
     return (
         <div className="space-y-4">
-            <div className="bg-[#B88A44]/10 border border-[#B88A44]/30 rounded-xl p-4 flex items-start gap-3">
-                <Scissors className="w-5 h-5 text-[#B88A44] shrink-0 mt-0.5" />
+            <div className="bg-primary/10 border border-primary/30 rounded-xl p-4 flex items-start gap-3">
+                <Scissors className="w-5 h-5 text-primary-dark dark:text-primary shrink-0 mt-0.5" />
                 <div>
-                    <h3 className="font-semibold text-[#B88A44]">Insumos de Bancada e Lavatório</h3>
+                    <h3 className="font-semibold text-primary-dark dark:text-primary">Insumos de Bancada e Lavatório</h3>
                     <p className="text-xs text-slate-300 mt-0.5">
                         Estes itens não geram comissão direta de venda ao cliente. Utilize o botão
                         <strong> "Registrar Retirada / Consumo"</strong> para abater o estoque físico
@@ -90,7 +90,7 @@ export const InternalUseProductsTable: React.FC<InternalUseProductsTableProps> =
                                                     <button
                                                         onClick={() => onOpenConsumption(prod)}
                                                         title="Registrar retirada de bancada"
-                                                        className="p-1.5 rounded hover:bg-[#1C1916] text-[#B88A44] hover:text-[#D4A359] transition-colors"
+                                                        className="p-1.5 rounded hover:bg-cream/80 dark:bg-white/5 text-primary-dark dark:text-primary hover:text-[#D4A359] transition-colors"
                                                     >
                                                         <Scissors className="w-4 h-4" />
                                                     </button>

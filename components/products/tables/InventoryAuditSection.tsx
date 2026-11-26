@@ -122,14 +122,14 @@ export const InventoryAuditSection: React.FC<InventoryAuditSectionProps> = ({
                 </div>
 
                 {/* Barra de Totais da Conferência */}
-                <div className="bg-[#0E0C0A] p-4 border-t border-[#2D2A26] flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div className="text-sm text-stone-400">
+                <div className="bg-cream p-4 border-t border-line flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="text-sm text-ink-soft">
                         Divergências Identificadas:{' '}
-                        <strong className="text-[#F5F5F0]">{discrepanciesCount} item(ns)</strong>
+                        <strong className="text-ink">{discrepanciesCount} item(ns)</strong>
                     </div>
                     <div className="flex items-center gap-6">
                         <div className="text-right">
-                            <div className="text-xs text-stone-400 uppercase">Impacto Líquido</div>
+                            <div className="text-xs text-ink-soft uppercase">Impacto Líquido</div>
                             <div className={`text-lg font-bold ${totalDifferenceValue >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                                 {formatCurrency(totalDifferenceValue)}
                             </div>

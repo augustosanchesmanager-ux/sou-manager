@@ -57,7 +57,7 @@ export const Products: React.FC = () => {
                         variant="secondary"
                         onClick={() => controller.setIsSuppliersModalOpen(true)}
                         leftIcon="truck"
-                        className="border border-border-dark hover:border-primary/40"
+                        className="border border-line hover:border-primary/40"
                     >
                         <Truck className="w-4 h-4 mr-1 text-primary-light" />
                         Fornecedores
@@ -66,7 +66,7 @@ export const Products: React.FC = () => {
                     <Button
                         variant="secondary"
                         onClick={() => controller.handleOpenPurchase()}
-                        className="border border-border-dark hover:border-primary/40"
+                        className="border border-line hover:border-primary/40"
                     >
                         <ShoppingCart className="w-4 h-4 mr-1 text-primary-light" />
                         Adicionar compra ao estoque

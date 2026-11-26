@@ -434,7 +434,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
     <div className="fixed inset-0 z-[100] overflow-hidden font-sans">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-night/90 transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -442,17 +442,17 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
       <div className={`fixed inset-y-0 right-0 flex max-w-full ${isFullscreen ? 'w-full' : 'w-full lg:w-[78vw] xl:max-w-6xl'}`}>
         <section
           aria-labelledby="drawer-client-name"
-          className="w-full h-screen bg-[#0E0C0A] text-[#F5F5F0] shadow-2xl flex flex-col border-l border-[#2D2A26] transition-all duration-200"
+          className="w-full h-screen bg-cream text-ink flex flex-col transition-all duration-200"
         >
           {/* Drawer Header (Fixo) */}
-          <div className="shrink-0 p-5 sm:p-6 border-b border-[#2D2A26] bg-[#141210]">
+          <div className="shrink-0 p-5 sm:p-6 border-b border-line bg-card">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="relative size-16 rounded-full bg-slate-800 overflow-hidden border-2 border-[#B88A44]/40 shadow-md shrink-0">
+                <div className="relative size-16 rounded-full bg-cream overflow-hidden border-2 border-primary/30 shadow-md shrink-0">
                   {client.avatar ? (
                     <img src={client.avatar} alt={client.name} className="size-full object-cover" />
                   ) : (
-                    <div className="size-full flex items-center justify-center bg-slate-900 text-slate-400">
+                    <div className="size-full flex items-center justify-center bg-slate-900 text-ink-soft">
                       <span className="material-symbols-outlined text-3xl">person</span>
                     </div>
                   )}
@@ -470,21 +470,21 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                     <span
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                         client.status === 'active'
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                          : 'bg-white/10 text-slate-400'
+                          ? 'bg-success/20 text-success border border-success/30'
+                          : 'bg-white/10 text-ink-soft'
                       }`}
                     >
                       <span className="size-1.5 rounded-full bg-current" />
                       {client.status === 'active' ? 'Ativo' : 'Inativo'}
                     </span>
                     {client.preferred_frequency && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-warning/20 text-warning border border-warning/30">
                         <span className="material-symbols-outlined text-xs">chair</span>
                         Cadeira Cativa ({FREQUENCY_LABELS[client.preferred_frequency]})
                       </span>
                     )}
                     {crmAlert?.isVip && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#B88A44] text-neutral-950">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-primary-dark text-neutral-950">
                         VIP · LTV {formatCurrency(crmAlert.lifetimeValue)}
                       </span>
                     )}
@@ -525,7 +525,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsFullscreen((prev) => !prev)}
-                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#2D2A26] bg-[#0E0C0A] text-xs font-bold text-slate-300 hover:text-[#B88A44] hover:border-[#B88A44]/50 transition-colors"
+                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line bg-cream text-xs font-bold text-slate-300 hover:text-primary-dark hover:border-primary/50 transition-colors"
                   title={isFullscreen ? 'Reduzir para painel lateral' : 'Expandir para tela inteira (PC)'}
                 >
                   <span className="material-symbols-outlined text-base">
@@ -537,7 +537,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+                  className="p-2 text-ink-soft hover:text-white rounded-lg hover:bg-white/5 transition-colors"
                   title="Fechar (Esc)"
                 >
                   <span className="material-symbols-outlined text-2xl">close</span>
@@ -564,7 +564,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                   href={whatsappUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm"
+                  className="inline-flex items-center gap-2 px-3.5 py-2 bg-success hover:bg-success/90 text-white rounded-lg text-xs font-bold transition-all shadow-sm"
                 >
                   <span className="material-symbols-outlined text-[16px]">chat</span>
                   WhatsApp
@@ -574,7 +574,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
               {client.phone && (
                 <a
                   href={`tel:${client.phone}`}
-                  className="inline-flex items-center gap-2 px-3 py-2 border border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-colors"
+                  className="inline-flex items-center gap-2 px-3 py-2 border border-line hover:bg-white/5 text-ink-soft rounded-lg text-xs font-bold transition-colors"
                 >
                   <span className="material-symbols-outlined text-[16px]">call</span>
                   {client.phone}
@@ -584,7 +584,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
               {client.email && (
                 <a
                   href={`mailto:${client.email}`}
-                  className="inline-flex items-center gap-2 px-3 py-2 border border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-colors truncate max-w-[200px]"
+                  className="inline-flex items-center gap-2 px-3 py-2 border border-line hover:bg-white/5 text-ink-soft rounded-lg text-xs font-bold transition-colors truncate max-w-[200px]"
                   title={client.email}
                 >
                   <span className="material-symbols-outlined text-[16px]">mail</span>
@@ -594,14 +594,14 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex items-center gap-4 mt-5 border-t border-slate-200 dark:border-white/10 pt-3">
+            <div className="flex items-center gap-4 mt-5 border-t border-line pt-3">
               <button
                 type="button"
                 onClick={() => setActiveTab('overview')}
                 className={`pb-1 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 ${
                   activeTab === 'overview'
-                    ? 'border-primary text-slate-900 dark:text-white'
-                    : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                    ? 'border-primary text-ink'
+                    : 'border-transparent text-ink-soft hover:text-slate-600 dark:hover:text-slate-300'
                 }`}
               >
                 Visão 360° & Preferências
@@ -611,8 +611,8 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                 onClick={() => setActiveTab('vouchers')}
                 className={`pb-1 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 flex items-center gap-1.5 ${
                   activeTab === 'vouchers'
-                    ? 'border-primary text-slate-900 dark:text-white'
-                    : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                    ? 'border-primary text-ink'
+                    : 'border-transparent text-ink-soft hover:text-slate-600 dark:hover:text-slate-300'
                 }`}
               >
                 <span className="material-symbols-outlined text-sm">confirmation_number</span>
@@ -645,7 +645,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                       </span>
                     </div>
                     {crmAlert.lastComment && (
-                      <p className="text-xs text-slate-700 dark:text-slate-200">
+                      <p className="text-xs text-ink-soft">
                         <strong>Relato anterior:</strong> “{crmAlert.lastComment}”
                       </p>
                     )}
@@ -669,14 +669,14 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                   <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 shadow-sm">
                     <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-amber-600 dark:text-amber-400 text-xl">
+                        <span className="material-symbols-outlined text-warning text-xl">
                           receipt_long
                         </span>
                         <div>
                           <p className="text-[11px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300">
                             {orderLabel} em Aberto
                           </p>
-                          <p className="text-xs text-slate-600 dark:text-slate-300">
+                          <p className="text-xs text-ink-soft">
                             {openComandasCount === 1
                               ? `1 ${orderLabelLower} aguardando fechamento`
                               : `${openComandasCount} ${orderPluralLower} aguardando fechamento`}
@@ -694,10 +694,10 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                           className="flex flex-col gap-2 rounded-lg bg-white/90 p-3 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between border border-amber-500/20"
                         >
                           <div>
-                            <p className="text-sm font-black text-slate-900 dark:text-white">
+                            <p className="text-sm font-black text-ink">
                               {orderLabel} #{getDisplayId(comanda.id)}
                             </p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                            <p className="text-xs text-ink-soft">
                               {formatCurrency(comanda.total)} • {formatDateTime(comanda.created_at)}
                             </p>
                           </div>
@@ -718,66 +718,67 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                   </div>
                 )}
 
-                {/* 360° Metrics Grid */}
+                {/* 360° Indicadores — layout variado (não grid idêntico) */}
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-sm">donut_large</span>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-ink-soft mb-4 flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm text-primary">donut_large</span>
                     Indicadores de Fidelidade (360°)
                   </h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {/* Total Gasto / LTV */}
-                    <div className="bg-slate-50 dark:bg-white/5 p-3.5 rounded-xl border border-slate-200 dark:border-white/5">
-                      <div className="flex items-center justify-between text-slate-400 mb-1">
-                        <span className="text-[10px] uppercase font-bold tracking-wider">LTV Total</span>
-                        <span className="material-symbols-outlined text-base text-emerald-500">payments</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                    {/* LTV Total — destaque maior */}
+                    <div className="col-span-1 sm:col-span-2 bg-card border border-line rounded-2xl p-4 flex flex-col gap-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-ink-soft">LTV Total</p>
+                        <span className="size-6 rounded bg-primary/10 flex items-center justify-center text-primary">
+                          <span className="material-symbols-outlined text-[16px]">payments</span>
+                        </span>
                       </div>
-                      <p className="text-base font-black text-emerald-600 dark:text-emerald-400">
+                      <p className="text-lg font-bold text-ink tabular-nums whitespace-nowrap">
                         {formatCurrency(client.total_spent || 0)}
                       </p>
-                      <p className="text-[9px] text-slate-400 mt-0.5">Total gasto</p>
+                      <p className="text-[10px] text-ink-soft">Total gasto no estabelecimento</p>
                     </div>
-
                     {/* Ticket Médio */}
-                    <div className="bg-slate-50 dark:bg-white/5 p-3.5 rounded-xl border border-slate-200 dark:border-white/5">
-                      <div className="flex items-center justify-between text-slate-400 mb-1">
-                        <span className="text-[10px] uppercase font-bold tracking-wider">Ticket Médio</span>
-                        <span className="material-symbols-outlined text-base text-amber-500">query_stats</span>
+                    <div className="bg-cream border border-line rounded-xl p-3 flex flex-col gap-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-ink-soft">Ticket Médio</p>
+                        <span className="size-5 rounded bg-cream flex items-center justify-center text-primary-light border border-primary/30">
+                          <span className="material-symbols-outlined text-[14px]">query_stats</span>
+                        </span>
                       </div>
-                      <p className="text-base font-black text-slate-900 dark:text-white">
+                      <p className="text-base font-bold text-ink tabular-nums whitespace-nowrap">
                         {formatCurrency(averageTicket)}
                       </p>
-                      <p className="text-[9px] text-slate-400 mt-0.5">Por atendimento</p>
+                      <p className="text-[10px] text-ink-soft">Por atendimento</p>
                     </div>
-
-                    {/* Total de Visitas */}
-                    <div className="bg-slate-50 dark:bg-white/5 p-3.5 rounded-xl border border-slate-200 dark:border-white/5">
-                      <div className="flex items-center justify-between text-slate-400 mb-1">
-                        <span className="text-[10px] uppercase font-bold tracking-wider">Visitas</span>
-                        <span className="material-symbols-outlined text-base text-slate-400">storefront</span>
+                    {/* Visitas */}
+                    <div className="bg-cream border border-line rounded-xl p-3 flex flex-col gap-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-ink-soft">Visitas</p>
+                        <span className="size-5 rounded bg-cream flex items-center justify-center text-primary-light border border-primary/30">
+                          <span className="material-symbols-outlined text-[14px]">storefront</span>
+                        </span>
                       </div>
-                      <p className="text-base font-black text-slate-900 dark:text-white">
+                      <p className="text-base font-bold text-ink whitespace-nowrap">
                         {visitsCount}
                       </p>
-                      <p className="text-[9px] text-slate-400 mt-0.5 truncate">
+                      <p className="text-[10px] text-ink-soft">
                         Últ: {client.last_visit ? formatDate(client.last_visit) : '-'}
                       </p>
                     </div>
-
                     {/* Barbeiro Preferido */}
-                    <div className="bg-slate-50 dark:bg-white/5 p-3.5 rounded-xl border border-slate-200 dark:border-white/5">
-                      <div className="flex items-center justify-between text-slate-400 mb-1">
-                        <span className="text-[10px] uppercase font-bold tracking-wider">Preferido</span>
-                        <span className="material-symbols-outlined text-base text-primary">content_cut</span>
+                    <div className="bg-cream border border-line rounded-xl p-3 flex flex-col gap-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-ink-soft">Preferido</p>
+                        <span className="size-5 rounded bg-cream flex items-center justify-center text-primary-light border border-primary/30">
+                          <span className="material-symbols-outlined text-[14px]">content_cut</span>
+                        </span>
                       </div>
-                      <p className="text-sm font-black text-slate-900 dark:text-white truncate">
+                      <p className="text-sm font-bold text-ink truncate">
                         {preferredBarber?.name || assignedStaff?.name || '-'}
                       </p>
-                      <p className="text-[9px] text-slate-400 mt-0.5 truncate">
-                        {preferredBarber
-                          ? `${preferredBarber.serviceCount} atendimentos`
-                          : assignedStaff
-                          ? 'Definido no perfil'
-                          : 'Sem histórico'}
+                      <p className="text-[10px] text-ink-soft truncate">
+                        {preferredBarber ? `${preferredBarber.serviceCount} atendimentos` : assignedStaff ? 'Definido no perfil' : 'Sem histórico'}
                       </p>
                     </div>
                   </div>
@@ -785,22 +786,22 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
 
                 {/* Seção Filhos / Dependentes (Apenas para Clientes Titulares — Limite de 1 Nível) */}
                 {!client.parent_client_id && (
-                  <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02] p-4.5 space-y-3.5">
+                  <div className="rounded-xl border border-line bg-cream p-4.5 space-y-3.5">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
                       <div className="flex items-center gap-2.5">
-                        <div className="size-9 rounded-lg bg-[#B88A44]/15 text-[#B88A44] flex items-center justify-center border border-[#B88A44]/30">
+                        <div className="size-9 rounded-lg bg-primary/10 text-primary-dark flex items-center justify-center border border-primary/30">
                           <span className="material-symbols-outlined text-xl">family_restroom</span>
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                            <h4 className="text-sm font-bold text-ink">
                               Filhos / Dependentes
                             </h4>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#B88A44]/15 text-[#B88A44]">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary-dark">
                               {dependents.length}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                          <p className="text-xs text-ink-soft">
                             Perfis próprios vinculados ao WhatsApp de {client.name.split(' ')[0]}
                           </p>
                         </div>
@@ -812,7 +813,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                           onClick={() =>
                             setDependentMode((prev) => (prev === 'create' ? 'idle' : 'create'))
                           }
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold bg-[#B88A44]/15 text-[#B88A44] hover:bg-[#B88A44]/25 border border-[#B88A44]/30 rounded-lg transition-colors"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold bg-primary/10 text-primary-dark hover:bg-primary-dark/25 border border-primary/30 rounded-lg transition-colors"
                         >
                           <span className="material-symbols-outlined text-sm">person_add</span>
                           + Cadastrar Filho
@@ -822,7 +823,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                           onClick={() =>
                             setDependentMode((prev) => (prev === 'link' ? 'idle' : 'link'))
                           }
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold border border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5 text-slate-700 dark:text-slate-200 rounded-lg transition-colors"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold border border-line hover:bg-white/5 text-ink-soft rounded-lg transition-colors"
                         >
                           <span className="material-symbols-outlined text-sm">link</span>
                           Vincular Existente
@@ -831,7 +832,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                     </div>
 
                     {dependentMode === 'create' && (
-                      <div className="pt-3 border-t border-slate-200 dark:border-white/10 space-y-3">
+                      <div className="pt-3 border-t border-line space-y-3">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
@@ -842,7 +843,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                               value={newDependentName}
                               onChange={(e) => setNewDependentName(e.target.value)}
                               placeholder="Ex: Samuel Oliveira"
-                              className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg text-slate-900 dark:text-white font-medium focus:ring-1 focus:ring-primary outline-none"
+                              className="w-full px-3 py-2 text-xs bg-white dark:bg-surface-dark border border-line rounded-lg text-ink font-medium focus:ring-1 focus:ring-primary outline-none"
                             />
                           </div>
                           <div>
@@ -853,19 +854,19 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                               type="date"
                               value={newDependentBirthday}
                               onChange={(e) => setNewDependentBirthday(e.target.value)}
-                              className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg text-slate-900 dark:text-white font-medium focus:ring-1 focus:ring-primary outline-none"
+                              className="w-full px-3 py-2 text-xs bg-white dark:bg-surface-dark border border-line rounded-lg text-ink font-medium focus:ring-1 focus:ring-primary outline-none"
                             />
                           </div>
                         </div>
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[11px] text-slate-400">
+                          <span className="text-[11px] text-ink-soft">
                             Herdará automaticamente o telefone {client.phone || 'do responsável'}.
                           </span>
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
                               onClick={() => setDependentMode('idle')}
-                              className="px-3 py-1.5 text-xs font-bold text-slate-400 hover:text-white"
+                              className="px-3 py-1.5 text-xs font-bold text-ink-soft hover:text-white"
                             >
                               Cancelar
                             </button>
@@ -883,7 +884,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                     )}
 
                     {dependentMode === 'link' && (
-                      <div className="pt-3 border-t border-slate-200 dark:border-white/10 space-y-2.5">
+                      <div className="pt-3 border-t border-line space-y-2.5">
                         <div>
                           <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
                             Buscar cliente já cadastrado para vincular como filho
@@ -893,25 +894,25 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                             value={linkSearchQuery}
                             onChange={(e) => setLinkSearchQuery(e.target.value)}
                             placeholder="Digite o nome ou telefone..."
-                            className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg text-slate-900 dark:text-white font-medium focus:ring-1 focus:ring-primary outline-none"
+                            className="w-full px-3 py-2 text-xs bg-white dark:bg-surface-dark border border-line rounded-lg text-ink font-medium focus:ring-1 focus:ring-primary outline-none"
                           />
                         </div>
                         {eligibleCandidatesToLink.length === 0 ? (
-                          <p className="text-xs text-slate-400 py-1">
+                          <p className="text-xs text-ink-soft py-1">
                             Nenhum cadastro elegível encontrado para o filtro informado.
                           </p>
                         ) : (
-                          <div className="max-h-40 overflow-y-auto divide-y divide-slate-200/60 dark:divide-white/5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20">
+                          <div className="max-h-40 overflow-y-auto divide-y divide-slate-200/60 dark:divide-white/5 rounded-lg border border-line bg-card">
                             {eligibleCandidatesToLink.map((candidate) => (
                               <div
                                 key={candidate.id}
                                 className="flex items-center justify-between px-3 py-2 text-xs"
                               >
                                 <div>
-                                  <p className="font-bold text-slate-900 dark:text-white">
+                                  <p className="font-bold text-ink">
                                     {candidate.name}
                                   </p>
-                                  <p className="text-[11px] text-slate-400">
+                                  <p className="text-[11px] text-ink-soft">
                                     {candidate.phone || 'Sem telefone'}
                                   </p>
                                 </div>
@@ -919,7 +920,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                                   type="button"
                                   disabled={isMutatingDependent}
                                   onClick={() => void handleLinkExistingDependent(candidate)}
-                                  className="px-2.5 py-1 rounded bg-[#B88A44]/20 text-[#B88A44] hover:bg-[#B88A44]/30 font-bold text-[11px] transition-colors disabled:opacity-50"
+                                  className="px-2.5 py-1 rounded bg-primary-dark/20 text-primary-dark hover:bg-primary-dark/30 font-bold text-[11px] transition-colors disabled:opacity-50"
                                 >
                                   Vincular
                                 </button>
@@ -931,11 +932,11 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                     )}
 
                     {dependentsLoading ? (
-                      <div className="py-3 text-center text-xs text-slate-400 animate-pulse">
+                      <div className="py-3 text-center text-xs text-ink-soft animate-pulse">
                         Carregando dependentes...
                       </div>
                     ) : dependents.length === 0 ? (
-                      <p className="text-xs text-slate-400">
+                      <p className="text-xs text-ink-soft">
                         Nenhum filho/dependente vinculado a este cliente.
                       </p>
                     ) : (
@@ -943,10 +944,10 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                         {dependents.map((dep) => (
                           <div
                             key={dep.id}
-                            className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5"
+                            className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-lg bg-card border border-slate-200 dark:border-white/5"
                           >
                             <div className="flex items-center gap-2.5">
-                              <div className="size-8 rounded-full bg-[#B88A44]/15 text-[#B88A44] flex items-center justify-center font-bold text-xs border border-[#B88A44]/30">
+                              <div className="size-8 rounded-full bg-primary/10 text-primary-dark flex items-center justify-center font-bold text-xs border border-primary/30">
                                 {dep.name.charAt(0).toUpperCase()}
                               </div>
                               <div>
@@ -955,20 +956,20 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                                     <button
                                       type="button"
                                       onClick={() => onSelectClient(dep)}
-                                      className="text-xs font-bold text-slate-900 dark:text-white hover:text-[#B88A44] transition-colors text-left"
+                                      className="text-xs font-bold text-ink hover:text-primary-dark transition-colors text-left"
                                     >
                                       {dep.name}
                                     </button>
                                   ) : (
-                                    <p className="text-xs font-bold text-slate-900 dark:text-white">
+                                    <p className="text-xs font-bold text-ink">
                                       {dep.name}
                                     </p>
                                   )}
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#B88A44]/15 text-[#B88A44] font-bold">
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary-dark font-bold">
                                     Filho(a)
                                   </span>
                                 </div>
-                                <p className="text-[11px] text-slate-400">
+                                <p className="text-[11px] text-ink-soft">
                                   {dep.birthday ? `Aniv.: ${formatDate(dep.birthday)} • ` : ''}
                                   WhatsApp: {dep.phone || client.phone || '-'}
                                 </p>
@@ -996,7 +997,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                                 type="button"
                                 disabled={isMutatingDependent}
                                 onClick={() => void handleUnlinkDependent(dep)}
-                                className="px-2 py-1 text-[11px] font-bold text-slate-400 hover:text-red-400 transition-colors"
+                                className="px-2 py-1 text-[11px] font-bold text-ink-soft hover:text-red-400 transition-colors"
                                 title="Desvincular dependente"
                               >
                                 Desvincular
@@ -1010,17 +1011,17 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                 )}
 
                 {/* Seção Cadeira Cativa / Horário Fixo */}
-                <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02] p-4.5 space-y-4">
+                <div className="rounded-xl border border-line bg-cream p-4.5 space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
-                      <div className="size-9 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/20">
+                      <div className="size-9 rounded-lg bg-amber-500/10 text-warning flex items-center justify-center border border-amber-500/20">
                         <span className="material-symbols-outlined text-xl">event_repeat</span>
                       </div>
                       <div>
-                        <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                        <h4 className="text-sm font-bold text-ink">
                           Cadeira Cativa & Horário Fixo
                         </h4>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                        <p className="text-xs text-ink-soft">
                           {scheduleSummary}
                         </p>
                       </div>
@@ -1028,7 +1029,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                     <button
                       type="button"
                       onClick={() => setIsEditingSchedule((prev) => !prev)}
-                      className="px-2.5 py-1 text-xs font-bold border border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-slate-700 dark:text-slate-200 transition-colors"
+                      className="px-2.5 py-1 text-xs font-bold border border-line hover:bg-white/5 rounded-lg text-ink-soft transition-colors"
                     >
                       {isEditingSchedule ? 'Cancelar' : 'Alterar'}
                     </button>
@@ -1037,7 +1038,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                   {/* Agendar Próxima Ocorrência (se configurado) */}
                   {!isEditingSchedule && client.preferred_weekday && (
                     <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-200/60 dark:border-white/5">
-                      <div className="text-xs text-slate-600 dark:text-slate-300">
+                      <div className="text-xs text-ink-soft">
                         <span className="font-bold">Próxima data sugerida: </span>
                         <span>{formatDate(nextBookingDate)}</span>
                         {client.preferred_time && <span> às {client.preferred_time}</span>}
@@ -1062,7 +1063,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
 
                   {/* Formulário de Edição do Horário Fixo */}
                   {isEditingSchedule && (
-                    <div className="pt-3 border-t border-slate-200 dark:border-white/10 space-y-3">
+                    <div className="pt-3 border-t border-line space-y-3">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {/* Periodicidade */}
                         <div>
@@ -1072,7 +1073,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                           <select
                             value={preferredFrequency}
                             onChange={(e) => setPreferredFrequency(e.target.value as PreferredFrequency | '')}
-                            className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg text-slate-900 dark:text-white font-medium focus:ring-1 focus:ring-primary"
+                            className="w-full px-3 py-2 text-xs bg-white dark:bg-surface-dark border border-line rounded-lg text-ink font-medium focus:ring-1 focus:ring-primary"
                           >
                             <option value="">Nenhuma (Sem horário fixo)</option>
                             <option value="weekly">Semanal (Toda semana)</option>
@@ -1091,7 +1092,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                             onChange={(e) =>
                               setPreferredWeekday(e.target.value === '' ? '' : Number(e.target.value))
                             }
-                            className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg text-slate-900 dark:text-white font-medium focus:ring-1 focus:ring-primary"
+                            className="w-full px-3 py-2 text-xs bg-white dark:bg-surface-dark border border-line rounded-lg text-ink font-medium focus:ring-1 focus:ring-primary"
                           >
                             <option value="">Selecione o dia</option>
                             {Object.entries(WEEKDAY_LABELS).map(([isoStr, label]) => (
@@ -1111,7 +1112,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                             type="time"
                             value={preferredTime}
                             onChange={(e) => setPreferredTime(e.target.value)}
-                            className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg text-slate-900 dark:text-white font-medium focus:ring-1 focus:ring-primary"
+                            className="w-full px-3 py-2 text-xs bg-white dark:bg-surface-dark border border-line rounded-lg text-ink font-medium focus:ring-1 focus:ring-primary"
                           />
                         </div>
 
@@ -1123,7 +1124,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                           <select
                             value={preferredStaffId}
                             onChange={(e) => setPreferredStaffId(e.target.value)}
-                            className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg text-slate-900 dark:text-white font-medium focus:ring-1 focus:ring-primary"
+                            className="w-full px-3 py-2 text-xs bg-white dark:bg-surface-dark border border-line rounded-lg text-ink font-medium focus:ring-1 focus:ring-primary"
                           >
                             <option value="">Qualquer profissional disponível</option>
                             {staffOptions.map((staff) => (
@@ -1157,11 +1158,11 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                 </div>
 
                 {/* Seção Notas Técnicas Operacionais */}
-                <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02] p-4.5 space-y-3">
+                <div className="rounded-xl border border-line bg-cream p-4.5 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-slate-400 text-lg">edit_note</span>
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                      <span className="material-symbols-outlined text-ink-soft text-lg">edit_note</span>
+                      <h4 className="text-sm font-bold text-ink">
                         Notas Técnicas & Preferências Operacionais
                       </h4>
                     </div>
@@ -1178,15 +1179,15 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                     onBlur={handleSaveNotes}
                     placeholder="Ex: Usa degradê navalhado na zero alta, tesoura desfiadeira no topo. Sensibilidade na nuca. Prefere café sem açúcar..."
                     rows={3}
-                    className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-1 focus:ring-primary outline-none transition"
+                    className="w-full px-3 py-2 text-xs bg-white dark:bg-surface-dark border border-line rounded-lg text-ink placeholder:text-ink-soft focus:ring-1 focus:ring-primary outline-none transition"
                   />
-                  <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <div className="flex items-center justify-between text-[11px] text-ink-soft">
                     <span>Salva automaticamente ao sair do campo.</span>
                     <button
                       type="button"
                       onClick={handleSaveNotes}
                       disabled={isSavingNotes || notes === (client.notes || '')}
-                      className="px-3 py-1 bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-slate-200 rounded text-xs font-bold hover:bg-slate-300 dark:hover:bg-white/20 transition disabled:opacity-40"
+                      className="px-3 py-1 bg-slate-200 dark:bg-white/10 text-ink-soft rounded text-xs font-bold hover:bg-slate-300 dark:hover:bg-white/20 transition disabled:opacity-40"
                     >
                       {isSavingNotes ? 'Salvando...' : 'Salvar Nota'}
                     </button>
@@ -1194,26 +1195,26 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                 </div>
 
                 {/* Seção Próximos Agendamentos Futuros */}
-                <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02] p-4.5 space-y-3">
+                <div className="rounded-xl border border-line bg-cream p-4.5 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-slate-400 text-lg">calendar_month</span>
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                      <span className="material-symbols-outlined text-ink-soft text-lg">calendar_month</span>
+                      <h4 className="text-sm font-bold text-ink">
                         Próximos Agendamentos
                       </h4>
                     </div>
-                    <span className="text-xs font-bold text-slate-400">
+                    <span className="text-xs font-bold text-ink-soft">
                       {upcomingAppointments.length} agendado(s)
                     </span>
                   </div>
 
                   {upcomingLoading ? (
-                    <div className="py-6 text-center text-xs text-slate-400 animate-pulse">
+                    <div className="py-6 text-center text-xs text-ink-soft animate-pulse">
                       Carregando agendamentos futuros...
                     </div>
                   ) : upcomingAppointments.length === 0 ? (
-                    <div className="py-4 text-center border border-dashed border-slate-200 dark:border-white/10 rounded-lg">
-                      <p className="text-xs text-slate-400">Nenhum agendamento futuro encontrado.</p>
+                    <div className="py-4 text-center border border-dashed border-line rounded-lg">
+                      <p className="text-xs text-ink-soft">Nenhum agendamento futuro encontrado.</p>
                       <button
                         type="button"
                         onClick={() => {
@@ -1230,17 +1231,17 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                       {upcomingAppointments.map((apt) => (
                         <div
                           key={apt.id}
-                          className="flex items-center justify-between p-3 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5"
+                          className="flex items-center justify-between p-3 rounded-lg bg-card border border-slate-200 dark:border-white/5"
                         >
                           <div className="space-y-0.5">
-                            <p className="text-xs font-bold text-slate-900 dark:text-white">
+                            <p className="text-xs font-bold text-ink">
                               {apt.service_name || serviceLabel}
                             </p>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                            <p className="text-[11px] text-ink-soft">
                               {formatDateTime(apt.start_time)} • {apt.staff_name || 'Profissional'}
                             </p>
                           </div>
-                          <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300">
+                          <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/10 text-ink-soft">
                             {apt.status === 'confirmed' ? 'Confirmado' : 'Pendente'}
                           </span>
                         </div>
@@ -1258,7 +1259,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                       </div>
                       <div>
                         <p className="text-[10px] text-amber-600 font-black uppercase">Club dos Chefes</p>
-                        <p className="text-sm font-bold text-slate-900 dark:text-white">{chefClub.planName}</p>
+                        <p className="text-sm font-bold text-ink">{chefClub.planName}</p>
                         <p className="text-[10px] text-slate-500 font-bold">
                           Status: {chefClub.status === 'active' ? 'Ativo' : 'Pendente'}
                         </p>
@@ -1266,7 +1267,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-black text-amber-600 leading-none">{chefClub.credits}</p>
-                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Créditos</p>
+                      <p className="text-[9px] font-bold text-ink-soft uppercase tracking-tighter">Créditos</p>
                     </div>
                   </div>
                 )}
@@ -1274,14 +1275,14 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                 {/* Additional Metadata */}
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg border border-slate-200 dark:border-white/5">
-                    <p className="text-[10px] text-slate-400 uppercase font-bold">Aniversário</p>
-                    <p className="text-xs font-bold text-slate-900 dark:text-white mt-0.5">
+                    <p className="text-[10px] text-ink-soft uppercase font-bold">Aniversário</p>
+                    <p className="text-xs font-bold text-ink mt-0.5">
                       {formatDate(client.birthday)}
                     </p>
                   </div>
                   <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-lg border border-slate-200 dark:border-white/5">
-                    <p className="text-[10px] text-slate-400 uppercase font-bold">Último Serviço</p>
-                    <p className="text-xs font-bold text-slate-900 dark:text-white mt-0.5 truncate">
+                    <p className="text-[10px] text-ink-soft uppercase font-bold">Último Serviço</p>
+                    <p className="text-xs font-bold text-ink mt-0.5 truncate">
                       {client.last_service || '-'}
                     </p>
                   </div>
