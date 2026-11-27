@@ -41,7 +41,7 @@ export const Products: React.FC = () => {
                             <Package className="w-5 h-5" />
                         </div>
                         <div>
-                            <h1 className="font-display text-2xl md:text-3xl font-bold text-white tracking-tight">
+                            <h1 className="font-display text-2xl md:text-3xl font-bold text-ink tracking-tight">
                                 Controle de Estoque
                             </h1>
                             <p className="text-sm text-ink-soft">
@@ -56,10 +56,9 @@ export const Products: React.FC = () => {
                     <Button
                         variant="secondary"
                         onClick={() => controller.setIsSuppliersModalOpen(true)}
-                        leftIcon="truck"
                         className="border border-line hover:border-primary/40"
                     >
-                        <Truck className="w-4 h-4 mr-1 text-primary-light" />
+                        <Truck className="w-4 h-4 mr-1 text-primary-dark dark:text-primary-light" />
                         Fornecedores
                     </Button>
 
@@ -68,7 +67,7 @@ export const Products: React.FC = () => {
                         onClick={() => controller.handleOpenPurchase()}
                         className="border border-line hover:border-primary/40"
                     >
-                        <ShoppingCart className="w-4 h-4 mr-1 text-primary-light" />
+                        <ShoppingCart className="w-4 h-4 mr-1 text-primary-dark dark:text-primary-light" />
                         Adicionar compra ao estoque
                     </Button>
 

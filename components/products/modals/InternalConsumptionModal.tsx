@@ -33,7 +33,7 @@ export const InternalConsumptionModal: React.FC<InternalConsumptionModalProps> =
         >
             <form onSubmit={onSubmit} className="space-y-4">
                 <div>
-                    <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                    <label className="block text-xs font-semibold text-ink-soft uppercase mb-1">
                         Insumo Retirado *
                     </label>
                     <select
@@ -54,7 +54,7 @@ export const InternalConsumptionModal: React.FC<InternalConsumptionModalProps> =
                 </div>
 
                 <div>
-                    <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                    <label className="block text-xs font-semibold text-ink-soft uppercase mb-1">
                         Barbeiro / Colaborador Responsável *
                     </label>
                     <select
@@ -73,7 +73,7 @@ export const InternalConsumptionModal: React.FC<InternalConsumptionModalProps> =
                 </div>
 
                 <div>
-                    <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                    <label className="block text-xs font-semibold text-ink-soft uppercase mb-1">
                         Quantidade Retirada *
                     </label>
                     <input
@@ -87,7 +87,7 @@ export const InternalConsumptionModal: React.FC<InternalConsumptionModalProps> =
                 </div>
 
                 <div>
-                    <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                    <label className="block text-xs font-semibold text-ink-soft uppercase mb-1">
                         Observações / Motivo
                     </label>
                     <input

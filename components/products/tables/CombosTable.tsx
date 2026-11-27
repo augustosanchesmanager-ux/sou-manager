@@ -15,20 +15,20 @@ export const CombosTable: React.FC<CombosTableProps> = ({
     return (
         <div className="space-y-4">
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-start gap-3">
-                <Layers className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                <Layers className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                 <div>
-                    <h3 className="font-semibold text-amber-300">Kits Promocionais e Combos</h3>
-                    <p className="text-xs text-slate-300 mt-0.5">
+                    <h3 className="font-semibold text-amber-800 dark:text-amber-300">Kits Promocionais e Combos</h3>
+                    <p className="text-xs text-ink-soft mt-0.5">
                         Agrupe produtos e insumos com preço especial. A baixa de estoque é realizada
                         automaticamente nos componentes individuais no momento da venda.
                     </p>
                 </div>
             </div>
 
-            <div className="bg-slate-900/40 border border-slate-800 rounded-xl overflow-hidden">
+            <div className="bg-card border border-line rounded-xl overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm text-slate-300">
-                        <thead className="bg-slate-950/80 text-xs uppercase text-slate-400 border-b border-slate-800">
+                    <table className="w-full text-left text-sm text-ink">
+                        <thead className="bg-cream/60 text-xs uppercase text-ink-soft border-b border-line">
                             <tr>
                                 <th className="py-3 px-4">Nome do Combo</th>
                                 <th className="py-3 px-4">Composição</th>
@@ -38,37 +38,37 @@ export const CombosTable: React.FC<CombosTableProps> = ({
                                 <th className="py-3 px-4 text-right">Ações</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-800/60">
+                        <tbody className="divide-y divide-line">
                             {combos.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="py-8 text-center text-slate-500">
+                                    <td colSpan={6} className="py-8 text-center text-ink-soft">
                                         Nenhum combo cadastrado no momento.
                                     </td>
                                 </tr>
                             ) : (
                                 combos.map(combo => (
-                                    <tr key={combo.id} className="hover:bg-slate-800/20 transition-colors">
-                                        <td className="py-3 px-4 font-medium text-white">
+                                    <tr key={combo.id} className="hover:bg-cream/60 transition-colors">
+                                        <td className="py-3 px-4 font-medium text-ink">
                                             {combo.name}
                                         </td>
-                                        <td className="py-3 px-4 text-xs text-slate-400">
+                                        <td className="py-3 px-4 text-xs text-ink-soft">
                                             {combo.combo_items?.map(ci => `${ci.quantity}x ${ci.product_name}`).join(', ') || 'Sem componentes'}
                                         </td>
-                                        <td className="py-3 px-4 text-right text-slate-300">
+                                        <td className="py-3 px-4 text-right text-ink-soft">
                                             {formatCurrency(combo.cost_price)}
                                         </td>
-                                        <td className="py-3 px-4 text-right font-semibold text-emerald-400">
+                                        <td className="py-3 px-4 text-right font-semibold text-emerald-700 dark:text-emerald-400">
                                             {formatCurrency(combo.sale_price)}
                                         </td>
                                         <td className="py-3 px-4 text-center">
-                                            <span className="px-2 py-0.5 rounded text-xs bg-emerald-500/20 text-emerald-300">
+                                            <span className="px-2 py-0.5 rounded text-xs bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
                                                 Ativo
                                             </span>
                                         </td>
                                         <td className="py-3 px-4 text-right">
                                             <button
                                                 onClick={() => onOpenEdit(combo)}
-                                                className="p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-amber-400 transition-colors"
+                                                className="p-1.5 rounded hover:bg-ink/5 text-ink-soft hover:text-primary-dark dark:hover:text-amber-400 transition-colors"
                                             >
                                                 <Edit2 className="w-4 h-4" />
                                             </button>

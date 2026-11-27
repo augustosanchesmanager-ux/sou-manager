@@ -313,20 +313,76 @@ class ComandaRepositoryImpl extends SupabaseRepository {
     }
   }
 
-  async listForCommission(tenantId: string, options?: { statuses?: string[]; excludeHidden?: boolean }): Promise<Array<Record<string, unknown>>> {
+  async listForCommission(
+    tenantId: string,
+    options?: {
+      statuses?: string[];
+      excludeHidden?: boolean;
+      ids?: string[];
+      rangeStartIso?: string;
+      rangeEndIso?: string;
+    },
+  ): Promise<Array<Record<string, unknown>>> {
     try {
-      let query = this.scopeClient().from(this.tableName)
-        .select('id, client_id, appointment_id, staff_id, status, total, discount, payment_method, closure_mode, financial_effect, membership_credit_effect, created_at, closed_at, hidden_from_financial, is_fiado, payment_date_real')
-        .eq('tenant_id', tenantId);
+      const selectCols = 'id, client_id, appointment_id, staff_id, status, total, discount, payment_method, closure_mode, financial_effect, membership_credit_effect, created_at, closed_at, hidden_from_financial, is_fiado, payment_date_real';
 
-      if (options?.statuses && options.statuses.length > 0) {
-        query = query.in('status', options.statuses);
-      }
-      if (options?.excludeHidden) {
-        query = query.or('hidden_from_financial.is.null,hidden_from_financial.eq.false');
+      if (options?.ids) {
+        if (options.ids.length === 0) return [];
+        const CHUNK_SIZE = 120;
+        const allRows: Array<Record<string, unknown>> = [];
+        for (let i = 0; i < options.ids.length; i += CHUNK_SIZE) {
+          const batchIds = options.ids.slice(i, i + CHUNK_SIZE);
+          let query = this.scopeClient().from(this.tableName)
+            .select(selectCols)
+            .eq('tenant_id', tenantId)
+            .in('id', batchIds);
+
+          if (options.statuses && options.statuses.length > 0) {
+            query = query.in('status', options.statuses);
+          }
+          if (options.excludeHidden) {
+            query = query.or('hidden_from_financial.is.null,hidden_from_financial.eq.false');
+          }
+
+          const rows = this.extractData<Array<Record<string, unknown>>>(await query, 'list comandas for commission by ids');
+          allRows.push(...rows);
+        }
+        return allRows;
       }
 
-      return this.extractData(await query, 'list comandas for commission');
+      const PAGE_SIZE = 1000;
+      const allRows: Array<Record<string, unknown>> = [];
+
+      for (let from = 0; ; from += PAGE_SIZE) {
+        let query = this.scopeClient().from(this.tableName)
+          .select(selectCols)
+          .eq('tenant_id', tenantId);
+
+        if (options?.statuses && options.statuses.length > 0) {
+          query = query.in('status', options.statuses);
+        }
+        if (options?.excludeHidden) {
+          query = query.or('hidden_from_financial.is.null,hidden_from_financial.eq.false');
+        }
+        if (options?.rangeStartIso && options?.rangeEndIso) {
+          query = query.or(
+            `and(created_at.gte.${options.rangeStartIso},created_at.lte.${options.rangeEndIso}),and(closed_at.gte.${options.rangeStartIso},closed_at.lte.${options.rangeEndIso}),and(payment_date_real.gte.${options.rangeStartIso},payment_date_real.lte.${options.rangeEndIso})`,
+          );
+        }
+
+        const supportsPagination = typeof (query as { range?: unknown }).range === 'function';
+        if (typeof (query as { order?: unknown }).order === 'function') {
+          query = query.order('created_at', { ascending: false });
+        }
+        if (supportsPagination) {
+          query = query.range(from, from + PAGE_SIZE - 1);
+        }
+        const batch = this.extractData<Array<Record<string, unknown>>>(await query, 'list comandas for commission');
+        allRows.push(...batch);
+        if (!supportsPagination || batch.length < PAGE_SIZE) break;
+      }
+
+      return allRows;
     } catch (err) {
       this.throwOnError(err, 'list comandas for commission');
     }
@@ -531,7 +587,16 @@ export interface ComandaRepository extends IRepository<Comanda> {
   update(id: string, input: UpdateComandaInput, tenantId: string, appSlug?: AppSlug): Promise<void>;
   delete(id: string, tenantId: string, appSlug?: AppSlug): Promise<void>;
   getStatus(id: string, tenantId: string, appSlug?: AppSlug): Promise<string | null>;
-  listForCommission(tenantId: string, options?: { statuses?: string[]; excludeHidden?: boolean }): Promise<Array<Record<string, unknown>>>;
+  listForCommission(
+    tenantId: string,
+    options?: {
+      statuses?: string[];
+      excludeHidden?: boolean;
+      ids?: string[];
+      rangeStartIso?: string;
+      rangeEndIso?: string;
+    },
+  ): Promise<Array<Record<string, unknown>>>;
   listOpenWithClients(tenantId: string, appSlug?: AppSlug): Promise<Array<{
     id: string;
     client_id: string | null;
