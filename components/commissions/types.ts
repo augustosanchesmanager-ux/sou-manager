@@ -120,6 +120,8 @@ export interface CommissionLine {
     isFiado: boolean;
     paymentDateReal: string | null;
     availableForPayout: boolean;
+    inProductionRange?: boolean;
+    inSettlementRange?: boolean;
     paymentMethod: string;
     audit: CommissionAuditLine;
     dateSource: ProductionDateSource;

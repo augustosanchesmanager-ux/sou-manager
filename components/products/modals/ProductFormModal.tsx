@@ -30,7 +30,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         >
             <form onSubmit={onSubmit} className="space-y-4">
                 <div>
-                    <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                    <label className="block text-xs font-semibold text-ink-soft uppercase mb-1">
                         Nome do Produto *
                     </label>
                     <input
@@ -45,7 +45,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                        <label className="block text-xs font-semibold text-ink-soft uppercase mb-1">
                             Categoria
                         </label>
                         <input
@@ -57,7 +57,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                        <label className="block text-xs font-semibold text-ink-soft uppercase mb-1">
                             Marca / Fabricante
                         </label>
                         <input
@@ -72,7 +72,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
                 {/* Finalidade do Produto (Decisão do PO: 1 - a b c) */}
                 <div>
-                    <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                    <label className="block text-xs font-semibold text-ink-soft uppercase mb-1">
                         Finalidade de Uso *
                     </label>
                     <div className="grid grid-cols-3 gap-2">
@@ -119,7 +119,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
-                        <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                        <label className="block text-xs font-semibold text-ink-soft uppercase mb-1">
                             Preço de Custo (R$)
                         </label>
                         <input
@@ -133,7 +133,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                        <label className="block text-xs font-semibold text-ink-soft uppercase mb-1">
                             Preço de Venda (R$)
                         </label>
                         <input
@@ -148,7 +148,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                        <label className="block text-xs font-semibold text-ink-soft uppercase mb-1">
                             Comissão Barbeiro (%)
                         </label>
                         <input
@@ -166,7 +166,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                        <label className="block text-xs font-semibold text-ink-soft uppercase mb-1">
                             Estoque Atual (un)
                         </label>
                         <input
@@ -180,7 +180,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                        <label className="block text-xs font-semibold text-ink-soft uppercase mb-1">
                             Estoque Mínimo (Alerta)
                         </label>
                         <input
@@ -195,7 +195,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 </div>
 
                 <div>
-                    <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                    <label className="block text-xs font-semibold text-ink-soft uppercase mb-1">
                         Fornecedor Principal
                     </label>
                     <input

@@ -35,7 +35,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
         >
             <form onSubmit={onSubmit} className="space-y-4">
                 <div>
-                    <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                    <label className="block text-xs font-semibold text-ink-soft uppercase mb-1">
                         Produto Comprado *
                     </label>
                     <select
@@ -64,7 +64,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
 
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                        <label className="block text-xs font-semibold text-ink-soft uppercase mb-1">
                             Quantidade Comprada *
                         </label>
                         <input
@@ -78,7 +78,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                        <label className="block text-xs font-semibold text-ink-soft uppercase mb-1">
                             Custo Unitário da Nota (R$) *
                         </label>
                         <input
@@ -113,7 +113,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
 
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                        <label className="block text-xs font-semibold text-ink-soft uppercase mb-1">
                             Fornecedor
                         </label>
                         <input
@@ -126,7 +126,7 @@ export const PurchaseEntryModal: React.FC<PurchaseEntryModalProps> = ({
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                        <label className="block text-xs font-semibold text-ink-soft uppercase mb-1">
                             Nº da Nota / Pedido
                         </label>
                         <input

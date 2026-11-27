@@ -92,6 +92,11 @@ export const CommissionDetailModal: React.FC<CommissionDetailModalProps> = ({
                                             }`}>
                                                 {getProductionDateSourceLabel(item.dateSource)}
                                             </span>
+                                            {item.paymentDateReal && (
+                                                <div className="mt-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                                                    Pago em: {new Date(item.paymentDateReal).toLocaleDateString('pt-BR')}
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white">{normalizeClientName(item.clientName)}</td>
                                         <td className="px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white">

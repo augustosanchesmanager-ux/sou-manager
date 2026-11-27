@@ -452,17 +452,17 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                   {client.avatar ? (
                     <img src={client.avatar} alt={client.name} className="size-full object-cover" />
                   ) : (
-                    <div className="size-full flex items-center justify-center bg-slate-900 text-ink-soft">
+                    <div className="size-full flex items-center justify-center bg-cream text-ink-soft">
                       <span className="material-symbols-outlined text-3xl">person</span>
                     </div>
                   )}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 id="drawer-client-name" className="text-xl font-bold text-white leading-tight">
+                    <h2 id="drawer-client-name" className="text-xl font-bold text-ink leading-tight">
                       {client.name}
                     </h2>
-                    <span className="text-xs font-mono text-slate-500">
+                    <span className="text-xs font-mono text-ink-soft">
                       #{getDisplayId(client.id)}
                     </span>
                   </div>
@@ -471,7 +471,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                         client.status === 'active'
                           ? 'bg-success/20 text-success border border-success/30'
-                          : 'bg-white/10 text-ink-soft'
+                          : 'bg-cream border border-line text-ink-soft'
                       }`}
                     >
                       <span className="size-1.5 rounded-full bg-current" />
@@ -489,7 +489,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                       </span>
                     )}
                     {client.parent_client_id && (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30">
                         <span className="material-symbols-outlined text-xs">family_restroom</span>
                         <span>
                           Dependente de{' '}
@@ -497,7 +497,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                             <button
                               type="button"
                               onClick={() => onSelectClient(parentClient)}
-                              className="underline font-black hover:text-white transition-colors"
+                              className="underline font-black hover:text-ink transition-colors"
                             >
                               {parentClient.name}
                             </button>
@@ -509,7 +509,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                           type="button"
                           disabled={isMutatingDependent}
                           onClick={() => void handleUnlinkDependent(client)}
-                          className="ml-1 text-sky-200/80 hover:text-red-400 transition-colors"
+                          className="ml-1 text-sky-700/80 dark:text-sky-200/80 hover:text-red-500 transition-colors"
                           title="Desvincular do responsável"
                         >
                           ×
@@ -525,7 +525,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsFullscreen((prev) => !prev)}
-                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line bg-cream text-xs font-bold text-slate-300 hover:text-primary-dark hover:border-primary/50 transition-colors"
+                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line bg-cream text-xs font-bold text-ink-soft hover:text-primary-dark hover:border-primary/50 transition-colors"
                   title={isFullscreen ? 'Reduzir para painel lateral' : 'Expandir para tela inteira (PC)'}
                 >
                   <span className="material-symbols-outlined text-base">
@@ -537,7 +537,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="p-2 text-ink-soft hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+                  className="p-2 text-ink-soft hover:text-ink rounded-lg hover:bg-ink/5 transition-colors"
                   title="Fechar (Esc)"
                 >
                   <span className="material-symbols-outlined text-2xl">close</span>
@@ -574,7 +574,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
               {client.phone && (
                 <a
                   href={`tel:${client.phone}`}
-                  className="inline-flex items-center gap-2 px-3 py-2 border border-line hover:bg-white/5 text-ink-soft rounded-lg text-xs font-bold transition-colors"
+                  className="inline-flex items-center gap-2 px-3 py-2 border border-line hover:bg-ink/5 text-ink-soft hover:text-ink rounded-lg text-xs font-bold transition-colors"
                 >
                   <span className="material-symbols-outlined text-[16px]">call</span>
                   {client.phone}
@@ -584,7 +584,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
               {client.email && (
                 <a
                   href={`mailto:${client.email}`}
-                  className="inline-flex items-center gap-2 px-3 py-2 border border-line hover:bg-white/5 text-ink-soft rounded-lg text-xs font-bold transition-colors truncate max-w-[200px]"
+                  className="inline-flex items-center gap-2 px-3 py-2 border border-line hover:bg-ink/5 text-ink-soft hover:text-ink rounded-lg text-xs font-bold transition-colors truncate max-w-[200px]"
                   title={client.email}
                 >
                   <span className="material-symbols-outlined text-[16px]">mail</span>
@@ -635,12 +635,12 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-black uppercase tracking-wider text-amber-400">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400">
                         {crmAlert.isVip
                           ? `⚠️ Alerta Tático VIP (LTV ${formatCurrency(crmAlert.lifetimeValue)}) — Atendimento de Exceção`
                           : `⚠️ Atenção no Atendimento — Atrito Anterior (${crmAlert.lastLowRating}★)`}
                       </span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/30 text-amber-300">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-800 dark:bg-black/30 dark:text-amber-300">
                         {crmAlert.lastReviewStatus === 'resolved' ? 'Tratado pela Gestão' : 'Atenção Redobrada'}
                       </span>
                     </div>
@@ -650,7 +650,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                       </p>
                     )}
                     {crmAlert.lastResolutionNote && (
-                      <p className="text-xs text-emerald-700 dark:text-emerald-300 bg-black/20 p-2.5 rounded-xl border border-emerald-500/20">
+                      <p className="text-xs text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 dark:bg-black/20 p-2.5 rounded-xl border border-emerald-500/20">
                         <strong>Playbook de Resolução:</strong> {crmAlert.lastResolutionNote}
                       </p>
                     )}
@@ -742,7 +742,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                     <div className="bg-cream border border-line rounded-xl p-3 flex flex-col gap-1">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-ink-soft">Ticket Médio</p>
-                        <span className="size-5 rounded bg-cream flex items-center justify-center text-primary-light border border-primary/30">
+                        <span className="size-5 rounded bg-cream flex items-center justify-center text-primary-dark dark:text-primary-light border border-primary/30">
                           <span className="material-symbols-outlined text-[14px]">query_stats</span>
                         </span>
                       </div>
@@ -755,7 +755,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                     <div className="bg-cream border border-line rounded-xl p-3 flex flex-col gap-1">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-ink-soft">Visitas</p>
-                        <span className="size-5 rounded bg-cream flex items-center justify-center text-primary-light border border-primary/30">
+                        <span className="size-5 rounded bg-cream flex items-center justify-center text-primary-dark dark:text-primary-light border border-primary/30">
                           <span className="material-symbols-outlined text-[14px]">storefront</span>
                         </span>
                       </div>
@@ -770,7 +770,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                     <div className="bg-cream border border-line rounded-xl p-3 flex flex-col gap-1">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-ink-soft">Preferido</p>
-                        <span className="size-5 rounded bg-cream flex items-center justify-center text-primary-light border border-primary/30">
+                        <span className="size-5 rounded bg-cream flex items-center justify-center text-primary-dark dark:text-primary-light border border-primary/30">
                           <span className="material-symbols-outlined text-[14px]">content_cut</span>
                         </span>
                       </div>
@@ -823,7 +823,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                           onClick={() =>
                             setDependentMode((prev) => (prev === 'link' ? 'idle' : 'link'))
                           }
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold border border-line hover:bg-white/5 text-ink-soft rounded-lg transition-colors"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold border border-line hover:bg-ink/5 text-ink-soft hover:text-ink rounded-lg transition-colors"
                         >
                           <span className="material-symbols-outlined text-sm">link</span>
                           Vincular Existente
@@ -866,7 +866,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                             <button
                               type="button"
                               onClick={() => setDependentMode('idle')}
-                              className="px-3 py-1.5 text-xs font-bold text-ink-soft hover:text-white"
+                              className="px-3 py-1.5 text-xs font-bold text-ink-soft hover:text-ink"
                             >
                               Cancelar
                             </button>
@@ -1029,7 +1029,7 @@ export const ClientProfile360Drawer: React.FC<ClientProfile360DrawerProps> = ({
                     <button
                       type="button"
                       onClick={() => setIsEditingSchedule((prev) => !prev)}
-                      className="px-2.5 py-1 text-xs font-bold border border-line hover:bg-white/5 rounded-lg text-ink-soft transition-colors"
+                      className="px-2.5 py-1 text-xs font-bold border border-line hover:bg-ink/5 rounded-lg text-ink-soft hover:text-ink transition-colors"
                     >
                       {isEditingSchedule ? 'Cancelar' : 'Alterar'}
                     </button>

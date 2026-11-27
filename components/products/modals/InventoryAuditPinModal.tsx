@@ -44,7 +44,7 @@ export const InventoryAuditPinModal: React.FC<InventoryAuditPinModalProps> = ({
                 </div>
 
                 <div>
-                    <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                    <label className="block text-xs font-semibold text-ink-soft uppercase mb-1">
                         PIN do Gestor (6 dígitos) *
                     </label>
                     <input

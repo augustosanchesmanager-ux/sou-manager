@@ -600,17 +600,17 @@ const Clients: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-background-dark text-ink max-w-7xl mx-auto w-full animate-fade-in pb-20">
+        <div className="min-h-screen bg-cream text-ink max-w-7xl mx-auto w-full animate-fade-in pb-20">
             {/* ===== TIER 1 — Identidade & Ações ===== */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-line pb-6">
                 <div>
-                    <h2 className="font-display text-2xl font-bold text-white tracking-tight">Clientes</h2>
+                    <h2 className="font-display text-2xl font-bold text-ink tracking-tight">Clientes</h2>
                     <p className="text-xs text-ink-soft mt-1">
                         {clients.length} cliente(s) cadastrado(s) · {labels.clientPlural.toLowerCase()} da base deste tenant
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                    <button onClick={() => fileInputRef.current?.click()} className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-line bg-card text-ink-soft text-sm font-bold hover:border-primary/40 hover:text-white transition-all">
+                    <button onClick={() => fileInputRef.current?.click()} className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-line bg-card text-ink-soft text-sm font-bold hover:border-primary/40 hover:text-ink transition-all">
                         <span className="material-symbols-outlined text-sm">upload_file</span>
                         Importar CSV
                     </button>
@@ -618,7 +618,7 @@ const Clients: React.FC = () => {
                     <button
                         onClick={handleExportCSV}
                         disabled={exportingExcel || processed.length === 0}
-                        className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-line bg-card text-ink-soft text-sm font-bold hover:border-primary/40 hover:text-white transition-all disabled:opacity-50 disabled:pointer-events-none"
+                        className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-line bg-card text-ink-soft text-sm font-bold hover:border-primary/40 hover:text-ink transition-all disabled:opacity-50 disabled:pointer-events-none"
                     >
                         <span className="material-symbols-outlined text-sm">
                             {exportingExcel ? 'progress_activity' : 'download'}
@@ -645,7 +645,7 @@ const Clients: React.FC = () => {
                             placeholder="Buscar por nome, telefone ou e-mail..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="w-full bg-card border border-line rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-1 focus:ring-primary focus:border-primary text-white transition-all shadow-sm"
+                            className="w-full bg-card border border-line rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-1 focus:ring-primary focus:border-primary text-ink placeholder:text-ink-soft transition-all shadow-sm"
                         />
                     </div>
                     <div className="inline-flex self-start sm:self-auto items-center gap-1 p-1 rounded-xl border border-line bg-cream text-xs font-bold">
@@ -654,8 +654,8 @@ const Clients: React.FC = () => {
                             onClick={() => setStatusFilter('active')}
                             className={`px-3 py-1.5 rounded-lg transition-all ${
                                 statusFilter === 'active'
-                                    ? 'bg-primary/20 text-primary-light border border-primary/30 shadow-xs'
-                                    : 'text-ink-soft hover:text-white hover:bg-white/5 border-transparent'
+                                    ? 'bg-primary/15 text-primary-dark dark:text-primary-light border border-primary/30 shadow-xs'
+                                    : 'text-ink-soft hover:text-ink hover:bg-ink/5 border-transparent'
                             }`}
                         >
                             Ativos ({clients.filter((c) => c.status === 'active').length})
@@ -665,8 +665,8 @@ const Clients: React.FC = () => {
                             onClick={() => setStatusFilter('inactive')}
                             className={`px-3 py-1.5 rounded-lg transition-all ${
                                 statusFilter === 'inactive'
-                                    ? 'bg-primary/20 text-primary-light border border-primary/30 shadow-xs'
-                                    : 'text-ink-soft hover:text-white hover:bg-white/5 border-transparent'
+                                    ? 'bg-primary/15 text-primary-dark dark:text-primary-light border border-primary/30 shadow-xs'
+                                    : 'text-ink-soft hover:text-ink hover:bg-ink/5 border-transparent'
                             }`}
                         >
                             Inativos ({clients.filter((c) => c.status !== 'active').length})
@@ -676,8 +676,8 @@ const Clients: React.FC = () => {
                             onClick={() => setStatusFilter('all')}
                             className={`px-3 py-1.5 rounded-lg transition-all ${
                                 statusFilter === 'all'
-                                    ? 'bg-primary/20 text-primary-light border border-primary/30 shadow-xs'
-                                    : 'text-ink-soft hover:text-white hover:bg-white/5 border-transparent'
+                                    ? 'bg-primary/15 text-primary-dark dark:text-primary-light border border-primary/30 shadow-xs'
+                                    : 'text-ink-soft hover:text-ink hover:bg-ink/5 border-transparent'
                             }`}
                         >
                             Todos ({clients.length})
@@ -688,7 +688,7 @@ const Clients: React.FC = () => {
                 {/* Inactivity & Retention Tiers Filter */}
                 <div className="flex flex-wrap items-center gap-2 p-3 rounded-xl border border-line bg-card shadow-sm">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-ink-soft flex items-center gap-1.5 shrink-0">
-                        <span className="material-symbols-outlined text-base text-primary-light">schedule</span>
+                        <span className="material-symbols-outlined text-base text-primary-dark dark:text-primary-light">schedule</span>
                         Última Visita:
                     </span>
                     <div className="flex flex-wrap items-center gap-1.5 flex-1">
@@ -698,7 +698,7 @@ const Clients: React.FC = () => {
                             className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
                                 inactivityFilter === 'all'
                                     ? 'bg-primary text-night shadow-xs'
-                                    : 'text-ink-soft hover:text-white hover:bg-white/5 border-transparent border border-transparent'
+                                    : 'text-ink-soft hover:text-ink hover:bg-ink/5 border-transparent border border-transparent'
                             }`}
                         >
                             Todas ({clients.length})
@@ -709,7 +709,7 @@ const Clients: React.FC = () => {
                             className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 ${
                                 inactivityFilter === 'active'
                                     ? 'bg-success/20 text-success border border-success/30 shadow-xs'
-                                    : 'text-ink-soft hover:text-white hover:bg-white/5 border-transparent border border-transparent'
+                                    : 'text-ink-soft hover:text-ink hover:bg-ink/5 border-transparent border border-transparent'
                             }`}
                         >
                             <span className="w-2 h-2 rounded-full bg-success"></span>
@@ -721,7 +721,7 @@ const Clients: React.FC = () => {
                             className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 ${
                                 inactivityFilter === 'absent'
                                     ? 'bg-warning/20 text-warning border border-warning/30 shadow-xs'
-                                    : 'text-ink-soft hover:text-white hover:bg-white/5 border-transparent border border-transparent'
+                                    : 'text-ink-soft hover:text-ink hover:bg-ink/5 border-transparent border border-transparent'
                             }`}
                         >
                             <span className="w-2 h-2 rounded-full bg-warning"></span>
@@ -733,7 +733,7 @@ const Clients: React.FC = () => {
                             className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 ${
                                 inactivityFilter === 'critical'
                                     ? 'bg-danger/20 text-danger border border-danger/30 shadow-xs'
-                                    : 'text-ink-soft hover:text-white hover:bg-white/5 border-transparent border border-transparent'
+                                    : 'text-ink-soft hover:text-ink hover:bg-ink/5 border-transparent border border-transparent'
                             }`}
                         >
                             <span className="w-2 h-2 rounded-full bg-danger"></span>
@@ -745,10 +745,10 @@ const Clients: React.FC = () => {
                             className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 ${
                                 inactivityFilter === 'never'
                                     ? 'bg-cream text-ink border border-line shadow-xs'
-                                    : 'text-ink-soft hover:text-white hover:bg-white/5 border-transparent border border-transparent'
+                                    : 'text-ink-soft hover:text-ink hover:bg-ink/5 border-transparent border border-transparent'
                             }`}
                         >
-                            <span className="w-2 h-2 rounded-full bg-border-dark"></span>
+                            <span className="w-2 h-2 rounded-full bg-ink-soft"></span>
                             Sem Visitas ({clients.filter((c) => getClientInactivityStatus(c.last_visit).tier === 'never').length})
                         </button>
                     </div>
@@ -758,25 +758,25 @@ const Clients: React.FC = () => {
             <LoadingBlock loading={loading} message="Carregando clientes..." minHeight="min-h-[400px]">
                 <div className="bg-card border border-line rounded-2xl overflow-hidden">
                     <div className="overflow-x-auto">
-                        <div className="sm:hidden px-4 py-2 border-b border-line bg-white/[0.02] text-[10px] font-bold uppercase tracking-wide text-ink-soft">
+                        <div className="sm:hidden px-4 py-2 border-b border-line bg-cream/60 text-[10px] font-bold uppercase tracking-wide text-ink-soft">
                             Deslize para ver mais colunas
                         </div>
                         <table className="w-full min-w-[760px]">
-                            <thead className="bg-white/[0.02]">
+                            <thead className="bg-cream/60 border-b border-line">
                                 <tr className="text-left text-xs font-bold text-ink-soft uppercase tracking-wider">
                                     <th className="px-5 py-3">
-                                        <button onClick={() => handleSort('name')} className="flex items-center gap-1 hover:text-white transition-colors">
+                                        <button onClick={() => handleSort('name')} className="flex items-center gap-1 hover:text-ink transition-colors">
                                             Cliente <span className="material-symbols-outlined text-sm">{sortIcon('name')}</span>
                                         </button>
                                     </th>
                                     <th className="px-5 py-3 hidden md:table-cell">Telefone</th>
                                     <th className="px-5 py-3 hidden lg:table-cell">
-                                        <button onClick={() => handleSort('last_visit')} className="flex items-center gap-1 hover:text-white transition-colors">
+                                        <button onClick={() => handleSort('last_visit')} className="flex items-center gap-1 hover:text-ink transition-colors">
                                             {isEsteticaApp ? 'Último atendimento' : 'Última Visita'} <span className="material-symbols-outlined text-sm">{sortIcon('last_visit')}</span>
                                         </button>
                                     </th>
                                     <th className="px-5 py-3 hidden lg:table-cell">
-                                        <button onClick={() => handleSort('total_spent')} className="flex items-center gap-1 hover:text-white transition-colors">
+                                        <button onClick={() => handleSort('total_spent')} className="flex items-center gap-1 hover:text-ink transition-colors">
                                             Total Gasto <span className="material-symbols-outlined text-sm">{sortIcon('total_spent')}</span>
                                         </button>
                                     </th>
@@ -784,7 +784,7 @@ const Clients: React.FC = () => {
                                     <th className="px-5 py-3 text-right">Ações</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-border-dark">
+                            <tbody className="divide-y divide-line">
                                 {processed.length === 0 && (
                                     <tr>
                                         <td colSpan={6} className="text-center py-12 text-ink-soft text-sm">
@@ -797,7 +797,7 @@ const Clients: React.FC = () => {
                                     </tr>
                                 )}
                                 {paginatedClients.map((client) => (
-                                    <tr key={client.id} className="hover:bg-white/[0.02] transition-colors">
+                                    <tr key={client.id} className="hover:bg-cream/60 transition-colors">
                                         <td className="px-5 py-4">
                                             <div className="flex items-center gap-3">
                                                 <div className="size-9 rounded-xl bg-cream shrink-0 overflow-hidden border border-line">
@@ -811,7 +811,7 @@ const Clients: React.FC = () => {
                                                 </div>
                                                 <div>
                                                     <div className="flex flex-wrap items-center gap-2">
-                                                        <p className="text-sm font-bold text-white">{client.name}</p>
+                                                        <p className="text-sm font-bold text-ink">{client.name}</p>
                                                         {!isEsteticaApp && chefClubMap[client.id] && (
                                                             <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-primary/10 text-primary-dark border border-primary/20 rounded text-[9px] font-black uppercase tracking-tighter" title={`Club dos Chefes: ${chefClubMap[client.id]}`}>
                                                                 <span className="material-symbols-outlined text-[10px]">workspace_premium</span>
@@ -847,7 +847,7 @@ const Clients: React.FC = () => {
                                                 const inact = getClientInactivityStatus(client.last_visit);
                                                 return (
                                                     <div className="flex flex-col items-start gap-1">
-                                                        <span className="text-xs font-semibold text-white">
+                                                        <span className="text-xs font-semibold text-ink">
                                                             {formatDate(client.last_visit)}
                                                         </span>
                                                         <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${inact.badgeClass}`}>
@@ -858,7 +858,7 @@ const Clients: React.FC = () => {
                                                 );
                                             })()}
                                         </td>
-                                        <td className="px-5 py-4 text-sm font-bold text-white tabular-nums whitespace-nowrap hidden lg:table-cell">
+                                        <td className="px-5 py-4 text-sm font-bold text-ink tabular-nums whitespace-nowrap hidden lg:table-cell">
                                             {formatCurrency(client.total_spent)}
                                         </td>
                                         <td className="px-5 py-4">
@@ -895,7 +895,7 @@ const Clients: React.FC = () => {
                                                 <button
                                                     type="button"
                                                     onClick={() => handleEditClick(client)}
-                                                    className="p-1.5 text-ink-soft hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                                                    className="p-1.5 text-ink-soft hover:text-ink hover:bg-ink/5 rounded-lg transition-colors"
                                                     title="Editar Dados Básicos"
                                                 >
                                                     <span className="material-symbols-outlined text-lg">edit</span>
@@ -904,7 +904,7 @@ const Clients: React.FC = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => navigate(`/chef-club-subscriptions/new?from=clients&clientId=${client.id}`)}
-                                                        className="p-1.5 text-ink-soft hover:text-primary-light hover:bg-primary/10 rounded-lg transition-colors"
+                                                        className="p-1.5 text-ink-soft hover:text-primary-dark dark:hover:text-primary-light hover:bg-primary/10 rounded-lg transition-colors"
                                                         title="Assinatura Clube"
                                                     >
                                                         <span className="material-symbols-outlined text-lg">workspace_premium</span>
@@ -926,11 +926,11 @@ const Clients: React.FC = () => {
                         </table>
                     </div>
                     {processed.length > 0 && (
-                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 border-t border-line bg-white/[0.02] text-xs text-ink-soft">
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 border-t border-line bg-cream/60 text-xs text-ink-soft">
                             <div>
-                                Mostrando <span className="font-bold text-white">{(currentPage - 1) * itemsPerPage + 1}</span> a{' '}
-                                <span className="font-bold text-white">{Math.min(currentPage * itemsPerPage, processed.length)}</span> de{' '}
-                                <span className="font-bold text-white">{processed.length}</span> clientes
+                                Mostrando <span className="font-bold text-ink">{(currentPage - 1) * itemsPerPage + 1}</span> a{' '}
+                                <span className="font-bold text-ink">{Math.min(currentPage * itemsPerPage, processed.length)}</span> de{' '}
+                                <span className="font-bold text-ink">{processed.length}</span> clientes
                             </div>
                             {totalPages > 1 && (
                                 <div className="flex items-center gap-2">
@@ -938,7 +938,7 @@ const Clients: React.FC = () => {
                                         type="button"
                                         onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                                         disabled={currentPage === 1}
-                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-line bg-cream font-bold text-ink-soft hover:border-primary/40 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-line bg-cream font-bold text-ink-soft hover:border-primary/40 hover:text-ink disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                                     >
                                         <span className="material-symbols-outlined text-sm">chevron_left</span>
                                         Anterior
@@ -950,7 +950,7 @@ const Clients: React.FC = () => {
                                         type="button"
                                         onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                                         disabled={currentPage >= totalPages}
-                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-line bg-cream font-bold text-ink-soft hover:border-primary/40 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-line bg-cream font-bold text-ink-soft hover:border-primary/40 hover:text-ink disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                                     >
                                         Próxima
                                         <span className="material-symbols-outlined text-sm">chevron_right</span>
@@ -1007,38 +1007,38 @@ const Clients: React.FC = () => {
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Nome Completo</label>
                         <input type="text" required value={editForm.name || ''} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                             title="Nome Completo" placeholder="Ex: Carlos Oliveira"
-                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
+                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-ink placeholder:text-ink-soft outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Telefone</label>
                         <input type="tel" required value={editForm.phone || ''} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
                             title="Telefone" placeholder="(11) 99999-9999"
-                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
+                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-ink placeholder:text-ink-soft outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Email</label>
                         <input type="email" value={editForm.email || ''} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                             title="E-mail" placeholder="email@exemplo.com"
-                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
+                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-ink placeholder:text-ink-soft outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Data de Nascimento</label>
                         <DatePickerInput value={editForm.birthday || ''} onChange={(e) => setEditForm({ ...editForm, birthday: e.target.value })}
                             title="Data de Nascimento" placeholder="Data de Nascimento"
-                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
+                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-ink placeholder:text-ink-soft outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Status</label>
                         <select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
                             title="Status do Cliente"
-                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all [color-scheme:light] dark:[color-scheme:dark]">
+                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-ink outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all [color-scheme:light] dark:[color-scheme:dark]">
                             <option value="active">Ativo</option>
                             <option value="inactive">Inativo</option>
                         </select>
                     </div>
                     <div className="flex gap-3 pt-2">
                         <button type="button" onClick={() => { setEditingId(null); setEditForm({}); }}
-                            className="flex-1 py-3 rounded-xl text-sm font-bold text-ink-soft bg-cream border border-line hover:bg-white/5 hover:text-white transition-colors">Cancelar</button>
+                            className="flex-1 py-3 rounded-xl text-sm font-bold text-ink-soft bg-cream border border-line hover:bg-ink/5 hover:text-ink transition-colors">Cancelar</button>
                         <button type="submit"
                             className="flex-1 py-3 rounded-xl text-sm font-bold text-night bg-gradient-to-r from-primary to-primary-dark shadow-lg shadow-primary/20 hover:brightness-105 transition-all">Salvar Alterações</button>
                     </div>
@@ -1056,29 +1056,29 @@ const Clients: React.FC = () => {
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Nome Completo</label>
                         <input type="text" required value={newForm.name} onChange={(e) => setNewForm({ ...newForm, name: e.target.value })}
                             title="Nome Completo"
-                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="Ex: Carlos Oliveira" />
+                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-ink placeholder:text-ink-soft outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="Ex: Carlos Oliveira" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Telefone</label>
                         <input type="tel" required value={newForm.phone} onChange={(e) => setNewForm({ ...newForm, phone: e.target.value })}
                             title="Telefone"
-                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="(11) 99999-9999" />
+                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-ink placeholder:text-ink-soft outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="(11) 99999-9999" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Email (Opcional)</label>
                         <input type="email" value={newForm.email} onChange={(e) => setNewForm({ ...newForm, email: e.target.value })}
                             title="E-mail"
-                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="email@exemplo.com" />
+                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-ink placeholder:text-ink-soft outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" placeholder="email@exemplo.com" />
                     </div>
                     <div>
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-ink-soft mb-1.5">Data de Nascimento</label>
                         <DatePickerInput value={newForm.birthday} onChange={(e) => setNewForm({ ...newForm, birthday: e.target.value })}
                             title="Data de Nascimento" placeholder="Data de Nascimento"
-                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-white outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
+                            className="w-full bg-cream border border-line rounded-xl p-3 text-sm text-ink placeholder:text-ink-soft outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all" />
                     </div>
                     <div className="flex gap-3 pt-2">
                         <button type="button" onClick={() => setShowModal(false)}
-                            className="flex-1 py-3 rounded-xl text-sm font-bold text-ink-soft bg-cream border border-line hover:bg-white/5 hover:text-white transition-colors">Cancelar</button>
+                            className="flex-1 py-3 rounded-xl text-sm font-bold text-ink-soft bg-cream border border-line hover:bg-ink/5 hover:text-ink transition-colors">Cancelar</button>
                         <button type="submit"
                             className="flex-1 py-3 rounded-xl text-sm font-bold text-night bg-gradient-to-r from-primary to-primary-dark shadow-lg shadow-primary/20 hover:brightness-105 transition-all">Salvar</button>
                     </div>
@@ -1096,12 +1096,12 @@ const Clients: React.FC = () => {
                         <div className="w-16 h-16 bg-danger/20 text-danger rounded-full flex items-center justify-center mx-auto mb-4">
                             <span className="material-symbols-outlined text-3xl">warning</span>
                         </div>
-                        <p className="text-sm text-ink-soft mb-6">Tem certeza que deseja excluir <strong className="text-white">{deleteTarget.name}</strong>? Esta ação não pode ser desfeita.</p>
+                        <p className="text-sm text-ink-soft mb-6">Tem certeza que deseja excluir <strong className="text-ink">{deleteTarget.name}</strong>? Esta ação não pode ser desfeita.</p>
                         <div className="flex gap-3">
                             <button
                                 onClick={() => setDeleteTarget(null)}
                                 disabled={deleting}
-                                className="flex-1 py-3 rounded-xl text-sm font-bold text-ink-soft bg-cream border border-line hover:bg-white/5 hover:text-white transition-colors disabled:opacity-60"
+                                className="flex-1 py-3 rounded-xl text-sm font-bold text-ink-soft bg-cream border border-line hover:bg-ink/5 hover:text-ink transition-colors disabled:opacity-60"
                             >
                                 Cancelar
                             </button>
@@ -1128,7 +1128,7 @@ const Clients: React.FC = () => {
                         <div className="p-3 bg-primary/10 border border-primary/20 rounded-xl">
                             <p className="text-[10px] font-bold uppercase tracking-wider text-primary-dark mb-1">Revisão de Dados</p>
                             <p className="text-xs text-ink-soft">
-                                <strong className="text-white">{importPreview.fileName}</strong> — {importPreview.totalRows} linha(s) lida(s).
+                                <strong className="text-ink">{importPreview.fileName}</strong> — {importPreview.totalRows} linha(s) lida(s).
                                 Nada é gravado até a confirmação.
                             </p>
                             <div className="flex flex-wrap gap-2 mt-2 text-xs font-bold">
@@ -1146,7 +1146,7 @@ const Clients: React.FC = () => {
                         <div className="bg-card rounded-xl border border-line overflow-hidden">
                             <div className="overflow-x-auto max-h-[50vh] custom-scrollbar">
                                 <table className="w-full text-left">
-                                    <thead className="bg-white/[0.02] sticky top-0 z-10 border-b border-line">
+                                    <thead className="bg-cream/60 sticky top-0 z-10 border-b border-line">
                                         <tr>
                                             <th className="px-4 py-3 text-[10px] uppercase font-bold text-ink-soft tracking-wider">#</th>
                                             <th className="px-4 py-3 text-[10px] uppercase font-bold text-ink-soft tracking-wider">Nome Completo</th>
@@ -1156,9 +1156,9 @@ const Clients: React.FC = () => {
                                             <th className="px-4 py-3 text-[10px] uppercase font-bold text-ink-soft tracking-wider">Status</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-border-dark text-sm">
+                                    <tbody className="divide-y divide-line text-sm">
                                         {importPreview.rows.map((row) => (
-                                            <tr key={row.rowNumber} className="hover:bg-white/[0.02]">
+                                            <tr key={row.rowNumber} className="hover:bg-cream/60">
                                                 <td className="px-4 py-3 text-xs text-ink-soft">{row.rowNumber}</td>
                                                 <td className="px-4 py-3 text-sm text-ink-soft">{row.values.name || '—'}</td>
                                                 <td className="px-4 py-3 text-sm text-ink-soft">{row.values.phone || '—'}</td>
@@ -1201,7 +1201,7 @@ const Clients: React.FC = () => {
                         )}
 
                         <div className="flex gap-3 justify-end pt-4 border-t border-line mt-6">
-                            <button type="button" onClick={() => { setIsImportModalOpen(false); setImportPreview(null); }} className="px-6 py-2.5 rounded-lg text-sm font-bold text-ink-soft bg-cream border border-line hover:bg-white/5 hover:text-white transition-colors">
+                            <button type="button" onClick={() => { setIsImportModalOpen(false); setImportPreview(null); }} className="px-6 py-2.5 rounded-lg text-sm font-bold text-ink-soft bg-cream border border-line hover:bg-ink/5 hover:text-ink transition-colors">
                                 Descartar Arquivo
                             </button>
                             <button type="button" onClick={handleConfirmImport} disabled={loading || (importPreview.validRows.length + (includeDuplicates ? importPreview.duplicateRows.length : 0)) === 0} className="px-8 py-2.5 rounded-lg text-sm font-bold text-night bg-gradient-to-r from-primary to-primary-dark shadow-lg shadow-primary/20 hover:brightness-105 transition-all flex items-center justify-center gap-2">

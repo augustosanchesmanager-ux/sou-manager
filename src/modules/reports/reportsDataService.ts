@@ -393,8 +393,9 @@ export async function fetchPaidComandasReport(
     )
     .eq('tenant_id', tenantId)
     .in('status', ['paid', 'closed'])
-    .gte('created_at', new Date(startMs - 90 * 24 * 60 * 60 * 1000).toISOString())
-    .lte('created_at', endBuffer)
+    .or(
+      `and(closed_at.gte.${startBuffer},closed_at.lte.${endBuffer}),and(payment_date_real.gte.${startBuffer},payment_date_real.lte.${endBuffer}),and(closed_at.is.null,created_at.gte.${startBuffer},created_at.lte.${endBuffer})`
+    )
     .order('closed_at', { ascending: false, nullsFirst: false });
 
   if (comandasError) {

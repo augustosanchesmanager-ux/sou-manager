@@ -25,6 +25,7 @@ export interface ComandaPaymentRow {
   payment_type: string;
   amount: number | string;
   payment_method: string | null;
+  created_at?: string | null;
   reversed_at: string | null;
 }
 
@@ -60,6 +61,44 @@ class ComandaPaymentRepositoryImpl extends SupabaseRepository {
       return this.extractData<ComandaPaymentRow[]>(result, 'list comanda payments by comanda ids');
     } catch (err) {
       this.throwOnError(err, 'list comanda payments by comanda ids');
+    }
+  }
+
+  /**
+   * Pagamentos NAO estornados liquidados no periodo [rangeStartIso, rangeEndIso]
+   * (ADR-030: Regime de Caixa por comanda_payments.created_at).
+   * Pagina em blocos de 1000 para nunca truncar no teto padrao do PostgREST.
+   */
+  async listValidInPeriod(
+    tenantId: string,
+    rangeStartIso: string,
+    rangeEndIso: string,
+    appSlug?: AppSlug,
+  ): Promise<ComandaPaymentRow[]> {
+    try {
+      const slug = appSlug || this.defaultAppSlug;
+      const client = createSupabaseClient(this.tableName, slug);
+      const PAGE_SIZE = 1000;
+      const allRows: ComandaPaymentRow[] = [];
+
+      for (let from = 0; ; from += PAGE_SIZE) {
+        const result = await client.from(this.tableName)
+          .select('id, comanda_id, payment_type, amount, payment_method, created_at, reversed_at')
+          .eq('tenant_id', tenantId)
+          .is('reversed_at', null)
+          .gte('created_at', rangeStartIso)
+          .lte('created_at', rangeEndIso)
+          .order('created_at', { ascending: false })
+          .range(from, from + PAGE_SIZE - 1);
+
+        const batch = this.extractData<ComandaPaymentRow[]>(result, 'list valid comanda payments in period');
+        allRows.push(...batch);
+        if (batch.length < PAGE_SIZE) break;
+      }
+
+      return allRows;
+    } catch (err) {
+      this.throwOnError(err, 'list valid comanda payments in period');
     }
   }
 

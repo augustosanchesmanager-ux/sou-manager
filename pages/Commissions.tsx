@@ -25,6 +25,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { getScopedClient } from '../services/supabaseClient';
 import { comandaRepository } from '../domain/comanda/repository';
+import { comandaPaymentRepository } from '../domain/comanda/comandaPaymentRepository';
 import { staffRepository } from '../domain/staff/repository';
 import { appointmentRepository } from '../domain/appointment/repository';
 import { getEffectiveCommissionRateForItem, receivesCommissionForItem } from '../src/lib/staff/roles';
@@ -341,14 +342,12 @@ const Commissions: React.FC = () => {
         if (!tenantId || !startDate || !endDate) return [];
 
         const client = getScopedClient('barber');
-        const startOfRange = new Date(startDate);
-        startOfRange.setHours(0, 0, 0, 0);
-        const endOfRange = new Date(endDate);
-        endOfRange.setHours(23, 59, 59, 999);
+        const startOfRange = new Date(`${startDate}T00:00:00`);
+        const endOfRange = new Date(`${endDate}T23:59:59.999`);
         const rangeStartIso = startOfRange.toISOString();
         const rangeEndIso = endOfRange.toISOString();
 
-        const [staffRows, appointmentsInRange, allComandas] = await Promise.all([
+        const [staffRows, appointmentsInRange, comandasByRange, paymentsInPeriod] = await Promise.all([
             staffRepository.listForCommission(tenantId),
             appointmentRepository.list(tenantId, {
                 startTimeFrom: rangeStartIso,
@@ -357,16 +356,66 @@ const Commissions: React.FC = () => {
             comandaRepository.listForCommission(tenantId, {
                 statuses: ['open', 'paid', 'blocked', 'cancelled'],
                 excludeHidden: true,
+                rangeStartIso,
+                rangeEndIso,
             }),
+            comandaPaymentRepository.listValidInPeriod(tenantId, rangeStartIso, rangeEndIso).catch(() => []),
         ]);
 
-        const appointmentIdsInRangeSet = new Set(appointmentsInRange.map((appointment) => appointment.id));
-        const comandas = (allComandas as unknown as ComandaRow[]).filter(
-            (comanda) =>
-                isIsoInDateRange(comanda.created_at, startOfRange, endOfRange) ||
-                isIsoInDateRange(comanda.closed_at, startOfRange, endOfRange) ||
-                (comanda.appointment_id ? appointmentIdsInRangeSet.has(comanda.appointment_id) : false),
+        const latestPaymentDateByComandaId: Record<string, string> = {};
+        for (const payment of paymentsInPeriod) {
+            if (!payment.comanda_id || !payment.created_at) continue;
+            const prev = latestPaymentDateByComandaId[payment.comanda_id];
+            if (!prev || payment.created_at > prev) {
+                latestPaymentDateByComandaId[payment.comanda_id] = payment.created_at;
+            }
+        }
+
+        const loadedComandasMap = new Map<string, ComandaRow>();
+        for (const row of comandasByRange as unknown as ComandaRow[]) {
+            if (row.id) loadedComandasMap.set(row.id, row);
+        }
+
+        // Busca comandas liquidadas no periodo (ADR-030) que tenham sido abertas em periodo anterior (ex: fiado do dia 10 pago no dia 15)
+        const missingPaymentComandaIds = Array.from(
+            new Set(paymentsInPeriod.map((p) => p.comanda_id).filter((id): id is string => Boolean(id) && !loadedComandasMap.has(id))),
         );
+        if (missingPaymentComandaIds.length > 0) {
+            const extraComandas = await comandaRepository.listForCommission(tenantId, {
+                ids: missingPaymentComandaIds,
+                statuses: ['open', 'paid', 'blocked', 'cancelled'],
+                excludeHidden: true,
+            });
+            for (const row of extraComandas as unknown as ComandaRow[]) {
+                if (row.id) loadedComandasMap.set(row.id, row);
+            }
+        }
+
+        // Busca comandas cujos agendamentos ocorreram no periodo mas foram criadas antes do range
+        const loadedAppointmentIds = new Set(
+            Array.from(loadedComandasMap.values()).map((c) => c.appointment_id).filter((id): id is string => Boolean(id)),
+        );
+        const missingAppointmentIds = appointmentsInRange
+            .map((a) => a.id)
+            .filter((id): id is string => Boolean(id) && !loadedAppointmentIds.has(id));
+        if (missingAppointmentIds.length > 0) {
+            const extraByAppointment = await fetchInChunks<ComandaRow>(client, 'comandas', 'appointment_id', missingAppointmentIds, {
+                select: 'id, client_id, appointment_id, staff_id, status, total, discount, payment_method, closure_mode, financial_effect, membership_credit_effect, created_at, closed_at, hidden_from_financial, is_fiado, payment_date_real',
+                tenantId,
+            });
+            for (const row of extraByAppointment) {
+                if (
+                    row.id &&
+                    !loadedComandasMap.has(row.id) &&
+                    ['open', 'paid', 'blocked', 'cancelled'].includes(row.status) &&
+                    !(row as any).hidden_from_financial
+                ) {
+                    loadedComandasMap.set(row.id, row);
+                }
+            }
+        }
+
+        const comandas = Array.from(loadedComandasMap.values());
 
         const staffList: StaffMember[] = staffRows.map((staff) => ({
             id: staff.id,
@@ -392,13 +441,22 @@ const Commissions: React.FC = () => {
             acc[appointment.id] = appointment;
             return acc;
         }, {} as Record<string, AppointmentRow>);
-        const comandasInProductionRange = comandas.filter((comanda) => {
+
+        const getEffectivePaymentDate = (comanda: ComandaRow) =>
+            latestPaymentDateByComandaId[comanda.id] ||
+            comanda.payment_date_real ||
+            (comanda.status === 'paid' ? comanda.closed_at : null) ||
+            null;
+
+        const comandasInRelevantRange = comandas.filter((comanda) => {
             const productionDate = new Date(getProductionDate(comanda, appointmentById));
-            if (Number.isNaN(productionDate.getTime())) return false;
-            return productionDate >= startOfRange && productionDate <= endOfRange;
+            const inProduction = !Number.isNaN(productionDate.getTime()) && productionDate >= startOfRange && productionDate <= endOfRange;
+            const effectivePayment = getEffectivePaymentDate(comanda);
+            const inSettlement = comanda.status === 'paid' && isIsoInDateRange(effectivePayment, startOfRange, endOfRange);
+            return inProduction || inSettlement;
         });
-        const comandaIds = comandasInProductionRange.map((comanda) => comanda.id);
-        const clientIds = Array.from(new Set(comandasInProductionRange.map((comanda) => comanda.client_id).filter((id): id is string => Boolean(id))));
+        const comandaIds = comandasInRelevantRange.map((comanda) => comanda.id);
+        const clientIds = Array.from(new Set(comandasInRelevantRange.map((comanda) => comanda.client_id).filter((id): id is string => Boolean(id))));
 
         const [itemsData, clientsData] = await Promise.all([
             comandaIds.length > 0
@@ -409,14 +467,19 @@ const Commissions: React.FC = () => {
                 : Promise.resolve([] as any[]),
         ]);
 
-        const rawServiceItems = (itemsData as any[]).filter(isServiceItem);
-        const serviceItems = Array.from(
-            rawServiceItems.reduce((acc, item) => {
+        // ADR-047: inclui servicos e produtos; elegibilidade e taxa por tipo sao resolvidas por receivesCommissionForItem / getEffectiveCommissionRateForItem
+        const commissionableItems = Array.from(
+            (itemsData as any[]).reduce((acc, item) => {
                 if (item.id && !acc.has(item.id)) acc.set(item.id, item);
                 return acc;
             }, new Map<string, any>()).values(),
         ) as any[];
-        const itemIds = serviceItems.map((item) => item.id).filter(Boolean);
+        const comandaGrossTotalById = commissionableItems.reduce((acc, item) => {
+            const val = getComandaItemValue(item) * getQuantity(item);
+            acc[item.comanda_id] = (acc[item.comanda_id] || 0) + val;
+            return acc;
+        }, {} as Record<string, number>);
+        const itemIds = commissionableItems.map((item) => item.id).filter(Boolean);
         const participants = itemIds.length > 0
             ? await fetchInChunks<ParticipantRow>(client, 'service_execution_participants', 'comanda_item_id', itemIds, { tenantId })
             : [];
@@ -425,7 +488,7 @@ const Commissions: React.FC = () => {
             acc[currentClient.id] = currentClient.name;
             return acc;
         }, {} as Record<string, string>);
-        const comandaById = comandasInProductionRange.reduce((acc, comanda) => {
+        const comandaById = comandasInRelevantRange.reduce((acc, comanda) => {
             acc[comanda.id] = comanda;
             return acc;
         }, {} as Record<string, ComandaRow>);
@@ -435,7 +498,7 @@ const Commissions: React.FC = () => {
             return acc;
         }, {} as Record<string, ParticipantRow[]>);
 
-        return serviceItems.flatMap((item): CommissionLine[] => {
+        return commissionableItems.flatMap((item): CommissionLine[] => {
             const comanda = comandaById[item.comanda_id];
             if (!comanda) return [];
 
@@ -455,6 +518,9 @@ const Commissions: React.FC = () => {
             const sharedStaffIds = normalizedParticipants.sharedStaffIds;
             const productionDate = getProductionDate(comanda, appointmentById);
             const dateSource = getProductionDateSource(comanda, appointmentById);
+            const effectivePaymentDate = getEffectivePaymentDate(comanda);
+            const inProductionRange = isIsoInDateRange(productionDate, startOfRange, endOfRange);
+            const inSettlementRange = comanda.status === 'paid' && isIsoInDateRange(effectivePaymentDate, startOfRange, endOfRange);
             const getParticipantName = (participant: ParticipantRow) => {
                 const staffId = getParticipantStaffId(participant);
                 return staffId ? staffById[staffId]?.name || staffId : 'Profissional';
@@ -493,7 +559,13 @@ const Commissions: React.FC = () => {
                         : '';
                     const creditAppliedDetected = itemValue === 0 && Boolean(item.service_id) && comanda.membership_credit_effect !== false;
                     const clientName = normalizeClientName(comanda.client_id ? clientById[comanda.client_id] : null);
-                    const discountAmount = toNumber(item.discount ?? comanda.discount);
+                    const itemGross = itemValue * quantity;
+                    const comandaGross = comandaGrossTotalById[comanda.id] || itemGross;
+                    const discountAmount = item.discount != null
+                        ? toNumber(item.discount)
+                        : (toNumber(comanda.discount) > 0 && comandaGross > 0
+                            ? toNumber(comanda.discount) * (itemGross / comandaGross)
+                            : 0);
 
                     const financialBase = resolveFinancialBase({
                         item,
@@ -526,7 +598,7 @@ const Commissions: React.FC = () => {
                         comandaItemId: item.id,
                         createdAt: productionDate,
                         clientName,
-                        serviceName: item.product_name || 'Serviço',
+                        serviceName: item.product_name || (isServiceItem(item) ? 'Serviço' : 'Produto'),
                         quantity,
                         unitPrice: toNumber(item.unit_price),
                         itemValue,
@@ -551,8 +623,10 @@ const Commissions: React.FC = () => {
                         paymentStatus: getCommissionPaymentLabel(comanda.status, isFiado),
                         commissionStatus: commissionStatusLabels[getCommissionStatus(comanda.status, isFiado) as CommissionStatusFilter] || 'Pendente',
                         isFiado,
-                        paymentDateReal: comanda.payment_date_real || null,
+                        paymentDateReal: effectivePaymentDate,
                         availableForPayout,
+                        inProductionRange,
+                        inSettlementRange,
                         paymentMethod: getPaymentMethodLabel(comanda),
                         dateSource,
                         discountAmount,
@@ -684,7 +758,8 @@ const Commissions: React.FC = () => {
     const filteredLines = useMemo(() => {
         const normalizedSearch = normalizeSearchText(searchTerm);
         return commissionLines.filter((line) => {
-            if (viewMode === 'settlement' && !line.availableForPayout) return false;
+            if (viewMode === 'production' && line.inProductionRange === false) return false;
+            if (viewMode === 'settlement' && (!line.availableForPayout || line.inSettlementRange === false)) return false;
             if (professionalFilter !== 'all' && line.professionalId !== professionalFilter) return false;
             if (commissionTypeFilter === 'solo' && line.isShared) return false;
             if (commissionTypeFilter === 'shared' && !line.isShared) return false;
@@ -964,8 +1039,8 @@ const Commissions: React.FC = () => {
                 </div>
                 <div className="text-xs text-slate-500 font-medium">
                     {viewMode === 'production'
-                        ? 'Exibindo todos os serviços prestados (à vista e fiados).'
-                        : 'Exibindo apenas comissões com quitação comprovada no caixa.'}
+                        ? 'Exibindo serviços e produtos prestados no período (à vista e fiados).'
+                        : 'Regime de Caixa (ADR-030): comissões liquidadas no período pela data real de pagamento (inclui fiados quitados).'}
                 </div>
             </div>
 
