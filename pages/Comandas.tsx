@@ -37,6 +37,7 @@ import { type CatalogItem } from '@/src/utils/comandaQuickActions';
 import { comandaQuickService } from '@/services/comandaQuickService';
 import { QuickCheckoutModal } from '../components/checkout/QuickCheckoutModal';
 import { ChairSelfCheckoutModal } from '../components/checkout/ChairSelfCheckoutModal';
+import { QuickRegisterAndSettleModal } from '../components/checkout/QuickRegisterAndSettleModal';
 import { ComandaAdminAdjustModal } from '../components/comandas/ComandaAdminAdjustModal';
 import { useTenantOptional } from '../src/context/TenantContext';
 import { comandaRepository } from '../domain/comanda/repository';
@@ -244,6 +245,7 @@ const Comandas: React.FC = () => {
 
     // Frente 1.G: Estado e dados do Modal de Abertura Rápida
     const [isQuickOpenModalOpen, setIsQuickOpenModalOpen] = useState(false);
+    const [quickRegisterModalOpen, setQuickRegisterModalOpen] = useState(false);
     const [quickCheckoutModalOpen, setQuickCheckoutModalOpen] = useState(false);
     const [chairCheckoutModalOpen, setChairCheckoutModalOpen] = useState(false);
     const [adminAdjustModalOpen, setAdminAdjustModalOpen] = useState(false);
@@ -472,6 +474,11 @@ const Comandas: React.FC = () => {
     const openQuickOpenModal = useCallback(() => {
         void loadQuickOpenAuxiliaryData();
         setIsQuickOpenModalOpen(true);
+    }, [loadQuickOpenAuxiliaryData]);
+
+    const openQuickRegisterModal = useCallback(() => {
+        void loadQuickOpenAuxiliaryData();
+        setQuickRegisterModalOpen(true);
     }, [loadQuickOpenAuxiliaryData]);
 
     // Frente 1.G: Atalho de teclado 'N' para abertura rápida (quando não estiver digitando em inputs)
@@ -1255,6 +1262,16 @@ const Comandas: React.FC = () => {
                         <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap justify-start lg:justify-end">
                             <button
                                 type="button"
+                                onClick={openQuickRegisterModal}
+                                className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-primary/40 bg-primary/10 hover:bg-primary/20 px-4 py-2.5 text-xs sm:text-sm font-bold text-primary-dark dark:text-primary-light active:scale-[0.98] transition-all touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 whitespace-nowrap cursor-pointer"
+                                title="Registrar atendimento, comanda e baixa financeira em um único fluxo"
+                            >
+                                <span className="material-symbols-outlined text-lg">point_of_sale</span>
+                                <span>Lançar + Baixar</span>
+                            </button>
+
+                            <button
+                                type="button"
                                 onClick={openQuickOpenModal}
                                 className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-dark px-4 py-2.5 text-xs sm:text-sm font-bold text-night shadow-sm hover:brightness-105 active:scale-[0.98] transition-all touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 whitespace-nowrap"
                                 title={`${newOrderLabel} — atalho [N]`}
@@ -1627,7 +1644,10 @@ const Comandas: React.FC = () => {
                         onCancel={() => selectedComanda && (setDeleteComanda(selectedComanda), setCancelReason(''), setCancelReasonOther(''))}
                         onPrint={() => selectedComanda && handlePrint(selectedComanda)}
                         onCheckout={() => selectedComanda && navigate(`/checkout/${selectedComanda.id}`)}
-                        onQuickCheckout={() => setQuickCheckoutModalOpen(true)}
+                        onQuickCheckout={() => {
+                            void loadQuickOpenAuxiliaryData();
+                            setQuickCheckoutModalOpen(true);
+                        }}
                         onChairSelfCheckout={() => setChairCheckoutModalOpen(true)}
                         onMarkAsFiado={() => selectedComanda && handleMarkAsFiado(selectedComanda)}
                         markingFiado={markingFiadoId === selectedComanda.id}
@@ -1806,19 +1826,27 @@ const Comandas: React.FC = () => {
                 orderLabel={orderLabel}
             />
 
-            {/* Frente 2: Modo Balcão Express (1 Toque) */}
+            {/* Frente 2 / ADR-059: Modo Balcão Express (1 Toque) */}
             <QuickCheckoutModal
                 isOpen={quickCheckoutModalOpen}
                 onClose={() => setQuickCheckoutModalOpen(false)}
                 comanda={selectedComanda ? {
                     id: selectedComanda.id,
                     total: selectedComanda.total,
+                    staff_id: selectedComanda.staff_id || null,
+                    appointment_id: selectedComanda.appointment_id || null,
                     client_id: selectedComanda.client_id || (selectedComanda.clients as any)?.id || null,
                     client_name: selectedComanda.clients?.name || null,
                     client_phone: selectedComanda.clients?.phone || null,
                     items: selectedComanda.comanda_items,
                 } : null}
                 tenantId={tenantId || ''}
+                userId={user?.id || null}
+                userRole={accessRole}
+                isSuperAdmin={canAccessSuperAdmin}
+                appSlug={appSlug || DEFAULT_APP_SLUG}
+                schema={schema || 'barber'}
+                catalogItems={quickCatalogItems}
                 onSuccess={(comandaId, method) => {
                     setToast({
                         message: `Comanda #${comandaId.slice(0, 8)} liquidada com sucesso no Balcão Express (${method.toUpperCase()})!`,
@@ -1827,6 +1855,7 @@ const Comandas: React.FC = () => {
                     void fetchData();
                 }}
                 onOpenChairQrCode={() => setChairCheckoutModalOpen(true)}
+                onOpenFullPdv={(comandaId) => navigate(`/checkout/${comandaId}`)}
             />
 
             {/* Frente 2: Self-Checkout na Cadeira (QR Code Dinâmico PIX) */}
@@ -1844,6 +1873,34 @@ const Comandas: React.FC = () => {
                 onSuccess={(comandaId) => {
                     setToast({
                         message: `Pagamento recebido na cadeira! Comanda #${comandaId.slice(0, 8)} liquidada.`,
+                        type: 'success',
+                    });
+                    void fetchData();
+                }}
+            />
+
+            {/* ADR-059: Modal B — Lançamento & Baixa Simultânea */}
+            <QuickRegisterAndSettleModal
+                isOpen={quickRegisterModalOpen}
+                onClose={() => setQuickRegisterModalOpen(false)}
+                tenantId={tenantId || ''}
+                userId={user?.id || null}
+                userRole={accessRole}
+                isSuperAdmin={canAccessSuperAdmin}
+                appSlug={appSlug || DEFAULT_APP_SLUG}
+                schema={schema || 'barber'}
+                staffList={quickStaff}
+                servicesList={quickCatalogItems
+                    .filter((it) => it.type === 'service')
+                    .map((it) => ({ id: it.id, name: it.name, price: it.price }))}
+                productsList={quickCatalogItems
+                    .filter((it) => it.type === 'product')
+                    .map((it) => ({ id: it.id, name: it.name, price: it.price }))}
+                clientsList={quickClients}
+                defaultStaffId={accessRole === 'barber' ? user?.id : quickStaff[0]?.id}
+                onSuccess={(result) => {
+                    setToast({
+                        message: `${orderLabel} #${result.comandaId.slice(0, 8)} lançada e liquidada (${result.paymentLabel})!`,
                         type: 'success',
                     });
                     void fetchData();

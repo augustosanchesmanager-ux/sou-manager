@@ -60,6 +60,7 @@ This directory contains architectural decisions for the SOU MANA.GER project.
 | [ADR-055](./ADR-055-billing-stack-a-canonical-and-assisted-upgrade.md) | Accepted | Stack A como Fonte Única de Billing e Fluxo de Upgrade Assistido (2026-11-24) |
 | [ADR-056](./ADR-056-application-layer-repository-pattern-migration.md) | Accepted | Migração Incremental da Camada `application/` para o Padrão Repository (`UXQ-008`, 2026-11-25) |
 | [ADR-059](./ADR-059-split-payment-pending-transition-and-business-rules.md) | Accepted | Split Payment no PDV, Rastreabilidade de Parciais (`comanda_payments ↔ transactions`), Transição Automática para Pagamento Pendente e Central de Regras de Negócio (2026-11-27) |
+| [ADR-060](./ADR-060-quick-pdv-dual-and-scoped-settlement-rbac.md) | Accepted | PDV Rápido Dual (`Express 1-Toque` + `Lançamento e Baixa Simultânea`) e RBAC Escopado no Settlement (2026-11-28) |
 
 ---
 

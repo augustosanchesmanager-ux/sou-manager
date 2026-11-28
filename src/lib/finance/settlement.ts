@@ -4,6 +4,23 @@ const SETTLEMENT_ERROR_MESSAGE =
   'Não foi possível registrar a baixa financeira. Nenhuma alteração foi aplicada. Tente novamente ou acione o gestor.';
 const SETTLEMENT_TIMEOUT_MS = 30000;
 
+const KNOWN_SETTLEMENT_BUSINESS_ERRORS = [
+  'PIN de autorizacao invalido',
+  'Lancamento retroativo em caixa fechado exige PIN de gerente',
+  'Data de competencia nao pode ser futura',
+  'Barbeiro so pode liquidar comandas proprias',
+  'Lancamento retroativo permitido apenas para gestores',
+  'Caixa do dia ja esta confirmado',
+];
+
+const resolveSafeSettlementErrorMessage = (error: unknown): string => {
+  const msg = String((error as { message?: string } | null)?.message || '');
+  const matched = KNOWN_SETTLEMENT_BUSINESS_ERRORS.find((pattern) =>
+    msg.toLowerCase().includes(pattern.toLowerCase()),
+  );
+  return matched ? msg : SETTLEMENT_ERROR_MESSAGE;
+};
+
 export interface CheckoutSettlementInput {
   comandaId: string;
   tenantId: string;
@@ -14,6 +31,7 @@ export interface CheckoutSettlementInput {
   source?: string;
   notes?: string | null;
   idempotencyKey?: string | null;
+  auditPin?: string | null;
     /**
      * ADR-018: quando true, a baixa também grava em `comanda_payments`,
      * tornando o regime de caixa verificável.
@@ -119,6 +137,7 @@ export const settleCheckoutComandaAndEnqueue = async ({
   notes,
   idempotencyKey,
   recordComandaPayment,
+  auditPin,
   outbox,
 }: CheckoutSettlementInput & { outbox: OutboxEnqueueData }): Promise<CheckoutSettlementResult> => {
   if (!tenantId) throw new Error('tenant_id obrigatório para baixa financeira.');
@@ -129,6 +148,7 @@ export const settleCheckoutComandaAndEnqueue = async ({
   }
 
   const key = idempotencyKey || createSettlementKey(comandaId);
+  const normalizedAuditPin = auditPin ? String(auditPin).trim() : '';
   const baseParams: Record<string, unknown> = {
     p_tenant_id: tenantId,
     p_comanda_id: comandaId,
@@ -145,12 +165,27 @@ export const settleCheckoutComandaAndEnqueue = async ({
     p_outbox_targets: outbox.targets || null,
   };
 
+  const rpcPayload: Record<string, unknown> = {
+    ...baseParams,
+    p_record_comanda_payment: recordComandaPayment === true,
+    ...(normalizedAuditPin ? { p_audit_pin: normalizedAuditPin } : {}),
+  };
+
   let rpcResult = await withSettlementTimeout<any>(
-    supabase.rpc('finance_settle_comanda_and_enqueue', {
-      ...baseParams,
-      p_record_comanda_payment: recordComandaPayment === true,
-    }),
+    supabase.rpc('finance_settle_comanda_and_enqueue', rpcPayload),
   );
+
+  // Se foi enviado PIN retroativo e o banco ainda não tem a assinatura ADR-059 (p_audit_pin),
+  // nunca remover o PIN silenciosamente.
+  if (
+    normalizedAuditPin &&
+    rpcResult.error &&
+    (rpcResult.error.code === 'PGRST202' || String(rpcResult.error.message || '').includes('p_audit_pin'))
+  ) {
+    throw new Error(
+      'O banco de dados ainda não foi atualizado com a migration ADR-059 para validação de PIN retroativo na baixa.',
+    );
+  }
 
   // Fallback 1: se o backend tiver a assinatura de 13 parâmetros (sem p_record_comanda_payment)
   if (rpcResult.error && (rpcResult.error.code === 'PGRST202' || String(rpcResult.error.message || '').includes('p_record_comanda_payment'))) {
@@ -173,6 +208,7 @@ export const settleCheckoutComandaAndEnqueue = async ({
       notes,
       idempotencyKey: key,
       recordComandaPayment,
+      auditPin: normalizedAuditPin || undefined,
     });
   }
 
@@ -185,7 +221,7 @@ export const settleCheckoutComandaAndEnqueue = async ({
       paymentMethod,
       paidAmount,
     });
-    throw new Error(SETTLEMENT_ERROR_MESSAGE);
+    throw new Error(resolveSafeSettlementErrorMessage(error));
   }
 
   const result = data || {};
@@ -220,6 +256,8 @@ export const settleCheckoutComanda = async ({
   source = 'checkout',
   notes,
   idempotencyKey,
+  recordComandaPayment,
+  auditPin,
 }: CheckoutSettlementInput): Promise<CheckoutSettlementResult> => {
   if (!tenantId) throw new Error('tenant_id obrigatório para baixa financeira.');
   if (!comandaId) throw new Error('comanda_id obrigatório para baixa financeira.');
@@ -229,6 +267,7 @@ export const settleCheckoutComanda = async ({
   }
 
   const key = idempotencyKey || createSettlementKey(comandaId);
+  const normalizedAuditPin = auditPin ? String(auditPin).trim() : '';
   const { data, error } = await withSettlementTimeout<any>(
     supabase.rpc('finance_settle_comanda', {
       p_tenant_id: tenantId,
@@ -239,6 +278,12 @@ export const settleCheckoutComanda = async ({
       p_source: source,
       p_notes: notes || null,
       p_idempotency_key: key,
+      ...(normalizedAuditPin
+        ? {
+            p_record_comanda_payment: recordComandaPayment === true,
+            p_audit_pin: normalizedAuditPin,
+          }
+        : {}),
     }),
   );
 
@@ -249,7 +294,7 @@ export const settleCheckoutComanda = async ({
       paymentMethod,
       paidAmount,
     });
-    throw new Error(SETTLEMENT_ERROR_MESSAGE);
+    throw new Error(resolveSafeSettlementErrorMessage(error));
   }
 
   const result = data || {};

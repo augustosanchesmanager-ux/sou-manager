@@ -75,6 +75,15 @@ import { BarberChairQueue } from '../components/schedule/BarberChairQueue';
 import { QuickWalkInModal, type QuickWalkInPayload } from '../components/schedule/QuickWalkInModal';
 import { AppointmentActionMenu } from '../components/schedule/AppointmentActionMenu';
 import { DailyReconciliationBar } from '../components/schedule/DailyReconciliationBar';
+import { QuickCheckoutModal } from '../components/checkout/QuickCheckoutModal';
+import { ChairSelfCheckoutModal } from '../components/checkout/ChairSelfCheckoutModal';
+import { QuickRegisterAndSettleModal } from '../components/checkout/QuickRegisterAndSettleModal';
+import {
+  findOpenComandaForAppointment,
+  type HydratedQuickComanda,
+  type QuickPdvCatalogItem,
+} from '../application/checkout/quickPdv';
+import { stockRepository } from '../domain/stock/stockRepository';
 import { type QueueAppointment } from '../src/utils/barberQueue';
 import { triggerHapticFeedback } from '../src/utils/feedbackSensory';
 import {
@@ -141,7 +150,7 @@ import {
 const Schedule: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { appSlug, tenantId, tenantSlug, tenant, user, accessRole } = useAuth();
+  const { appSlug, tenantId, tenantSlug, tenant, user, accessRole, canAccessSuperAdmin } = useAuth();
   const [isBookingQrModalOpen, setIsBookingQrModalOpen] = useState(false);
   const businessLabels = getBusinessLabels(appSlug);
   const isEsteticaApp = appSlug === 'estetica';
@@ -182,6 +191,16 @@ const Schedule: React.FC = () => {
   const [selectedQueueStaffId, setSelectedQueueStaffId] = useState<string>('all');
   const [showQuickWalkInModal, setShowQuickWalkInModal] = useState(false);
   const [isWalkInSubmitting, setIsWalkInSubmitting] = useState(false);
+  const [productsList, setProductsList] = useState<Array<{ id: string; name: string; price: number; stock?: number }>>([]);
+  const [showQuickRegisterModal, setShowQuickRegisterModal] = useState(false);
+  const [quickRegisterPrefillClient, setQuickRegisterPrefillClient] = useState<{
+    id?: string | null;
+    name: string;
+    phone?: string | null;
+  } | null>(null);
+  const [quickCheckoutComanda, setQuickCheckoutComanda] = useState<HydratedQuickComanda | null>(null);
+  const [quickCheckoutOpen, setQuickCheckoutOpen] = useState(false);
+  const [chairCheckoutOpen, setChairCheckoutOpen] = useState(false);
 
   useEffect(() => {
     if (isBarberRole && currentUserStaff?.id) {
@@ -551,7 +570,7 @@ const Schedule: React.FC = () => {
 
     const scheduleAppSlug = ensureAppSupportsModule(appSlug, 'schedule', ['barber']);
 
-    const [loadedStaff, loadedServices, loadedClients, activePromos] = await Promise.all([
+    const [loadedStaff, loadedServices, loadedClients, activePromos, loadedProducts] = await Promise.all([
       staffRepository.list(tenantId).catch(() => []),
       serviceRepository.listFull(tenantId).catch((err) => {
         console.error('Erro ao buscar serviços:', err);
@@ -559,6 +578,7 @@ const Schedule: React.FC = () => {
       }),
       clientRepository.list(tenantId).catch(() => [] as DBClient[]),
       promotionRepository.listActive(tenantId, scheduleAppSlug).catch(() => []),
+      stockRepository.listProducts(tenantId).catch(() => []),
     ]);
 
     setStaffList(
@@ -585,6 +605,18 @@ const Schedule: React.FC = () => {
     if (loadedClients) {
       setClientsList(loadedClients);
       setFilteredClients(enrichClientsWithFamilyContext(loadedClients));
+    }
+    if (Array.isArray(loadedProducts)) {
+      setProductsList(
+        loadedProducts
+          .filter((p) => p.active !== false && p.purpose !== 'internal_use' && Number(p.sale_price) > 0)
+          .map((p) => ({
+            id: p.id,
+            name: p.name,
+            price: Number(p.sale_price) || 0,
+            stock: Number(p.stock_quantity) || 0,
+          })),
+      );
     }
     if (activePromos) {
       const now = new Date();
@@ -2687,6 +2719,71 @@ const Schedule: React.FC = () => {
     await handleNavigateToCheckout(appointment);
   };
 
+  const quickCatalogItems = React.useMemo<QuickPdvCatalogItem[]>(() => {
+    const srvItems: QuickPdvCatalogItem[] = servicesList.map((s) => ({
+      id: s.id,
+      type: 'service',
+      name: s.name,
+      price: Number(s.price) || 0,
+      duration: s.duration,
+    }));
+    const prdItems: QuickPdvCatalogItem[] = productsList.map((p) => ({
+      id: p.id,
+      type: 'product',
+      name: p.name,
+      price: Number(p.price) || 0,
+    }));
+    return [...srvItems, ...prdItems];
+  }, [servicesList, productsList]);
+
+  const handleQuickCheckoutFromSchedule = async (apt: QueueAppointment) => {
+    if (!tenantId) return;
+    const calApt = appointments.find((a) => a.id === apt.id);
+    const scheduleAppSlug = ensureAppSupportsModule(appSlug, 'schedule', ['barber']);
+
+    try {
+      const lookup = await findOpenComandaForAppointment(tenantId, apt.id, scheduleAppSlug, {
+        clientId: calApt?.clientId || null,
+        clientName: calApt?.client || apt.client,
+        clientPhone: calApt?.clientPhone || apt.clientPhone || null,
+        staffId: calApt?.staffId || apt.staffId || null,
+        price: calApt?.price ?? apt.price ?? 0,
+        serviceName: calApt?.service || apt.service,
+      });
+
+      if (lookup.status === 'open' && lookup.comanda) {
+        setQuickCheckoutComanda(lookup.comanda);
+        setQuickCheckoutOpen(true);
+        return;
+      }
+
+      if (lookup.status === 'paid') {
+        setToast({ message: `A ${orderLabelLower} deste atendimento já foi liquidada.`, type: 'info' });
+        return;
+      }
+
+      if (lookup.status === 'blocked') {
+        setToast({
+          message: `${orderLabel} bloqueada para data futura. Abra o atendimento para desbloquear antes da baixa.`,
+          type: 'info',
+        });
+        return;
+      }
+
+      setQuickRegisterPrefillClient({
+        id: calApt?.clientId || null,
+        name: calApt?.client || apt.client,
+        phone: calApt?.clientPhone || apt.clientPhone || null,
+      });
+      setShowQuickRegisterModal(true);
+    } catch (err: any) {
+      setToast({
+        message: err?.message || `Falha ao abrir fechamento rápido da ${orderLabelLower}.`,
+        type: 'error',
+      });
+    }
+  };
+
   // Retorna a URL do WhatsApp (ou null quando o telefone é inválido).
   // O fechamento em nova aba é feito via <a target="_blank">, nunca via window.open
   // (window.open é bloqueado por popup blockers; links <a> não são).
@@ -2976,6 +3073,20 @@ Podemos confirmar? 😄`;
               <ChevronDown size={12} className="text-stone-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
 
+            {/* Ação: Lançar + Baixar (PDV Rápido Simultâneo) */}
+            <button
+              type="button"
+              onClick={() => {
+                setQuickRegisterPrefillClient(null);
+                setShowQuickRegisterModal(true);
+              }}
+              className="px-2.5 py-1.5 text-xs font-bold bg-[#B88A44]/15 border border-[#B88A44]/40 text-[#B88A44] rounded-lg hover:bg-[#B88A44]/25 transition-all cursor-pointer hidden sm:inline-flex items-center gap-1"
+              title="Lançar agendamento, comanda e baixa financeira em um fluxo rápido"
+            >
+              <span className="material-symbols-outlined text-[14px]">bolt</span>
+              <span>Lançar + Baixar</span>
+            </button>
+
             {/* Ação: Encaixe */}
             <button
               type="button"
@@ -3135,9 +3246,14 @@ Podemos confirmar? 😄`;
           onCancelAppointment={handleCancelAppointmentFromQueue}
           onOpenClient={handleOpenClient}
           onOpenComanda={handleOpenComanda}
+          onQuickCheckout={handleQuickCheckoutFromSchedule}
           onStatusChange={handleAppointmentStatusChange}
           onWhatsApp={handleSendWhatsAppDirect}
           onOpenQuickWalkIn={() => setShowQuickWalkInModal(true)}
+          onOpenQuickRegisterAndSettle={() => {
+            setQuickRegisterPrefillClient(null);
+            setShowQuickRegisterModal(true);
+          }}
           orderLabel={orderLabel}
         />
       ) : displayMode === 'calendar' ? (
@@ -3855,6 +3971,9 @@ Podemos confirmar? 😄`;
                           <button onClick={() => handleEditAppointment(apt)} className="p-2 rounded-lg text-slate-500 hover:text-primary-dark hover:bg-primary/10" title="Reagendar"><span className="material-symbols-outlined text-[18px]">update</span></button>
                           <button onClick={() => handleCancelAppointment(apt.id)} className="p-2 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-500/10" title="Cancelar"><span className="material-symbols-outlined text-[18px]">cancel</span></button>
                           <button onClick={() => handleOpenClient(apt)} className="p-2 rounded-lg text-slate-500 hover:text-primary-dark hover:bg-primary/10" title="Abrir cliente"><span className="material-symbols-outlined text-[18px]">person</span></button>
+                          {apt.status !== 'completed' && apt.status !== 'cancelled' && apt.status !== 'no_show' && (
+                            <button onClick={() => void handleQuickCheckoutFromSchedule(apt)} className="p-2 rounded-lg text-amber-500 hover:text-amber-600 hover:bg-amber-500/10" title="Fechar Rápido (1 Toque)"><span className="material-symbols-outlined text-[18px]">bolt</span></button>
+                          )}
                           <button onClick={() => handleOpenComanda(apt)} className="p-2 rounded-lg text-slate-500 hover:text-emerald-500 hover:bg-emerald-500/10" title={`Abrir ${orderLabelLower}`}><span className="material-symbols-outlined text-[18px]">receipt_long</span></button>
                         </div>
                       </td>
@@ -3937,6 +4056,7 @@ Podemos confirmar? 😄`;
                     onCancel={(a) => openCancelModal(a as CalendarAppointment)}
                     onOpenClient={handleOpenClient}
                     onOpenComanda={handleOpenComanda}
+                    onQuickCheckout={handleQuickCheckoutFromSchedule}
                     onWhatsApp={handleSendWhatsAppDirect}
                     orderLabel={orderLabel}
                   />
@@ -5262,6 +5382,21 @@ Podemos confirmar? 😄`;
                   buttonClassName="w-full px-3 py-3 rounded-xl text-sm"
                 />
                 <button onClick={() => { if (selectedAppointmentDetails) handleOpenClient(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">Cliente</button>
+                {selectedAppointmentDetails.status !== 'completed' && selectedAppointmentDetails.status !== 'cancelled' && selectedAppointmentDetails.status !== 'no_show' && (
+                  <button
+                    onClick={() => {
+                      if (selectedAppointmentDetails) {
+                        const target = selectedAppointmentDetails;
+                        closeDetailDrawer();
+                        void handleQuickCheckoutFromSchedule(target);
+                      }
+                    }}
+                    className="px-3 py-3 rounded-xl bg-amber-400/20 text-amber-700 dark:text-amber-300 text-sm font-bold inline-flex items-center justify-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-base">bolt</span>
+                    Fechar Rápido
+                  </button>
+                )}
                 <button onClick={() => { if (selectedAppointmentDetails) handleOpenComanda(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl bg-slate-100 dark:bg-white/5 text-sm font-bold">{orderLabel}</button>
                 <button onClick={() => { if (selectedAppointmentDetails) openCancelModal(selectedAppointmentDetails); }} className="px-3 py-3 rounded-xl border border-red-500 text-red-500 text-sm font-bold">Cancelar</button>
               </div>
@@ -5806,6 +5941,106 @@ Podemos confirmar? 😄`;
           } else {
             setToast({ message: 'Erro ao liberar horário.', type: 'error' });
           }
+        }}
+      />
+
+      {/* Modal A (ADR-059): Express 1-Toque direto da Agenda */}
+      <QuickCheckoutModal
+        isOpen={quickCheckoutOpen}
+        onClose={() => setQuickCheckoutOpen(false)}
+        comanda={quickCheckoutComanda}
+        tenantId={tenantId || ''}
+        userId={user?.id || null}
+        userRole={accessRole}
+        isSuperAdmin={canAccessSuperAdmin}
+        appSlug={appSlug || 'barber'}
+        schema="barber"
+        catalogItems={quickCatalogItems}
+        onSuccess={(comandaId, method) => {
+          setToast({
+            message: `${orderLabel} #${comandaId.slice(0, 8)} liquidada (${method.toUpperCase()})!`,
+            type: 'success',
+          });
+          void fetchAppointments();
+        }}
+        onOpenChairQrCode={() => setChairCheckoutOpen(true)}
+        onOpenFullPdv={(comandaId) => navigate(`/checkout/${comandaId}`)}
+      />
+
+      <ChairSelfCheckoutModal
+        isOpen={chairCheckoutOpen}
+        onClose={() => setChairCheckoutOpen(false)}
+        comanda={
+          quickCheckoutComanda
+            ? {
+                id: quickCheckoutComanda.id,
+                total: quickCheckoutComanda.total,
+                client_name: quickCheckoutComanda.client_name,
+              }
+            : null
+        }
+        tenantId={tenantId || ''}
+        tenantName={tenant?.name || 'SMG BARBER'}
+        onSuccess={(comandaId) => {
+          setToast({
+            message: `Pagamento recebido na cadeira! ${orderLabel} #${comandaId.slice(0, 8)} liquidada.`,
+            type: 'success',
+          });
+          void fetchAppointments();
+        }}
+      />
+
+      {/* Modal B (ADR-059): Lançamento & Baixa Simultânea (Fim de Dia / Retroativo / Lote) */}
+      <QuickRegisterAndSettleModal
+        isOpen={showQuickRegisterModal}
+        onClose={() => {
+          setShowQuickRegisterModal(false);
+          setQuickRegisterPrefillClient(null);
+        }}
+        tenantId={tenantId || ''}
+        userId={user?.id || null}
+        userRole={accessRole}
+        isSuperAdmin={canAccessSuperAdmin}
+        appSlug={appSlug || 'barber'}
+        schema="barber"
+        staffList={staffList.map((s) => ({ id: s.id, name: s.name, role: s.role }))}
+        servicesList={servicesList.map((s) => ({
+          id: s.id,
+          name: s.name,
+          price: Number(s.price ?? 0),
+          duration: s.duration,
+        }))}
+        productsList={productsList}
+        clientsList={clientsList}
+        defaultStaffId={
+          selectedQueueStaffId !== 'all'
+            ? selectedQueueStaffId
+            : currentUserStaff?.id || staffList[0]?.id
+        }
+        initialClient={quickRegisterPrefillClient}
+        onClientCreated={(created) => {
+          setClientsList((prev) => [
+            ...prev,
+            {
+              id: created.id,
+              name: created.name,
+              phone: created.phone,
+              email: '',
+              last_visit: '',
+              last_service: '',
+              total_spent: 0,
+              status: 'active',
+              avatar: '',
+              birthday: '',
+            } as DBClient,
+          ]);
+        }}
+        onSuccess={(result) => {
+          setToast({
+            message: `Lançado e liquidado: ${result.clientName} (${result.paymentLabel})!`,
+            type: 'success',
+          });
+          void fetchAppointments();
         }}
       />
     </div >

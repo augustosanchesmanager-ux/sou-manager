@@ -158,6 +158,11 @@ export interface FinishRequest {
         amountTendered: number;
         changeReturned: number;
     } | null;
+
+    // ADR-059: Competência explícita, origem e PIN gerencial para caixa fechado
+    paymentDateReal?: string;
+    auditPin?: string | null;
+    settlementSource?: string;
 }
 
 export interface FinishResult {
@@ -293,7 +298,7 @@ class CheckoutApplicationServiceImpl {
 
         const shouldSettleViaRpc = req.paymentStatus === 'paid' && !req.isLegacyClubSettlement && !req.shouldSettleZeroWithAudit;
         const shouldCloseAfterComandaSync = shouldSettleViaRpc || req.shouldSettleZeroWithAudit;
-        const paymentDateReal = new Date().toISOString();
+        const paymentDateReal = req.paymentDateReal || new Date().toISOString();
 
         const legacyClosureAuditNote = req.isLegacyClubSettlement
             ? buildZeroCloseAuditNote({
@@ -306,7 +311,7 @@ class CheckoutApplicationServiceImpl {
             : null;
 
         return {
-            client_id: req.client.id,
+            client_id: req.client.id || null,
             staff_id: comandaStaffId,
             appointment_id: req.relatedAppointmentId || null,
             status: shouldCloseAfterComandaSync ? 'open' : (req.paymentStatus === 'paid' ? 'paid' : 'open'),
@@ -386,7 +391,7 @@ class CheckoutApplicationServiceImpl {
                 existingComanda = comandas.length > 0 ? { id: comandas[0].id } : null;
             }
 
-            if (!existingComanda && req.paymentStatus === 'pending') {
+            if (!existingComanda && req.paymentStatus === 'pending' && req.client.id) {
                 const comandas = await comandaRepository.list(req.tenantId, {
                     clientId: req.client.id,
                     status: 'open',
@@ -612,7 +617,7 @@ class CheckoutApplicationServiceImpl {
         comandaId: string,
         idempotencyKey: string,
     ): Promise<void> {
-        const paymentDateReal = new Date().toISOString();
+        const paymentDateReal = req.paymentDateReal || new Date().toISOString();
 
         const settlementNotes = [
             req.paymentMethod === 'other' && req.paymentDescription
@@ -667,9 +672,10 @@ class CheckoutApplicationServiceImpl {
                 paymentMethod: req.paymentMethod,
                 paidAmount: req.total,
                 paymentDateReal,
-                source: 'checkout',
+                source: req.settlementSource || 'checkout',
                 notes: settlementNotes,
                 idempotencyKey: `finance-settle-${comandaId}-${idempotencyKey}`,
+                ...(req.auditPin ? { auditPin: req.auditPin } : {}),
                 // ADR-018: o fechamento normal de comanda no balcao e
                 // quitacao em dinheiro e deve gerar linha em
                 // comanda_payments. Baixa de clube e rotinas
@@ -829,7 +835,7 @@ class CheckoutApplicationServiceImpl {
             aggregateType: 'comanda',
             payload: {
                 comandaId,
-                clientId: req.client.id,
+                clientId: req.client.id || '',
                 staffId: req.cart[0]?.staff_id,
                 total: req.total,
                 paymentMethod: req.paymentMethod,

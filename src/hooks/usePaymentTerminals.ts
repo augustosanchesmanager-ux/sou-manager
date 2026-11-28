@@ -30,6 +30,52 @@ export interface CreateTerminalInput {
   }>;
 }
 
+export const fetchPaymentTerminalsByTenant = async (
+  tenantId: string,
+): Promise<PaymentTerminalWithRates[]> => {
+  if (!tenantId) return [];
+
+  try {
+    const client = getSharedClient();
+    const [terminalsRes, ratesRes] = await Promise.all([
+      client
+        .from('payment_terminals')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .order('is_default', { ascending: false })
+        .order('name', { ascending: true }),
+      client
+        .from('payment_terminal_rates')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('method', { ascending: true })
+        .order('installments_min', { ascending: true }),
+    ]);
+
+    if (terminalsRes.error || ratesRes.error) {
+      return [];
+    }
+
+    const terminalRows: PaymentTerminal[] = terminalsRes.data || [];
+    const rateRows: PaymentTerminalRate[] = ratesRes.data || [];
+
+    const ratesByTerminalId = new Map<string, PaymentTerminalRate[]>();
+    for (const rate of rateRows) {
+      const list = ratesByTerminalId.get(rate.terminal_id) || [];
+      list.push(rate);
+      ratesByTerminalId.set(rate.terminal_id, list);
+    }
+
+    return terminalRows.map((terminal) => ({
+      ...terminal,
+      rates: ratesByTerminalId.get(terminal.id) || [],
+    }));
+  } catch {
+    return [];
+  }
+};
+
 export const usePaymentTerminals = () => {
   const { tenantId } = useAuth();
   const [terminals, setTerminals] = useState<PaymentTerminalWithRates[]>([]);
@@ -46,46 +92,7 @@ export const usePaymentTerminals = () => {
     try {
       setLoading(true);
       setError(null);
-      const client = getSharedClient();
-
-      const [terminalsRes, ratesRes] = await Promise.all([
-        client
-          .from('payment_terminals')
-          .select('*')
-          .eq('tenant_id', tenantId)
-          .eq('is_active', true)
-          .order('is_default', { ascending: false })
-          .order('name', { ascending: true }),
-        client
-          .from('payment_terminal_rates')
-          .select('*')
-          .eq('tenant_id', tenantId)
-          .order('method', { ascending: true })
-          .order('installments_min', { ascending: true }),
-      ]);
-
-      if (terminalsRes.error) {
-        throw new Error(terminalsRes.error.message);
-      }
-      if (ratesRes.error) {
-        throw new Error(ratesRes.error.message);
-      }
-
-      const terminalRows: PaymentTerminal[] = terminalsRes.data || [];
-      const rateRows: PaymentTerminalRate[] = ratesRes.data || [];
-
-      const ratesByTerminalId = new Map<string, PaymentTerminalRate[]>();
-      for (const rate of rateRows) {
-        const list = ratesByTerminalId.get(rate.terminal_id) || [];
-        list.push(rate);
-        ratesByTerminalId.set(rate.terminal_id, list);
-      }
-
-      const combined: PaymentTerminalWithRates[] = terminalRows.map((terminal) => ({
-        ...terminal,
-        rates: ratesByTerminalId.get(terminal.id) || [],
-      }));
-
+      const combined = await fetchPaymentTerminalsByTenant(tenantId);
       setTerminals(combined);
     } catch (err: any) {
       console.error('[usePaymentTerminals] Erro ao carregar maquininhas:', err);
