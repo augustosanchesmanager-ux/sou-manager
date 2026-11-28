@@ -51,6 +51,35 @@ export interface CheckoutSettlementResult {
   message: string;
 }
 
+export interface SplitPaymentEntry {
+  amount: number;
+  paymentMethod: string;
+  description?: string | null;
+  terminalId?: string | null;
+  feePercentage?: number | null;
+  feeAmount?: number | null;
+  netAmount?: number | null;
+  estimatedSettlementDate?: string | null;
+}
+
+export interface SplitSettlementInput {
+  comandaId: string;
+  tenantId: string;
+  supabase: any;
+  payments: SplitPaymentEntry[];
+  paymentDateReal?: string;
+  source?: string;
+  notes?: string | null;
+  idempotencyKey?: string | null;
+}
+
+export interface SplitSettlementResult extends CheckoutSettlementResult {
+  transactionIds: string[];
+  comandaPaymentIds: string[];
+  totalPaid: number;
+  remaining: number;
+}
+
 const createSettlementKey = (comandaId: string) => {
   const randomId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return `finance-settle-${comandaId}-${randomId}`;
@@ -282,4 +311,83 @@ export const markComandaAsFiado = async ({
     });
     throw new Error(error.message || 'Não foi possível definir a comanda como fiado.');
   }
+};
+
+/**
+ * ADR-059 D-1/D-2: Liquidação ou pagamento parcial com 1 ou N formas de pagamento (Split Payment).
+ * Grava comanda_payments + espelho atômico em transactions cobrando estritamente o saldo restante.
+ */
+export const settleComandaSplit = async ({
+  comandaId,
+  tenantId,
+  supabase,
+  payments,
+  paymentDateReal,
+  source = 'checkout',
+  notes = null,
+  idempotencyKey = null,
+}: SplitSettlementInput): Promise<SplitSettlementResult> => {
+  if (!tenantId) throw new Error('tenant_id obrigatório para baixa financeira.');
+  if (!comandaId) throw new Error('comanda_id obrigatório para baixa financeira.');
+  if (!Array.isArray(payments)) throw new Error('Lista de parcelas inválida.');
+
+  const serializedPayments = payments.map((p) => {
+    if (!Number.isFinite(p.amount) || p.amount <= 0) {
+      throw new Error('Cada parcela deve ter valor maior que zero.');
+    }
+    if (!p.paymentMethod || !p.paymentMethod.trim()) {
+      throw new Error('Forma de pagamento obrigatória em cada parcela.');
+    }
+    return {
+      amount: Math.round(p.amount * 100) / 100,
+      payment_method: p.paymentMethod.trim(),
+      description: p.description ?? null,
+      terminal_id: p.terminalId ?? null,
+      fee_percentage: p.feePercentage ?? null,
+      fee_amount: p.feeAmount ?? null,
+      net_amount: p.netAmount ?? null,
+      estimated_settlement_date: p.estimatedSettlementDate ?? null,
+    };
+  });
+
+  const key = idempotencyKey || createSettlementKey(comandaId);
+
+  const { data, error } = await withSettlementTimeout<any>(
+    supabase.rpc('finance_settle_comanda_split', {
+      p_tenant_id: tenantId,
+      p_comanda_id: comandaId,
+      p_payments: serializedPayments,
+      p_payment_date_real: paymentDateReal || new Date().toISOString(),
+      p_source: source,
+      p_notes: notes,
+      p_idempotency_key: key,
+    }),
+  );
+
+  if (error) {
+    logSupabaseError('[settlement] finance_settle_comanda_split failed', error, {
+      comandaId,
+      tenantId,
+      splitCount: serializedPayments.length,
+    });
+    throw new Error(error.message || SETTLEMENT_ERROR_MESSAGE);
+  }
+
+  const result = data || {};
+  if (result.success !== true) {
+    throw new Error(SETTLEMENT_ERROR_MESSAGE);
+  }
+
+  return {
+    success: true,
+    idempotent: Boolean(result.idempotent),
+    comandaId: result.comanda_id || comandaId,
+    transactionId: result.transaction_id || '',
+    transactionIds: Array.isArray(result.transaction_ids) ? result.transaction_ids : [],
+    comandaPaymentIds: Array.isArray(result.comanda_payment_ids) ? result.comanda_payment_ids : [],
+    status: result.status || 'paid',
+    totalPaid: Number(result.total_paid || 0),
+    remaining: Number(result.remaining || 0),
+    message: result.message || 'Baixa financeira registrada com sucesso.',
+  };
 };
