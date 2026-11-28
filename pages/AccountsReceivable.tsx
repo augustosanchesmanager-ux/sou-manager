@@ -20,6 +20,8 @@ import {
 import { clientWalletRepository } from '../domain/clientWallet/walletRepository';
 import type { ClientWallet } from '../domain/clientWallet/types';
 import { comandaRepository } from '../domain/comanda/repository';
+import { comandaPaymentRepository } from '../domain/comanda/comandaPaymentRepository';
+import { deriveComandaPaymentState } from '../src/lib/finance/businessRules';
 import { comandaItemRepository } from '../domain/comanda/item-repository';
 import { serviceExecutionParticipantRepository } from '../domain/comanda/participant-repository';
 import { receivableRepository } from '../domain/receivable/repository';
@@ -141,6 +143,7 @@ const AccountsReceivable: React.FC = () => {
     const [loadError, setLoadError] = useState<string | null>(null);
 
     const [openComandas, setOpenComandas] = useState<ComandaRecord[]>([]);
+    const [paidByComandaId, setPaidByComandaId] = useState<Record<string, number>>({});
     const [openComandaDetails, setOpenComandaDetails] = useState<Record<string, OpenComandaDetail>>({});
     const [markingPaid, setMarkingPaid] = useState<string | null>(null);
     const [settlementEntry, setSettlementEntry] = useState<AREntry | null>(null);
@@ -227,6 +230,15 @@ const AccountsReceivable: React.FC = () => {
             setOpenComandas(comandasData);
 
             const comandaIds = comandasData.map((comanda) => comanda.id).filter(Boolean);
+            // ADR-059 D-1/D-4: carrega pagamentos parciais válidos (comanda_payments) para exibir Saldo Restante real
+            const partialPayments = comandaIds.length > 0
+                ? await comandaPaymentRepository.getPaymentsByComandaIds(comandaIds, tenantId).catch(() => [])
+                : [];
+            const paidMap: Record<string, number> = {};
+            for (const p of partialPayments) {
+                paidMap[p.comanda_id] = (paidMap[p.comanda_id] || 0) + Number(p.amount || 0);
+            }
+            setPaidByComandaId(paidMap);
             const clientIds = Array.from(new Set(comandasData.map((comanda) => comanda.client_id).filter(Boolean))) as string[];
             let clientById: Record<string, { name: string; phone: string | null }> = {};
             if (clientIds.length > 0) {
@@ -323,7 +335,7 @@ const AccountsReceivable: React.FC = () => {
 
             const paidComandaTransactions = (txData || []).filter((tx: any) => {
                 const normalizedStatus = tx.status || 'paid';
-                return tx.source_type === 'comanda'
+                return (tx.source_type === 'comanda' || tx.source_type === 'comanda_payment')
                     && tx.type === 'income'
                     && (normalizedStatus === 'paid' || normalizedStatus === 'Pago' || !tx.status)
                     && Number(tx.amount || 0) > 0;
@@ -718,20 +730,47 @@ const AccountsReceivable: React.FC = () => {
     const allEntries: AREntry[] = useMemo(() => {
         const entries: AREntry[] = [];
 
+        const todayBrt = getTodayDateKey();
         openComandas.forEach(c => {
             const detail = openComandaDetails[c.id];
             const client = detail ? { name: detail.clientName, phone: detail.clientPhone } : getClientData(c.clients);
             const targetDate = getAppointmentStartTime(c.appointments) || c.created_at;
+            const totalAmount = Number(c.total || 0);
+            const alreadyPaid = paidByComandaId[c.id] || 0;
+            const remainingAmount = Math.max(0, Math.round((totalAmount - alreadyPaid) * 100) / 100);
+            const derivedState = deriveComandaPaymentState({
+                status: c.status,
+                isFiado: (c as any).is_fiado,
+                total: totalAmount,
+                totalPaid: alreadyPaid,
+                serviceDate: targetDate,
+                todayDateKeyBrt: todayBrt,
+                paymentPendingSince: (c as any).payment_pending_since,
+            });
+            const stateTag =
+                derivedState === 'pending_payment'
+                    ? 'Pagamento Pendente'
+                    : derivedState === 'partially_paid'
+                        ? 'Parcialmente Pago'
+                        : derivedState === 'fiado'
+                            ? 'Fiado'
+                            : 'Em aberto';
+            const partialInfo = alreadyPaid > 0.01
+                ? ` · Pago ${formatCurrency(alreadyPaid)} de ${formatCurrency(totalAmount)}`
+                : '';
+            const missingClientWarning = !c.client_id && derivedState === 'pending_payment'
+                ? ' · ⚠ Sem cliente identificado'
+                : '';
             entries.push({
                 id: c.id,
                 source: 'comanda',
                 clientId: c.client_id || null,
                 clientName: client.name,
                 clientPhone: client.phone,
-                description: `Comanda #${getShortId(c.id)} · em aberto`,
+                description: `Comanda #${getShortId(c.id)} · ${stateTag}${partialInfo}${missingClientWarning}`,
                 dateValue: targetDate,
-                amount: Number(c.total || 0),
-                status: 'open',
+                amount: remainingAmount,
+                status: derivedState === 'pending_payment' ? 'overdue' : 'open',
                 originPath: '/comandas',
             });
         });
@@ -767,7 +806,7 @@ const AccountsReceivable: React.FC = () => {
         });
 
         return entries;
-    }, [openComandas, openComandaDetails, clubReceivables, pendingReceipts, clubClients, clubPlans]);
+    }, [openComandas, openComandaDetails, paidByComandaId, clubReceivables, pendingReceipts, clubClients, clubPlans]);
 
     const receivables = useMemo<ARListEntry[]>(() => {
         return allEntries.map((entry): ARListEntry => ({

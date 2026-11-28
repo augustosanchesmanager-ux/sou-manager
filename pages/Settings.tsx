@@ -10,6 +10,7 @@ import { tenantGoalsRepository } from '../domain/tenantGoals/repository';
 import { useNotificationPreferences } from '../src/hooks/useNotificationPreferences';
 import { useViaCep } from '../src/hooks/useViaCep';
 import { AuditPinSection } from '../components/settings/AuditPinSection';
+import { BusinessRulesSection } from '../components/settings/BusinessRulesSection';
 import {
     REFUND_METHODS,
     DEFAULT_REFUND_METHOD,
@@ -857,6 +858,9 @@ const Settings: React.FC = () => {
                     </button>
                 </form>
             </section>
+
+            {/* ADR-059 D-5: Central de Regras de Negócio por Tenant */}
+            {isManagement && <BusinessRulesSection tenantId={tenantId} />}
 
             {/* M4-P8: Refund Method Section */}
             {isManagement && (

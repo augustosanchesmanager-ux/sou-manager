@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
     ensureAppSupportsModule,
     getScopedClient,
+    getSharedClient,
     requireTenantContext,
     supabase,
 } from '../services/supabaseClient';
@@ -26,7 +27,13 @@ import type { ParticipantRow } from '../domain/commission/types';
 import Toast from '../components/Toast';
 import Modal from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
-import { settleCheckoutComanda } from '../src/lib/finance/settlement';
+import { settleCheckoutComanda, settleComandaSplit } from '../src/lib/finance/settlement';
+import {
+    getTenantBusinessRules,
+    DEFAULT_TENANT_BUSINESS_RULES,
+    type TenantBusinessRules,
+} from '../src/lib/finance/businessRules';
+import { SplitPaymentPanel, type SplitPaymentDraft } from '../components/checkout/SplitPaymentPanel';
 import {
     getComandaPaymentSummary,
     registerComandaPayment,
@@ -210,6 +217,10 @@ const Checkout: React.FC = () => {
     const [paymentStatus, setPaymentStatus] = useState<'paid' | 'pending'>('paid');
     const [paymentMethod, setPaymentMethod] = useState<'credit' | 'debit' | 'cash' | 'pix' | 'other'>('credit');
     const [paymentDescription, setPaymentDescription] = useState<string>('');
+    // ADR-059: Split Payment (múltiplas formas) + Regras de Negócio do tenant
+    const [tenantRules, setTenantRules] = useState<TenantBusinessRules>(DEFAULT_TENANT_BUSINESS_RULES);
+    const [isSplitMode, setIsSplitMode] = useState(false);
+    const [splitPayments, setSplitPayments] = useState<SplitPaymentDraft[]>([]);
     // P7: registro de pagamento parcial/antecipado (comanda_payments)
     const [loadedComandaStatus, setLoadedComandaStatus] = useState<string | null>(null);
     const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
@@ -297,6 +308,26 @@ const Checkout: React.FC = () => {
     const subtotal = React.useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.quantity), 0), [cart]);
     const discountValue = React.useMemo(() => parseFloat(discount) || 0, [discount]);
     const total = React.useMemo(() => Math.max(0, subtotal - discountValue), [subtotal, discountValue]);
+    const remainingToPay = React.useMemo(
+        () => Math.max(0, Math.round((total - (paymentSummary?.totalPaid || 0)) * 100) / 100),
+        [total, paymentSummary?.totalPaid],
+    );
+
+    // ADR-059: carrega regras de negócio do tenant (allow_split_payment, etc.)
+    useEffect(() => {
+        if (!tenantId) return;
+        let cancelled = false;
+        void getTenantBusinessRules({ tenantId, supabase: getSharedClient() })
+            .then((rules) => {
+                if (!cancelled) setTenantRules(rules);
+            })
+            .catch(() => {
+                // fallback seguro para DEFAULT_TENANT_BUSINESS_RULES
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [tenantId]);
     const assignedStaffIds = useMemo(
         () => Array.from(new Set(cart.map(item => item.staff_id).filter(Boolean))) as string[],
         [cart],
@@ -1243,10 +1274,124 @@ const Checkout: React.FC = () => {
             }
             : null;
 
-        // Frente 1.D: Bloqueio estrito de liquidação em dinheiro com valor entregue insuficiente
-        if (paymentMethod === 'cash' && paymentStatus === 'paid' && cashTendered < total) {
+        // ADR-059 D-2: Validação de parcelas quando em modo Split Payment (múltiplas formas)
+        if (isSplitMode && paymentStatus === 'paid' && shouldShowPaymentMethod) {
+            const parsedSplits = splitPayments.map((row) => ({
+                amount: parseFloat(row.amount.replace(',', '.')) || 0,
+                paymentMethod: row.paymentMethod === 'other' && row.description?.trim()
+                    ? row.description.trim()
+                    : row.paymentMethod,
+                description: row.description?.trim() || null,
+            }));
+            if (parsedSplits.length < 2 || parsedSplits.some((p) => p.amount <= 0)) {
+                setToast({ message: 'Informe ao menos 2 formas de pagamento com valores maiores que zero.', type: 'error' });
+                finishLockRef.current = false;
+                return;
+            }
+            const splitSum = parsedSplits.reduce((acc, p) => acc + p.amount, 0);
+            if (splitSum > remainingToPay + 0.01) {
+                setToast({
+                    message: `Soma das parcelas (${formatBrlCurrency(splitSum)}) excede o saldo restante (${formatBrlCurrency(remainingToPay)}).`,
+                    type: 'error',
+                });
+                finishLockRef.current = false;
+                return;
+            }
+
+            setLoading(true);
+            try {
+                // Garante persistência da comanda + itens antes de liquidar as parcelas (funciona para venda nova e comanda existente)
+                const baseOpenRequest: FinishRequest = {
+                    tenantId: tenantId || '',
+                    appSlug,
+                    schema,
+                    userId: user?.id || null,
+                    comandaId,
+                    cart: cart as any,
+                    client: selectedClient as any,
+                    total,
+                    discountValue,
+                    paymentStatus: 'pending' as any,
+                    paymentMethod: 'other',
+                    paymentDescription: 'Split Payment (ADR-059)',
+                    closureMode: closureMode as any,
+                    closureNote,
+                    relatedAppointmentId,
+                    shouldApplyFinancialEffects: false,
+                    shouldDeductMembershipCredits,
+                    isLegacyClubSettlement: false,
+                    legacyReferenceMonth,
+                    canCloseWithAdministrativeOrigin: false,
+                    shouldSettleZeroWithAudit: false,
+                    zeroCloseOrigin: zeroCloseOrigin as any,
+                    zeroCloseReason,
+                    zeroClosePin,
+                    creditItems: creditItems as any,
+                    chefClubInfo: checkoutBenefits ? { id: checkoutBenefits.subscriptionId } : null,
+                    shouldCollectDiscountAudit,
+                    discountAuditDraft,
+                    voucherId: appliedVoucher?.id || null,
+                    voucherCode: appliedVoucher?.voucher_code || null,
+                    voucherDiscount: appliedVoucher ? discountValue : 0,
+                    discountBearer: appliedVoucher?.discount_bearer || (discountType === 'barber_discount' ? 'barber' : 'split'),
+                    internalSettlementTitle,
+                    incomeCategory,
+                    terminalSnapshot: null,
+                    cashAudit: null,
+                };
+                const saved = await checkoutApplicationService.finish(baseOpenRequest, comandaRequestKeyRef.current);
+                const splitRes = await settleComandaSplit({
+                    tenantId: tenantId || '',
+                    comandaId: saved.comandaId,
+                    supabase: getSharedClient(),
+                    payments: parsedSplits,
+                    source: 'checkout_split',
+                    notes: closureNote || null,
+                    idempotencyKey: `${comandaRequestKeyRef.current}::split`,
+                });
+
+                if (splitRes.status === 'paid') {
+                    playCheckoutSuccessChime();
+                    triggerHapticFeedback([40, 60, 40]);
+                    setToast({ message: 'Comanda quitada com múltiplas formas de pagamento!', type: 'success' });
+                    navigate('/operation-success', {
+                        state: {
+                            operationType: 'comanda',
+                            comanda: {
+                                id: saved.comandaId,
+                                client: selectedClient?.name || '',
+                                clientPhone: selectedClient?.phone || undefined,
+                                total,
+                                paymentMethod: 'split',
+                                itemsCount: cart.length,
+                                status: 'paid',
+                            },
+                        },
+                        replace: true,
+                    });
+                } else {
+                    setToast({
+                        message: `Pagamento parcial registrado no Caixa! Saldo restante: ${formatBrlCurrency(splitRes.remaining)}.`,
+                        type: 'success',
+                    });
+                    setIsSplitMode(false);
+                    setSplitPayments([]);
+                    navigate(checkoutCopy.redirectPath, { replace: true });
+                }
+            } catch (err: any) {
+                console.error('Split settlement error:', err);
+                setToast({ message: err?.message ? `Erro: ${err.message}` : 'Erro ao liquidar parcelas.', type: 'error' });
+            } finally {
+                finishLockRef.current = false;
+                setLoading(false);
+            }
+            return;
+        }
+
+        // Frente 1.D + ADR-059: Bloqueio estrito de liquidação em dinheiro sobre o saldo restante
+        if (paymentMethod === 'cash' && paymentStatus === 'paid' && cashTendered < remainingToPay) {
             setToast({
-                message: `Valor em dinheiro insuficiente. Faltam ${formatBrlCurrency(total - cashTendered)}.`,
+                message: `Valor em dinheiro insuficiente. Faltam ${formatBrlCurrency(remainingToPay - cashTendered)}.`,
                 type: 'error',
             });
             finishLockRef.current = false;
@@ -2095,64 +2240,79 @@ const Checkout: React.FC = () => {
 
                         {shouldShowPaymentMethod && (
                             <div className="mb-8 animate-fade-in">
-                                {/* Frente 1.D: Presets de Pagamento Expresso no Balcão */}
-                                <QuickPayPresets
-                                    onSelectPreset={handleSelectQuickPreset}
-                                    activeMethod={paymentMethod}
+                                {!isSplitMode && (
+                                    <>
+                                        {/* Frente 1.D: Presets de Pagamento Expresso no Balcão */}
+                                        <QuickPayPresets
+                                            onSelectPreset={handleSelectQuickPreset}
+                                            activeMethod={paymentMethod}
+                                            disabled={loading || cart.length === 0}
+                                        />
+
+                                        <label className="text-xs font-bold text-slate-500 uppercase mb-3 block">Forma de Pagamento</label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {[
+                                                { id: 'credit', icon: 'credit_card', label: 'Crédito' },
+                                                { id: 'debit', icon: 'payments', label: 'Débito' },
+                                                { id: 'pix', icon: 'qr_code_2', label: 'Pix' },
+                                                { id: 'cash', icon: 'attach_money', label: 'Dinheiro' },
+                                                { id: 'other', icon: 'more_horiz', label: 'Outros' }
+                                            ].map(method => (
+                                                <button
+                                                    key={method.id}
+                                                    onClick={() => setPaymentMethod(method.id as any)}
+                                                    className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${paymentMethod === method.id ? 'bg-primary text-night border-primary shadow-[0_10px_24px_rgba(217,154,43,0.22)]' : 'bg-slate-50 dark:bg-background-dark border-slate-200 dark:border-border-dark text-slate-500 hover:border-primary/50'}`}
+                                                >
+                                                    <span className="material-symbols-outlined">{method.icon}</span>
+                                                    <span className="text-xs font-bold">{method.label}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {paymentMethod === 'other' && (
+                                            <div className="mt-3 animate-fade-in">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Descreva a forma de pagamento..."
+                                                    value={paymentDescription}
+                                                    onChange={(e) => setPaymentDescription(e.target.value)}
+                                                    className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg px-4 py-2.5 text-sm focus:ring-1 focus:ring-primary outline-none"
+                                                />
+                                            </div>
+                                        )}
+
+                                        {/* F-10 / ADR-036: Seletor Rápido de Maquininha e Snapshot de Taxas */}
+                                        {(paymentMethod === 'credit' || paymentMethod === 'debit') && (
+                                            <PaymentTerminalSelector
+                                                terminals={terminals}
+                                                selectedTerminalId={selectedTerminalId}
+                                                onSelectTerminal={setSelectedTerminalId}
+                                                method={paymentMethod}
+                                                amount={remainingToPay}
+                                            />
+                                        )}
+
+                                        {/* Frente 1.D: Calculadora Inteligente de Cédulas e Troco para Dinheiro */}
+                                        {paymentMethod === 'cash' && (
+                                            <QuickCashCalculator
+                                                total={remainingToPay}
+                                                tenderedAmount={cashTendered > 0 ? cashTendered : remainingToPay}
+                                                onTenderedChange={(val) => setCashTendered(val)}
+                                            />
+                                        )}
+                                    </>
+                                )}
+
+                                {/* ADR-059 D-2: Múltiplas Formas de Pagamento (Split Payment) */}
+                                <SplitPaymentPanel
+                                    enabled={tenantRules.allow_split_payment}
+                                    isSplitMode={isSplitMode}
+                                    onToggleSplitMode={setIsSplitMode}
+                                    remainingTotal={remainingToPay}
+                                    splits={splitPayments}
+                                    onChangeSplits={setSplitPayments}
                                     disabled={loading || cart.length === 0}
                                 />
-
-                                <label className="text-xs font-bold text-slate-500 uppercase mb-3 block">Forma de Pagamento</label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    {[
-                                        { id: 'credit', icon: 'credit_card', label: 'Crédito' },
-                                        { id: 'debit', icon: 'payments', label: 'Débito' },
-                                        { id: 'pix', icon: 'qr_code_2', label: 'Pix' },
-                                        { id: 'cash', icon: 'attach_money', label: 'Dinheiro' },
-                                        { id: 'other', icon: 'more_horiz', label: 'Outros' }
-                                    ].map(method => (
-                                        <button
-                                            key={method.id}
-                                            onClick={() => setPaymentMethod(method.id as any)}
-                                            className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${paymentMethod === method.id ? 'bg-primary text-night border-primary shadow-[0_10px_24px_rgba(217,154,43,0.22)]' : 'bg-slate-50 dark:bg-background-dark border-slate-200 dark:border-border-dark text-slate-500 hover:border-primary/50'}`}
-                                        >
-                                            <span className="material-symbols-outlined">{method.icon}</span>
-                                            <span className="text-xs font-bold">{method.label}</span>
-                                        </button>
-                                    ))}
-                                </div>
-
-                                {paymentMethod === 'other' && (
-                                    <div className="mt-3 animate-fade-in">
-                                        <input
-                                            type="text"
-                                            placeholder="Descreva a forma de pagamento..."
-                                            value={paymentDescription}
-                                            onChange={(e) => setPaymentDescription(e.target.value)}
-                                            className="w-full bg-slate-50 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-lg px-4 py-2.5 text-sm focus:ring-1 focus:ring-primary outline-none"
-                                        />
-                                    </div>
-                                )}
-
-                                {/* F-10 / ADR-036: Seletor Rápido de Maquininha e Snapshot de Taxas */}
-                                {(paymentMethod === 'credit' || paymentMethod === 'debit') && (
-                                    <PaymentTerminalSelector
-                                        terminals={terminals}
-                                        selectedTerminalId={selectedTerminalId}
-                                        onSelectTerminal={setSelectedTerminalId}
-                                        method={paymentMethod}
-                                        amount={total}
-                                    />
-                                )}
-
-                                {/* Frente 1.D: Calculadora Inteligente de Cédulas e Troco para Dinheiro */}
-                                {paymentMethod === 'cash' && (
-                                    <QuickCashCalculator
-                                        total={total}
-                                        tenderedAmount={cashTendered > 0 ? cashTendered : total}
-                                        onTenderedChange={(val) => setCashTendered(val)}
-                                    />
-                                )}
                             </div>
                         )}
 
