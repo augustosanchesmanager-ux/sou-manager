@@ -20,9 +20,11 @@ export interface BarberChairQueueProps {
   onCancelAppointment: (apt: QueueAppointment) => void;
   onOpenClient: (apt: QueueAppointment) => void;
   onOpenComanda: (apt: QueueAppointment) => void;
+  onQuickCheckout?: (apt: QueueAppointment) => void;
   onStatusChange?: (apt: QueueAppointment, status: string, label: string) => void;
   onWhatsApp?: (apt: QueueAppointment) => void;
   onOpenQuickWalkIn: () => void;
+  onOpenQuickRegisterAndSettle?: () => void;
   orderLabel?: string;
 }
 
@@ -39,9 +41,11 @@ export const BarberChairQueue: React.FC<BarberChairQueueProps> = ({
   onCancelAppointment,
   onOpenClient,
   onOpenComanda,
+  onQuickCheckout,
   onStatusChange,
   onWhatsApp,
   onOpenQuickWalkIn,
+  onOpenQuickRegisterAndSettle,
   orderLabel = 'Comanda',
 }) => {
   const [showCompleted, setShowCompleted] = useState(false);
@@ -73,15 +77,29 @@ export const BarberChairQueue: React.FC<BarberChairQueueProps> = ({
             </h2>
           </div>
 
-          <button
-            type="button"
-            onClick={onOpenQuickWalkIn}
-            aria-label="Adicionar encaixe rápido na cadeira"
-            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-primary to-primary-dark text-night font-bold text-xs px-3.5 py-2.5 shadow-sm hover:brightness-105 active:scale-[0.98] transition-all shrink-0 touch-manipulation"
-          >
-            <span className="material-symbols-outlined text-base">person_add</span>
-            <span>+ Encaixe Rápido</span>
-          </button>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+            {onOpenQuickRegisterAndSettle && (
+              <button
+                type="button"
+                onClick={onOpenQuickRegisterAndSettle}
+                aria-label="Lançar e baixar atendimento rápido"
+                className="flex items-center gap-1 rounded-xl border border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary-dark dark:text-primary-light font-bold text-xs px-3 py-2.5 active:scale-[0.98] transition-all shrink-0 touch-manipulation"
+              >
+                <span className="material-symbols-outlined text-base">bolt</span>
+                <span>Lançar + Baixar</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={onOpenQuickWalkIn}
+              aria-label="Adicionar encaixe rápido na cadeira"
+              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-primary to-primary-dark text-night font-bold text-xs px-3.5 py-2.5 shadow-sm hover:brightness-105 active:scale-[0.98] transition-all shrink-0 touch-manipulation"
+            >
+              <span className="material-symbols-outlined text-base">person_add</span>
+              <span>+ Encaixe Rápido</span>
+            </button>
+          </div>
         </div>
 
         {/* Alternância Rápida de Profissional (para gerentes / recepção) */}
@@ -184,13 +202,26 @@ export const BarberChairQueue: React.FC<BarberChairQueueProps> = ({
                 onCancel={onCancelAppointment}
                 onOpenClient={onOpenClient}
                 onOpenComanda={onOpenComanda}
+                onQuickCheckout={onQuickCheckout}
                 onWhatsApp={onWhatsApp}
                 orderLabel={orderLabel}
               />
             </div>
 
-            {/* Zona do Polegar: 1 Toque para Finalizar ou Comanda */}
+            {/* Zona do Polegar: 1 Toque para Finalizar, Fechar Rápido ou Comanda */}
             <div className="mt-5 pt-3 border-t border-border-dark flex flex-col sm:flex-row gap-2 relative z-10">
+              {onQuickCheckout && (
+                <button
+                  type="button"
+                  onClick={() => onQuickCheckout(inProgress)}
+                  aria-label={`Fechar rápido comanda de ${inProgress.client}`}
+                  className="flex-1 h-12 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-dark hover:brightness-105 active:scale-[0.98] text-night font-black text-sm shadow-md transition-all touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                >
+                  <span className="material-symbols-outlined text-xl">bolt</span>
+                  <span>Fechar Rápido</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => onFinishAppointment(inProgress)}
@@ -278,6 +309,7 @@ export const BarberChairQueue: React.FC<BarberChairQueueProps> = ({
                 onCancel={onCancelAppointment}
                 onOpenClient={onOpenClient}
                 onOpenComanda={onOpenComanda}
+                onQuickCheckout={onQuickCheckout}
                 onWhatsApp={onWhatsApp}
                 orderLabel={orderLabel}
               />
@@ -368,6 +400,7 @@ export const BarberChairQueue: React.FC<BarberChairQueueProps> = ({
                         onCancel={onCancelAppointment}
                         onOpenClient={onOpenClient}
                         onOpenComanda={onOpenComanda}
+                        onQuickCheckout={onQuickCheckout}
                         onWhatsApp={onWhatsApp}
                         orderLabel={orderLabel}
                       />

@@ -6,3 +6,4 @@
 
 export { computeCheckoutFlags } from './flags';
 export type { CheckoutFlagsParams, CheckoutFlags } from './flags';
+export * from './quickPdv';

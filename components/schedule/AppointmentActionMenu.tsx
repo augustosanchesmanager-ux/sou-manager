@@ -9,6 +9,7 @@ export interface AppointmentActionMenuProps {
   onCancel: (apt: QueueAppointment) => void;
   onOpenClient: (apt: QueueAppointment) => void;
   onOpenComanda: (apt: QueueAppointment) => void;
+  onQuickCheckout?: (apt: QueueAppointment) => void;
   onWhatsApp?: (apt: QueueAppointment) => void;
   orderLabel?: string;
 }
@@ -21,6 +22,7 @@ export const AppointmentActionMenu: React.FC<AppointmentActionMenuProps> = ({
   onCancel,
   onOpenClient,
   onOpenComanda,
+  onQuickCheckout,
   onWhatsApp,
   orderLabel = 'Comanda',
 }) => {
@@ -132,6 +134,17 @@ export const AppointmentActionMenu: React.FC<AppointmentActionMenuProps> = ({
               <span className="material-symbols-outlined text-base text-ink-soft">person</span>
               Ficha do cliente
             </button>
+
+            {!isCompleted && !isCancelled && onQuickCheckout && (
+              <button
+                type="button"
+                onClick={() => handleAction(() => onQuickCheckout(appointment))}
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors text-left"
+              >
+                <span className="material-symbols-outlined text-base">bolt</span>
+                Fechar Rápido (1 Toque)
+              </button>
+            )}
 
             <button
               type="button"
