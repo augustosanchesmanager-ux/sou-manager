@@ -1,4 +1,4 @@
-# ADR-059: PDV Rápido Dual (Express 1-Toque + Lançamento e Baixa Simultânea) e RBAC Escopado no Settlement
+# ADR-060: PDV Rápido Dual (Express 1-Toque + Lançamento e Baixa Simultânea) e RBAC Escopado no Settlement
 
 **Status:** Accepted (2026-11-28 — decisão e autorização do PO Augusto)
 **Date:** 2026-11-28
