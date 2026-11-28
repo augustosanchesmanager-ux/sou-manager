@@ -98,14 +98,14 @@ const Login: React.FC = () => {
             : 'Continue para acessar sua conta.');
 
     return (
-        <div className="min-h-screen bg-[#07090E] text-slate-100 flex items-center justify-center p-4 sm:p-6 lg:p-10 relative overflow-hidden select-none font-sans">
+        <div className="min-h-screen bg-[#07090E] text-slate-100 flex flex-col items-center justify-between px-4 py-4 sm:px-6 sm:py-6 lg:px-10 lg:py-8 relative overflow-hidden select-none font-sans">
             {/* Ambient Lighting & Tech Grids */}
             <div className="absolute top-1/4 right-1/4 w-[500px] h-[500px] rounded-full bg-amber-500/10 blur-[130px] pointer-events-none" />
             <div className="absolute bottom-1/4 left-1/4 w-[400px] h-[400px] rounded-full bg-slate-700/15 blur-[120px] pointer-events-none" />
             <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.035)_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
 
             {/* Main Split Card — Widescreen Frosted Glass */}
-            <div className="relative w-full max-w-5xl rounded-3xl border border-white/10 bg-[#0B0D14]/85 backdrop-blur-2xl shadow-[0_25px_80px_rgba(0,0,0,0.85),0_0_80px_rgba(245,158,11,0.06)] overflow-hidden grid grid-cols-1 lg:grid-cols-12 z-10 transition-all duration-500">
+            <div className="relative w-full max-w-5xl my-auto rounded-3xl border border-white/10 bg-[#0B0D14]/85 backdrop-blur-2xl shadow-[0_25px_80px_rgba(0,0,0,0.85),0_0_80px_rgba(245,158,11,0.06)] overflow-hidden grid grid-cols-1 lg:grid-cols-12 z-10 transition-all duration-500">
 
                 {/* Left Column (Col 1 to 7): The Modern Form */}
                 <div className="lg:col-span-7 p-5 sm:p-10 lg:p-12 flex flex-col justify-between relative z-10">
@@ -385,7 +385,7 @@ const Login: React.FC = () => {
             </div>
 
             {/* Bottom Security Protocol Notice */}
-            <footer className="mt-4 sm:mt-6 text-center z-10">
+            <footer className="w-full pt-4 text-center z-10 shrink-0">
                 <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-slate-500">
                     {isElite ? 'Protocolo de segurança nível 5 ativado' : 'SMG PLATFORM // ENCRYPTED AUTH PROTOCOL'}
                 </p>
